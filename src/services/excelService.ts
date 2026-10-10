@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { ClassRoom, CourseProgram, Grade, Room, Student, Teacher, TimetableSlot, TuitionReceipt } from '../types';
 import { paymentMethodLabel } from '../lib/tuition';
+import { isStudentInClass } from '../lib/student';
 
 export interface ExcelExportData {
   centerName: string;
@@ -504,7 +505,7 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
     sheet.getRow(11).values = headers;
     styleHeader(sheet.getRow(11));
     const firstDetailRow = 12;
-    const classStudents = data.students.filter((student) => student.classId === classroom.id);
+    const classStudents = data.students.filter((student) => isStudentInClass(student, classroom.id, classroom));
     const writeFinancialFormulas = (rowNumber: number, directPaid: string, directDebt: string, directMonthlyDebt: string, directCourseDebt: string) => {
       const studentId = `$M${rowNumber}`;
       sheet.getCell(rowNumber, 7).value = { formula: `IF($B${rowNumber}="","",${receiptSumByStudentIdFormula('L', studentId)}+${directPaid})` };
@@ -827,18 +828,42 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
     masterRecords.forEach((record, index) => {
       const code = cellText(getByAliases(record, ['mahocsinh', 'mahs', 'studentcode']));
       const name = cellText(getByAliases(record, ['hovaten', 'hoten', 'name']));
-      const classCode = cellText(getByAliases(record, ['malop', 'classcode']));
-      const classroom = classes.find((item) => item.code === classCode);
-      if (!code || !name || !classroom) return;
+      const rawClassCode = cellText(getByAliases(record, ['malop', 'classcode']));
+      if (!code || !name) return;
+
+      const classCodes = rawClassCode.split(/[,;/|]+/).map((s) => s.trim()).filter(Boolean);
+      const matchedClasses = classCodes
+        .map((cCode) => classes.find((item) => item.code.toLocaleLowerCase('vi-VN') === cCode.toLocaleLowerCase('vi-VN') || item.name.toLocaleLowerCase('vi-VN') === cCode.toLocaleLowerCase('vi-VN')))
+        .filter((item): item is ClassRoom => Boolean(item));
+      const classroom = matchedClasses[0];
+      if (!classroom) return;
+
       const programName = cellText(getByAliases(record, ['chuongtrinh', 'program', 'programname']));
       const program = programName ? ensureProgram(programName) : null;
       if (program) classroom.programId = program.id;
       const id = cellText(getByAliases(record, ['idhethong', 'systemid'])) || `STU-IMP-MASTER-${String(index + 1).padStart(3, '0')}`;
+
+      // Nếu học sinh đã tồn tại (ví dụ danh sách có dòng cho lớp 1 và dòng cho lớp 2)
+      const existingStudent = students.find((s) => s.id === id || s.code === code);
+      if (existingStudent) {
+        matchedClasses.forEach((cls) => {
+          if (cls.id !== existingStudent.classId) {
+            existingStudent.extraClassIds = Array.from(new Set([...(existingStudent.extraClassIds || []), cls.id]));
+          }
+          if (!cls.studentIds.includes(existingStudent.id)) {
+            cls.studentIds.push(existingStudent.id);
+          }
+        });
+        return;
+      }
+
+      const extraClassIds = matchedClasses.slice(1).map((cls) => cls.id);
       students.push({
         id, code, name,
         dob: cellText(getByAliases(record, ['ngaysinh', 'dob'])),
         gender: cellText(getByAliases(record, ['gioitinh', 'gender'])) === 'Nam' ? 'Nam' : (cellText(getByAliases(record, ['gioitinh', 'gender'])) === 'Nữ' ? 'Nữ' : 'Chưa xác định'),
         school: '', gradeLevel: '', programId: program?.id || classroom.programId, classId: classroom.id,
+        extraClassIds,
         address: cellText(getByAliases(record, ['diachi', 'address'])), email: '',
         phone: cellText(getByAliases(record, ['sdthocsinh', 'phone'])), parentName: '',
         parentPhone: cellText(getByAliases(record, ['sdtphuhuynh', 'parentphone'])), enrollDate: '', notes: cellText(getByAliases(record, ['ghichu', 'notes'])),
@@ -860,7 +885,11 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
           paymentMethod: paymentMethodFromCell(getByAliases(record, ['hinhthucnhaptructiep', 'quickpaymentmethod']))
         });
       }
-      classroom.studentIds.push(id);
+      matchedClasses.forEach((cls) => {
+        if (!cls.studentIds.includes(id)) {
+          cls.studentIds.push(id);
+        }
+      });
     });
   }
 
@@ -945,7 +974,7 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
       id: `RCPT-IMP-${String(index + 1).padStart(3, '0')}`,
       code: cellText(getByAliases(record, ['maphieu', 'receiptcode'])) || `IMP-${index + 1}`,
       studentId,
-      classId: student?.classId || classes.find((classroom) => classroom.code === cellText(getByAliases(record, ['malop', 'classcode'])))?.id || '',
+      classId: classes.find((classroom) => classroom.code.toLocaleLowerCase('vi-VN') === cellText(getByAliases(record, ['malop', 'classcode'])).toLocaleLowerCase('vi-VN'))?.id || student?.classId || '',
       courseFee,
       monthlyFee,
       paymentKind,
@@ -1001,7 +1030,8 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
     gradeRecords.forEach((record, index) => {
       const studentCode = cellText(getByAliases(record, ['mahocsinh', 'mahs', 'studentcode']));
       const classCode = cellText(getByAliases(record, ['malop', 'classcode']));
-      const student = students.find((item) => item.code === studentCode && (!classCode || classes.find((classroom) => classroom.id === item.classId)?.code === classCode));
+      const matchedClass = classCode ? classes.find((c) => c.code.toLocaleLowerCase('vi-VN') === classCode.toLocaleLowerCase('vi-VN')) : null;
+      const student = students.find((item) => item.code === studentCode && (!matchedClass || isStudentInClass(item, matchedClass.id, matchedClass)));
       if (!student) return;
 
       const rawScores = [
@@ -1023,9 +1053,9 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
       const calculatedAverage = Math.round(((((listening + speaking + reading + writing) / 4) * 0.4) + (midterm * 0.2) + (finalExam * 0.3) + (attendance * 0.1)) * 10) / 10;
       const suppliedAverage = cellText(rawAverage);
       grades.push({
-        id: `GRADE-IMP-${student.id}`,
+        id: `GRADE-IMP-${student.id}-${matchedClass?.id || student.classId}`,
         studentId: student.id,
-        classId: student.classId,
+        classId: matchedClass?.id || student.classId,
         listening,
         speaking,
         reading,

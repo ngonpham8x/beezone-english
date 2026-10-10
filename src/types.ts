@@ -33,6 +33,7 @@ export interface Student {
   gradeLevel: string; // Khối 1..12
   programId: string;
   classId: string;
+  extraClassIds?: string[];
   address: string;
   email: string;
   phone: string;

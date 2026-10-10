@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Student, Teacher, ClassRoom, TuitionReceipt } from '../types';
 import { BarChart3, Calendar, Download, Printer, DollarSign, Users, BookOpen, X } from 'lucide-react';
 import { debtBreakdown } from '../lib/tuition';
+import { isStudentInClass } from '../lib/student';
 
 interface ReportViewProps {
   students: Student[];
@@ -20,8 +21,11 @@ export const ReportView: React.FC<ReportViewProps> = ({
 }) => {
   const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month'>('month');
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    [...receipts.map((receipt) => receipt.paymentDate).filter(Boolean)].sort().at(-1) || new Date().toISOString().slice(0, 10)
+  );
 
-  const reportDate = [...receipts.map((receipt) => receipt.paymentDate).filter(Boolean)].sort().at(-1) || new Date().toISOString().slice(0, 10);
+  const reportDate = selectedDate || new Date().toISOString().slice(0, 10);
   const referenceDate = new Date(`${reportDate}T00:00:00`);
   const weekStart = new Date(referenceDate);
   weekStart.setDate(referenceDate.getDate() - ((referenceDate.getDay() + 6) % 7));
@@ -39,7 +43,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   const activeCount = students.filter(s => s.status === 'active').length;
   const reservedCount = students.filter(s => s.status === 'reserved').length;
   const selectedClass = classes.find((classroom) => classroom.id === selectedClassId) || null;
-  const selectedClassStudents = selectedClass ? students.filter((student) => student.classId === selectedClass.id) : [];
+  const selectedClassStudents = selectedClass ? students.filter((student) => isStudentInClass(student, selectedClass.id, selectedClass)) : [];
   const selectedClassReceipts = selectedClass ? reportReceipts.filter((receipt) => receipt.classId === selectedClass.id) : [];
   const selectedClassDebt = debtBreakdown(selectedClassReceipts);
   const selectedClassPaid = selectedClassReceipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0);
@@ -62,7 +66,17 @@ export const ReportView: React.FC<ReportViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-600">Chọn mốc:</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-1 outline-none"
+            />
+          </div>
+
           <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
             <button
               onClick={() => setTimeFilter('day')}
@@ -149,7 +163,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
                 {classes.map((cls, idx) => {
-                  const classStudents = students.filter(s => s.classId === cls.id);
+                  const classStudents = students.filter(s => isStudentInClass(s, cls.id, cls));
                   const classReceipts = reportReceipts.filter((receipt) => receipt.classId === cls.id);
                   const paid = classReceipts.reduce((s, r) => s + r.paidAmount, 0);
                   const debt = debtBreakdown(classReceipts);

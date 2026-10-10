@@ -2,6 +2,7 @@
  * Công cụ debug và sửa lỗi auto-reload
  * Tìm và khắc phục vòng lặp vô hạn
  */
+import React, { useState, useEffect, type EffectCallback, type DependencyList } from 'react';
 
 interface ReloadTracker {
   reloadCount: number;
@@ -9,11 +10,13 @@ interface ReloadTracker {
   timestamps: number[];
 }
 
-const RELOAD_THRESHOLD = 5; // Số lần reload trong 10 giây
+const RELOAD_THRESHOLD = 8; // Số lần reload trong 10 giây (nâng lên 8 để tránh false positive khi dev HMR)
 const RELOAD_WINDOW = 10000; // 10 giây
 
 // Lưu thông tin reload vào sessionStorage
 export function initReloadDetector() {
+  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return;
+
   const tracker: ReloadTracker = {
     reloadCount: 0,
     lastReloadTime: Date.now(),
@@ -28,7 +31,7 @@ export function initReloadDetector() {
       const now = Date.now();
       
       // Lọc timestamps ngoài cửa sổ 10 giây
-      parsed.timestamps = parsed.timestamps.filter(t => now - t < RELOAD_WINDOW);
+      parsed.timestamps = (parsed.timestamps || []).filter(t => now - t < RELOAD_WINDOW);
       
       if (parsed.timestamps.length >= RELOAD_THRESHOLD) {
         // Có dấu hiệu vòng lặp reload vô hạn
@@ -40,10 +43,12 @@ export function initReloadDetector() {
         // Hiển thị thông báo người dùng
         showReloadWarning();
         
-        // Throw error để ngừng thực thi
-        throw new Error('Phát hiện vòng lặp reload vô hạn');
+        // Không throw unhandled error gây white screen ngoài ý muốn, chỉ cảnh báo
+        return;
       }
-    } catch (error) {
+      tracker.timestamps = parsed.timestamps;
+      tracker.reloadCount = parsed.reloadCount || 0;
+    } catch {
       console.log('Không thể parse reload tracker, reset...');
       sessionStorage.removeItem('_reload_tracker');
     }
@@ -52,12 +57,20 @@ export function initReloadDetector() {
   // Ghi timestamp hiện tại
   tracker.timestamps.push(Date.now());
   tracker.reloadCount += 1;
-  sessionStorage.setItem('_reload_tracker', JSON.stringify(tracker));
+  try {
+    sessionStorage.setItem('_reload_tracker', JSON.stringify(tracker));
+  } catch {
+    // sessionStorage quota or security restriction
+  }
 
-  console.log(`📊 Lần load thứ ${tracker.reloadCount}`);
+  if (tracker.reloadCount > 1) {
+    console.log(`📊 Lần load thứ ${tracker.reloadCount}`);
+  }
 }
 
 function showReloadWarning() {
+  if (typeof document === 'undefined' || document.getElementById('_reload_warning')) return;
+
   const warning = document.createElement('div');
   warning.id = '_reload_warning';
   warning.style.cssText = `
@@ -145,12 +158,11 @@ function showReloadWarning() {
  * Hook để debug useEffect
  */
 export function useEffectDebug(
-  effect: React.EffectCallback,
-  deps?: React.DependencyList,
+  effect: EffectCallback,
+  deps?: DependencyList,
   label?: string
 ) {
-  const React = require('react');
-  React.useEffect(() => {
+  useEffect(() => {
     const start = performance.now();
     console.log(`⏱️ [${label || 'useEffect'}] started at ${new Date().toLocaleTimeString()}`);
     
@@ -168,64 +180,67 @@ export function useEffectDebug(
  * Phát hiện và cảnh báo state vòng lặp
  */
 export function createStateDebugger<T>(initialValue: T, label: string) {
-  const [value, setValue] = require('react').useState(initialValue);
-  const [setCount, setSetCount] = require('react').useState(0);
+  const [value, setValue] = useState<T>(initialValue);
+  const [setCount, setSetCount] = useState(0);
   
   return [
     value,
     (newValue: T | ((prev: T) => T)) => {
-      const count = setSetCount((prev: number) => prev + 1);
-      
-      if (count > 50) {
-        console.error(`⚠️ [${label}] Cảnh báo: setState được gọi ${count} lần trong vòng render ngắn!`);
-        console.error('Điều này có thể dẫn đến vòng lặp vô hạn');
-      }
-      
-      console.log(`📝 [${label}] State updated, count: ${count}`);
+      setSetCount((prev: number) => {
+        const next = prev + 1;
+        if (next > 50) {
+          console.error(`⚠️ [${label}] Cảnh báo: setState được gọi ${next} lần trong vòng render ngắn!`);
+          console.error('Điều này có thể dẫn đến vòng lặp vô hạn');
+        }
+        return next;
+      });
+      console.log(`📝 [${label}] State updated, count: ${setCount + 1}`);
       setValue(newValue);
     }
   ] as const;
 }
 
 /**
- * Ngăn chặn window.location.reload() và window.location.href = '/'
+ * Ngăn chặn window.location.reload() và window.location.href = '/' không kiểm soát
  */
 export function preventAutoReload() {
-  // Ghi lại window.location.reload
-  const originalReload = window.location.reload;
-  window.location.reload = function(...args) {
-    console.warn('🚫 Phát hiện gọi window.location.reload()');
-    console.trace('Stack trace gọi reload');
-    
-    // Cảnh báo trước khi reload
-    const stack = new Error().stack || '';
-    console.error('Reload được gọi từ:', stack);
-    
-    // Có thể uncomment dòng dưới để ngăn reload hoàn toàn
-    // return false;
-    
-    // Mặc định vẫn cho reload nhưng log ra
-    return originalReload.apply(window.location, args);
-  };
+  if (typeof window === 'undefined') return;
 
-  // Ghi lại việc thay đổi window.location.href
-  let originalHref = window.location.href;
-  Object.defineProperty(window.location, 'href', {
-    get() {
-      return originalHref;
-    },
-    set(value: string) {
-      console.warn(`🚫 Phát hiện thay đổi window.location.href = '${value}'`);
-      console.trace('Stack trace gọi location.href');
-      
-      if (value === '/' || value.endsWith('/')) {
-        console.error('Đang cố redirect về trang chủ!');
+  // Ghi lại window.location.reload
+  try {
+    const originalReload = window.location.reload.bind(window.location);
+    window.location.reload = function() {
+      console.warn('🚫 Phát hiện gọi window.location.reload()');
+      console.trace('Stack trace gọi reload');
+      originalReload();
+    };
+  } catch (err) {
+    console.debug('Không thể override window.location.reload', err);
+  }
+
+  // Ghi lại việc thay đổi window.location.href một cách an toàn
+  try {
+    let originalHref = window.location.href;
+    Object.defineProperty(window.location, 'href', {
+      configurable: true,
+      get() {
+        return originalHref;
+      },
+      set(value: string) {
+        console.warn(`🚫 Phát hiện thay đổi window.location.href = '${value}'`);
+        console.trace('Stack trace gọi location.href');
+        
+        if (value === '/' || value.endsWith('/')) {
+          console.error('Đang cố redirect về trang chủ!');
+        }
+        originalHref = value;
+        window.location.assign(value);
       }
-      
-      // Assign thực tế
-      window.location.href = value;
-    }
-  });
+    });
+  } catch (err) {
+    // Browsers like Chrome disallow redefining location.href
+    console.debug('Không thể override window.location.href', err);
+  }
 }
 
 /**

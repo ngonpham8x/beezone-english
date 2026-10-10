@@ -18,6 +18,7 @@
     "sheets": "Google Sheets",
     "excel": "Excel Import / Export",
     "backups": "Backup & Restore",
+    "data_consistency": "Data Consistency",
     "settings": "System Settings",
     "activity_logs": "System Audit Logs",
     "language": "Ngôn ngữ / Language"

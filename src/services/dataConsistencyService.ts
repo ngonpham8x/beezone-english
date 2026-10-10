@@ -156,16 +156,18 @@ export function checkDataConsistency(
           affectedIds: { classId: classroom.id }
         });
       } else if (student.classId !== classroom.id && student.classId !== '') {
-        // Nếu student.classId khác với classroom.id, cần cập nhật
-        issues.push({
-          type: 'class_not_enrolled',
-          severity: 'warning',
-          studentId: student.id,
-          studentCode: student.code,
-          studentName: student.name,
-          details: `Student.classId (${student.classId}) khác với lớp thực tế: ${classroom.id}. Lớp: ${classroom.code}`,
-          affectedIds: { classId: classroom.id }
-        });
+        const isEnrolledAsExtra = Array.isArray(student.extraClassIds) && student.extraClassIds.includes(classroom.id);
+        if (!isEnrolledAsExtra) {
+          issues.push({
+            type: 'class_not_enrolled',
+            severity: 'info',
+            studentId: student.id,
+            studentCode: student.code,
+            studentName: student.name,
+            details: `Học viên có trong sĩ số lớp ${classroom.code} nhưng chưa lưu trong danh sách lớp bổ sung`,
+            affectedIds: { classId: classroom.id }
+          });
+        }
       }
     });
   });
@@ -213,7 +215,7 @@ export function autoFixConsistency(
       }
     });
 
-  // Fix 2: Cập nhật classId trong student profile nếu khác
+  // Fix 2: Cập nhật classId hoặc bổ sung vào extraClassIds
   issues
     .filter(i => i.type === 'class_not_enrolled')
     .forEach(issue => {
@@ -221,7 +223,11 @@ export function autoFixConsistency(
       const classId = issue.affectedIds.classId;
       
       if (student && classId) {
-        student.classId = classId;
+        if (!student.classId) {
+          student.classId = classId;
+        } else if (student.classId !== classId) {
+          student.extraClassIds = Array.from(new Set([...(student.extraClassIds || []), classId]));
+        }
         fixedCount++;
       }
     });

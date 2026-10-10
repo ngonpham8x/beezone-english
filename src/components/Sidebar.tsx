@@ -17,6 +17,7 @@ import {
   CloudUpload,
   Settings,
   History,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   Smartphone,
@@ -59,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'google-sheets', label: t('sheets'), icon: FileSpreadsheet, visible: false, iconColor: 'text-emerald-600' },
     { id: 'excel-import-export', label: t('excel'), icon: FileDown, visible: isOwner || perms.excel.import || perms.excel.export, iconColor: 'text-teal-600' },
     { id: 'backups', label: t('backups'), icon: CloudUpload, visible: isOwner, iconColor: 'text-sky-600' },
+    { id: 'data-consistency', label: t('data_consistency'), icon: ShieldCheck, visible: isOwner, iconColor: 'text-purple-600' },
     { id: 'settings', label: t('settings'), icon: Settings, visible: isOwner, iconColor: 'text-slate-600' },
     { id: 'activity-logs', label: t('system_logs'), icon: History, visible: isOwner, iconColor: 'text-slate-700' }
   ];

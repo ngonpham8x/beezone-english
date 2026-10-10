@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ClassRoom, Teacher, Room, CourseProgram, Student, StaffPermissions, TimetableSlot, TuitionReceipt } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown } from '../lib/tuition';
+import { isStudentInClass } from '../lib/student';
 import {
   BookOpen,
   Plus,
@@ -265,7 +266,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
           const program = programs.find(p => p.id === cls.programId);
           const classSchedule = timetableSlots.filter((slot) => slot.classId === cls.id);
           const displaySchedule = classSchedule.length ? scheduleDescription(classSchedule) : (cls.scheduleTime || 'Chưa xếp lịch');
-          const classStudents = students.filter(s => s.classId === cls.id);
+          const classStudents = students.filter(s => isStudentInClass(s, cls.id, cls));
           const currentCount = classStudents.length;
           const capacityKnown = cls.capacity > 0;
           const percentFull = capacityKnown ? Math.round((currentCount / cls.capacity) * 100) : 0;
@@ -381,39 +382,52 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
             </p>
 
             <div className="divide-y divide-slate-100">
-              {students.filter(s => s.classId === viewingClassStudents.id).length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-400">
-                  Lớp học này hiện chưa có học sinh nào.
-                </div>
-              ) : (
-                students
-                  .filter(s => s.classId === viewingClassStudents.id)
-                  .map((st, idx) => {
-                    const debt = debtBreakdown(receipts.filter((receipt) => receipt.studentId === st.id));
-                    return (
-                      <div key={st.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-400 w-5 text-center">{idx + 1}</span>
-                          <TeacherAvatar teacher={st} className="h-8 w-8 text-[9px]" />
-                          <div>
-                            <div className="font-bold text-slate-900">{st.name}</div>
-                            <div className="text-[10px] text-slate-500">{st.code} • Phụ huynh: {st.parentName} ({st.parentPhone})</div>
-                          </div>
-                        </div>
+              {(() => {
+                const viewingStudents = students.filter(s => isStudentInClass(s, viewingClassStudents.id, viewingClassStudents));
+                if (viewingStudents.length === 0) {
+                  return (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                      Lớp học này hiện chưa có học sinh nào.
+                    </div>
+                  );
+                }
+                return viewingStudents.map((st, idx) => {
+                  const studentClassReceipts = receipts.filter(r => r.studentId === st.id && (r.classId === viewingClassStudents.id || !r.classId));
+                  const debt = debtBreakdown(studentClassReceipts.length > 0 ? studentClassReceipts : receipts.filter(r => r.studentId === st.id));
+                  const hasReceipt = (studentClassReceipts.length > 0 ? studentClassReceipts : receipts.filter(r => r.studentId === st.id)).length > 0;
+                  const isExtraClass = st.classId !== viewingClassStudents.id;
 
-                        <div className="text-right">
-                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            debt.total > 0 ? 'bg-rose-100 text-rose-800' : st.feeStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            {debt.total > 0 ? 'Đóng thiếu' : st.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa có phiếu'}
-                          </span>
-                          {debt.monthly > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Tháng: {debt.monthly.toLocaleString('vi-VN')} đ</div>}
-                          {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}
+                  return (
+                    <div key={st.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-slate-400 w-5 text-center">{idx + 1}</span>
+                        <TeacherAvatar teacher={st} className="h-8 w-8 text-[9px]" />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{st.name}</span>
+                            {isExtraClass && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800" title="Học viên đăng ký học nhiều lớp">
+                                Học thêm lớp này
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500">{st.code} • Phụ huynh: {st.parentName} ({st.parentPhone})</div>
                         </div>
                       </div>
-                    );
-                  })
-              )}
+
+                      <div className="text-right">
+                        <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          debt.total > 0 ? 'bg-rose-100 text-rose-800' : hasReceipt ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {debt.total > 0 ? 'Đóng thiếu' : hasReceipt ? 'Đã đóng đủ' : 'Chưa có phiếu'}
+                        </span>
+                        {debt.monthly > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Tháng: {debt.monthly.toLocaleString('vi-VN')} đ</div>}
+                        {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
 
             <div className="mt-6 flex justify-end">

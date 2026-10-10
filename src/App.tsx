@@ -52,6 +52,8 @@ import { profileToAccount, ProfileRow } from './lib/auth';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { feeStatusForReceipts } from './lib/tuition';
 import type { CenterWorkbookData } from './services/excelService';
+import { ShieldCheck } from 'lucide-react';
+import DataConsistencyChecker from './components/DataConsistencyChecker';
 
 const ImportExportModal = lazy(() => import('./components/ImportExportModal').then((module) => ({ default: module.ImportExportModal })));
 const BackupManager = lazy(() => import('./components/BackupManager').then((module) => ({ default: module.BackupManager })));
@@ -118,6 +120,7 @@ const canAccessTab = (tab: string, user: UserAccount) => {
     case 'tuition': return permissions.tuition.view;
     case 'reports': return permissions.report.view && permissions.report.revenue;
     case 'excel-import-export': return permissions.excel.import || permissions.excel.export;
+    case 'data-consistency': return false;
     default: return false;
   }
 };
@@ -173,27 +176,70 @@ const sameIdList = (left: string[], right: string[]) => (
 );
 
 // studentIds and assignedClassIds are denormalized fields used by some cards
-// and reports. Keep them derived from the primary student/class references so
-// one CRUD action can never leave a stale roster or teacher workload behind.
+// and reports. Keep them safely synchronized with primary student and extra classes.
 const reconcileClassStudentIds = (classrooms: ClassRoom[], centerStudents: Student[]) => {
-  const studentIdsByClass = new Map<string, string[]>();
-  centerStudents.forEach((student) => {
-    if (!classrooms.some((classroom) => classroom.id === student.classId)) return;
-    const ids = studentIdsByClass.get(student.classId) || [];
-    ids.push(student.id);
-    studentIdsByClass.set(student.classId, ids);
+  const validStudentIds = new Set(centerStudents.map((s) => s.id));
+  let hasChanged = false;
+
+  const nextClassrooms = classrooms.map((classroom) => {
+    const idsSet = new Set<string>();
+
+    // 1. Giữ lại các học viên hợp lệ đã có trong classroom.studentIds
+    (classroom.studentIds || []).forEach((id) => {
+      if (validStudentIds.has(id)) {
+        idsSet.add(id);
+      }
+    });
+
+    // 2. Thêm học viên có lớp chính (classId) hoặc lớp học thêm (extraClassIds) trùng lớp này
+    centerStudents.forEach((student) => {
+      if (
+        student.classId === classroom.id ||
+        (Array.isArray(student.extraClassIds) && student.extraClassIds.includes(classroom.id))
+      ) {
+        idsSet.add(student.id);
+      }
+    });
+
+    const nextStudentIds = Array.from(idsSet);
+    if (sameIdList(classroom.studentIds || [], nextStudentIds)) {
+      return classroom;
+    }
+    hasChanged = true;
+    return { ...classroom, studentIds: nextStudentIds };
   });
 
-  return classrooms.map((classroom) => {
-    const studentIds = studentIdsByClass.get(classroom.id) || [];
-    return sameIdList(classroom.studentIds || [], studentIds) ? classroom : { ...classroom, studentIds };
-  });
+  return hasChanged ? nextClassrooms : classrooms;
 };
 
-const reconcileTeacherAssignments = (centerTeachers: Teacher[], classrooms: ClassRoom[]) => centerTeachers.map((teacher) => {
-  const assignedClassIds = classrooms.filter((classroom) => classroom.teacherId === teacher.id).map((classroom) => classroom.id);
-  return sameIdList(teacher.assignedClassIds || [], assignedClassIds) ? teacher : { ...teacher, assignedClassIds };
-});
+const reconcileStudentExtraClasses = (centerStudents: Student[], classrooms: ClassRoom[]) => {
+  let hasChanged = false;
+  const nextStudents = centerStudents.map((student) => {
+    const enrolledInOtherClasses = classrooms
+      .filter((cls) => cls.id !== student.classId && Array.isArray(cls.studentIds) && cls.studentIds.includes(student.id))
+      .map((cls) => cls.id);
+    if (!enrolledInOtherClasses.length) return student;
+    const currentExtras = student.extraClassIds || [];
+    const mergedExtras = Array.from(new Set([...currentExtras, ...enrolledInOtherClasses]));
+    if (sameIdList(currentExtras, mergedExtras)) return student;
+    hasChanged = true;
+    return { ...student, extraClassIds: mergedExtras };
+  });
+  return hasChanged ? nextStudents : centerStudents;
+};
+
+const reconcileTeacherAssignments = (centerTeachers: Teacher[], classrooms: ClassRoom[]) => {
+  let hasChanged = false;
+  const nextTeachers = centerTeachers.map((teacher) => {
+    const assignedClassIds = classrooms.filter((classroom) => classroom.teacherId === teacher.id).map((classroom) => classroom.id);
+    if (sameIdList(teacher.assignedClassIds || [], assignedClassIds)) {
+      return teacher;
+    }
+    hasChanged = true;
+    return { ...teacher, assignedClassIds };
+  });
+  return hasChanged ? nextTeachers : centerTeachers;
+};
 
 export default function App() {
   // Persistence Helper with localStorage
@@ -265,6 +311,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [classEditRequest, setClassEditRequest] = useState<ClassRoom | null>(null);
   const contentViewportRef = useRef<HTMLElement>(null);
+  const lastHydratedUserIdRef = useRef<string | null>(null);
+  const lastSyncedPayloadRef = useRef<string>('');
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -279,7 +327,10 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'owner' && !canAccessTab(activeTab, currentUser)) setActiveTab('dashboard');
+    if (!currentUser || currentUser.role === 'owner') return;
+    if (!canAccessTab(activeTab, currentUser) && activeTab !== 'dashboard') {
+      setActiveTab('dashboard');
+    }
   }, [activeTab, currentUser]);
 
   useEffect(() => {
@@ -320,6 +371,7 @@ export default function App() {
 
   useEffect(() => {
     setTeachers((previousTeachers) => reconcileTeacherAssignments(previousTeachers, classes));
+    setStudents((previousStudents) => reconcileStudentExtraClasses(previousStudents, classes));
   }, [classes]);
 
   useEffect(() => {
@@ -344,11 +396,16 @@ export default function App() {
       setSession(nextSession);
 
       if (!nextSession) {
+        lastHydratedUserIdRef.current = null;
         setCurrentUser(null);
         setIsCenterDataHydrated(!isSupabaseConfigured);
         setCanSyncCenterData(false);
         setHasCenterData(false);
         setAuthStatus('signed-out');
+        return;
+      }
+
+      if (lastHydratedUserIdRef.current === nextSession.user.id && isCenterDataHydrated) {
         return;
       }
 
@@ -361,6 +418,7 @@ export default function App() {
 
       if (!isMounted) return;
       if (error || !data || !data.is_active) {
+        lastHydratedUserIdRef.current = null;
         setCurrentUser(null);
         setAuthStatus('blocked');
         return;
@@ -381,6 +439,7 @@ export default function App() {
         const payload = centerData?.payload as Partial<CenterDataPayload> | undefined;
         const hasPayload = Boolean(payload && typeof payload === 'object' && Object.keys(payload).length > 0);
         if (hasPayload && payload) {
+          lastSyncedPayloadRef.current = JSON.stringify(payload);
           if (payload.settings) setSettings(payload.settings);
           if (Array.isArray(payload.programs)) setPrograms(payload.programs);
           if (Array.isArray(payload.rooms)) setRooms(payload.rooms);
@@ -429,6 +488,7 @@ export default function App() {
       } catch {
         // Session storage can be unavailable in restricted browser contexts.
       }
+      lastHydratedUserIdRef.current = nextSession.user.id;
       setIsCenterDataHydrated(true);
       setAuthStatus('ready');
     };
@@ -448,11 +508,17 @@ export default function App() {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData || !hasCenterData) return;
     const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs };
     const timer = window.setTimeout(() => {
+      const serialized = JSON.stringify(payload);
+      if (serialized === lastSyncedPayloadRef.current) return;
       void supabase
         .from('center_data')
         .upsert({ id: 'primary', payload }, { onConflict: 'id' })
         .then(({ error }) => {
-          if (error) console.error('Không thể đồng bộ dữ liệu trung tâm:', error.message);
+          if (error) {
+            console.error('Không thể đồng bộ dữ liệu trung tâm:', error.message);
+          } else {
+            lastSyncedPayloadRef.current = serialized;
+          }
         });
     }, 750);
     return () => window.clearTimeout(timer);
@@ -737,6 +803,13 @@ export default function App() {
     addLog('RESTORE', 'Sao lưu', `Đã khôi phục dữ liệu từ tệp ${filename}`);
   };
 
+  const handleConsistencyDataFixed = (fixedStudents: Student[], fixedClassrooms: ClassRoom[], fixedReceipts: TuitionReceipt[]) => {
+    setStudents(fixedStudents);
+    setClasses(fixedClassrooms);
+    setReceipts(fixedReceipts);
+    addLog('SỬA', 'Kiểm tra dữ liệu', 'Tự động chuẩn hóa dữ liệu liên kết học viên, lớp học và học phí');
+  };
+
   const handleLogout = async () => {
     if (supabase) await supabase.auth.signOut();
     setCurrentUser(null);
@@ -989,16 +1062,48 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'data-consistency' && (
+            <DataConsistencyChecker
+              students={students}
+              classrooms={classes}
+              receipts={receipts}
+              programs={programs}
+              onDataFixed={handleConsistencyDataFixed}
+            />
+          )}
+
           {activeTab === 'settings' && (
-            <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <h3 className="font-bold text-lg text-slate-900 mb-2">Cài Đặt Hệ Thống</h3>
-              <p className="text-xs text-slate-500 mb-4">Thông tin trung tâm & cấu hình gửi email tự động</p>
-              <button
-                onClick={() => setIsSettingsModalOpen(true)}
-                className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs"
-              >
-                Chỉnh Sửa Cài Đặt Hệ Thống
-              </button>
+            <div className="space-y-6">
+              <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <h3 className="font-bold text-lg text-slate-900 mb-2">Cài Đặt Hệ Thống</h3>
+                <p className="text-xs text-slate-500 mb-4">Thông tin trung tâm & cấu hình gửi email tự động</p>
+                <button
+                  onClick={() => setIsSettingsModalOpen(true)}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition"
+                >
+                  Chỉnh Sửa Cài Đặt Hệ Thống
+                </button>
+              </div>
+
+              <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-900 mb-1">Kiểm Tra Tính Nhất Quán Dữ Liệu</h3>
+                    <p className="text-xs text-slate-500 mb-4">
+                      Tự động rà soát và khắc phục các vấn đề liên kết giữa danh sách học viên, lớp học, học phí và chương trình học.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('data-consistency')}
+                      className="px-4 py-2 bg-violet-700 text-white rounded-xl font-bold text-xs hover:bg-violet-800 transition"
+                    >
+                      Mở Công Cụ Kiểm Tra Dữ Liệu
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </main>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Grade, Student, ClassRoom, StaffPermissions } from '../types';
 import { Award, Search, Save, Edit, BookOpen, CheckCircle, AlertCircle } from 'lucide-react';
+import { isStudentInClass } from '../lib/student';
 
 interface GradeManagerProps {
   grades: Grade[];
@@ -24,8 +25,9 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
   const canEdit = isOwner || permissions.grade.edit;
 
+  const selectedClass = classes.find(c => c.id === selectedClassId);
   const classStudents = students.filter(
-    s => (selectedClassId === 'all' || s.classId === selectedClassId) &&
+    s => (selectedClassId === 'all' || isStudentInClass(s, selectedClassId, selectedClass)) &&
     s.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -99,7 +101,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                 const grade = grades.find(g => g.studentId === st.id) || {
                   id: `G_${st.id}`,
                   studentId: st.id,
-                  classId: st.classId,
+                  classId: selectedClassId !== 'all' ? selectedClassId : st.classId,
                   listening: 7.0,
                   speaking: 7.0,
                   reading: 7.0,

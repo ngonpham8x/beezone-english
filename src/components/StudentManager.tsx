@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../lib/tuition';
+import { isStudentInClass, getStudentClassIds } from '../lib/student';
 import {
   Student,
   CourseProgram,
@@ -137,7 +138,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       s.parentPhone.includes(searchQuery);
 
     const matchesProgram = filterProgram === 'all' || s.programId === filterProgram;
-    const matchesClass = filterClass === 'all' || s.classId === filterClass;
+    const filterClassObj = classes.find(c => c.id === filterClass);
+    const matchesClass = filterClass === 'all' || isStudentInClass(s, filterClass, filterClassObj);
     const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
 
     return matchesSearch && matchesProgram && matchesClass && matchesStatus;
@@ -157,6 +159,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       gradeLevel: '',
       programId: '',
       classId: '',
+      extraClassIds: [],
       address: '',
       email: '',
       phone: '',
@@ -202,7 +205,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
 
-    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '' };
+    const cleanExtraClasses = (editingStudent.extraClassIds || []).filter(id => id && id !== (selectedClass?.id || ''));
+    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '', extraClassIds: cleanExtraClasses };
     if (programEntryMode === 'manual') {
       const name = manualProgramName.trim();
       if (!name) {
@@ -228,7 +232,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     }
 
     if (selectedClass) {
-      studentToSave = { ...studentToSave, classId: selectedClass.id, programId: selectedClass.programId };
+      studentToSave = { ...studentToSave, classId: selectedClass.id, programId: selectedClass.programId, extraClassIds: cleanExtraClasses };
     }
 
     if (!studentToSave.programId) {
@@ -420,28 +424,31 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         </td>
 
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-800">
-                            {(() => {
-                              const cls = classes.find(c => c.id === st.classId);
-                              if (cls) return cls.name;
-                              if (st.classId === 'CLASS_G1') return 'Lớp 1 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G2') return 'Lớp 2 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G3') return 'Lớp 3 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G4') return 'Lớp 4 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G5') return 'Lớp 5 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G6') return 'Lớp 6 (THCS)';
-                              if (st.classId === 'CLASS_G7') return 'Lớp 7 (THCS)';
-                              if (st.classId === 'CLASS_G8') return 'Lớp 8 (THCS)';
-                              if (st.classId === 'CLASS_G9') return 'Lớp 9 (THCS)';
-                              if (st.classId === 'CLASS_G10') return 'Lớp 10 (THPT)';
-                              if (st.classId === 'CLASS_G11') return 'Lớp 11 (THPT)';
-                              if (st.classId === 'CLASS_G12') return 'Lớp 12 (THPT)';
-                              if (st.classId === 'CLASS_MN') return 'Anh Văn Mầm Non';
-                              if (st.classId === 'CLASS_CAM') return 'Lớp Cambridge';
-                              if (st.classId === 'CLASS_IELTS') return 'Lớp IELTS Academic';
-                              return st.classId || 'Chưa xếp lớp';
-                            })()}
-                          </div>
+                          {(() => {
+                            const enrolledIds = getStudentClassIds(st, classes);
+                            const enrolledClasses = classes.filter(c => enrolledIds.includes(c.id));
+                            if (!enrolledClasses.length) {
+                              const fallbackText = st.classId || 'Chưa xếp lớp';
+                              return <div className="font-semibold text-slate-800">{fallbackText}</div>;
+                            }
+                            return (
+                              <div className="space-y-1">
+                                {enrolledClasses.map(c => {
+                                  const isPrimary = st.classId === c.id;
+                                  return (
+                                    <div key={c.id} className="flex items-center gap-1.5">
+                                      <span className="font-semibold text-slate-800">{c.name}</span>
+                                      {!isPrimary && (
+                                        <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-100 text-amber-800">
+                                          Lớp thêm
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                           <div className="text-[11px] text-amber-700 font-medium">{program ? program.name : ''}</div>
                         </td>
 
@@ -583,21 +590,29 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     </div>
 
                     {/* Class & Schedule Pill */}
-                    <div className="my-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-                      <div className="flex items-center justify-between text-slate-800 font-bold">
-                        <span className="flex items-center gap-1">
-                          <BookOpen className="w-3.5 h-3.5 text-red-700" />
-                          {classNameText}
-                        </span>
-                        <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-1.5 py-0.5 rounded">
-                          {program?.name || 'Khóa Tiếng Anh'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-600">
-                        <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                        <span>Lịch học: <strong className="text-slate-800">{scheduleText}</strong></span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const enrolledIds = getStudentClassIds(st, classes);
+                      const enrolledClasses = classes.filter(c => enrolledIds.includes(c.id));
+                      return (
+                        <div className="my-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between text-slate-800 font-bold">
+                            <span className="flex items-center gap-1">
+                              <BookOpen className="w-3.5 h-3.5 text-red-700" />
+                              {enrolledClasses.length ? enrolledClasses.map(c => c.name).join(' + ') : (st.classId || 'Chưa xếp lớp')}
+                            </span>
+                            <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-1.5 py-0.5 rounded">
+                              {program?.name || 'Khóa Tiếng Anh'}
+                            </span>
+                          </div>
+                          {enrolledClasses.map(c => (
+                            <div key={c.id} className="flex items-center gap-1 text-[11px] text-slate-600">
+                              <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span>{c.code}: <strong className="text-slate-800">{c.scheduleTime || 'Chưa xếp lịch'} ({c.days.join(', ')})</strong></span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
 
                     {/* Parent Contact */}
                     <div className="text-xs text-slate-600 space-y-1 mb-3">
@@ -700,19 +715,23 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
             {/* SECTION: INDIVIDUAL TIMETABLE / LỊCH HỌC CÁ NHÂN */}
             {(() => {
-              const cls = classes.find(c => c.id === viewingStudent.classId);
+              const enrolledClassIds = getStudentClassIds(viewingStudent, classes);
+              const enrolledClasses = classes.filter(c => enrolledClassIds.includes(c.id));
+              const cls = classes.find(c => c.id === viewingStudent.classId) || enrolledClasses[0];
               const program = programs.find(p => p.id === viewingStudent.programId);
               const teacher = teachers.find(t => t.id === cls?.teacherId);
               const room = rooms.find(r => r.id === cls?.roomId);
               const classSlots = timetableSlots
-                .filter((slot) => slot.classId === viewingStudent.classId)
+                .filter((slot) => enrolledClassIds.includes(slot.classId))
                 .sort((left, right) => left.startTime.localeCompare(right.startTime));
 
               const activeDays = classSlots.length ? [...new Set(classSlots.map((slot) => slot.dayOfWeek))] : (cls ? cls.days : ['Thứ 2', 'Thứ 4', 'Thứ 6']);
               const scheduleSummary = classSlots.length
                 ? classSlots.map((slot) => `${slot.dayOfWeek}: ${slot.startTime}–${slot.endTime}`).join(' · ')
                 : (cls?.scheduleTime || '18:00 - 19:30');
-              const className = cls ? cls.name : (viewingStudent.classId || 'Chưa xếp lớp');
+              const className = enrolledClasses.length
+                ? enrolledClasses.map(c => c.name).join(' + ')
+                : (viewingStudent.classId || 'Chưa xếp lớp');
 
               const daysOfWeek = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
 
@@ -1047,6 +1066,41 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                       <p className="mt-1 text-[10px] text-slate-500">Chỉ nhận lớp đã tạo để học sinh, học phí, bảng điểm và Excel luôn liên kết đúng.</p>
                     </div>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Lớp Học Thêm / Lớp Bổ Sung (Dành cho bé học từ 2 lớp)
+                  </label>
+                  <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-1.5 custom-scrollbar">
+                    {classes.filter(c => c.id !== editingStudent.classId).length === 0 ? (
+                      <p className="text-[11px] text-slate-400 py-1">Không có lớp học khác để chọn.</p>
+                    ) : (
+                      classes.filter(c => c.id !== editingStudent.classId).map(c => {
+                        const isSelected = Array.isArray(editingStudent.extraClassIds) && editingStudent.extraClassIds.includes(c.id);
+                        return (
+                          <label key={c.id} className="flex items-center gap-2 text-xs font-semibold text-slate-800 hover:bg-white p-1 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const currentExtras = editingStudent.extraClassIds || [];
+                                const nextExtras = e.target.checked
+                                  ? [...currentExtras, c.id]
+                                  : currentExtras.filter(id => id !== c.id);
+                                setEditingStudent({ ...editingStudent, extraClassIds: nextExtras });
+                              }}
+                              className="rounded border-slate-300 text-red-700 focus:ring-red-600 h-3.5 w-3.5"
+                            />
+                            <span>{c.name} ({c.code})</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Tích chọn thêm nếu học viên học từ 2 lớp trở lên. Bé sẽ xuất hiện đầy đủ trong danh sách và báo cáo của tất cả các lớp đã chọn.
+                  </p>
                 </div>
 
                 <div>
