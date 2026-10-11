@@ -371,3 +371,46 @@ useEffect(() => {
 11. **Kiểm Tra Chất Lượng**:
     - Typecheck: `npx tsc --noEmit` hoàn thành với **0 lỗi**.
     - Build Production: `npm run build` hoàn tất xuất sắc (**100% passed**).
+
+---
+
+## 8. 🔗 Đồng Bộ Hai Chiều & Liên Kết Đầy Đủ Các Sheet Excel Khi Thêm, Sửa, Xóa
+
+### 📋 Mục tiêu & Vấn đề xử lý:
+1. **Liên kết giữa các Sheet Excel (`src/services/excelService.ts`)**:
+   - Trước đây file Excel xuất ra thiếu sheet `GIÁO VIÊN`, khiến thông tin giáo viên và phân công lớp chưa có sự liên kết trực tiếp.
+   - Công thức đếm sĩ số ở `TỔNG QUAN` và `LỚP HỌC` chỉ so khớp chuỗi tuyệt đối (`COUNTIF`), dẫn đến các học sinh học nhiều lớp (cột Mã lớp ghi dạng `L3-PPTE, T-TV3-PPTE`) không được tính vào sĩ số của các lớp tương ứng.
+   - Sheet `BẢNG ĐIỂM` chỉ xuất điểm theo 1 lớp chính `student.classId`. Học sinh học 2 lớp bị thiếu dòng điểm của lớp thứ 2, và khi import ngược lại vào web thì điểm lớp thứ 2 bị thất lạc.
+   - Sheet chi tiết từng lớp chưa có hàng Footer TỔNG CỘNG tính toán công nợ và học sinh.
+   - Import sheet `HỌC PHÍ` trước đó bắt buộc phải có cột kỹ thuật ẩn `ID hệ thống` (`idhethong`). Nếu người dùng mở Excel và chỉ nhập `Mã học sinh` và `Mã phiếu`, file sẽ bị bỏ qua phiếu thu.
+2. **Đồng bộ Cascade khi Thêm, Sửa, Xóa trong Ứng Dụng Web (`App.tsx`, `GradeManager.tsx`, `dataConsistencyService.ts`)**:
+   - Khi sửa học viên (bỏ chọn một lớp học thêm), cơ chế đồng bộ cũ vô tình giữ lại ID bé trong lớp cũ do bẫy `reconcileClassStudentIds` ↔ `reconcileStudentExtraClasses`.
+   - Khi xóa lớp học, hệ thống chưa dọn dẹp `extraClassIds` của học viên, `assignedClassIds` của giáo viên, cũng như ca học và điểm của lớp.
+   - Khi xóa giáo viên hoặc phòng học, hệ thống chưa kiểm tra xem giáo viên/phòng có đang gắn với ca dạy trong thời khóa biểu (`timetableSlots`) hay không.
+   - Khi chấm điểm trong `GradeManager.tsx`, việc cập nhật điểm cho học sinh học 2 lớp bị ghi đè lên điểm của lớp khác vì chỉ so khớp `studentId` thay vì cặp `(studentId, classId)`.
+
+### 🛠 Các cải tiến đã triển khai:
+1. **Bổ sung Sheet `GIÁO VIÊN` trong File Excel**:
+   - Tự động tạo sheet `GIÁO VIÊN` chứa đầy đủ STT, Mã GV, Họ tên, SĐT, Email, Chuyên môn, Địa chỉ, Danh sách lớp phụ trách và Ghi chú.
+   - Trong sheet `LỚP HỌC`, ô Giáo viên tự động gán Hyperlink dẫn trực tiếp tới dòng giáo viên tương ứng ở sheet `GIÁO VIÊN`.
+   - Trong sheet `TỔNG QUAN`, bổ sung chỉ số KPI "Tổng giáo viên" và "Tổng lớp học" với link điều hướng nhanh.
+   - Khi import ngược từ Excel về Web: Tự động đọc dữ liệu giáo viên từ sheet `GIÁO VIÊN` (nếu có) hoặc fallback từ `LỚP HỌC`.
+2. **Chuẩn Hóa Công Thức Excel Cho Học Viên Đa Lớp**:
+   - Sĩ số lớp trong sheet `TỔNG QUAN` và `LỚP HỌC`: Dùng công thức wildcard `COUNTIF('HỌC SINH'!$G:$G,"*"&...&"*")`, tính chính xác cả học viên đơn lớp và đa lớp.
+   - Doanh thu trực tiếp theo lớp: `SUMIFS` sử dụng wildcard `"*"&...&"*"` để cộng dồn chính xác.
+   - Sheet `BẢNG ĐIỂM`: Tạo dòng điểm cho từng lớp mà học viên theo học (`gradeEntries`), có link trỏ về sheet lớp chi tiết. Khi import Excel ngược lại, hệ thống map đúng điểm cho từng lớp.
+   - Sheet lớp chi tiết: Bổ sung hàng Footer `TỔNG CỘNG` ở cuối danh sách học sinh tính tổng sĩ số, tổng đã thu, tổng nợ, nợ tháng, nợ khóa bằng công thức Excel (`COUNTA`, `SUM`).
+   - Khả năng chịu lỗi khi Import: Relax điều kiện cột bắt buộc từ `['maphieu', 'idhethong']` thành `['maphieu']`, tự động liên kết học sinh qua Mã học sinh và tự động cập nhật lớp học thêm từ mã lớp của phiếu thu.
+   - Tự động fallback xuất XLSX chuẩn nếu môi trường không hỗ trợ nhúng macro XLSM.
+3. **Đồng Bộ Cascade 2 Chiều Toàn Diện Khi Thêm, Sửa, Xóa**:
+   - **Xóa Lớp (`handleDeleteClass`)**: Kiểm tra cả học viên chính và học viên học thêm (`isStudentInClass`). Khi xóa lớp an toàn, tự động loại bỏ lớp khỏi `extraClassIds` của học viên, `assignedClassIds` của giáo viên, ca học TKB và điểm số liên quan.
+   - **Sửa Lớp (`handleUpdateClass`)**: Khi đổi giáo viên phụ trách hoặc phòng học, tự động chuyển phân công lớp cho giáo viên mới và cập nhật `teacherId`/`roomId` trong các ca học TKB của lớp đó.
+   - **Sửa Học Sinh (`handleUpdateStudent`)**: Khắc phục dứt điểm bẫy lặp vô hạn. Khi học viên đổi lớp chính hoặc bỏ chọn lớp học thêm, danh sách `studentIds` của các lớp lập tức được đồng bộ chính xác.
+   - **Xóa Học Sinh (`handleDeleteStudent`)**: Khi xóa học sinh, tự động dọn sạch ID học sinh khỏi tất cả các lớp và xóa bảng điểm của học sinh đó.
+   - **Xóa Giáo Viên & Phòng Học (`handleDeleteTeacher`, `handleDeleteRoom`)**: Chặn xóa nếu còn ca dạy hoặc lớp học đang liên kết để không làm mồ côi dữ liệu.
+   - **Nhập Điểm (`GradeManager.tsx` & `handleUpdateGrade`)**: Cô lập điểm số theo cặp `(studentId, classId)`, đảm bảo học sinh học 2 lớp có 2 bảng điểm độc lập, không bị ghi đè.
+   - **Thu Học Phí (`handleAddReceipt`, `handleUpdateReceipt`, `handleDeleteReceipt`)**: Ngay khi phiếu thu được thêm, sửa hoặc xóa, lập tức tính toán và cập nhật `feeStatus` cho học viên, công nợ hiển thị tức thì trên mọi màn hình.
+4. **Nâng Cấp Bộ Tự Động Kiểm Tra Tính Nhất Quán Dữ Liệu (`dataConsistencyService.ts`)**:
+   - Bổ sung phát hiện mã lớp rác trong `extraClassIds` của học sinh hoặc học sinh rác trong danh sách lớp.
+   - Hàm `autoFixConsistency` tự động dọn dẹp các ID rác và đồng bộ hai chiều giữa `students` và `classrooms`.
+

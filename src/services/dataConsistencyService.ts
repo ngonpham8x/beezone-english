@@ -172,6 +172,35 @@ export function checkDataConsistency(
     });
   });
 
+  // 5. Kiểm tra học sinh có extraClassIds trỏ tới lớp không tồn tại
+  students.forEach(student => {
+    if (student.classId && !classMap.has(student.classId)) {
+      issues.push({
+        type: 'class_not_enrolled',
+        severity: 'critical',
+        studentId: student.id,
+        studentCode: student.code,
+        studentName: student.name,
+        details: `Lớp chính (ID: ${student.classId}) của học viên không tồn tại trong hệ thống`,
+        affectedIds: { classId: student.classId }
+      });
+    }
+
+    (student.extraClassIds || []).forEach(extraClassId => {
+      if (!classMap.has(extraClassId)) {
+        issues.push({
+          type: 'class_not_enrolled',
+          severity: 'warning',
+          studentId: student.id,
+          studentCode: student.code,
+          studentName: student.name,
+          details: `Lớp bổ sung (ID: ${extraClassId}) không tồn tại trong danh sách lớp học`,
+          affectedIds: { classId: extraClassId }
+        });
+      }
+    });
+  });
+
   return issues;
 }
 
@@ -222,24 +251,51 @@ export function autoFixConsistency(
       const student = studentMap.get(issue.studentId);
       const classId = issue.affectedIds.classId;
       
-      if (student && classId) {
+      if (student && classId && classMap.has(classId)) {
         if (!student.classId) {
           student.classId = classId;
+          fixedCount++;
         } else if (student.classId !== classId) {
-          student.extraClassIds = Array.from(new Set([...(student.extraClassIds || []), classId]));
+          const currentExtras = student.extraClassIds || [];
+          if (!currentExtras.includes(classId)) {
+            student.extraClassIds = [...currentExtras, classId];
+            fixedCount++;
+          }
         }
-        fixedCount++;
       }
     });
 
-  // Fix 3: Xóa các receipt của học viên không tồn tại (nếu cần xóa)
-  // (Lưu ý: chúng ta chỉ đánh dấu, không thực sự xóa)
-  issues
-    .filter(i => i.type === 'orphaned_receipt')
-    .forEach(issue => {
-      // Không tự động xóa để an toàn dữ liệu
-      // Chỉ ghi log
+  // Fix 3: Dọn dẹp studentId mồ côi trong classrooms
+  fixedClassrooms.forEach((cls) => {
+    const originalCount = cls.studentIds.length;
+    cls.studentIds = cls.studentIds.filter((id) => studentMap.has(id));
+    if (cls.studentIds.length !== originalCount) {
+      fixedCount += (originalCount - cls.studentIds.length);
+    }
+  });
+
+  // Fix 4: Dọn dẹp extraClassIds mồ côi trong students
+  fixedStudents.forEach((student) => {
+    if (Array.isArray(student.extraClassIds)) {
+      const originalCount = student.extraClassIds.length;
+      student.extraClassIds = student.extraClassIds.filter((cId) => classMap.has(cId));
+      if (student.extraClassIds.length !== originalCount) {
+        fixedCount += (originalCount - student.extraClassIds.length);
+      }
+    }
+  });
+
+  // Fix 5: Đồng bộ 2 chiều: Đảm bảo nếu học sinh có classId hoặc extraClassIds thì lớp phải có studentId
+  fixedStudents.forEach((student) => {
+    const enrolledIds = [student.classId, ...(student.extraClassIds || [])].filter(Boolean);
+    enrolledIds.forEach((cId) => {
+      const cls = classMap.get(cId);
+      if (cls && !cls.studentIds.includes(student.id)) {
+        cls.studentIds.push(student.id);
+        fixedCount++;
+      }
     });
+  });
 
   return {
     issues,

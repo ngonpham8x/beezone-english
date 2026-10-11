@@ -158,8 +158,12 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
     const fallbackClass = classes.find((item) => item.id === fallbackClassId);
     if (!fallbackClass) return;
     const newStudentsList: Student[] = validationResult.validRows.map((item, idx) => {
-      const classCode = (item.classCode || '').trim().toLocaleUpperCase('vi-VN');
-      const classroom = classes.find((candidate) => candidate.code.trim().toLocaleUpperCase('vi-VN') === classCode) || fallbackClass;
+      const rawCodes = (item.classCode || '').split(/[,;/|]+/).map((s) => s.trim().toLocaleUpperCase('vi-VN')).filter(Boolean);
+      const matchedClasses = rawCodes
+        .map((cCode) => classes.find((candidate) => candidate.code.trim().toLocaleUpperCase('vi-VN') === cCode))
+        .filter((c): c is ClassRoom => Boolean(c));
+      const classroom = matchedClasses[0] || fallbackClass;
+      const extraClassIds = matchedClasses.slice(1).map((c) => c.id);
       return {
         id: `HS_IMP_${Date.now()}_${idx}`,
         code: item.code || '',
@@ -170,6 +174,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         gradeLevel: item.gradeLevel || '',
         programId: classroom.programId,
         classId: classroom.id,
+        extraClassIds,
         address: item.address || '',
         email: item.email || '',
         phone: item.phone || '',
