@@ -15,7 +15,7 @@ if (import.meta.env.DEV) {
 }
 
 // Register Service Worker for PWA installation
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+if ('serviceWorker' in navigator && (import.meta.env.PROD || process.env.NODE_ENV === 'production')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch((err) => {
       console.log('SW registration failed:', err);

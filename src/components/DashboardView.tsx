@@ -22,7 +22,25 @@ const monthLabel = (month: string) => month ? `Tháng ${month.slice(5)}/${month.
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers, classes, rooms, receipts, programs, currentUser, onNavigateTab }) => {
   const [selectedDetail, setSelectedDetail] = useState<DashboardDetailType | null>(null);
-  const [isBannerMinimized, setIsBannerMinimized] = useState(false);
+  const [isBannerMinimized, setIsBannerMinimized] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('BEEZONE_BANNER_MINIMIZED') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleBannerMinimized = () => {
+    setIsBannerMinimized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('BEEZONE_BANNER_MINIMIZED', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
   const isOwner = currentUser.role === 'owner';
   const canViewStudents = isOwner || currentUser.permissions.student.view;
   const canViewTeachers = isOwner || currentUser.permissions.teacher.view;
@@ -135,10 +153,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   return (
     <div className="space-y-4 sm:space-y-6 pb-8">
       {/* Friendly Hero Banner */}
-      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 p-3.5 sm:p-6 md:p-8 text-slate-950 shadow-sm sm:shadow-md border border-amber-300/60 transition-all">
+      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 p-3.5 sm:p-5 text-slate-950 shadow-xs sm:shadow-md border border-amber-300/60 transition-all">
         {/* Subtle decorative background glow */}
-        <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-white/15 blur-xl" />
-        <div className="pointer-events-none absolute -left-8 -bottom-8 h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-slate-950/5 blur-xl" />
+        <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-white/20 blur-xl" />
+        <div className="pointer-events-none absolute -left-8 -bottom-8 h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-slate-950/10 blur-xl" />
 
         {isBannerMinimized ? (
           <div className="relative z-10 flex items-center justify-between gap-2">
@@ -153,21 +171,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
               <button
                 type="button"
                 onClick={() => onNavigateTab('attendance')}
-                className="px-2.5 py-1 rounded-lg bg-slate-950 text-white text-[11px] font-bold shadow-2xs active:scale-95"
+                className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold shadow-2xs active:scale-95 transition"
               >
                 Điểm danh
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateTab('tuition')}
-                className="px-2.5 py-1 rounded-lg bg-white text-slate-950 text-[11px] font-bold shadow-2xs active:scale-95"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-amber-50 text-slate-950 text-[11px] font-bold shadow-2xs active:scale-95 transition"
               >
                 Thu phí
               </button>
               <button
                 type="button"
-                onClick={() => setIsBannerMinimized(false)}
-                className="p-1 rounded-lg text-slate-900/80 hover:text-slate-950 hover:bg-white/20 transition-colors ml-0.5"
+                onClick={toggleBannerMinimized}
+                className="p-1 rounded-lg text-slate-900/80 hover:text-slate-950 hover:bg-white/20 transition ml-0.5"
                 title="Mở rộng banner"
                 aria-label="Mở rộng banner"
               >
@@ -176,17 +194,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             </div>
           </div>
         ) : (
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-5">
+          <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/10 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-950">
-                  <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-900" /> Bảng Điều Khiển Tổng Quan
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/10 px-2.5 py-0.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-950">
+                  <Sparkles className="h-3 w-3 text-amber-900" /> Bảng Điều Khiển Tổng Quan
                 </div>
-                {/* Mobile minimize button */}
+                {/* Minimize button available on all screens */}
                 <button
                   type="button"
-                  onClick={() => setIsBannerMinimized(true)}
-                  className="sm:hidden p-1 rounded-lg text-slate-900/70 hover:text-slate-950 hover:bg-white/20 transition-colors"
+                  onClick={toggleBannerMinimized}
+                  className="p-1 rounded-lg text-slate-900/70 hover:text-slate-950 hover:bg-white/20 transition"
                   title="Thu gọn bớt không gian"
                   aria-label="Thu gọn banner"
                 >
@@ -194,38 +212,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
                 </button>
               </div>
 
-              <h1 className="mt-1 sm:mt-1.5 text-base sm:text-2xl md:text-3xl font-black tracking-tight text-slate-950 leading-tight">
-                Xin chào, {currentUser.name.replace(/\s*\(Quản [L|l]ý\)/gi, '')}! 🐝
+              <h1 className="text-base sm:text-xl md:text-2xl font-black tracking-tight text-slate-950 flex items-center gap-1.5 flex-wrap leading-tight">
+                <span>Xin chào, {currentUser.name.replace(/\s*\(Quản [L|l]ý\)/gi, '')}!</span>
+                <span className="text-lg sm:text-xl">🐝</span>
               </h1>
 
-              {/* Desktop detailed description */}
-              <p className="hidden sm:block text-xs sm:text-sm font-semibold text-slate-950/80 mt-1 max-w-xl">
-                Hôm nay là <span className="capitalize">{todayString}</span>. Trung tâm hiện có <b>{activeStudents.length} học viên</b> đang học tập và <b>{classes.length} lớp</b> đang vận hành.
-              </p>
-
-              {/* Mobile compact summary */}
-              <p className="sm:hidden text-[11px] font-semibold text-slate-950/85 mt-0.5">
-                <span className="capitalize">{todayString.split(',')[0]}</span> • <b>{activeStudents.length}</b> học viên • <b>{classes.length}</b> lớp đang học
+              <p className="text-xs sm:text-sm font-semibold text-slate-950/85 mt-1 leading-snug">
+                Hôm nay là <span className="capitalize">{todayString}</span> • <b>{activeStudents.length} học viên</b> đang học • <b>{classes.length} lớp</b> đang vận hành
               </p>
             </div>
 
-            {/* Action buttons: Side-by-side 2-column grid on mobile, row on desktop */}
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-2.5 shrink-0 pt-1 sm:pt-0">
+            {/* Action buttons: Side-by-side pills */}
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 pt-0.5 xl:pt-0">
               <button
                 type="button"
                 onClick={() => onNavigateTab('attendance')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 text-white text-[11px] sm:text-xs font-black shadow-xs transition active:scale-95"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-900 text-white text-xs font-black shadow-xs transition active:scale-95"
               >
-                <UserCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-400 shrink-0" />
-                <span className="truncate">Điểm danh <span className="hidden sm:inline">hôm nay</span></span>
+                <UserCheck className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <span>Điểm danh hôm nay</span>
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateTab('tuition')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white hover:bg-amber-50 text-slate-950 text-[11px] sm:text-xs font-black shadow-xs border border-amber-300/80 transition active:scale-95"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-amber-50 text-slate-950 text-xs font-black shadow-xs border border-amber-300/80 transition active:scale-95"
               >
-                <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 shrink-0" />
-                <span className="truncate">Thu học phí</span>
+                <DollarSign className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span>Thu học phí</span>
               </button>
             </div>
           </div>
