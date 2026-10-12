@@ -193,9 +193,9 @@ export const StaffPermissionModal: React.FC<StaffPermissionModalProps> = ({
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 flex items-center gap-1.5 shadow-sm"
+            className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold flex items-center gap-1.5 shadow-sm active:scale-95"
           >
-            <Save className="w-4 h-4 text-amber-400" /> Lưu Cấu Hình Quyền
+            <Save className="w-4 h-4 text-slate-950" /> Lưu Cấu Hình Quyền
           </button>
         </div>
       </div>

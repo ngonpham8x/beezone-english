@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { TimetableSlot, ClassRoom, Teacher, Room } from '../types';
 import {
   CalendarDays,
@@ -12,7 +12,9 @@ import {
   Save,
   UserCheck,
   DoorOpen,
-  BookOpen
+  BookOpen,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface TimetableManagerProps {
@@ -52,6 +54,17 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const canEdit = isOwner;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollTable = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const amount = 350;
+      scrollContainerRef.current.scrollBy({
+        left: direction === 'left' ? -amount : amount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const daysOfWeek = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
   const timeSlots = [...new Set([
@@ -148,7 +161,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-red-700" />
+            <CalendarDays className="w-6 h-6 text-amber-600" />
             Thời Khóa Biểu Trung Tâm
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -162,7 +175,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
             <button
               onClick={() => setViewMode('week')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'week' ? 'bg-red-800 text-white shadow-xs' : 'text-slate-600'
+                viewMode === 'week' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-600'
               }`}
             >
               Xem Theo Tuần
@@ -170,7 +183,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
             <button
               onClick={() => setViewMode('day')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'day' ? 'bg-red-800 text-white shadow-xs' : 'text-slate-600'
+                viewMode === 'day' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-600'
               }`}
             >
               Xem Theo Ngày
@@ -180,43 +193,91 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
           {canEdit && (
             <button
               onClick={handleOpenAdd}
-              className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
             >
-              <Plus className="w-4 h-4 text-amber-400" />
+              <Plus className="w-4 h-4 text-slate-950" />
               Tạo Ca Học
             </button>
           )}
         </div>
       </div>
 
-      {/* Day Selector (for Day View) */}
-      {viewMode === 'day' && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {daysOfWeek.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                selectedDay === day
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {day}
-            </button>
-          ))}
+      {/* Day Selector & Quick Navigation Bar */}
+      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 max-w-full">
+          <button
+            onClick={() => setViewMode('week')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              viewMode === 'week'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            🗓️ Toàn Tuần (Thứ 2 → CN)
+          </button>
+          {daysOfWeek.map((day) => {
+            const count = timetableSlots.filter(s => s.dayOfWeek === day).length;
+            const isSelected = viewMode === 'day' && selectedDay === day;
+            return (
+              <button
+                key={day}
+                onClick={() => {
+                  setSelectedDay(day);
+                  setViewMode('day');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-amber-500 text-slate-950 shadow-sm ring-2 ring-amber-400/50'
+                    : 'bg-slate-50 text-slate-700 hover:bg-amber-50 hover:text-amber-900 border border-slate-200/80'
+                }`}
+              >
+                <span>{day}</span>
+                {count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? 'bg-slate-950 text-white' : 'bg-amber-100 text-amber-900'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {viewMode === 'week' && (
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">Cuộn nhanh:</span>
+            <button
+              onClick={() => scrollTable('left')}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 border border-slate-200"
+              title="Cuộn về đầu tuần (Thứ 2 - Thứ 4)"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span className="text-[11px]">Đầu tuần</span>
+            </button>
+            <button
+              onClick={() => scrollTable('right')}
+              className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-bold transition flex items-center gap-1 border border-amber-300"
+              title="Cuộn xem cuối tuần (Thứ 7 & Chủ Nhật)"
+            >
+              <span className="text-[11px]">Thứ 7 & CN</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* TIMETABLE GRID TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+        <div ref={scrollContainerRef} className="overflow-x-auto custom-scrollbar">
+          <table className={`w-full text-left border-collapse text-xs ${viewMode === 'week' ? 'min-w-[1100px]' : 'min-w-full'}`}>
             <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
               <tr>
-                <th className="py-3 px-4 border-b border-slate-700 w-32">Ca Học / Giờ</th>
+                <th className="py-3 px-3.5 border-b border-slate-700 w-36 min-w-[125px] sticky left-0 z-30 bg-slate-800 shadow-xs text-center">
+                  Ca Học / Giờ
+                </th>
                 {(viewMode === 'week' ? daysOfWeek : [selectedDay]).map((day) => (
-                  <th key={day} className="py-3 px-4 border-b border-slate-700 text-center">
+                  <th key={day} className="py-3 px-3 border-b border-slate-700 text-center min-w-[150px] sm:min-w-[165px]">
                     {day}
                   </th>
                 ))}
@@ -227,11 +288,11 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                 const [start, end] = timeRange.split(' - ');
 
                 return (
-                  <tr key={timeRange} className="hover:bg-slate-50">
-                    <td className="py-4 px-4 bg-slate-50 font-bold text-red-900 border-r border-slate-200">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        {timeRange}
+                  <tr key={timeRange} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-3 bg-slate-100/95 font-bold text-red-900 border-r border-slate-200 sticky left-0 z-20 shadow-xs whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 justify-center">
+                        <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                        <span className="font-mono text-[11px]">{timeRange}</span>
                       </div>
                     </td>
 
@@ -241,7 +302,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                       );
 
                       return (
-                        <td key={day} className="p-2 border-r border-slate-100 align-top h-28">
+                        <td key={day} className="p-2 border-r border-slate-100 align-top h-28 min-w-[150px] sm:min-w-[165px]">
                           {matchedSlots.length === 0 ? (
                             <div className="h-full border border-dashed border-slate-200 rounded-xl flex items-center justify-center text-[10px] text-slate-300">
                               Trống ca
@@ -270,10 +331,10 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
                                     <div className="text-[10px] text-slate-700 mt-1 space-y-0.5">
                                       <div className="flex items-center gap-1">
-                                        <UserCheck className="w-3 h-3 text-red-700" /> {teacher?.name}
+                                        <UserCheck className="w-3 h-3 text-amber-600 flex-shrink-0" /> <span className="truncate">{teacher?.name}</span>
                                       </div>
                                       <div className="flex items-center gap-1 font-semibold text-blue-800">
-                                        <DoorOpen className="w-3 h-3 text-blue-600" /> {room?.name}
+                                        <DoorOpen className="w-3 h-3 text-blue-600 flex-shrink-0" /> <span className="truncate">{room?.name}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -308,7 +369,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
             </button>
 
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-red-700" />
+              <CalendarDays className="w-5 h-5 text-amber-600" />
               {timetableSlots.some((slot) => slot.id === editingSlot.id) ? 'Cập Nhật Lịch Học' : 'Tạo Lịch Học Mới'}
             </h3>
 
@@ -410,9 +471,9 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 flex items-center gap-1.5"
+                  className="px-5 py-2 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-600 flex items-center gap-1.5 shadow-sm active:scale-95"
                 >
-                  <Save className="w-4 h-4 text-amber-400" /> Lưu Ca Học
+                  <Save className="w-4 h-4 text-slate-950" /> Lưu Ca Học
                 </button>
               </div>
             </form>

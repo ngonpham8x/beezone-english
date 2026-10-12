@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../lib/tuition';
-import { isStudentInClass, getStudentClassIds } from '../lib/student';
 import {
   Student,
   CourseProgram,
@@ -43,7 +42,10 @@ import {
   BookOpen,
   CalendarDays,
   DollarSign,
-  UserCheck
+  UserCheck,
+  PauseCircle,
+  RotateCcw,
+  UserMinus
 } from 'lucide-react';
 
 const FeeStatusBadge: React.FC<{ feeStatus: FeeStatus; monthlyDebt?: number; courseDebt?: number }> = ({ feeStatus, monthlyDebt = 0, courseDebt = 0 }) => {
@@ -82,6 +84,9 @@ interface StudentManagerProps {
   onAddStudent: (newStudent: Student) => void;
   onUpdateStudent: (updatedStudent: Student) => void;
   onDeleteStudent: (id: string) => void;
+  onReserveStudent?: (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => void;
+  onDropStudent?: (studentId: string, dropDate: string, reason: string) => void;
+  onReEnrollStudent?: (studentId: string, targetClassId: string, returnDate: string, note?: string) => void;
   onOpenImportExportModal: () => void;
   onOpenTuition: () => void;
   onCreateProgram: (program: CourseProgram) => void;
@@ -101,6 +106,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   onAddStudent,
   onUpdateStudent,
   onDeleteStudent,
+  onReserveStudent,
+  onDropStudent,
+  onReEnrollStudent,
   onOpenImportExportModal,
   onOpenTuition,
   onCreateProgram
@@ -121,6 +129,97 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [programEntryMode, setProgramEntryMode] = useState<'catalog' | 'manual'>('catalog');
   const [manualProgramName, setManualProgramName] = useState('');
 
+  // Reservation Modal state
+  const [reservingStudent, setReservingStudent] = useState<Student | null>(null);
+  const [reserveStartDate, setReserveStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reserveEndDate, setReserveEndDate] = useState<string>('');
+  const [reserveReason, setReserveReason] = useState<string>('Bận lịch học tại trường chính khóa');
+  const [reserveNote, setReserveNote] = useState<string>('');
+
+  // Drop Modal state
+  const [droppingStudent, setDroppingStudent] = useState<Student | null>(null);
+  const [dropDate, setDropDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dropReason, setDropReason] = useState<string>('Chuyển nơi ở / trường học');
+  const [dropNote, setDropNote] = useState<string>('');
+
+  // Re-enroll Modal state
+  const [reEnrollingStudent, setReEnrollingStudent] = useState<Student | null>(null);
+  const [reEnrollClassId, setReEnrollClassId] = useState<string>('');
+  const [reEnrollDate, setReEnrollDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reEnrollNote, setReEnrollNote] = useState<string>('');
+
+  const handleOpenReserve = (st: Student) => {
+    setReservingStudent(st);
+    setReserveStartDate(new Date().toISOString().split('T')[0]);
+    setReserveEndDate('');
+    setReserveReason('Bận lịch học tại trường chính khóa');
+    setReserveNote('');
+  };
+
+  const handleOpenDrop = (st: Student) => {
+    setDroppingStudent(st);
+    setDropDate(new Date().toISOString().split('T')[0]);
+    setDropReason('Chuyển nơi ở / trường học');
+    setDropNote('');
+  };
+
+  const handleOpenReEnroll = (st: Student) => {
+    setReEnrollingStudent(st);
+    setReEnrollClassId(st.classId || classes[0]?.id || '');
+    setReEnrollDate(new Date().toISOString().split('T')[0]);
+    setReEnrollNote('');
+  };
+
+  const handleConfirmReservation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reservingStudent) return;
+    if (onReserveStudent) {
+      onReserveStudent(reservingStudent.id, reserveStartDate, reserveEndDate, `${reserveReason}. ${reserveNote}`.trim());
+    } else {
+      const appendedNote = `[BẢO LƯU]: Từ ${reserveStartDate} đến ${reserveEndDate || 'chưa định ngày'}. Lý do: ${reserveReason}. ${reserveNote}`.trim();
+      onUpdateStudent({
+        ...reservingStudent,
+        status: 'reserved',
+        notes: reservingStudent.notes ? `${reservingStudent.notes}\n${appendedNote}` : appendedNote
+      });
+    }
+    setReservingStudent(null);
+  };
+
+  const handleConfirmDrop = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!droppingStudent) return;
+    if (onDropStudent) {
+      onDropStudent(droppingStudent.id, dropDate, `${dropReason}. ${dropNote}`.trim());
+    } else {
+      const appendedNote = `[NGHỈ HỌC NGANG]: Ngày ${dropDate}. Lý do: ${dropReason}. ${dropNote}`.trim();
+      onUpdateStudent({
+        ...droppingStudent,
+        status: 'dropped',
+        notes: droppingStudent.notes ? `${droppingStudent.notes}\n${appendedNote}` : appendedNote
+      });
+    }
+    setDroppingStudent(null);
+  };
+
+  const handleConfirmReEnroll = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reEnrollingStudent || !reEnrollClassId) return;
+    if (onReEnrollStudent) {
+      onReEnrollStudent(reEnrollingStudent.id, reEnrollClassId, reEnrollDate, reEnrollNote);
+    } else {
+      const targetClass = classes.find(c => c.id === reEnrollClassId);
+      const appendedNote = `[QUAY LẠI HỌC]: Ngày ${reEnrollDate} tại lớp ${targetClass?.name || reEnrollClassId}. ${reEnrollNote}`.trim();
+      onUpdateStudent({
+        ...reEnrollingStudent,
+        status: 'active',
+        classId: reEnrollClassId,
+        notes: reEnrollingStudent.notes ? `${reEnrollingStudent.notes}\n${appendedNote}` : appendedNote
+      });
+    }
+    setReEnrollingStudent(null);
+  };
+
   const canAdd = isOwner || permissions.student.add;
   const canEdit = isOwner || permissions.student.edit;
   const canDelete = isOwner || permissions.student.delete;
@@ -138,8 +237,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       s.parentPhone.includes(searchQuery);
 
     const matchesProgram = filterProgram === 'all' || s.programId === filterProgram;
-    const filterClassObj = classes.find(c => c.id === filterClass);
-    const matchesClass = filterClass === 'all' || isStudentInClass(s, filterClass, filterClassObj);
+    const matchesClass = filterClass === 'all' || s.classId === filterClass;
     const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
 
     return matchesSearch && matchesProgram && matchesClass && matchesStatus;
@@ -159,7 +257,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       gradeLevel: '',
       programId: '',
       classId: '',
-      extraClassIds: [],
       address: '',
       email: '',
       phone: '',
@@ -205,8 +302,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
 
-    const cleanExtraClasses = (editingStudent.extraClassIds || []).filter(id => id && id !== (selectedClass?.id || ''));
-    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '', extraClassIds: cleanExtraClasses };
+    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '' };
     if (programEntryMode === 'manual') {
       const name = manualProgramName.trim();
       if (!name) {
@@ -232,7 +328,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     }
 
     if (selectedClass) {
-      studentToSave = { ...studentToSave, classId: selectedClass.id, programId: selectedClass.programId, extraClassIds: cleanExtraClasses };
+      studentToSave = { ...studentToSave, classId: selectedClass.id, programId: selectedClass.programId };
     }
 
     if (!studentToSave.programId) {
@@ -257,7 +353,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-6 h-6 text-red-700" />
+            <Users className="w-6 h-6 text-amber-600" />
             Quản Lý Học Sinh
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -288,27 +384,59 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           {canAdd && (
             <button
               onClick={handleOpenAddModal}
-              className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
             >
-              <UserPlus className="w-4 h-4 text-amber-400" />
+              <UserPlus className="w-4 h-4 text-slate-950" />
               {t('student.add_new')}
             </button>
           )}
         </div>
       </div>
 
+      {/* Transparency & Quick Overview Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Tổng học sinh</p>
+            <p className="text-lg font-black text-slate-900 mt-0.5">{students.length} HS</p>
+          </div>
+          <span className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Users className="w-4 h-4" /></span>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-emerald-600 uppercase">Đang theo học</p>
+            <p className="text-lg font-black text-emerald-700 mt-0.5">{students.filter(s => s.status === 'active').length} HS</p>
+          </div>
+          <span className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><UserCheck className="w-4 h-4" /></span>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-amber-600 uppercase">Đang bảo lưu</p>
+            <p className="text-lg font-black text-amber-700 mt-0.5">{students.filter(s => s.status === 'reserved').length} HS</p>
+          </div>
+          <span className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Clock className="w-4 h-4" /></span>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-rose-600 uppercase">Còn nợ học phí</p>
+            <p className="text-lg font-black text-rose-700 mt-0.5">{students.filter(s => debtBreakdown(receipts.filter(r => r.studentId === s.id)).total > 0).length} HS</p>
+          </div>
+          <span className="p-2 bg-rose-50 text-rose-600 rounded-lg"><AlertCircle className="w-4 h-4" /></span>
+        </div>
+      </div>
+
       {/* Filters & View Mode Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            <Filter className="w-4 h-4 text-slate-400" /> {t('student.filters')}
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <Filter className="w-4 h-4 text-amber-600" /> {t('student.filters')}
           </div>
 
           {/* Program Filter */}
           <select
             value={filterProgram}
             onChange={(e) => setFilterProgram(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-700 font-medium"
+            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
           >
             <option value="all">{t('student.all_programs')}</option>
             {programs.map(p => (
@@ -320,7 +448,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           <select
             value={filterClass}
             onChange={(e) => setFilterClass(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-700 font-medium"
+            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
           >
             <option value="all">{t('student.all_classes')}</option>
             {classes.map(c => (
@@ -332,7 +460,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-700 font-medium"
+            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
           >
             <option value="all">{t('student.all_statuses')}</option>
             <option value="active">{t('actions.active')}</option>
@@ -358,12 +486,12 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             onClick={() => setViewMode('card')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
               viewMode === 'card'
-                ? 'bg-red-800 text-white shadow-2xs'
+                ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-amber-400" />
-            <span>Dạng Thẻ Mobile</span>
+            <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
+            <span>Dạng Thẻ</span>
           </button>
         </div>
       </div>
@@ -400,8 +528,10 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-bold text-red-800">
-                          {st.code}
+                        <td className="py-3 px-4 font-bold">
+                          <span className="font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 text-xs font-bold">
+                            {st.code}
+                          </span>
                         </td>
 
                         <td className="py-3 px-4">
@@ -424,42 +554,39 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         </td>
 
                         <td className="py-3 px-4">
-                          {(() => {
-                            const enrolledIds = getStudentClassIds(st, classes);
-                            const enrolledClasses = classes.filter(c => enrolledIds.includes(c.id));
-                            if (!enrolledClasses.length) {
-                              const fallbackText = st.classId || 'Chưa xếp lớp';
-                              return <div className="font-semibold text-slate-800">{fallbackText}</div>;
-                            }
-                            return (
-                              <div className="space-y-1">
-                                {enrolledClasses.map(c => {
-                                  const isPrimary = st.classId === c.id;
-                                  return (
-                                    <div key={c.id} className="flex items-center gap-1.5">
-                                      <span className="font-semibold text-slate-800">{c.name}</span>
-                                      {!isPrimary && (
-                                        <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-100 text-amber-800">
-                                          Lớp thêm
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
+                          <div className="font-semibold text-slate-800">
+                            {(() => {
+                              const cls = classes.find(c => c.id === st.classId);
+                              if (cls) return cls.name;
+                              if (st.classId === 'CLASS_G1') return 'Lớp 1 (Tiểu Học)';
+                              if (st.classId === 'CLASS_G2') return 'Lớp 2 (Tiểu Học)';
+                              if (st.classId === 'CLASS_G3') return 'Lớp 3 (Tiểu Học)';
+                              if (st.classId === 'CLASS_G4') return 'Lớp 4 (Tiểu Học)';
+                              if (st.classId === 'CLASS_G5') return 'Lớp 5 (Tiểu Học)';
+                              if (st.classId === 'CLASS_G6') return 'Lớp 6 (THCS)';
+                              if (st.classId === 'CLASS_G7') return 'Lớp 7 (THCS)';
+                              if (st.classId === 'CLASS_G8') return 'Lớp 8 (THCS)';
+                              if (st.classId === 'CLASS_G9') return 'Lớp 9 (THCS)';
+                              if (st.classId === 'CLASS_G10') return 'Lớp 10 (THPT)';
+                              if (st.classId === 'CLASS_G11') return 'Lớp 11 (THPT)';
+                              if (st.classId === 'CLASS_G12') return 'Lớp 12 (THPT)';
+                              if (st.classId === 'CLASS_MN') return 'Anh Văn Mầm Non';
+                              if (st.classId === 'CLASS_CAM') return 'Lớp Cambridge';
+                              if (st.classId === 'CLASS_IELTS') return 'Lớp IELTS Academic';
+                              return st.classId || 'Chưa xếp lớp';
+                            })()}
+                          </div>
                           <div className="text-[11px] text-amber-700 font-medium">{program ? program.name : ''}</div>
                         </td>
 
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                            <Phone className="w-3 h-3 text-red-700 flex-shrink-0" />
-                            <span>{t('student.student_phone')} <span className="font-bold text-red-800">{st.phone || (language === 'vi' ? 'Chưa cập nhật' : 'N/A')}</span></span>
+                            <Phone className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                            <span>{t('student.student_phone')} <span className="font-bold text-slate-900">{st.phone || (language === 'vi' ? 'Chưa cập nhật' : 'N/A')}</span></span>
                           </div>
                           <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
                             <Phone className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                            <span>PH ({st.parentName}): <a href={`tel:${st.parentPhone}`} className="font-medium text-slate-800 hover:text-red-700">{st.parentPhone}</a></span>
+                            <span>PH ({st.parentName}): <a href={`tel:${st.parentPhone}`} className="font-medium text-slate-800 hover:text-amber-700">{st.parentPhone}</a></span>
                           </div>
                         </td>
 
@@ -494,6 +621,37 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             >
                               <Eye className="w-3.5 h-3.5 text-blue-600" />
                             </button>
+
+                            {/* Chức năng Bảo lưu & Nghỉ học & Học lại */}
+                            {canEdit && st.status === 'active' && (
+                              <>
+                                <button
+                                  onClick={() => handleOpenReserve(st)}
+                                  className="p-1.5 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                                  title="Bảo lưu học tập"
+                                >
+                                  <PauseCircle className="w-4 h-4 text-amber-600" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenDrop(st)}
+                                  className="p-1.5 text-slate-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200"
+                                  title="Nghỉ học ngang"
+                                >
+                                  <UserMinus className="w-4 h-4 text-slate-500" />
+                                </button>
+                              </>
+                            )}
+
+                            {canEdit && (st.status === 'reserved' || st.status === 'dropped') && (
+                              <button
+                                onClick={() => handleOpenReEnroll(st)}
+                                className="px-2 py-1 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-300 flex items-center gap-1"
+                                title="Kích hoạt quay lại học tiếp"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Học lại</span>
+                              </button>
+                            )}
 
                             {canEdit && (
                               <button
@@ -590,29 +748,21 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     </div>
 
                     {/* Class & Schedule Pill */}
-                    {(() => {
-                      const enrolledIds = getStudentClassIds(st, classes);
-                      const enrolledClasses = classes.filter(c => enrolledIds.includes(c.id));
-                      return (
-                        <div className="my-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
-                          <div className="flex items-center justify-between text-slate-800 font-bold">
-                            <span className="flex items-center gap-1">
-                              <BookOpen className="w-3.5 h-3.5 text-red-700" />
-                              {enrolledClasses.length ? enrolledClasses.map(c => c.name).join(' + ') : (st.classId || 'Chưa xếp lớp')}
-                            </span>
-                            <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-1.5 py-0.5 rounded">
-                              {program?.name || 'Khóa Tiếng Anh'}
-                            </span>
-                          </div>
-                          {enrolledClasses.map(c => (
-                            <div key={c.id} className="flex items-center gap-1 text-[11px] text-slate-600">
-                              <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                              <span>{c.code}: <strong className="text-slate-800">{c.scheduleTime || 'Chưa xếp lịch'} ({c.days.join(', ')})</strong></span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
+                    <div className="my-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between text-slate-800 font-bold">
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                          {classNameText}
+                        </span>
+                        <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-1.5 py-0.5 rounded">
+                          {program?.name || 'Khóa Tiếng Anh'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-slate-600">
+                        <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span>Lịch học: <strong className="text-slate-800">{scheduleText}</strong></span>
+                      </div>
+                    </div>
 
                     {/* Parent Contact */}
                     <div className="text-xs text-slate-600 space-y-1 mb-3">
@@ -629,14 +779,45 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   </div>
 
                   {/* Card Actions */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
                     <button
                       onClick={() => setViewingStudent(st)}
-                      className="flex-1 py-1.5 bg-red-800 hover:bg-red-900 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 shadow-2xs"
+                      className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs min-w-[120px] active:scale-95"
                     >
                       <Eye className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Xem chi tiết & Lịch học</span>
+                      <span>Chi tiết</span>
                     </button>
+
+                    {/* Chức năng Bảo lưu & Nghỉ học & Học lại */}
+                    {canEdit && st.status === 'active' && (
+                      <>
+                        <button
+                          onClick={() => handleOpenReserve(st)}
+                          className="p-1.5 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                          title="Bảo lưu học tập"
+                        >
+                          <PauseCircle className="w-4 h-4 text-amber-600" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDrop(st)}
+                          className="p-1.5 text-slate-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200"
+                          title="Nghỉ học ngang"
+                        >
+                          <UserMinus className="w-4 h-4 text-slate-500" />
+                        </button>
+                      </>
+                    )}
+
+                    {canEdit && (st.status === 'reserved' || st.status === 'dropped') && (
+                      <button
+                        onClick={() => handleOpenReEnroll(st)}
+                        className="px-2.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-300 flex items-center gap-1"
+                        title="Kích hoạt quay lại học tiếp"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Học lại</span>
+                      </button>
+                    )}
 
                     {canEdit && (
                       <button
@@ -715,23 +896,19 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
             {/* SECTION: INDIVIDUAL TIMETABLE / LỊCH HỌC CÁ NHÂN */}
             {(() => {
-              const enrolledClassIds = getStudentClassIds(viewingStudent, classes);
-              const enrolledClasses = classes.filter(c => enrolledClassIds.includes(c.id));
-              const cls = classes.find(c => c.id === viewingStudent.classId) || enrolledClasses[0];
+              const cls = classes.find(c => c.id === viewingStudent.classId);
               const program = programs.find(p => p.id === viewingStudent.programId);
               const teacher = teachers.find(t => t.id === cls?.teacherId);
               const room = rooms.find(r => r.id === cls?.roomId);
               const classSlots = timetableSlots
-                .filter((slot) => enrolledClassIds.includes(slot.classId))
+                .filter((slot) => slot.classId === viewingStudent.classId)
                 .sort((left, right) => left.startTime.localeCompare(right.startTime));
 
               const activeDays = classSlots.length ? [...new Set(classSlots.map((slot) => slot.dayOfWeek))] : (cls ? cls.days : ['Thứ 2', 'Thứ 4', 'Thứ 6']);
               const scheduleSummary = classSlots.length
                 ? classSlots.map((slot) => `${slot.dayOfWeek}: ${slot.startTime}–${slot.endTime}`).join(' · ')
                 : (cls?.scheduleTime || '18:00 - 19:30');
-              const className = enrolledClasses.length
-                ? enrolledClasses.map(c => c.name).join(' + ')
-                : (viewingStudent.classId || 'Chưa xếp lớp');
+              const className = cls ? cls.name : (viewingStudent.classId || 'Chưa xếp lớp');
 
               const daysOfWeek = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
 
@@ -747,10 +924,10 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   </div>
 
                   {/* Class Info Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gradient-to-r from-red-50/50 via-slate-50 to-amber-50/50 p-4 rounded-xl border border-slate-200 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gradient-to-r from-amber-50/50 via-slate-50 to-emerald-50/50 p-4 rounded-xl border border-slate-200 text-xs">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-slate-700">
-                        <BookOpen className="w-4 h-4 text-red-700 shrink-0" />
+                        <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
                         <span>Chương trình: <strong className="text-slate-900">{program?.name || 'Anh Văn Phổ Thông'}</strong></span>
                       </div>
                       <div className="flex items-center gap-1.5 text-slate-700">
@@ -793,7 +970,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             key={day}
                             className={`p-2 rounded-xl text-xs border transition-all ${
                               isStudyDay
-                                ? 'bg-red-800 text-white border-red-900 shadow-2xs font-bold'
+                                ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-2xs font-bold'
                                 : 'bg-slate-50 text-slate-400 border-slate-200'
                             }`}
                           >
@@ -888,7 +1065,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-medium">Trung Tâm Anh Ngữ Phúc Phúc Thịnh</span>
+              <span className="text-xs text-slate-500 font-medium">Trung tâm ngoại ngữ BeeZone</span>
               <button
                 onClick={() => setViewingStudent(null)}
                 className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-900 transition-colors"
@@ -915,7 +1092,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             </button>
 
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-red-700" />
+              <UserPlus className="w-5 h-5 text-amber-600" />
               {students.some(s => s.id === editingStudent.id) ? 'Cập Nhật Thông Tin Học Sinh' : 'Thêm Học Sinh Mới'}
             </h3>
 
@@ -941,7 +1118,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.code}
                     onChange={(e) => setEditingStudent({ ...editingStudent, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-slate-100 font-bold text-red-800"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-slate-100 font-bold font-mono text-amber-900"
                     required
                   />
                 </div>
@@ -952,7 +1129,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.name}
                     onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                     placeholder="Nguyễn Văn A"
                     required
                   />
@@ -964,7 +1141,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="date"
                     value={editingStudent.dob}
                     onChange={(e) => setEditingStudent({ ...editingStudent, dob: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
 
@@ -973,7 +1150,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <select
                     value={editingStudent.gender}
                     onChange={(e) => setEditingStudent({ ...editingStudent, gender: e.target.value as 'Nam' | 'Nữ' | 'Chưa xác định' })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="Nam">Nam</option>
                     <option value="Nữ">Nữ</option>
@@ -987,7 +1164,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.school}
                     onChange={(e) => setEditingStudent({ ...editingStudent, school: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                     placeholder="THPT Chuyên Hoàng Lê Kha"
                   />
                 </div>
@@ -998,7 +1175,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.gradeLevel}
                     onChange={(e) => setEditingStudent({ ...editingStudent, gradeLevel: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                     placeholder="Khối 11"
                   />
                 </div>
@@ -1006,15 +1183,15 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Chương Trình Học</label>
                   <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-[10px] font-bold">
-                    <button type="button" onClick={() => setProgramEntryMode('catalog')} className={`rounded-lg px-2 py-1.5 transition ${programEntryMode === 'catalog' ? 'bg-white text-red-800 shadow-sm' : 'text-slate-500'}`}>Từ danh mục / Excel</button>
-                    <button type="button" onClick={() => setProgramEntryMode('manual')} className={`rounded-lg px-2 py-1.5 transition ${programEntryMode === 'manual' ? 'bg-white text-red-800 shadow-sm' : 'text-slate-500'}`}>Nhập tay</button>
+                    <button type="button" onClick={() => setProgramEntryMode('catalog')} className={`rounded-lg px-2 py-1.5 transition ${programEntryMode === 'catalog' ? 'bg-white text-amber-800 shadow-sm' : 'text-slate-500'}`}>Từ danh mục / Excel</button>
+                    <button type="button" onClick={() => setProgramEntryMode('manual')} className={`rounded-lg px-2 py-1.5 transition ${programEntryMode === 'manual' ? 'bg-white text-amber-800 shadow-sm' : 'text-slate-500'}`}>Nhập tay</button>
                   </div>
                   {programEntryMode === 'catalog' ? (
                     <>
                       <select
                         value={editingStudent.programId}
                         onChange={(e) => setEditingStudent({ ...editingStudent, programId: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700 font-semibold"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
                         required
                       >
                         <option value="">Chọn chương trình đã nhập từ Excel / danh mục</option>
@@ -1030,7 +1207,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         onChange={(e) => setManualProgramName(e.target.value)}
                         list="student-program-options"
                         placeholder="Nhập tên chương trình học..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700 font-semibold"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
                         required
                       />
                       <datalist id="student-program-options">{programs.map((program) => <option key={program.id} value={program.name} />)}</datalist>
@@ -1045,7 +1222,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     <select
                       value={editingStudent.classId}
                       onChange={(e) => setEditingStudent({ ...editingStudent, classId: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700 font-semibold text-slate-900"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold text-slate-900"
                     >
                       <optgroup label="Danh Sách Lớp Học Tại Trung Tâm">
                         {classes.map(c => (
@@ -1061,46 +1238,11 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         value={editingStudent.classId}
                         onChange={(e) => setEditingStudent({ ...editingStudent, classId: e.target.value })}
                         placeholder="Ví dụ: L9-PPTE hoặc Lớp 9 - Global Success"
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-semibold focus:ring-2 focus:ring-red-700 bg-amber-50/30"
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-semibold focus:ring-2 focus:ring-amber-500 bg-amber-50/30"
                       />
                       <p className="mt-1 text-[10px] text-slate-500">Chỉ nhận lớp đã tạo để học sinh, học phí, bảng điểm và Excel luôn liên kết đúng.</p>
                     </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Lớp Học Thêm / Lớp Bổ Sung (Dành cho bé học từ 2 lớp)
-                  </label>
-                  <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-1.5 custom-scrollbar">
-                    {classes.filter(c => c.id !== editingStudent.classId).length === 0 ? (
-                      <p className="text-[11px] text-slate-400 py-1">Không có lớp học khác để chọn.</p>
-                    ) : (
-                      classes.filter(c => c.id !== editingStudent.classId).map(c => {
-                        const isSelected = Array.isArray(editingStudent.extraClassIds) && editingStudent.extraClassIds.includes(c.id);
-                        return (
-                          <label key={c.id} className="flex items-center gap-2 text-xs font-semibold text-slate-800 hover:bg-white p-1 rounded cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const currentExtras = editingStudent.extraClassIds || [];
-                                const nextExtras = e.target.checked
-                                  ? [...currentExtras, c.id]
-                                  : currentExtras.filter(id => id !== c.id);
-                                setEditingStudent({ ...editingStudent, extraClassIds: nextExtras });
-                              }}
-                              className="rounded border-slate-300 text-red-700 focus:ring-red-600 h-3.5 w-3.5"
-                            />
-                            <span>{c.name} ({c.code})</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                  <p className="mt-1 text-[10px] text-slate-500">
-                    Tích chọn thêm nếu học viên học từ 2 lớp trở lên. Bé sẽ xuất hiện đầy đủ trong danh sách và báo cáo của tất cả các lớp đã chọn.
-                  </p>
                 </div>
 
                 <div>
@@ -1109,7 +1251,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.phone || ''}
                     onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700 font-semibold text-red-900"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold text-slate-900"
                     placeholder="0936 123 456"
                   />
                 </div>
@@ -1120,7 +1262,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.parentName}
                     onChange={(e) => setEditingStudent({ ...editingStudent, parentName: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                     placeholder="Nguyễn Văn Hùng"
                     required
                   />
@@ -1132,7 +1274,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     type="text"
                     value={editingStudent.parentPhone}
                     onChange={(e) => setEditingStudent({ ...editingStudent, parentPhone: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                     placeholder="0918 222 333"
                     required
                   />
@@ -1143,7 +1285,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <select
                     value={editingStudent.status}
                     onChange={(e) => setEditingStudent({ ...editingStudent, status: e.target.value as StudentStatus })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="active">Đang học</option>
                     <option value="reserved">Bảo lưu</option>
@@ -1156,7 +1298,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <select
                     value={editingStudent.feeStatus}
                     disabled
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700 font-semibold disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="paid" className="text-emerald-700 font-bold">🟢 Đã đóng đủ</option>
                     <option value="unpaid" className="text-red-700 font-bold">🔴 Chưa đóng học phí</option>
@@ -1210,9 +1352,279 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 shadow-sm flex items-center gap-1.5"
+                  className="px-5 py-2 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-600 shadow-sm flex items-center gap-1.5 active:scale-95"
                 >
-                  <Save className="w-4 h-4 text-amber-400" /> Lưu Học Sinh
+                  <Save className="w-4 h-4 text-slate-950" /> Lưu Học Sinh
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BẢO LƯU HỌC TẬP */}
+      {reservingStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button
+              onClick={() => setReservingStudent(null)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                <PauseCircle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Bảo Lưu Học Tập</h3>
+                <p className="text-xs text-slate-500">Tạm dừng học và rút khỏi danh sách điểm danh lớp</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmReservation} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80">
+                <div className="font-bold text-slate-900 text-sm">{reservingStudent.name} ({reservingStudent.code})</div>
+                <div className="text-[11px] text-slate-600 mt-0.5">
+                  Lớp: <span className="font-semibold text-amber-800">{classes.find(c => c.id === reservingStudent.classId)?.name || 'Chưa xếp lớp'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Ngày Bắt Đầu *</label>
+                  <input
+                    type="date"
+                    value={reserveStartDate}
+                    onChange={e => setReserveStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Dự Kiến Học Lại</label>
+                  <input
+                    type="date"
+                    value={reserveEndDate}
+                    onChange={e => setReserveEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Lý Do Bảo Lưu *</label>
+                <select
+                  value={reserveReason}
+                  onChange={e => setReserveReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-medium"
+                >
+                  <option value="Bận lịch học tại trường chính khóa">Bận lịch học tại trường chính khóa</option>
+                  <option value="Lý do sức khỏe / điều trị y tế">Lý do sức khỏe / điều trị y tế</option>
+                  <option value="Việc gia đình bận đột xuất">Việc gia đình bận đột xuất</option>
+                  <option value="Tạm nghỉ ôn thi học kỳ">Tạm nghỉ ôn thi học kỳ</option>
+                  <option value="Khác">Lý do khác</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ghi Chú Chi Tiết</label>
+                <textarea
+                  rows={2}
+                  value={reserveNote}
+                  onChange={e => setReserveNote(e.target.value)}
+                  placeholder="Ghi chú thêm từ phụ huynh hoặc thỏa thuận giữ học phí..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReservingStudent(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5"
+                >
+                  <PauseCircle className="w-4 h-4" /> Xác Nhận Bảo Lưu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NGHỈ HỌC NGANG */}
+      {droppingStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button
+              onClick={() => setDroppingStudent(null)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center">
+                <UserMinus className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Xác Nhận Nghỉ Học Ngang</h3>
+                <p className="text-xs text-slate-500">Ghi nhận học viên thôi học và cập nhật trạng thái</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmDrop} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-200/80">
+                <div className="font-bold text-slate-900 text-sm">{droppingStudent.name} ({droppingStudent.code})</div>
+                <div className="text-[11px] text-slate-600 mt-0.5">
+                  Lớp: <span className="font-semibold text-amber-800">{classes.find(c => c.id === droppingStudent.classId)?.name || 'Chưa xếp lớp'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ngày Chính Thức Nghỉ Học *</label>
+                <input
+                  type="date"
+                  value={dropDate}
+                  onChange={e => setDropDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 font-semibold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Lý Do Nghỉ Học *</label>
+                <select
+                  value={dropReason}
+                  onChange={e => setDropReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 font-medium"
+                >
+                  <option value="Chuyển nơi ở / trường học">Chuyển nơi ở / trường học</option>
+                  <option value="Không phù hợp thời gian ca học">Không phù hợp thời gian ca học</option>
+                  <option value="Hoàn cảnh kinh tế gia đình">Hoàn cảnh kinh tế gia đình</option>
+                  <option value="Không theo kịp trình độ lớp">Không theo kịp trình độ lớp</option>
+                  <option value="Lý do cá nhân khác">Lý do cá nhân khác</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ghi Chú Đóng Hồ Sơ</label>
+                <textarea
+                  rows={2}
+                  value={dropNote}
+                  onChange={e => setDropNote(e.target.value)}
+                  placeholder="Ghi nhận phản hồi của phụ huynh khi nghỉ học..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDroppingStudent(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5"
+                >
+                  <UserMinus className="w-4 h-4" /> Xác Nhận Nghỉ Học
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HỌC VIÊN QUAY LẠI HỌC TIẾP */}
+      {reEnrollingStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button
+              onClick={() => setReEnrollingStudent(null)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Quay Lại Học Tiếp</h3>
+                <p className="text-xs text-slate-500">Khôi phục trạng thái đang học và xếp lại lớp học</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmReEnroll} className="space-y-3.5 text-xs">
+              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80">
+                <div className="font-bold text-slate-900 text-sm">{reEnrollingStudent.name} ({reEnrollingStudent.code})</div>
+                <div className="text-[11px] text-slate-600 mt-0.5">
+                  Trạng thái trước đó: <span className="font-bold text-amber-800">{reEnrollingStudent.status === 'reserved' ? 'Bảo lưu' : 'Nghỉ học'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Chọn Lớp Học Tiếp Tục *</label>
+                <select
+                  value={reEnrollClassId}
+                  onChange={e => setReEnrollClassId(e.target.value)}
+                  className="w-full px-3 py-2.5 border-2 border-emerald-500 rounded-xl focus:ring-2 focus:ring-emerald-600 font-bold text-slate-900 bg-white"
+                  required
+                >
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code}) — {c.scheduleTime} ({c.studentIds ? c.studentIds.length : 0}/{c.capacity} HS)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ngày Bắt Đầu Đi Học Lại *</label>
+                <input
+                  type="date"
+                  value={reEnrollDate}
+                  onChange={e => setReEnrollDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 font-semibold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ghi Chú Khi Nhập Học Lại</label>
+                <textarea
+                  rows={2}
+                  value={reEnrollNote}
+                  onChange={e => setReEnrollNote(e.target.value)}
+                  placeholder="Ghi chú về bảo lưu học phí cũ, kiểm tra xếp lớp lại..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReEnrollingStudent(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl font-semibold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-sm flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-4 h-4" /> Xác Nhận Vào Học Lại
                 </button>
               </div>
             </form>

@@ -7,6 +7,8 @@ export interface StaffPermissions {
   grade: { view: boolean; edit: boolean };
   excel: { import: boolean; export: boolean };
   report: { view: boolean; revenue: boolean };
+  assignedClassIds?: string[];
+  teacherId?: string;
 }
 
 export interface UserAccount {
@@ -19,7 +21,13 @@ export interface UserAccount {
   permissions: StaffPermissions;
 }
 
-export type StudentStatus = 'active' | 'reserved' | 'dropped'; // Đang học, Bảo lưu, Nghỉ học
+export type StudentStatus = 'active' | 'reserved' | 'dropped' | 'lead' | 'trial' | 'registered';
+// 'active': Đang học
+// 'reserved': Bảo lưu
+// 'dropped': Nghỉ học
+// 'lead': Tiềm năng / Tư vấn
+// 'trial': Học thử
+// 'registered': Đã đăng ký (chờ xếp lớp)
 export type FeeStatus = 'paid' | 'unpaid' | 'debt' | 'partial';
 
 export interface Student {
@@ -33,7 +41,6 @@ export interface Student {
   gradeLevel: string; // Khối 1..12
   programId: string;
   classId: string;
-  extraClassIds?: string[];
   address: string;
   email: string;
   phone: string;
@@ -112,6 +119,16 @@ export interface Grade {
   average: number;
 }
 
+export interface TuitionInstallment {
+  id: string;
+  code?: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  paymentMethod?: 'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định';
+  collectorName?: string;
+  notes?: string;
+}
+
 export interface TuitionReceipt {
   id: string;
   code: string; // e.g. PT-2026-001
@@ -131,6 +148,7 @@ export interface TuitionReceipt {
   collectorName: string;
   paymentMethod: 'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định';
   notes?: string;
+  installments?: TuitionInstallment[];
 }
 
 export interface ActivityLog {
@@ -183,10 +201,31 @@ export interface CenterSettings {
   address: string;
   phone: string;
   email: string;
+  secondaryEmail?: string;
   adminReportEmail: string;
   autoEmailReport: boolean;
   autoBackup: boolean;
   sheetsConfig: GoogleSheetsConfig;
+}
+
+// Quản lý Điểm danh & Buổi học
+export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';
+
+export interface AttendanceStudentEntry {
+  studentId: string;
+  status: AttendanceStatus;
+  note?: string;
+  homeworkCompleted?: boolean;
+}
+
+export interface AttendanceSession {
+  id: string;
+  classId: string;
+  date: string; // YYYY-MM-DD
+  lessonTopic: string;
+  teacherId?: string;
+  entries: AttendanceStudentEntry[];
+  generalNotes?: string;
 }
 
 // The complete center dataset saved in an offline JSON backup. Keeping this
@@ -204,4 +243,6 @@ export interface CenterBackupData {
   receipts: TuitionReceipt[];
   backups: SystemBackup[];
   activityLogs: ActivityLog[];
+  attendanceSessions?: AttendanceSession[];
 }
+

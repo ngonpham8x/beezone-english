@@ -122,12 +122,19 @@ function normalizeStaffPermissions(candidate: unknown) {
   const input = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
     ? candidate as Record<string, unknown>
     : {};
-  return Object.fromEntries(Object.entries(STAFF_PERMISSION_SHAPE).map(([module, actions]) => {
+  const base: any = Object.fromEntries(Object.entries(STAFF_PERMISSION_SHAPE).map(([module, actions]) => {
     const inputModule = input[module] && typeof input[module] === 'object' && !Array.isArray(input[module])
       ? input[module] as Record<string, unknown>
       : {};
     return [module, Object.fromEntries(actions.map((action) => [action, inputModule[action] === true]))];
   }));
+  if (Array.isArray(input.assignedClassIds)) {
+    base.assignedClassIds = input.assignedClassIds.filter((id) => typeof id === 'string');
+  }
+  if (typeof input.teacherId === 'string' && input.teacherId.trim()) {
+    base.teacherId = input.teacherId.trim();
+  }
+  return base;
 }
 
 function serverClient() {
@@ -190,11 +197,10 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     const { data, error } = await client
       .from('profiles')
-      .select('id, full_name, avatar_url')
-      .eq('id', callerId)
-      .maybeSingle();
-    if (error || !data) return json(res, 500, { error: 'Không thể tải tài khoản đang đăng nhập.' });
-    return json(res, 200, { users: [data] });
+      .select('id, email, full_name, avatar_url, role, is_active, permissions')
+      .order('created_at', { ascending: false });
+    if (error || !data) return json(res, 500, { error: 'Không thể tải danh sách tài khoản.' });
+    return json(res, 200, { users: data });
   }
 
   const body = getBody(req);
@@ -235,7 +241,7 @@ export default async function handler(req: any, res: any) {
         actorId: callerId,
         actorName: callerName,
         targetId: existing.id,
-        targetName: fullName || existing.full_name || 'Chưa đặt tên',
+        targetName: fullName || existing.full_name || existing.email || 'Tài khoản BeeZone',
         targetRole: role,
         details,
       });
@@ -292,6 +298,31 @@ export default async function handler(req: any, res: any) {
   }
 
   const userId = typeof body.userId === 'string' ? body.userId : '';
+
+  if (body.action === 'updatePermissions') {
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) {
+      return json(res, 400, { error: 'ID tài khoản không hợp lệ.' });
+    }
+    const permissions = normalizeStaffPermissions(body.permissions);
+    const { error: updatePermsError } = await client
+      .from('profiles')
+      .update({ permissions })
+      .eq('id', userId);
+    if (updatePermsError) return json(res, 500, { error: 'Không thể cập nhật quyền.' });
+
+    await writeAccountAudit(client, {
+      action: 'ACCOUNT_UPDATED',
+      actorId: callerId,
+      actorName: callerName,
+      targetId: userId,
+      targetName: typeof body.targetName === 'string' ? body.targetName : 'Nhân viên',
+      targetRole: 'staff',
+      details: `Cập nhật cấu hình quyền và lớp phân công: ${permissionSummary(permissions)}`,
+    });
+
+    return json(res, 200, { success: true });
+  }
+
   const active = body.active;
   if (body.action !== 'setActive' || !/^[0-9a-f-]{36}$/i.test(userId) || typeof active !== 'boolean') {
     return json(res, 400, { error: 'Yêu cầu cập nhật không hợp lệ.' });
@@ -323,7 +354,7 @@ export default async function handler(req: any, res: any) {
     actorId: callerId,
     actorName: callerName,
     targetId: target.id,
-    targetName: target.full_name || 'Chưa đặt tên',
+    targetName: target.full_name || target.email || 'Tài khoản BeeZone',
     targetRole: target.role,
     details: active ? 'Mở khóa tài khoản; có thể đăng nhập Google.' : 'Khóa tài khoản; không thể truy cập hệ thống.',
   });

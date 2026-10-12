@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { ClassRoom, Teacher, Room, CourseProgram, Student, StaffPermissions, TimetableSlot, TuitionReceipt } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown } from '../lib/tuition';
-import { isStudentInClass } from '../lib/student';
 import {
   BookOpen,
   Plus,
@@ -239,23 +238,72 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-red-700" />
+            <BookOpen className="w-6 h-6 text-amber-600" />
             {t('class.title')} ({classes.length})
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {language === 'vi' ? 'Danh sách các lớp học đang mở tại Cơ Sở 01 Phúc Phúc Thịnh' : 'Active class list at Phuc Phuc Thinh Campus 01'}
+            {language === 'vi' ? 'Danh sách các lớp học đang mở tại Trung tâm ngoại ngữ BeeZone' : 'Active class list at BeeZone Language Center'}
           </p>
         </div>
 
         {canEdit && (
           <button
             onClick={handleOpenAdd}
-            className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
+            <Plus className="w-4 h-4 text-slate-950" />
             {t('class.add_new')}
           </button>
         )}
+      </div>
+
+      {/* Quick Stats Bar */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng Lớp Mở</div>
+            <div className="text-xl font-black text-slate-900 mt-0.5">{classes.length} lớp</div>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+            <BookOpen className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Đã Phân Công GV</div>
+            <div className="text-xl font-black text-emerald-700 mt-0.5">
+              {classes.filter(c => c.teacherId).length} / {classes.length}
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <UserCheck className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Học Viên Đang Học</div>
+            <div className="text-xl font-black text-sky-700 mt-0.5">
+              {classes.reduce((sum, c) => sum + students.filter(s => s.classId === c.id).length, 0)} bạn
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng Sức Chứa</div>
+            <div className="text-xl font-black text-slate-900 mt-0.5">
+              {classes.reduce((sum, c) => sum + (c.capacity || 0), 0)} chỗ
+            </div>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <DoorOpen className="w-5 h-5" />
+          </div>
+        </div>
       </div>
 
       {/* Class Cards Grid */}
@@ -266,7 +314,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
           const program = programs.find(p => p.id === cls.programId);
           const classSchedule = timetableSlots.filter((slot) => slot.classId === cls.id);
           const displaySchedule = classSchedule.length ? scheduleDescription(classSchedule) : (cls.scheduleTime || 'Chưa xếp lịch');
-          const classStudents = students.filter(s => isStudentInClass(s, cls.id, cls));
+          const classStudents = students.filter(s => s.classId === cls.id);
           const currentCount = classStudents.length;
           const capacityKnown = cls.capacity > 0;
           const percentFull = capacityKnown ? Math.round((currentCount / cls.capacity) * 100) : 0;
@@ -274,15 +322,15 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
           return (
             <div
               key={cls.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden hover:shadow-md transition-all flex flex-col justify-between"
+              className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden hover:shadow-md hover:border-amber-300 transition-all flex flex-col justify-between"
             >
               <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-50 text-amber-900 border border-amber-200/60">
                       {cls.code}
                     </span>
-                    <h3 className="font-bold text-slate-900 text-base mt-1 leading-snug">{cls.name}</h3>
+                    <h3 className="font-bold text-slate-900 text-base mt-1.5 leading-snug">{cls.name}</h3>
                     <div className="text-xs text-amber-700 font-semibold mt-0.5">{program?.name}</div>
                   </div>
 
@@ -314,7 +362,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
                 <div className="space-y-2 text-xs text-slate-600 border-t border-slate-100 pt-3">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="w-3.5 h-3.5 text-red-700 flex-shrink-0" />
+                    <UserCheck className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                     <span>{t('class.teacher')} <strong>{teacher ? teacher.name : (language === 'vi' ? 'Chưa phân công' : 'Unassigned')}</strong></span>
                   </div>
 
@@ -331,18 +379,29 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
                 {/* Sĩ số Bar */}
                 <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="flex justify-between items-center text-xs font-semibold mb-1">
+                  <div className="flex justify-between items-center text-xs font-semibold mb-1.5">
                     <span className="text-slate-600">{t('class.capacity')}</span>
-                    <span className="text-slate-900">{currentCount} / {capacityKnown ? cls.capacity : (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')} {t('class.students')}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-900 font-bold">{currentCount} / {capacityKnown ? cls.capacity : (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')} {t('class.students')}</span>
+                      {capacityKnown && (
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded ${percentFull >= 90 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {percentFull}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {capacityKnown ? <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${
-                        percentFull >= 90 ? 'bg-rose-600' : 'bg-emerald-600'
-                      }`}
-                      style={{ width: `${Math.min(percentFull, 100)}%` }}
-                    />
-                  </div> : <p className="text-[11px] text-amber-700">Chưa có sức chứa trong file nguồn.</p>}
+                  {capacityKnown ? (
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all ${
+                          percentFull >= 90 ? 'bg-rose-600' : 'bg-emerald-600'
+                        }`}
+                        style={{ width: `${Math.min(percentFull, 100)}%` }}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-amber-700">Chưa có sức chứa trong file nguồn.</p>
+                  )}
                 </div>
               </div>
 
@@ -350,9 +409,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 <span className="text-[11px] text-slate-500 font-medium">{language === 'vi' ? 'Cơ sở 01' : 'Campus 01'}</span>
                 <button
                   onClick={() => setViewingClassStudents(cls)}
-                  className="text-xs font-bold text-red-800 hover:text-red-900 flex items-center gap-1"
+                  className="text-xs font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1.5 transition-colors"
                 >
-                  <Eye className="w-3.5 h-3.5" /> {t('class.view_roster')} ({classStudents.length})
+                  <Eye className="w-3.5 h-3.5 text-amber-600" /> {t('class.view_roster')} ({classStudents.length})
                 </button>
               </div>
             </div>
@@ -382,52 +441,39 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
             </p>
 
             <div className="divide-y divide-slate-100">
-              {(() => {
-                const viewingStudents = students.filter(s => isStudentInClass(s, viewingClassStudents.id, viewingClassStudents));
-                if (viewingStudents.length === 0) {
-                  return (
-                    <div className="py-6 text-center text-xs text-slate-400">
-                      Lớp học này hiện chưa có học sinh nào.
-                    </div>
-                  );
-                }
-                return viewingStudents.map((st, idx) => {
-                  const studentClassReceipts = receipts.filter(r => r.studentId === st.id && (r.classId === viewingClassStudents.id || !r.classId));
-                  const debt = debtBreakdown(studentClassReceipts.length > 0 ? studentClassReceipts : receipts.filter(r => r.studentId === st.id));
-                  const hasReceipt = (studentClassReceipts.length > 0 ? studentClassReceipts : receipts.filter(r => r.studentId === st.id)).length > 0;
-                  const isExtraClass = st.classId !== viewingClassStudents.id;
-
-                  return (
-                    <div key={st.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-slate-400 w-5 text-center">{idx + 1}</span>
-                        <TeacherAvatar teacher={st} className="h-8 w-8 text-[9px]" />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-slate-900">{st.name}</span>
-                            {isExtraClass && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800" title="Học viên đăng ký học nhiều lớp">
-                                Học thêm lớp này
-                              </span>
-                            )}
+              {students.filter(s => s.classId === viewingClassStudents.id).length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  Lớp học này hiện chưa có học sinh nào.
+                </div>
+              ) : (
+                students
+                  .filter(s => s.classId === viewingClassStudents.id)
+                  .map((st, idx) => {
+                    const debt = debtBreakdown(receipts.filter((receipt) => receipt.studentId === st.id));
+                    return (
+                      <div key={st.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-slate-400 w-5 text-center">{idx + 1}</span>
+                          <TeacherAvatar teacher={st} className="h-8 w-8 text-[9px]" />
+                          <div>
+                            <div className="font-bold text-slate-900">{st.name}</div>
+                            <div className="text-[10px] text-slate-500">{st.code} • Phụ huynh: {st.parentName} ({st.parentPhone})</div>
                           </div>
-                          <div className="text-[10px] text-slate-500">{st.code} • Phụ huynh: {st.parentName} ({st.parentPhone})</div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            debt.total > 0 ? 'bg-rose-100 text-rose-800' : st.feeStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {debt.total > 0 ? 'Đóng thiếu' : st.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa có phiếu'}
+                          </span>
+                          {debt.monthly > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Tháng: {debt.monthly.toLocaleString('vi-VN')} đ</div>}
+                          {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}
                         </div>
                       </div>
-
-                      <div className="text-right">
-                        <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          debt.total > 0 ? 'bg-rose-100 text-rose-800' : hasReceipt ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {debt.total > 0 ? 'Đóng thiếu' : hasReceipt ? 'Đã đóng đủ' : 'Chưa có phiếu'}
-                        </span>
-                        {debt.monthly > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Tháng: {debt.monthly.toLocaleString('vi-VN')} đ</div>}
-                        {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
+                    );
+                  })
+              )}
             </div>
 
             <div className="mt-6 flex justify-end">
@@ -461,7 +507,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
             </button>
 
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-red-700" />
+              <BookOpen className="w-5 h-5 text-amber-600" />
               {classes.some(c => c.id === editingClass.id) ? 'Cập Nhật Lớp Học' : 'Tạo Lớp Học Mới'}
             </h3>
 
@@ -474,7 +520,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                     value={editingClass.code}
                     onChange={(e) => handleClassCodeChange(e.target.value)}
                     list="class-code-options"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-red-800"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold font-mono text-amber-900"
                     placeholder="Chọn hoặc nhập mã mới"
                     required
                   />
@@ -574,7 +620,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                         onClick={() => toggleDay(day)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
                           isSelected
-                            ? 'bg-red-800 text-white'
+                            ? 'bg-amber-500 text-slate-950 font-bold shadow-2xs'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
@@ -642,9 +688,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 flex items-center gap-1.5"
+                  className="px-5 py-2 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-600 flex items-center gap-1.5 shadow-sm active:scale-95"
                 >
-                  <Save className="w-4 h-4 text-amber-400" /> Lưu Lớp Học
+                  <Save className="w-4 h-4 text-slate-950" /> Lưu Lớp Học
                 </button>
               </div>
             </form>

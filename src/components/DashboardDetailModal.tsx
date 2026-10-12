@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, ChevronRight, ReceiptText, X } from 'lucide-react';
 import { ClassRoom, CourseProgram, Room, Student, Teacher, TuitionReceipt } from '../types';
-import { debtBreakdown, paymentKindLabel, paymentKindOf, paymentMethodLabel, paymentPeriodLabel } from '../lib/tuition';
-import { isStudentInClass } from '../lib/student';
+import { debtBreakdown, getReceiptPaymentEntries, paymentKindLabel, paymentKindOf, paymentMethodLabel, paymentPeriodLabel } from '../lib/tuition';
 
 export type DashboardDetailType =
   | 'students'
@@ -87,47 +86,47 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
 
   const isStudentDetail = detail ? detail in detailStudentMap : false;
   const visibleStudents = detail ? detailStudentMap[detail] ?? [] : [];
-  const visibleReceipts = revenueMonth
-    ? receipts.filter((receipt) => receipt.paymentDate.startsWith(revenueMonth))
-    : receipts;
+  const paymentEntries = useMemo(() => getReceiptPaymentEntries(receipts), [receipts]);
+  const visibleEntries = useMemo(() => revenueMonth
+    ? paymentEntries.filter((entry) => entry.monthKey === revenueMonth)
+    : paymentEntries, [paymentEntries, revenueMonth]);
+  const visibleReceipts = useMemo(() => {
+    const list = visibleEntries.map((e) => e.receipt);
+    return [...new Set(list)];
+  }, [visibleEntries]);
 
   const revenueClassRows = useMemo(() => classes.map((classroom) => {
-    const classReceipts = visibleReceipts.filter((receipt) => receipt.classId === classroom.id);
-    const enrolledStudents = students.filter((s) => isStudentInClass(s, classroom.id, classroom));
+    const classEntries = visibleEntries.filter((entry) => entry.classId === classroom.id);
+    const classReceipts = [...new Set(classEntries.map((e) => e.receipt))];
+    const allClassReceipts = receipts.filter((receipt) => receipt.classId === classroom.id);
     return {
       classroom,
       receipts: classReceipts,
-      paidAmount: classReceipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0),
-      debt: debtBreakdown(classReceipts),
-      studentCount: enrolledStudents.length,
-      payingCount: new Set(classReceipts.map((receipt) => receipt.studentId)).size
+      paidAmount: classEntries.reduce((sum, entry) => sum + entry.amount, 0),
+      debt: debtBreakdown(allClassReceipts),
+      studentCount: new Set(classEntries.map((entry) => entry.studentId)).size
     };
-  }).filter((row) => row.receipts.length > 0 || row.studentCount > 0).sort((a, b) => b.paidAmount - a.paidAmount), [classes, visibleReceipts, students]);
+  }).filter((row) => row.receipts.length > 0 || row.paidAmount > 0).sort((a, b) => b.paidAmount - a.paidAmount), [classes, visibleEntries, receipts]);
   const selectedRevenueClass = revenueClassRows.find((row) => row.classroom.id === selectedRevenueClassId) ?? null;
   const revenueStudentRows = selectedRevenueClass ? (() => {
-    const enrolledStudents = students.filter((s) => isStudentInClass(s, selectedRevenueClass.classroom.id, selectedRevenueClass.classroom));
-    const groupedStudents = new Map<string, { student: Student | undefined; receipts: TuitionReceipt[] }>();
-
-    // Đưa tất cả học viên trong lớp vào danh sách hiển thị
-    enrolledStudents.forEach((student) => {
-      groupedStudents.set(student.id, { student, receipts: [] });
-    });
-
-    selectedRevenueClass.receipts.forEach((receipt) => {
-      const group = groupedStudents.get(receipt.studentId) ?? { student: studentById.get(receipt.studentId), receipts: [] };
-      group.receipts.push(receipt);
-      groupedStudents.set(receipt.studentId, group);
-    });
-
-    return [...groupedStudents.values()].map((row) => {
-      const classReceipts = row.receipts;
-      const allStudentReceipts = row.student ? receipts.filter(r => r.studentId === row.student?.id && (r.classId === selectedRevenueClass.classroom.id || !r.classId)) : [];
-      return {
-        ...row,
-        paidAmount: classReceipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0),
-        debt: classReceipts.length > 0 ? debtBreakdown(classReceipts) : debtBreakdown(allStudentReceipts)
+    const classEntries = visibleEntries.filter((entry) => entry.classId === selectedRevenueClass.classroom.id);
+    const groupedStudents = new Map<string, { student: Student | undefined; receipts: TuitionReceipt[]; paidAmount: number }>();
+    classEntries.forEach((entry) => {
+      const group = groupedStudents.get(entry.studentId) ?? {
+        student: studentById.get(entry.studentId),
+        receipts: [],
+        paidAmount: 0
       };
-    }).sort((a, b) => b.paidAmount - a.paidAmount);
+      if (!group.receipts.some(r => r.id === entry.receiptId)) {
+        group.receipts.push(entry.receipt);
+      }
+      group.paidAmount += entry.amount;
+      groupedStudents.set(entry.studentId, group);
+    });
+    return [...groupedStudents.values()].map((row) => ({
+      ...row,
+      debt: debtBreakdown(receipts.filter(r => r.studentId === row.student?.id))
+    })).sort((a, b) => b.paidAmount - a.paidAmount);
   })() : [];
 
   const debtKind = detail === 'monthly-debt' ? 'monthly' : detail === 'course-debt' ? 'course' : null;
@@ -190,7 +189,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
               : debtReceipts.reduce((sum, receipt) => sum + receipt.debtAmount, 0)
           : selectedRevenueClass
             ? selectedRevenueClass.paidAmount
-            : visibleReceipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0);
+            : visibleEntries.reduce((sum, entry) => sum + entry.amount, 0);
 
   const viewTab = detail === 'teachers'
     ? 'teachers'
@@ -312,12 +311,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                     <td className="px-3 py-3"><div className="font-bold text-slate-900">{classRoom.name}</div><div className="mt-0.5 text-[11px] text-slate-500">{programById.get(classRoom.programId)?.name ?? 'Chưa xác định'}</div></td>
                     <td className="px-3 py-3 text-slate-700">{teacherById.get(classRoom.teacherId)?.name ?? 'Chưa phân công'}</td>
                     <td className="px-3 py-3 text-slate-700">{roomById.get(classRoom.roomId)?.name ?? 'Chưa xếp phòng'}</td>
-                    {(() => {
-                      const enrolledCount = students.filter((s) => isStudentInClass(s, classRoom.id, classRoom)).length;
-                      return (
-                        <td className="px-3 py-3 font-semibold text-slate-700">{enrolledCount}/{classRoom.capacity > 0 ? classRoom.capacity : 'Chưa cập nhật'}</td>
-                      );
-                    })()}
+                    <td className="px-3 py-3 font-semibold text-slate-700">{classRoom.studentIds.length}/{classRoom.capacity > 0 ? classRoom.capacity : 'Chưa cập nhật'}</td>
                     <td className="px-3 py-3 text-slate-700">{classRoom.days.join(', ')} · {classRoom.scheduleTime}</td>
                   </tr>
                 ))}
@@ -347,9 +341,9 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
           {detail === 'revenue' && (
             selectedRevenueClass ? (
               <div className="space-y-3">
-                <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-950">
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-950">
                   <div className="font-extrabold">{selectedRevenueClass.classroom.code} · {selectedRevenueClass.classroom.name}</div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-red-800">
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-amber-800">
                     <span>{revenueStudentRows.length} học sinh đã đóng trong tháng</span>
                     <span>Tổng thu: <b>{formatCurrency(selectedRevenueClass.paidAmount)}</b></span>
                     {canViewDebt && selectedRevenueClass.debt.monthly > 0 && <span>Nợ tháng: <b>{formatCurrency(selectedRevenueClass.debt.monthly)}</b></span>}
@@ -364,7 +358,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                           <p className="truncate font-extrabold text-slate-900">{student?.name ?? 'Học sinh đã xóa'}</p>
                           <p className="mt-0.5 text-[11px] text-slate-500">{student?.code || 'Chưa có mã'} · {studentReceipts.length} phiếu thu</p>
                         </div>
-                        <ReceiptText className="h-5 w-5 shrink-0 text-red-700" />
+                        <ReceiptText className="h-5 w-5 shrink-0 text-amber-600" />
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs">
                         <div><p className="text-[10px] font-semibold uppercase text-slate-500">Đã đóng</p><p className="mt-0.5 font-extrabold text-emerald-700">{formatCurrency(paidAmount)}</p></div>
@@ -386,9 +380,9 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {revenueClassRows.map((row) => (
-                  <button key={row.classroom.id} type="button" onClick={() => setSelectedRevenueClassId(row.classroom.id)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-red-600">
-                    <div className="flex items-start justify-between gap-3"><div><p className="font-extrabold text-slate-900">{row.classroom.code}</p><p className="mt-0.5 text-xs text-slate-500">{row.classroom.name}</p></div><ChevronRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-red-700" /></div>
-                    <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Đã thu</p><p className="mt-0.5 text-lg font-extrabold text-emerald-700">{formatCurrency(row.paidAmount)}</p></div><div className="text-right text-[11px] text-slate-500"><p>{row.studentCount} học sinh{row.payingCount < row.studentCount ? ` (${row.payingCount} đã nộp)` : ''}</p>{canViewDebt && row.debt.monthly > 0 && <p className="mt-1 font-bold text-rose-700">Nợ tháng: {formatCurrency(row.debt.monthly)}</p>}{canViewDebt && row.debt.course > 0 && <p className="mt-1 font-bold text-rose-700">Nợ khóa: {formatCurrency(row.debt.course)}</p>}</div></div>
+                  <button key={row.classroom.id} type="button" onClick={() => setSelectedRevenueClassId(row.classroom.id)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <div className="flex items-start justify-between gap-3"><div><p className="font-extrabold text-slate-900">{row.classroom.code}</p><p className="mt-0.5 text-xs text-slate-500">{row.classroom.name}</p></div><ChevronRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-amber-600" /></div>
+                    <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Đã thu</p><p className="mt-0.5 text-lg font-extrabold text-emerald-700">{formatCurrency(row.paidAmount)}</p></div><div className="text-right text-[11px] text-slate-500"><p>{row.studentCount} học sinh</p>{canViewDebt && row.debt.monthly > 0 && <p className="mt-1 font-bold text-rose-700">Nợ tháng: {formatCurrency(row.debt.monthly)}</p>}{canViewDebt && row.debt.course > 0 && <p className="mt-1 font-bold text-rose-700">Nợ khóa: {formatCurrency(row.debt.course)}</p>}</div></div>
                   </button>
                 ))}
               </div>
@@ -427,7 +421,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {debtClassRows.map((row) => (
-                  <button key={row.classroom.id} type="button" onClick={() => setSelectedDebtClassId(row.classroom.id)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-red-600">
+                  <button key={row.classroom.id} type="button" onClick={() => setSelectedDebtClassId(row.classroom.id)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500">
                     <div className="flex items-start justify-between gap-3"><div><p className="font-extrabold text-slate-900">{row.classroom.code}</p><p className="mt-0.5 text-xs text-slate-500">{row.classroom.name}</p></div><ChevronRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-rose-700" /></div>
                     <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Nợ {debtKind === 'monthly' ? 'tháng' : 'khóa'}</p><p className="mt-0.5 text-lg font-extrabold text-rose-700">{formatCurrency(row.debtAmount)}</p></div><p className="text-right text-[11px] text-slate-500">{row.studentCount} học sinh</p></div>
                   </button>
@@ -453,7 +447,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
           <button
             type="button"
             onClick={handleViewFull}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-red-800 px-4 py-2 text-xs font-bold text-white hover:bg-red-900"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs"
           >
             Mở trang quản lý <ArrowRight className="h-3.5 w-3.5" />
           </button>

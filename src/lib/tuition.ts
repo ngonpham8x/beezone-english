@@ -1,4 +1,4 @@
-import { FeeStatus, TuitionReceipt } from '../types';
+import { FeeStatus, TuitionInstallment, TuitionReceipt } from '../types';
 
 export type TuitionPaymentKind = 'course' | 'monthly';
 
@@ -31,70 +31,135 @@ export interface TuitionDebtBreakdown {
   course: number;
 }
 
-export const debtBreakdown = (receipts: TuitionReceipt[]): TuitionDebtBreakdown => {
-  // Nhóm các phiếu thu theo học viên và kỳ/khóa để tính công nợ chính xác
-  // khi học viên đóng học phí nhiều đợt (đợt 1, đợt 2, đợt cuối...)
-  const courseGroups = new Map<string, TuitionReceipt[]>();
-  const monthlyGroups = new Map<string, TuitionReceipt[]>();
-
-  for (const receipt of receipts) {
-    const periodKey = (receipt.billingPeriod || '').trim().toLowerCase();
-    const key = `${receipt.studentId}::${receipt.classId || 'default'}::${periodKey}`;
-    if (paymentKindOf(receipt) === 'course') {
-      const group = courseGroups.get(key) || [];
-      group.push(receipt);
-      courseGroups.set(key, group);
-    } else {
-      const group = monthlyGroups.get(key) || [];
-      group.push(receipt);
-      monthlyGroups.set(key, group);
-    }
-  }
-
-  let courseDebt = 0;
-  for (const group of courseGroups.values()) {
-    if (group.length === 1) {
-      courseDebt += Math.max(group[0].debtAmount || 0, 0);
-    } else {
-      const maxCourseFee = Math.max(...group.map(r => r.courseFee || 0));
-      const maxDiscount = Math.max(...group.map(r => r.discount || 0));
-      const totalPaid = group.reduce((sum, r) => sum + Math.max(r.paidAmount || 0, 0), 0);
-      const totalDue = Math.max(maxCourseFee - maxDiscount, 0);
-      if (totalDue > 0) {
-        courseDebt += Math.max(totalDue - totalPaid, 0);
-      } else {
-        courseDebt += group.reduce((sum, r) => sum + Math.max(r.debtAmount || 0, 0), 0);
-      }
-    }
-  }
-
-  let monthlyDebt = 0;
-  for (const group of monthlyGroups.values()) {
-    if (group.length === 1) {
-      monthlyDebt += Math.max(group[0].debtAmount || 0, 0);
-    } else {
-      const maxMonthlyFee = Math.max(...group.map(r => r.monthlyFee || 0));
-      const maxDiscount = Math.max(...group.map(r => r.discount || 0));
-      const totalPaid = group.reduce((sum, r) => sum + Math.max(r.paidAmount || 0, 0), 0);
-      const totalDue = Math.max(maxMonthlyFee - maxDiscount, 0);
-      if (totalDue > 0) {
-        monthlyDebt += Math.max(totalDue - totalPaid, 0);
-      } else {
-        monthlyDebt += group.reduce((sum, r) => sum + Math.max(r.debtAmount || 0, 0), 0);
-      }
-    }
-  }
-
-  return {
-    total: courseDebt + monthlyDebt,
-    monthly: monthlyDebt,
-    course: courseDebt,
-  };
-};
+export const debtBreakdown = (receipts: TuitionReceipt[]): TuitionDebtBreakdown => receipts.reduce<TuitionDebtBreakdown>((summary, receipt) => {
+  const debt = Math.max(receipt.debtAmount || 0, 0);
+  if (!debt) return summary;
+  summary.total += debt;
+  if (paymentKindOf(receipt) === 'course') summary.course += debt;
+  else summary.monthly += debt;
+  return summary;
+}, { total: 0, monthly: 0, course: 0 });
 
 export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
   const debt = debtBreakdown(receipts).total;
   const paid = receipts.reduce((sum, receipt) => sum + Math.max(receipt.paidAmount || 0, 0), 0);
   if (debt > 0) return paid > 0 ? 'partial' : 'debt';
   return paid > 0 ? 'paid' : 'unpaid';
+};
+
+export interface ReceiptPaymentEntry {
+  receiptId: string;
+  receiptCode: string;
+  studentId: string;
+  classId: string;
+  date: string; // YYYY-MM-DD
+  monthKey: string; // YYYY-MM
+  amount: number;
+  paymentKind: TuitionPaymentKind;
+  paymentMethod: TuitionReceipt['paymentMethod'];
+  collectorName: string;
+  notes?: string;
+  receipt: TuitionReceipt;
+  isInstallment: boolean;
+  installmentId?: string;
+}
+
+/**
+ * Trả về danh sách từng giao dịch thu tiền thực tế (theo từng đợt đóng hoặc phiếu thu đơn lẻ).
+ * Đối với học viên đóng nhiều đợt, mỗi đợt sẽ mang đúng ngày thu và số tiền của đợt đó để tính
+ * doanh thu theo ngày/tuần/tháng chính xác tuyệt đối.
+ */
+export const getReceiptPaymentEntries = (receipts: TuitionReceipt[]): ReceiptPaymentEntry[] => {
+  const entries: ReceiptPaymentEntry[] = [];
+
+  for (const receipt of receipts) {
+    if (Array.isArray(receipt.installments) && receipt.installments.length > 0) {
+      let installmentsSum = 0;
+      receipt.installments.forEach((inst, idx) => {
+        if (inst.amount > 0) {
+          installmentsSum += inst.amount;
+          const date = inst.date || receipt.paymentDate;
+          entries.push({
+            receiptId: receipt.id,
+            receiptCode: receipt.code,
+            studentId: receipt.studentId,
+            classId: receipt.classId,
+            date,
+            monthKey: date.slice(0, 7),
+            amount: inst.amount,
+            paymentKind: paymentKindOf(receipt),
+            paymentMethod: inst.paymentMethod || receipt.paymentMethod,
+            collectorName: inst.collectorName || receipt.collectorName,
+            notes: inst.notes || (idx === 0 ? 'Thu đợt 1' : `Thu đợt ${idx + 1}`),
+            receipt,
+            isInstallment: true,
+            installmentId: inst.id,
+          });
+        }
+      });
+
+      // Nếu tổng các đợt nhỏ hơn paidAmount, ghi nhận phần chênh lệch còn lại vào ngày paymentDate
+      if (receipt.paidAmount > installmentsSum) {
+        const remainingInitAmount = receipt.paidAmount - installmentsSum;
+        const date = receipt.paymentDate;
+        entries.push({
+          receiptId: receipt.id,
+          receiptCode: receipt.code,
+          studentId: receipt.studentId,
+          classId: receipt.classId,
+          date,
+          monthKey: date.slice(0, 7),
+          amount: remainingInitAmount,
+          paymentKind: paymentKindOf(receipt),
+          paymentMethod: receipt.paymentMethod,
+          collectorName: receipt.collectorName,
+          notes: receipt.notes || 'Thu đợt 1',
+          receipt,
+          isInstallment: false,
+        });
+      }
+    } else if (receipt.paidAmount > 0) {
+      const date = receipt.paymentDate;
+      entries.push({
+        receiptId: receipt.id,
+        receiptCode: receipt.code,
+        studentId: receipt.studentId,
+        classId: receipt.classId,
+        date,
+        monthKey: date.slice(0, 7),
+        amount: receipt.paidAmount,
+        paymentKind: paymentKindOf(receipt),
+        paymentMethod: receipt.paymentMethod,
+        collectorName: receipt.collectorName,
+        notes: receipt.notes,
+        receipt,
+        isInstallment: false,
+      });
+    }
+  }
+
+  return entries;
+};
+
+/**
+ * Trả về danh sách đầy đủ các đợt đóng tiền của 1 phiếu thu.
+ * Nếu phiếu chưa có mảng installments, tự động chuẩn hóa 1 đợt ban đầu từ receipt.paidAmount.
+ */
+export const getReceiptInstallments = (receipt: TuitionReceipt): TuitionInstallment[] => {
+  if (Array.isArray(receipt.installments) && receipt.installments.length > 0) {
+    return receipt.installments;
+  }
+  if (receipt.paidAmount > 0) {
+    return [
+      {
+        id: `inst_${receipt.id}_init`,
+        date: receipt.paymentDate,
+        amount: receipt.paidAmount,
+        paymentMethod: receipt.paymentMethod,
+        collectorName: receipt.collectorName,
+        notes: 'Đóng học phí đợt 1',
+      },
+    ];
+  }
+  return [];
 };

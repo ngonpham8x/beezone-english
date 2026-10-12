@@ -71,7 +71,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const filename = `PhucPhucThinh_MasterReport_${new Date().toISOString().split('T')[0]}.xlsm`;
+      const filename = `BEEZONE_MasterReport_${new Date().toISOString().split('T')[0]}.xlsm`;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -158,12 +158,8 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
     const fallbackClass = classes.find((item) => item.id === fallbackClassId);
     if (!fallbackClass) return;
     const newStudentsList: Student[] = validationResult.validRows.map((item, idx) => {
-      const rawCodes = (item.classCode || '').split(/[,;/|]+/).map((s) => s.trim().toLocaleUpperCase('vi-VN')).filter(Boolean);
-      const matchedClasses = rawCodes
-        .map((cCode) => classes.find((candidate) => candidate.code.trim().toLocaleUpperCase('vi-VN') === cCode))
-        .filter((c): c is ClassRoom => Boolean(c));
-      const classroom = matchedClasses[0] || fallbackClass;
-      const extraClassIds = matchedClasses.slice(1).map((c) => c.id);
+      const classCode = (item.classCode || '').trim().toLocaleUpperCase('vi-VN');
+      const classroom = classes.find((candidate) => candidate.code.trim().toLocaleUpperCase('vi-VN') === classCode) || fallbackClass;
       return {
         id: `HS_IMP_${Date.now()}_${idx}`,
         code: item.code || '',
@@ -174,7 +170,6 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         gradeLevel: item.gradeLevel || '',
         programId: classroom.programId,
         classId: classroom.id,
-        extraClassIds,
         address: item.address || '',
         email: item.email || '',
         phone: item.phone || '',
@@ -216,18 +211,18 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
           {canExport && <button
             onClick={() => setActiveTab('export')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'export' ? 'bg-red-800 text-white shadow-xs' : 'text-slate-600'
+              activeTab === 'export' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <FileDown className="w-4 h-4 text-amber-400" /> Xuất File Excel (Export)
+            <FileDown className="w-4 h-4 text-slate-950" /> Xuất File Excel (Export)
           </button>}
           {canImport && <button
             onClick={() => setActiveTab('import')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'import' ? 'bg-red-800 text-white shadow-xs' : 'text-slate-600'
+              activeTab === 'import' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <FileUp className="w-4 h-4 text-amber-400" /> Nhập File Excel (Import)
+            <FileUp className="w-4 h-4 text-slate-950" /> Nhập File Excel (Import)
           </button>}
         </div>
 
@@ -268,13 +263,13 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                   onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') fileInputRef.current?.click(); }}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleFileDrop}
-                  className="cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-700"
+                  className="cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   aria-label="Chọn hoặc kéo thả tệp Excel để nhập"
                 >
                   <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                   <div className="font-bold text-slate-800">Bấm để chọn hoặc kéo thả tệp Excel (.xlsx / .xlsm)</div>
                   <div className="mt-1 text-[11px] text-slate-500">Hệ thống kiểm tra dữ liệu trước khi lưu; có thể chọn lại cùng một tệp.</div>
-                  <div className="mt-3 inline-flex rounded-lg bg-red-800 px-3 py-2 text-xs font-bold text-white">Chọn tệp Excel</div>
+                  <div className="mt-3 inline-flex rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-2 text-xs font-bold transition shadow-xs">Chọn tệp Excel</div>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -289,7 +284,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                   <select
                     value={fallbackClassId}
                     onChange={(event) => setFallbackClassId(event.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:ring-2 focus:ring-amber-500"
                   >
                     {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.code} — {classroom.name}</option>)}
                   </select>
@@ -301,7 +296,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                     <div className="mt-1 text-[11px]">{centerImport.classes.length} lớp · {centerImport.students.length} học sinh · {centerImport.receipts.length} phiếu thu</div>
                     <p className="mt-2 text-[11px]">Dữ liệu sẽ thay toàn bộ dữ liệu hiện có của trung tâm và đồng bộ vào Supabase theo quyền tài khoản đã đăng nhập.</p>
                     {canSyncCenterData && isOwner ? (
-                      <button onClick={handleConfirmCenterImport} className="mt-3 w-full rounded-xl bg-red-800 py-2 font-bold text-white hover:bg-red-900">
+                      <button onClick={handleConfirmCenterImport} className="mt-3 w-full rounded-xl bg-amber-500 hover:bg-amber-600 py-2 font-bold text-slate-950 shadow-xs transition">
                         Xác nhận nhập toàn bộ dữ liệu
                       </button>
                     ) : <p className="mt-3 rounded-lg bg-amber-100 p-2 text-[11px] font-semibold text-amber-900">{!isOwner ? 'Chỉ Chủ trung tâm được thay toàn bộ dữ liệu.' : 'Chưa kết nối được kho dữ liệu Supabase. Hãy chạy migration `003_center_data.sql`, sau đó tải lại trang.'}</p>}
@@ -318,9 +313,9 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
 
                     <button
                       onClick={handleConfirmImport}
-                      className="mt-3 w-full py-2 bg-red-800 hover:bg-red-900 text-white rounded-xl font-bold flex items-center justify-center gap-1.5"
+                      className="mt-3 w-full py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs transition"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-amber-400" /> Xác Nhận Lưu Vào Cơ Sở Dữ Liệu
+                      <CheckCircle2 className="w-4 h-4 text-slate-950" /> Xác Nhận Lưu Vào Cơ Sở Dữ Liệu
                     </button>
                   </div>
                 )}

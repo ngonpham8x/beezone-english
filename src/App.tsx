@@ -15,6 +15,7 @@ import {
   SystemBackup,
   CenterSettings,
   CenterBackupData,
+  AttendanceSession,
 } from './types';
 import {
   initialSettings,
@@ -27,7 +28,9 @@ import {
   initialGrades,
   initialTuitionReceipts,
   initialBackups,
-  initialActivityLogs
+  initialActivityLogs,
+  initialAttendanceSessions,
+  initialAccountAuditLogs,
 } from './mock/initialData';
 
 import { Header } from './components/Header';
@@ -48,13 +51,15 @@ import { LoginModal } from './components/LoginModal';
 import { PwaInstallModal } from './components/PwaInstallModal';
 import { AuthScreen } from './components/AuthScreen';
 import { UserManagementModal } from './components/UserManagementModal';
-import { profileToAccount, ProfileRow } from './lib/auth';
+import { AttendanceManager } from './components/AttendanceManager';
+import { AdmissionsManager } from './components/AdmissionsManager';
+import { CourseProgramManager } from './components/CourseProgramManager';
+import DataConsistencyChecker from './components/DataConsistencyChecker';
+import { profileToAccount, ProfileRow, DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT, DEV_MOCK_SESSION, createMockSessionForAccount, findAdminAccountByEmail } from './lib/auth';
+import { registerActiveSession, removeActiveSession } from './lib/activeSessions';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { feeStatusForReceipts } from './lib/tuition';
-import { isStudentInClass } from './lib/student';
 import type { CenterWorkbookData } from './services/excelService';
-import { ShieldCheck } from 'lucide-react';
-import DataConsistencyChecker from './components/DataConsistencyChecker';
 
 const ImportExportModal = lazy(() => import('./components/ImportExportModal').then((module) => ({ default: module.ImportExportModal })));
 const BackupManager = lazy(() => import('./components/BackupManager').then((module) => ({ default: module.BackupManager })));
@@ -71,9 +76,10 @@ interface CenterDataPayload {
   receipts: TuitionReceipt[];
   backups: SystemBackup[];
   activityLogs: ActivityLog[];
+  attendanceSessions?: AttendanceSession[];
 }
 
-const DATA_SCHEMA_VERSION = 'secure-supabase-import-v1';
+const DATA_SCHEMA_VERSION = 'beezone-receipt-table-v4';
 const ACTIVE_TAB_STORAGE_KEY = 'PHUC_PHUC_THINH_ACTIVE_TAB';
 const DATA_STORE_KEYS = [
   'settings',
@@ -86,7 +92,8 @@ const DATA_STORE_KEYS = [
   'grades',
   'receipts',
   'backups',
-  'activityLogs'
+  'activityLogs',
+  'attendanceSessions'
 ] as const;
 
 const MAX_ACTIVITY_LOGS = 500;
@@ -111,6 +118,9 @@ const canAccessTab = (tab: string, user: UserAccount) => {
 
   switch (tab) {
     case 'dashboard': return true;
+    case 'attendance': return permissions.student.view || permissions.teacher.view;
+    case 'admissions': return permissions.student.view;
+    case 'programs': return permissions.student.view;
     case 'students': return permissions.student.view;
     case 'teachers': return permissions.teacher.view;
     case 'classes': return permissions.student.view;
@@ -177,60 +187,38 @@ const sameIdList = (left: string[], right: string[]) => (
 );
 
 // studentIds and assignedClassIds are denormalized fields used by some cards
-// and reports. Keep them safely synchronized with primary student and extra classes.
+// and reports. Keep them derived from the primary student/class references so
+// one CRUD action can never leave a stale roster or teacher workload behind.
 const reconcileClassStudentIds = (classrooms: ClassRoom[], centerStudents: Student[]) => {
-  let hasChanged = false;
-
-  const nextClassrooms = classrooms.map((classroom) => {
-    const idsSet = new Set<string>();
-
-    centerStudents.forEach((student) => {
-      if (
-        student.classId === classroom.id ||
-        (Array.isArray(student.extraClassIds) && student.extraClassIds.includes(classroom.id))
-      ) {
-        idsSet.add(student.id);
-      }
-    });
-
-    const nextStudentIds = Array.from(idsSet);
-    if (sameIdList(classroom.studentIds || [], nextStudentIds)) {
-      return classroom;
-    }
-    hasChanged = true;
-    return { ...classroom, studentIds: nextStudentIds };
+  const studentIdsByClass = new Map<string, string[]>();
+  centerStudents.forEach((student) => {
+    if (!classrooms.some((classroom) => classroom.id === student.classId)) return;
+    const ids = studentIdsByClass.get(student.classId) || [];
+    ids.push(student.id);
+    studentIdsByClass.set(student.classId, ids);
   });
 
-  return hasChanged ? nextClassrooms : classrooms;
-};
-
-const reconcileStudentExtraClasses = (centerStudents: Student[], classrooms: ClassRoom[]) => {
-  let hasChanged = false;
-  const nextStudents = centerStudents.map((student) => {
-    const enrolledInOtherClasses = classrooms
-      .filter((cls) => cls.id !== student.classId && Array.isArray(cls.studentIds) && cls.studentIds.includes(student.id))
-      .map((cls) => cls.id);
-    if (!enrolledInOtherClasses.length) return student;
-    const currentExtras = student.extraClassIds || [];
-    const mergedExtras = Array.from(new Set([...currentExtras, ...enrolledInOtherClasses]));
-    if (sameIdList(currentExtras, mergedExtras)) return student;
-    hasChanged = true;
-    return { ...student, extraClassIds: mergedExtras };
+  let changed = false;
+  const nextClasses = classrooms.map((classroom) => {
+    const studentIds = studentIdsByClass.get(classroom.id) || [];
+    if (sameIdList(classroom.studentIds || [], studentIds)) return classroom;
+    changed = true;
+    return { ...classroom, studentIds };
   });
-  return hasChanged ? nextStudents : centerStudents;
+
+  return changed ? nextClasses : classrooms;
 };
 
 const reconcileTeacherAssignments = (centerTeachers: Teacher[], classrooms: ClassRoom[]) => {
-  let hasChanged = false;
+  let changed = false;
   const nextTeachers = centerTeachers.map((teacher) => {
     const assignedClassIds = classrooms.filter((classroom) => classroom.teacherId === teacher.id).map((classroom) => classroom.id);
-    if (sameIdList(teacher.assignedClassIds || [], assignedClassIds)) {
-      return teacher;
-    }
-    hasChanged = true;
+    if (sameIdList(teacher.assignedClassIds || [], assignedClassIds)) return teacher;
+    changed = true;
     return { ...teacher, assignedClassIds };
   });
-  return hasChanged ? nextTeachers : centerTeachers;
+
+  return changed ? nextTeachers : centerTeachers;
 };
 
 export default function App() {
@@ -267,10 +255,40 @@ export default function App() {
 
   // State Management
   const [settings, setSettings] = useState<CenterSettings>(() => loadStored('settings', initialSettings));
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    if (!isSupabaseConfigured) {
+      try {
+        const savedDevRole = sessionStorage.getItem('BEEZONE_DEV_ROLE');
+        const savedEmail = sessionStorage.getItem('BEEZONE_ACTIVE_EMAIL');
+        if (savedDevRole === 'teacher') return DEV_TEACHER_ACCOUNT;
+        if (savedEmail) {
+          const matched = findAdminAccountByEmail(savedEmail);
+          if (matched) return matched;
+        }
+        return DEV_OWNER_ACCOUNT;
+      } catch {
+        return DEV_OWNER_ACCOUNT;
+      }
+    }
+    return null;
+  });
+  const [session, setSession] = useState<Session | null>(() => {
+    if (!isSupabaseConfigured) {
+      try {
+        const savedEmail = sessionStorage.getItem('BEEZONE_ACTIVE_EMAIL');
+        if (savedEmail) {
+          const matched = findAdminAccountByEmail(savedEmail);
+          if (matched) return createMockSessionForAccount(matched);
+        }
+      } catch {
+        // ignore
+      }
+      return DEV_MOCK_SESSION;
+    }
+    return null;
+  });
   const [authStatus, setAuthStatus] = useState<'loading' | 'ready' | 'signed-out' | 'blocked'>(
-    isSupabaseConfigured ? 'loading' : 'signed-out'
+    isSupabaseConfigured ? 'loading' : 'ready'
   );
   const [isCenterDataHydrated, setIsCenterDataHydrated] = useState(!isSupabaseConfigured);
   const [canSyncCenterData, setCanSyncCenterData] = useState(false);
@@ -280,17 +298,14 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>(() => loadStored('teachers', initialTeachers));
   const [rooms, setRooms] = useState<Room[]>(() => loadStored('rooms', initialRooms));
   const [classes, setClasses] = useState<ClassRoom[]>(() => loadStored('classes', initialClasses));
-  const [students, setStudents] = useState<Student[]>(() => {
-    const rawStudents = loadStored('students', initialStudents);
-    const rawClasses = loadStored('classes', initialClasses);
-    return reconcileStudentExtraClasses(rawStudents, rawClasses);
-  });
+  const [students, setStudents] = useState<Student[]>(() => loadStored('students', initialStudents));
   const [timetableSlots, setTimetableSlots] = useState<TimetableSlot[]>(() => loadStored('timetableSlots', initialTimetableSlots));
   const [grades, setGrades] = useState<Grade[]>(() => loadStored('grades', initialGrades));
   const [receipts, setReceipts] = useState<TuitionReceipt[]>(() => normaliseReceipts(loadStored('receipts', initialTuitionReceipts)));
   const [backups, setBackups] = useState<SystemBackup[]>(() => loadStored('backups', initialBackups));
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => loadStored('activityLogs', initialActivityLogs));
-  const [accountAuditLogs, setAccountAuditLogs] = useState<AccountAuditLog[]>([]);
+  const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => loadStored('attendanceSessions', initialAttendanceSessions));
+  const [accountAuditLogs, setAccountAuditLogs] = useState<AccountAuditLog[]>(() => loadStored('accountAuditLogs', initialAccountAuditLogs));
   const [accountAuditError, setAccountAuditError] = useState<string | null>(null);
   const [isAccountAuditLoading, setIsAccountAuditLoading] = useState(false);
 
@@ -303,12 +318,16 @@ export default function App() {
       return 'dashboard';
     }
   });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return typeof window !== 'undefined' && window.innerWidth < 768;
+    } catch {
+      return false;
+    }
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [classEditRequest, setClassEditRequest] = useState<ClassRoom | null>(null);
   const contentViewportRef = useRef<HTMLElement>(null);
-  const lastHydratedUserIdRef = useRef<string | null>(null);
-  const lastSyncedPayloadRef = useRef<string>('');
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -323,8 +342,7 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (!currentUser || currentUser.role === 'owner') return;
-    if (!canAccessTab(activeTab, currentUser) && activeTab !== 'dashboard') {
+    if (currentUser && currentUser.role !== 'owner' && !canAccessTab(activeTab, currentUser) && activeTab !== 'dashboard') {
       setActiveTab('dashboard');
     }
   }, [activeTab, currentUser]);
@@ -340,6 +358,12 @@ export default function App() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (currentUser) {
+      registerActiveSession(currentUser);
+    }
+  }, [currentUser]);
+
   // Modals state
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState<boolean>(false);
@@ -347,6 +371,46 @@ export default function App() {
   const [isImportExportModalOpen, setIsImportExportModalOpen] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const [isPwaModalOpen, setIsPwaModalOpen] = useState<boolean>(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Global listener for PWA install prompt
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleTriggerPwaInstall = async () => {
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isIos = /iphone|ipad|ipod/.test(ua) || (ua.includes('macintosh') && window.navigator.maxTouchPoints > 1);
+
+    // Riêng iPhone/iPad: hiển thị ngay hướng dẫn cài đặt cho iPhone
+    if (isIos) {
+      setIsPwaModalOpen(true);
+      return;
+    }
+
+    // Android & máy tính (Chrome, Edge): nếu trình duyệt sẵn sàng thì tự cài luôn
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setDeferredPrompt(null);
+        }
+      } catch (err) {
+        console.error('PWA install error:', err);
+        setIsPwaModalOpen(true);
+      }
+      return;
+    }
+
+    // Nếu không có native prompt (đã cài hoặc cần thao tác tay), mở hướng dẫn chi tiết
+    setIsPwaModalOpen(true);
+  };
 
   // Sync to LocalStorage
   useEffect(() => saveStored('settings', settings), [settings]);
@@ -360,6 +424,8 @@ export default function App() {
   useEffect(() => saveStored('receipts', receipts), [receipts]);
   useEffect(() => saveStored('backups', backups), [backups]);
   useEffect(() => saveStored('activityLogs', activityLogs), [activityLogs]);
+  useEffect(() => saveStored('attendanceSessions', attendanceSessions), [attendanceSessions]);
+  useEffect(() => saveStored('accountAuditLogs', accountAuditLogs), [accountAuditLogs]);
 
   useEffect(() => {
     setClasses((previousClasses) => reconcileClassStudentIds(previousClasses, students));
@@ -386,12 +452,14 @@ export default function App() {
     if (!supabase) return;
 
     let isMounted = true;
+    let lastResolvedUserId: string | null = null;
+
     const resolveSession = async (nextSession: Session | null) => {
       if (!isMounted) return;
       setSession(nextSession);
 
       if (!nextSession) {
-        lastHydratedUserIdRef.current = null;
+        lastResolvedUserId = null;
         setCurrentUser(null);
         setIsCenterDataHydrated(!isSupabaseConfigured);
         setCanSyncCenterData(false);
@@ -400,9 +468,10 @@ export default function App() {
         return;
       }
 
-      if (lastHydratedUserIdRef.current === nextSession.user.id && isCenterDataHydrated) {
+      if (lastResolvedUserId === nextSession.user.id && isCenterDataHydrated) {
         return;
       }
+      lastResolvedUserId = nextSession.user.id;
 
       setAuthStatus('loading');
       const { data, error } = await supabase
@@ -413,7 +482,6 @@ export default function App() {
 
       if (!isMounted) return;
       if (error || !data || !data.is_active) {
-        lastHydratedUserIdRef.current = null;
         setCurrentUser(null);
         setAuthStatus('blocked');
         return;
@@ -434,7 +502,6 @@ export default function App() {
         const payload = centerData?.payload as Partial<CenterDataPayload> | undefined;
         const hasPayload = Boolean(payload && typeof payload === 'object' && Object.keys(payload).length > 0);
         if (hasPayload && payload) {
-          lastSyncedPayloadRef.current = JSON.stringify(payload);
           if (payload.settings) setSettings(payload.settings);
           if (Array.isArray(payload.programs)) setPrograms(payload.programs);
           if (Array.isArray(payload.rooms)) setRooms(payload.rooms);
@@ -452,6 +519,7 @@ export default function App() {
           if (Array.isArray(payload.grades)) setGrades(payload.grades);
           if (Array.isArray(payload.receipts)) setReceipts(normalizedReceipts);
           if (Array.isArray(payload.backups)) setBackups(payload.backups);
+          if (Array.isArray(payload.attendanceSessions)) setAttendanceSessions(payload.attendanceSessions);
           if (Array.isArray(payload.activityLogs)) {
             // Do not discard local history if an older cloud payload has no
             // logs yet; merge by log id and let the next sync persist it.
@@ -483,7 +551,6 @@ export default function App() {
       } catch {
         // Session storage can be unavailable in restricted browser contexts.
       }
-      lastHydratedUserIdRef.current = nextSession.user.id;
       setIsCenterDataHydrated(true);
       setAuthStatus('ready');
     };
@@ -501,23 +568,17 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData || !hasCenterData) return;
-    const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs };
+    const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions };
     const timer = window.setTimeout(() => {
-      const serialized = JSON.stringify(payload);
-      if (serialized === lastSyncedPayloadRef.current) return;
       void supabase
         .from('center_data')
         .upsert({ id: 'primary', payload }, { onConflict: 'id' })
         .then(({ error }) => {
-          if (error) {
-            console.error('Không thể đồng bộ dữ liệu trung tâm:', error.message);
-          } else {
-            lastSyncedPayloadRef.current = serialized;
-          }
+          if (error) console.error('Không thể đồng bộ dữ liệu trung tâm:', error.message);
         });
     }, 750);
     return () => window.clearTimeout(timer);
-  }, [settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, currentUser, isCenterDataHydrated, canSyncCenterData, hasCenterData]);
+  }, [settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, currentUser, isCenterDataHydrated, canSyncCenterData, hasCenterData]);
 
   // Activity Logger
   const addLog = (
@@ -539,7 +600,7 @@ export default function App() {
   };
 
   const loadAccountAuditLogs = useCallback(async () => {
-    if (currentUser?.role !== 'owner' || !session?.access_token) {
+    if (currentUser?.role !== 'owner') {
       setAccountAuditLogs([]);
       setAccountAuditError(null);
       return;
@@ -548,15 +609,26 @@ export default function App() {
     setAccountAuditError(null);
     try {
       const response = await fetch('/api/admin/audit-logs', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         cache: 'no-store',
       });
-      const payload = await response.json() as { logs?: AccountAuditLog[]; error?: string };
-      if (!response.ok) throw new Error(payload.error || 'Không thể tải nhật ký tài khoản.');
-      setAccountAuditLogs(Array.isArray(payload.logs) ? payload.logs : []);
-    } catch (requestError) {
-      setAccountAuditLogs([]);
-      setAccountAuditError(requestError instanceof Error ? requestError.message : 'Không thể tải nhật ký tài khoản.');
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
+        const payload = await response.json() as { logs?: AccountAuditLog[]; error?: string };
+        if (Array.isArray(payload.logs)) {
+          setAccountAuditLogs(payload.logs);
+          saveStored('accountAuditLogs', payload.logs);
+          return;
+        }
+      }
+      // If endpoint returns non-JSON (e.g. Vite dev or offline), fallback gracefully to local storage
+      const localLogs = loadStored<AccountAuditLog[]>('accountAuditLogs', initialAccountAuditLogs);
+      setAccountAuditLogs(localLogs);
+      setAccountAuditError(null);
+    } catch {
+      const localLogs = loadStored<AccountAuditLog[]>('accountAuditLogs', initialAccountAuditLogs);
+      setAccountAuditLogs(localLogs);
+      setAccountAuditError(null);
     } finally {
       setIsAccountAuditLoading(false);
     }
@@ -568,24 +640,17 @@ export default function App() {
 
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
-    const normalized = { ...newStudent, feeStatus: feeStatusFromReceipts(newStudent.id, receipts) };
-    const nextStudents = [normalized, ...students];
-    setStudents(nextStudents);
-    setClasses(prevClasses => reconcileClassStudentIds(prevClasses, nextStudents));
+    setStudents(prev => [{ ...newStudent, feeStatus: feeStatusFromReceipts(newStudent.id, receipts) }, ...prev]);
     addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${newStudent.name} (${newStudent.code})`);
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     const previousStudent = students.find((student) => student.id === updatedStudent.id);
     const normalizedStudent = { ...updatedStudent, feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts) };
-    const nextStudents = students.map(s => s.id === updatedStudent.id ? normalizedStudent : s);
-    setStudents(nextStudents);
-    setClasses(prevClasses => reconcileClassStudentIds(prevClasses, nextStudents));
+    setStudents(prev => prev.map(s => s.id === updatedStudent.id ? normalizedStudent : s));
     if (previousStudent && previousStudent.classId !== updatedStudent.classId) {
       setGrades((previousGrades) => previousGrades.map((grade) => (
-        grade.studentId === updatedStudent.id && (!grade.classId || grade.classId === previousStudent.classId)
-          ? { ...grade, classId: updatedStudent.classId }
-          : grade
+        grade.studentId === updatedStudent.id ? { ...grade, classId: updatedStudent.classId } : grade
       )));
     }
     addLog('SỬA', 'Học sinh', `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`);
@@ -598,20 +663,146 @@ export default function App() {
       alert(`Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`);
       return;
     }
-    const nextStudents = students.filter(s => s.id !== id);
-    setStudents(nextStudents);
-    setClasses(prev => prev.map(c => ({
-      ...c,
-      studentIds: (c.studentIds || []).filter(sId => sId !== id)
-    })));
+    setStudents(prev => prev.filter(s => s.id !== id));
     setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
     if (st) addLog('XÓA', 'Học sinh', `Xóa học sinh ${st.name} (${st.code}) và dữ liệu điểm liên quan khỏi hệ thống`);
   };
 
+  const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    const targetClass = classes.find(c => c.id === classId);
+    const targetProgram = programs.find(p => p.id === student.programId || (targetClass && p.id === targetClass.programId));
+    const tuitionAmount = targetProgram?.tuitionFee || 1500000;
+
+    // 1. Update student
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          status: 'active' as const,
+          classId: classId,
+          programId: targetClass?.programId || s.programId,
+          enrollDate: enrollDate || new Date().toISOString().split('T')[0],
+        };
+      }
+      return s;
+    }));
+
+    // 2. Add student to target class studentIds
+    setClasses(prev => prev.map(c => {
+      if (c.id === classId && !c.studentIds.includes(studentId)) {
+        return { ...c, studentIds: [...c.studentIds, studentId] };
+      }
+      return c;
+    }));
+
+    // 3. Create initial grade record for class
+    setGrades(prev => {
+      if (prev.some(g => g.studentId === studentId && g.classId === classId)) return prev;
+      return [
+        ...prev,
+        {
+          id: `GR_${Date.now()}_${studentId}`,
+          studentId,
+          classId,
+          listening: 0,
+          speaking: 0,
+          reading: 0,
+          writing: 0,
+          midterm: 0,
+          finalExam: 0,
+          attendance: 10,
+          average: 0,
+        }
+      ];
+    });
+
+    // 4. Create initial tuition receipt
+    const newReceipt: TuitionReceipt = {
+      id: `REC_${Date.now()}_${studentId}`,
+      code: `PT-${new Date().getFullYear()}-${(receipts.length + 1).toString().padStart(4, '0')}`,
+      studentId,
+      classId,
+      courseFee: tuitionAmount,
+      discount: 0,
+      paidAmount: 0,
+      debtAmount: tuitionAmount,
+      status: 'unpaid',
+      paymentDate: enrollDate || new Date().toISOString().split('T')[0],
+      collectorName: currentUser?.name || 'BeeZone English',
+      paymentMethod: 'Chưa xác định',
+      notes: `Học phí nhập học khóa ${targetProgram?.name || targetClass?.name || ''}`,
+    };
+    setReceipts(prev => [newReceipt, ...prev]);
+
+    addLog('THÊM', 'Tuyển sinh', `Xác nhận nhập học chính thức học viên ${student.name} (${student.code}) vào lớp ${targetClass?.name || classId}`);
+  };
+
+  const handleReserveStudent = (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    const reserveNote = `\n[BẢO LƯU]: Từ ${reserveDate} đến ${expectedReturnDate || 'chưa định ngày'}. Lý do: ${reason}`;
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          status: 'reserved' as const,
+          notes: (s.notes || '') + reserveNote
+        };
+      }
+      return s;
+    }));
+    addLog('SỬA', 'Học sinh', `Bảo lưu học tập học sinh ${student.name} (${student.code}) từ ${reserveDate}`);
+  };
+
+  const handleDropStudent = (studentId: string, dropDate: string, reason: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    const dropNote = `\n[NGHỈ HỌC NGANG]: Ngày ${dropDate}. Lý do: ${reason}`;
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          status: 'dropped' as const,
+          notes: (s.notes || '') + dropNote
+        };
+      }
+      return s;
+    }));
+    addLog('SỬA', 'Học sinh', `Học sinh ${student.name} (${student.code}) nghỉ học từ ngày ${dropDate}`);
+  };
+
+  const handleReEnrollStudent = (studentId: string, targetClassId: string, returnDate: string, note?: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    const targetClass = classes.find(c => c.id === targetClassId);
+    const reNote = `\n[QUAY LẠI HỌC]: Ngày ${returnDate} tại lớp ${targetClass?.name || targetClassId}. ${note || ''}`;
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          status: 'active' as const,
+          classId: targetClassId,
+          notes: (s.notes || '') + reNote
+        };
+      }
+      return s;
+    }));
+    setClasses(prev => prev.map(c => {
+      if (c.id !== targetClassId && c.studentIds.includes(studentId)) {
+        return { ...c, studentIds: c.studentIds.filter(id => id !== studentId) };
+      }
+      if (c.id === targetClassId && !c.studentIds.includes(studentId)) {
+        return { ...c, studentIds: [...c.studentIds, studentId] };
+      }
+      return c;
+    }));
+    addLog('SỬA', 'Học sinh', `Học sinh ${student.name} (${student.code}) quay lại học lớp ${targetClass?.name || targetClassId}`);
+  };
+
   const handleImportStudents = (newStudentsList: Student[]) => {
-    const nextStudents = [...newStudentsList, ...students];
-    setStudents(nextStudents);
-    setClasses(prevClasses => reconcileClassStudentIds(prevClasses, nextStudents));
+    setStudents(prev => [...newStudentsList, ...prev]);
     addLog('IMPORT', 'Excel', `Import ${newStudentsList.length} học sinh mới từ file Excel`);
   };
 
@@ -655,13 +846,8 @@ export default function App() {
   const handleDeleteTeacher = (id: string) => {
     const t = teachers.find(item => item.id === id);
     const managedClasses = classes.filter((classroom) => classroom.teacherId === id);
-    const scheduledSlots = timetableSlots.filter((slot) => slot.teacherId === id);
-    if (managedClasses.length > 0 || scheduledSlots.length > 0) {
-      const reasons = [
-        managedClasses.length > 0 ? `${managedClasses.length} lớp học` : '',
-        scheduledSlots.length > 0 ? `${scheduledSlots.length} ca dạy trên TKB` : '',
-      ].filter(Boolean).join(' và ');
-      alert(`Không thể xóa giáo viên ${t?.name || ''} vì đang phụ trách ${reasons}. Hãy phân công giáo viên khác trước.`);
+    if (managedClasses.length > 0) {
+      alert(`Không thể xóa giáo viên ${t?.name || ''} vì đang phụ trách ${managedClasses.length} lớp. Hãy phân công giáo viên khác cho các lớp trước.`);
       return;
     }
     setTeachers(prev => prev.filter(item => item.id !== id));
@@ -671,37 +857,11 @@ export default function App() {
   // Class CRUD Handlers
   const handleAddClass = (c: ClassRoom) => {
     setClasses(prev => [...prev, c]);
-    if (c.teacherId) {
-      setTeachers(prevTeachers => prevTeachers.map(t => 
-        t.id === c.teacherId 
-          ? { ...t, assignedClassIds: Array.from(new Set([...(t.assignedClassIds || []), c.id])) }
-          : t
-      ));
-    }
     addLog('THÊM', 'Lớp học', `Tạo lớp học mới ${c.name} (${c.code})`);
   };
 
   const handleUpdateClass = (c: ClassRoom) => {
-    const prevClass = classes.find(item => item.id === c.id);
     setClasses(prev => prev.map(item => item.id === c.id ? c : item));
-    if (prevClass && prevClass.teacherId !== c.teacherId) {
-      setTeachers(prevTeachers => prevTeachers.map(t => {
-        if (t.id === prevClass.teacherId) {
-          return { ...t, assignedClassIds: (t.assignedClassIds || []).filter(cId => cId !== c.id) };
-        }
-        if (t.id === c.teacherId) {
-          return { ...t, assignedClassIds: Array.from(new Set([...(t.assignedClassIds || []), c.id])) };
-        }
-        return t;
-      }));
-    }
-    if (prevClass && (prevClass.teacherId !== c.teacherId || prevClass.roomId !== c.roomId)) {
-      setTimetableSlots(prevSlots => prevSlots.map(slot => 
-        slot.classId === c.id 
-          ? { ...slot, teacherId: c.teacherId, roomId: c.roomId }
-          : slot
-      ));
-    }
     addLog('SỬA', 'Lớp học', `Cập nhật lớp học ${c.name} (${c.code})`);
   };
 
@@ -712,7 +872,7 @@ export default function App() {
 
   const handleDeleteClass = (id: string) => {
     const c = classes.find(item => item.id === id);
-    const classStudents = students.filter((student) => isStudentInClass(student, id, c));
+    const classStudents = students.filter((student) => student.classId === id);
     const classReceipts = receipts.filter((receipt) => receipt.classId === id);
     if (classStudents.length > 0 || classReceipts.length > 0) {
       const dependencies = [
@@ -723,14 +883,6 @@ export default function App() {
       return;
     }
     setClasses(prev => prev.filter(item => item.id !== id));
-    setStudents(prev => prev.map(s => ({
-      ...s,
-      extraClassIds: (s.extraClassIds || []).filter(cId => cId !== id)
-    })));
-    setTeachers(prev => prev.map(t => ({
-      ...t,
-      assignedClassIds: (t.assignedClassIds || []).filter(cId => cId !== id)
-    })));
     setTimetableSlots(prev => prev.filter(slot => slot.classId !== id));
     setGrades(prev => prev.filter((grade) => grade.classId !== id));
     if (c) addLog('XÓA', 'Lớp học', `Xóa lớp học ${c.name} (${c.code}) cùng lịch và điểm không còn liên kết`);
@@ -750,13 +902,8 @@ export default function App() {
   const handleDeleteRoom = (id: string) => {
     const room = rooms.find((item) => item.id === id);
     const roomClasses = classes.filter((classroom) => classroom.roomId === id);
-    const scheduledSlots = timetableSlots.filter((slot) => slot.roomId === id);
-    if (roomClasses.length > 0 || scheduledSlots.length > 0) {
-      const reasons = [
-        roomClasses.length > 0 ? `${roomClasses.length} lớp học` : '',
-        scheduledSlots.length > 0 ? `${scheduledSlots.length} ca học trên TKB` : '',
-      ].filter(Boolean).join(' và ');
-      alert(`Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${reasons}. Hãy đổi phòng cho các lớp/ca học trước.`);
+    if (roomClasses.length > 0) {
+      alert(`Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${roomClasses.length} lớp. Hãy đổi phòng cho các lớp trước.`);
       return;
     }
     setRooms(prev => prev.filter(item => item.id !== id));
@@ -803,10 +950,7 @@ export default function App() {
   // Grade Handler
   const handleUpdateGrade = (updatedGrade: Grade) => {
     setGrades(prev => {
-      const idx = prev.findIndex(g => 
-        g.id === updatedGrade.id || 
-        (g.studentId === updatedGrade.studentId && (g.classId ? g.classId === updatedGrade.classId : true))
-      );
+      const idx = prev.findIndex(g => g.studentId === updatedGrade.studentId);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = updatedGrade;
@@ -819,29 +963,20 @@ export default function App() {
 
   // Tuition Handler
   const handleAddReceipt = (r: TuitionReceipt) => {
-    const normalized = normaliseReceipt(r);
-    const nextReceipts = [normalized, ...receipts];
-    setReceipts(nextReceipts);
-    setStudents(prev => prev.map(s => s.id === r.studentId ? { ...s, feeStatus: feeStatusFromReceipts(s.id, nextReceipts) } : s));
+    setReceipts(prev => [r, ...prev]);
+
     addLog('THÊM', 'Học phí', `Lập phiếu thu ${r.code} số tiền ${r.paidAmount.toLocaleString('vi-VN')} đ`);
   };
 
   const handleUpdateReceipt = (updatedReceipt: TuitionReceipt) => {
-    const normalized = normaliseReceipt(updatedReceipt);
-    const nextReceipts = receipts.map((receipt) => receipt.id === updatedReceipt.id ? normalized : receipt);
-    setReceipts(nextReceipts);
-    setStudents(prev => prev.map(s => s.id === updatedReceipt.studentId ? { ...s, feeStatus: feeStatusFromReceipts(s.id, nextReceipts) } : s));
+    setReceipts(prev => prev.map((receipt) => receipt.id === updatedReceipt.id ? updatedReceipt : receipt));
     addLog('SỬA', 'Học phí', `Cập nhật phiếu thu ${updatedReceipt.code} (${updatedReceipt.paymentKind === 'course' ? 'học phí khóa' : 'học phí tháng'})`);
   };
 
   const handleDeleteReceipt = (id: string) => {
     const receipt = receipts.find((item) => item.id === id);
-    const nextReceipts = receipts.filter((item) => item.id !== id);
-    setReceipts(nextReceipts);
-    if (receipt) {
-      setStudents(prev => prev.map(s => s.id === receipt.studentId ? { ...s, feeStatus: feeStatusFromReceipts(s.id, nextReceipts) } : s));
-      addLog('XÓA', 'Học phí', `Xóa phiếu thu ${receipt.code} (${receipt.paymentKind === 'course' ? 'học phí khóa' : 'học phí tháng'})`);
-    }
+    setReceipts(prev => prev.filter((item) => item.id !== id));
+    if (receipt) addLog('XÓA', 'Học phí', `Xóa phiếu thu ${receipt.code} (${receipt.paymentKind === 'course' ? 'học phí khóa' : 'học phí tháng'})`);
   };
 
   const handleBackupCreated = (backup: SystemBackup) => {
@@ -864,23 +999,96 @@ export default function App() {
     setReceipts(normalizedReceipts);
     setBackups(data.backups.slice(0, 30));
     setActivityLogs(data.activityLogs);
+    if (Array.isArray(data.attendanceSessions)) setAttendanceSessions(data.attendanceSessions);
     setHasCenterData(true);
     addLog('RESTORE', 'Sao lưu', `Đã khôi phục dữ liệu từ tệp ${filename}`);
   };
 
-  const handleConsistencyDataFixed = (fixedStudents: Student[], fixedClassrooms: ClassRoom[], fixedReceipts: TuitionReceipt[]) => {
+  // Attendance Handler
+  const handleSaveAttendanceSession = (sessionData: AttendanceSession) => {
+    setAttendanceSessions(prev => {
+      const idx = prev.findIndex(s => s.id === sessionData.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = sessionData;
+        return next;
+      }
+      return [sessionData, ...prev];
+    });
+    addLog('THÊM', 'Điểm danh', `Điểm danh buổi học ngày ${sessionData.date} lớp ${classes.find(c => c.id === sessionData.classId)?.name || sessionData.classId}`);
+  };
+
+  // Program Handlers
+  const handleAddProgram = (program: CourseProgram) => {
+    setPrograms(prev => [...prev, program]);
+    addLog('THÊM', 'Chương trình học', `Tạo chương trình ${program.name} (${program.code})`);
+  };
+
+  const handleUpdateProgram = (program: CourseProgram) => {
+    setPrograms(prev => prev.map(p => p.id === program.id ? program : p));
+    addLog('SỬA', 'Chương trình học', `Cập nhật chương trình ${program.name} (${program.code})`);
+  };
+
+  const handleDeleteProgram = (id: string) => {
+    const p = programs.find(item => item.id === id);
+    setPrograms(prev => prev.filter(item => item.id !== id));
+    if (p) addLog('XÓA', 'Chương trình học', `Xóa chương trình ${p?.name || id}`);
+  };
+
+  // Data Consistency Handler
+  const handleDataFixed = (fixedStudents: Student[], fixedClasses: ClassRoom[], fixedReceipts: TuitionReceipt[]) => {
     setStudents(fixedStudents);
-    setClasses(fixedClassrooms);
+    setClasses(fixedClasses);
     setReceipts(fixedReceipts);
-    addLog('SỬA', 'Kiểm tra dữ liệu', 'Tự động chuẩn hóa dữ liệu liên kết học viên, lớp học và học phí');
+    addLog('ĐỒNG BỘ', 'Kiểm tra dữ liệu', 'Đã tự động sửa các liên kết dữ liệu không nhất quán');
   };
 
   const handleLogout = async () => {
-    if (supabase) await supabase.auth.signOut();
+    try {
+      sessionStorage.removeItem('BEEZONE_DEV_ROLE');
+      sessionStorage.removeItem('BEEZONE_ACTIVE_EMAIL');
+    } catch {
+      // ignore
+    }
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (currentUser) {
+      removeActiveSession(currentUser.email);
+    }
     setCurrentUser(null);
     setSession(null);
     setAuthStatus('signed-out');
     setIsLoginOpen(false);
+  };
+
+  const handleDevLogin = (role: 'owner' | 'teacher') => {
+    const account = role === 'teacher' ? DEV_TEACHER_ACCOUNT : DEV_OWNER_ACCOUNT;
+    try {
+      sessionStorage.setItem('BEEZONE_DEV_ROLE', role);
+      sessionStorage.setItem('BEEZONE_ACTIVE_EMAIL', account.email);
+    } catch {
+      // ignore
+    }
+    setCurrentUser(account);
+    setSession(createMockSessionForAccount(account));
+    setAuthStatus('ready');
+  };
+
+  const handleAccountLogin = (account: UserAccount) => {
+    try {
+      sessionStorage.setItem('BEEZONE_DEV_ROLE', account.role);
+      sessionStorage.setItem('BEEZONE_ACTIVE_EMAIL', account.email);
+    } catch {
+      // ignore
+    }
+    setCurrentUser(account);
+    setSession(createMockSessionForAccount(account));
+    setAuthStatus('ready');
   };
 
   if (authStatus === 'loading') {
@@ -903,7 +1111,9 @@ export default function App() {
     );
   }
 
-  if (!currentUser || !session) return <AuthScreen />;
+  if (!currentUser || !session) {
+    return <AuthScreen onDevLogin={handleDevLogin} onAccountLogin={handleAccountLogin} />;
+  }
 
   const navigateTo = (tab: string) => {
     if (canAccessTab(tab, currentUser)) setActiveTab(tab);
@@ -919,7 +1129,7 @@ export default function App() {
         onOpenUserManagement={() => setIsUserManagementOpen(true)}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-        onOpenPwaInstall={() => setIsPwaModalOpen(true)}
+        onOpenPwaInstall={handleTriggerPwaInstall}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onLogout={() => void handleLogout()}
@@ -936,11 +1146,11 @@ export default function App() {
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
           currentUser={currentUser}
-          onOpenPwaInstall={() => setIsPwaModalOpen(true)}
+          onOpenPwaInstall={handleTriggerPwaInstall}
         />
 
         {/* Content View Container */}
-        <main ref={contentViewportRef} className="min-w-0 flex-1 p-4 sm:p-6">
+        <main ref={contentViewportRef} className="min-w-0 flex-1 p-3 sm:p-6 transition-all">
           {activeTab === 'dashboard' && (
             <DashboardView
               students={students}
@@ -969,6 +1179,9 @@ export default function App() {
               onAddStudent={handleAddStudent}
               onUpdateStudent={handleUpdateStudent}
               onDeleteStudent={handleDeleteStudent}
+              onReserveStudent={handleReserveStudent}
+              onDropStudent={handleDropStudent}
+              onReEnrollStudent={handleReEnrollStudent}
               onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
               onOpenTuition={() => navigateTo('tuition')}
               onCreateProgram={handleCreateProgram}
@@ -1047,13 +1260,56 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'attendance' && (
+            <AttendanceManager
+              classes={classes}
+              students={students}
+              teachers={teachers}
+              attendanceSessions={attendanceSessions}
+              onSaveSession={handleSaveAttendanceSession}
+              isOwner={currentUser.role === 'owner'}
+              currentUser={currentUser}
+            />
+          )}
+
+          {activeTab === 'admissions' && (
+            <AdmissionsManager
+              students={students}
+              programs={programs}
+              classes={classes}
+              teachers={teachers}
+              permissions={currentUser.permissions}
+              isOwner={currentUser.role === 'owner'}
+              onAddStudent={handleAddStudent}
+              onUpdateStudent={handleUpdateStudent}
+              onDeleteStudent={handleDeleteStudent}
+              onEnrollStudent={handleEnrollStudent}
+            />
+          )}
+
+          {activeTab === 'programs' && (
+            <CourseProgramManager
+              programs={programs}
+              classes={classes}
+              students={students}
+              onAddProgram={handleAddProgram}
+              onUpdateProgram={handleUpdateProgram}
+              onDeleteProgram={handleDeleteProgram}
+              isOwner={currentUser.role === 'owner'}
+            />
+          )}
+
           {activeTab === 'grades' && (
             <GradeManager
               grades={grades}
               students={students}
               classes={classes}
+              teachers={teachers}
+              programs={programs}
+              settings={settings}
               permissions={currentUser.permissions}
               isOwner={currentUser.role === 'owner'}
+              currentUser={currentUser}
               onUpdateGrade={handleUpdateGrade}
             />
           )}
@@ -1079,7 +1335,7 @@ export default function App() {
               <p className="text-xs text-slate-500 mb-4">Quản lý nhập dữ liệu hàng loạt và xuất Workbook nhiều Sheet liên kết công thức</p>
               <button
                 onClick={() => setIsImportExportModalOpen(true)}
-                className="px-4 py-2 bg-red-800 text-white rounded-xl font-bold text-xs"
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs shadow-xs transition"
               >
                 Mở Cửa Sổ Import / Export Excel
               </button>
@@ -1093,6 +1349,16 @@ export default function App() {
               classes={classes}
               receipts={receipts}
               onNavigateTab={navigateTo}
+            />
+          )}
+
+          {activeTab === 'data-consistency' && (
+            <DataConsistencyChecker
+              students={students}
+              classrooms={classes}
+              receipts={receipts}
+              programs={programs}
+              onDataFixed={handleDataFixed}
             />
           )}
 
@@ -1127,48 +1393,16 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'data-consistency' && (
-            <DataConsistencyChecker
-              students={students}
-              classrooms={classes}
-              receipts={receipts}
-              programs={programs}
-              onDataFixed={handleConsistencyDataFixed}
-            />
-          )}
-
           {activeTab === 'settings' && (
-            <div className="space-y-6">
-              <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
-                <h3 className="font-bold text-lg text-slate-900 mb-2">Cài Đặt Hệ Thống</h3>
-                <p className="text-xs text-slate-500 mb-4">Thông tin trung tâm & cấu hình gửi email tự động</p>
-                <button
-                  onClick={() => setIsSettingsModalOpen(true)}
-                  className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition"
-                >
-                  Chỉnh Sửa Cài Đặt Hệ Thống
-                </button>
-              </div>
-
-              <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900 mb-1">Kiểm Tra Tính Nhất Quán Dữ Liệu</h3>
-                    <p className="text-xs text-slate-500 mb-4">
-                      Tự động rà soát và khắc phục các vấn đề liên kết giữa danh sách học viên, lớp học, học phí và chương trình học.
-                    </p>
-                    <button
-                      onClick={() => setActiveTab('data-consistency')}
-                      className="px-4 py-2 bg-violet-700 text-white rounded-xl font-bold text-xs hover:bg-violet-800 transition"
-                    >
-                      Mở Công Cụ Kiểm Tra Dữ Liệu
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+              <h3 className="font-bold text-lg text-slate-900 mb-2">Cài Đặt Hệ Thống</h3>
+              <p className="text-xs text-slate-500 mb-4">Thông tin trung tâm & cấu hình gửi email tự động</p>
+              <button
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs"
+              >
+                Chỉnh Sửa Cài Đặt Hệ Thống
+              </button>
             </div>
           )}
         </main>
@@ -1180,12 +1414,17 @@ export default function App() {
         onClose={() => setIsLoginOpen(false)}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onSwitchRole={handleDevLogin}
+        onSwitchAccount={handleAccountLogin}
       />
 
       <UserManagementModal
         isOpen={isUserManagementOpen}
         onClose={() => setIsUserManagementOpen(false)}
-        accessToken={session.access_token}
+        accessToken={session?.access_token || ''}
+        currentUser={currentUser}
+        classes={classes}
+        teachers={teachers}
         onAccountChanged={() => void loadAccountAuditLogs()}
       />
 
@@ -1251,6 +1490,8 @@ export default function App() {
       <PwaInstallModal
         isOpen={isPwaModalOpen}
         onClose={() => setIsPwaModalOpen(false)}
+        deferredPrompt={deferredPrompt}
+        onPromptHandled={() => setDeferredPrompt(null)}
       />
     </div>
   );

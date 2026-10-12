@@ -1,17 +1,25 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
-import { LoaderCircle, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
-import { StaffPermissions, UserRole } from '../types';
+import { LoaderCircle, ShieldCheck, UserRoundCheck, X, CheckCircle2 } from 'lucide-react';
+import { ClassRoom, StaffPermissions, Teacher, UserRole, UserAccount } from '../types';
+import { getActiveSessions, ActiveSession } from '../lib/activeSessions';
 
 interface ManagedUser {
   id: string;
+  email?: string;
   full_name: string;
   avatar_url: string | null;
+  role?: UserRole;
+  is_active?: boolean;
+  permissions?: StaffPermissions;
 }
 
 interface UserManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   accessToken: string;
+  currentUser?: UserAccount | null;
+  classes?: ClassRoom[];
+  teachers?: Teacher[];
   onAccountChanged?: () => void;
 }
 
@@ -60,8 +68,9 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
   },
 ];
 
-export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, accessToken, onAccountChanged }) => {
+export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, accessToken, currentUser, classes = [], teachers = [], onAccountChanged }) => {
   const [members, setMembers] = useState<ManagedUser[]>([]);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('staff');
@@ -70,6 +79,29 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const refreshActiveSessions = useCallback(() => {
+    const sessions = getActiveSessions();
+    if (currentUser && (currentUser.email || currentUser.name)) {
+      const exists = sessions.some(
+        (s) =>
+          (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+          s.id === currentUser.id
+      );
+      if (!exists) {
+        sessions.unshift({
+          id: currentUser.id,
+          name: currentUser.name || (currentUser.email ? currentUser.email.split('@')[0] : 'Chủ trung tâm BeeZone'),
+          email: currentUser.email || '',
+          avatar: currentUser.avatar,
+          role: currentUser.role,
+          loginTime: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          lastActive: Date.now(),
+        });
+      }
+    }
+    setActiveSessions(sessions);
+  }, [currentUser]);
 
   const loadMembers = useCallback(async () => {
     if (!accessToken) return;
@@ -80,19 +112,26 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Không thể tải danh sách tài khoản.');
-      setMembers(payload.users || []);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Không thể tải danh sách tài khoản.');
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
+        const payload = await response.json();
+        setMembers(payload.users || []);
+        return;
+      }
+      setMembers([]);
+    } catch {
+      setMembers([]);
     } finally {
       setIsLoading(false);
     }
   }, [accessToken]);
 
   useEffect(() => {
-    if (isOpen) void loadMembers();
-  }, [isOpen, loadMembers]);
+    if (isOpen) {
+      void loadMembers();
+      refreshActiveSessions();
+    }
+  }, [isOpen, loadMembers, refreshActiveSessions]);
 
   if (!isOpen) return null;
 
@@ -117,8 +156,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ email, fullName, role, permissions: role === 'staff' ? staffPermissions : undefined }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Không thể cấp quyền Google.');
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Không thể cấp quyền Google.');
+      }
       setEmail('');
       setFullName('');
       setRole('staff');
@@ -140,26 +182,26 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           <X className="h-5 w-5" />
         </button>
         <div className="pr-8">
-          <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900"><ShieldCheck className="h-5 w-5 text-red-800" /> Quản lý tài khoản</h2>
+          <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900"><ShieldCheck className="h-5 w-5 text-amber-600" /> Quản lý tài khoản</h2>
           <p className="mt-1 text-xs leading-5 text-slate-500">Chỉ Chủ trung tâm có thể cấp hoặc khóa tài khoản. Tài khoản mới chỉ đăng nhập bằng Google, không cần đặt mật khẩu.</p>
         </div>
 
         <form className="mt-5 grid grid-cols-1 gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:grid-cols-2" onSubmit={grantGoogleAccess}>
           <label className="text-xs font-bold text-slate-700">Họ và tên
-            <input value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={2} maxLength={120} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-600" />
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={2} maxLength={120} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500" />
           </label>
           <label className="text-xs font-bold text-slate-700">Email
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-600" />
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500" />
           </label>
           <label className="text-xs font-bold text-slate-700">Cấp bậc
-            <select value={role} onChange={(event) => setRole(event.target.value as UserRole)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-600">
+            <select value={role} onChange={(event) => setRole(event.target.value as UserRole)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500">
               <option value="staff">Nhân viên</option>
               <option value="owner">Chủ trung tâm</option>
             </select>
           </label>
           {role === 'staff' && (
-            <fieldset className="sm:col-span-2 rounded-xl border border-red-200 bg-white p-3">
-              <legend className="px-1 text-xs font-extrabold text-red-900">Quyền cho nhân viên</legend>
+            <fieldset className="sm:col-span-2 rounded-xl border border-amber-200 bg-white p-3">
+              <legend className="px-1 text-xs font-extrabold text-slate-900">Quyền cho nhân viên</legend>
               <p className="mb-3 text-[11px] leading-4 text-slate-500">Chỉ tick các quyền cần thiết. Mặc định nhân viên không có quyền nào; quyền doanh thu và công nợ nên cấp riêng.</p>
               <div className="grid gap-3 md:grid-cols-3">
                 {permissionGroups.map((group) => (
@@ -170,7 +212,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                         const checked = Boolean((staffPermissions[option.module] as Record<string, boolean>)[option.action]);
                         return (
                           <label key={`${option.module}.${option.action}`} className={`flex cursor-pointer items-start gap-2 text-[11px] font-medium ${option.emphasis ? 'text-amber-900' : 'text-slate-700'}`}>
-                            <input type="checkbox" checked={checked} onChange={() => togglePermission(option.module, option.action)} className="mt-0.5 rounded border-slate-300 text-red-700 focus:ring-red-600" />
+                            <input type="checkbox" checked={checked} onChange={() => togglePermission(option.module, option.action)} className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
                             <span>{option.label}</span>
                           </label>
                         );
@@ -178,12 +220,62 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                     </div>
                   </div>
                 ))}
+
+                {/* Phân công lớp phụ trách cho giáo viên/nhân viên */}
+                <div className="md:col-span-3 rounded-lg bg-amber-50/70 border border-amber-200/80 p-3 mt-1">
+                  <p className="mb-1 text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
+                    Phân công lớp phụ trách (Chỉ được Điểm danh & Chấm điểm các lớp này)
+                  </p>
+                  <p className="mb-2 text-[10px] text-slate-500">Giáo viên/Nhân viên chỉ có thể thấy và thao tác trên những lớp được tick chọn bên dưới:</p>
+                  {classes.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic">Chưa có dữ liệu lớp học trong hệ thống.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-32 overflow-y-auto pr-1">
+                      {classes.map(c => {
+                        const isAssigned = staffPermissions.assignedClassIds?.includes(c.id) || false;
+                        return (
+                          <label key={c.id} className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-800 bg-white p-1.5 rounded-lg border border-slate-200 hover:border-amber-400">
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={(e) => {
+                                const currentIds = staffPermissions.assignedClassIds || [];
+                                const nextIds = e.target.checked
+                                  ? [...currentIds, c.id]
+                                  : currentIds.filter(id => id !== c.id);
+                                setStaffPermissions(prev => ({ ...prev, assignedClassIds: nextIds }));
+                              }}
+                              className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                            />
+                            <span className="truncate font-semibold">{c.name} ({c.code})</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {teachers.length > 0 && (
+                    <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-700 whitespace-nowrap">Gán hồ sơ giáo viên:</span>
+                      <select
+                        value={staffPermissions.teacherId || ''}
+                        onChange={(e) => setStaffPermissions(prev => ({ ...prev, teacherId: e.target.value || undefined }))}
+                        className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1 font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="">-- Tự do / Chưa liên kết giáo viên cụ thể --</option>
+                        {teachers.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
             </fieldset>
           )}
           <div className="flex items-end">
-            <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-red-800 py-2.5 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60 flex items-center justify-center gap-2">
-              {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserRoundCheck className="h-4 w-4" />} Cấp quyền Google
+            <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-60 flex items-center justify-center gap-2 shadow-xs transition">
+              {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin text-slate-950" /> : <UserRoundCheck className="h-4 w-4 text-slate-950" />} Cấp quyền Google
             </button>
           </div>
         </form>
@@ -191,22 +283,91 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-800">{error}</p>}
         {message && <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-800">{message}</p>}
 
-        <div className="mt-6">
-          <h3 className="font-bold text-slate-900">Tài khoản đang đăng nhập</h3>
+        <div className="mt-6 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">Tài khoản đang đăng nhập</h3>
+            <p className="text-[11px] text-slate-500">
+              {activeSessions.length > 0
+                ? `Hiện có ${activeSessions.length} tài khoản đang đăng nhập vào hệ thống`
+                : 'Chưa có tài khoản nào đăng nhập'}
+            </p>
+          </div>
+          {activeSessions.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              {activeSessions.length} trực tuyến
+            </span>
+          )}
         </div>
-        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
-          {isLoading && members.length === 0 ? (
-            <div className="p-5 text-center text-xs text-slate-500">Đang tải tài khoản…</div>
-          ) : members.length === 0 ? (
-            <div className="p-5 text-center text-xs text-slate-500">Không tìm thấy tài khoản đang đăng nhập.</div>
-          ) : members.map((member) => (
-            <div key={member.id} className="flex items-center gap-3 p-3">
-              {member.avatar_url ? <img src={member.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" referrerPolicy="no-referrer" /> : <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500"><UserRoundCheck className="h-4 w-4" /></div>}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-slate-800">{member.full_name || 'Chưa đặt tên'}</p>
-              </div>
+
+        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
+          {activeSessions.length === 0 ? (
+            <div className="p-5 text-center text-xs text-slate-400">
+              Chưa có tài khoản nào đăng nhập vào hệ thống.
             </div>
-          ))}
+          ) : (
+            activeSessions.map((sessionUser) => {
+              const isCurrent = Boolean(
+                currentUser &&
+                ((sessionUser.email && currentUser.email && sessionUser.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                  sessionUser.id === currentUser.id)
+              );
+              const displayName = (sessionUser.name && sessionUser.name.trim() !== '')
+                ? sessionUser.name
+                : (sessionUser.email ? sessionUser.email.split('@')[0] : 'Tài khoản BeeZone');
+
+              return (
+                <div key={sessionUser.id || sessionUser.email} className="flex items-center justify-between p-3 hover:bg-slate-50/70 transition">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative shrink-0">
+                      {sessionUser.avatar ? (
+                        <img
+                          src={sessionUser.avatar}
+                          alt=""
+                          className="h-9 w-9 rounded-full object-cover border border-slate-200"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="grid h-9 w-9 place-items-center rounded-full bg-amber-100 text-amber-900 font-bold text-xs uppercase border border-amber-200">
+                          {displayName.charAt(0)}
+                        </div>
+                      )}
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-xs font-bold text-slate-900">
+                          {displayName}
+                        </p>
+                        {isCurrent && (
+                          <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-900 border border-amber-200">
+                            Phiên này
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-[11px] text-slate-500">{sessionUser.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        sessionUser.role === 'owner'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                          : 'bg-blue-100 text-blue-900 border border-blue-200'
+                      }`}
+                    >
+                      {sessionUser.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 hidden sm:inline-block">
+                      ● Đang hoạt động
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </section>
     </div>

@@ -36,7 +36,7 @@ import { generateMasterExcelWorkbook } from '../services/excelService';
 const BACKUP_SCHEMA_VERSION = 1;
 
 interface BackupArchive {
-  app: 'PHUC_PHUC_THINH';
+  app: 'BEEZONE' | 'PHUC_PHUC_THINH';
   schemaVersion: number;
   exportedAt: string;
   centerName: string;
@@ -105,7 +105,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
   const parseBackupArchive = (value: unknown): BackupArchive | null => {
-    if (!isRecord(value) || value.app !== 'PHUC_PHUC_THINH' || value.schemaVersion !== BACKUP_SCHEMA_VERSION || !isRecord(value.data)) return null;
+    if (!isRecord(value) || (value.app !== 'BEEZONE' && value.app !== 'PHUC_PHUC_THINH') || value.schemaVersion !== BACKUP_SCHEMA_VERSION || !isRecord(value.data)) return null;
     const { data } = value;
     const arrayKeys = ['programs', 'teachers', 'rooms', 'classes', 'students', 'timetableSlots', 'grades', 'receipts', 'backups', 'activityLogs'];
     if (!isRecord(data.settings) || arrayKeys.some((key) => !Array.isArray(data[key]) || !data[key].every(isRecord))) return null;
@@ -129,7 +129,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
         grades
       });
 
-      const fileName = `PhucPhucThinh_BaoCaoToanHeThong_${new Date().toISOString().split('T')[0]}.xlsm`;
+      const fileName = `BEEZONE_BaoCaoToanHeThong_${new Date().toISOString().split('T')[0]}.xlsm`;
       downloadBlob(blob, fileName);
       onBackupCreated?.(makeBackupRecord(fileName, blob.size));
 
@@ -146,10 +146,10 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   const handleExportSystemJson = () => {
     setStatusMessage(null);
     try {
-      const fileName = `PhucPhucThinh_DatabaseBackup_Full_${new Date().toISOString().split('T')[0]}.json`;
+      const fileName = `BEEZONE_DatabaseBackup_Full_${new Date().toISOString().split('T')[0]}.json`;
       const backupRecord = makeBackupRecord(fileName, 0);
       const systemData: BackupArchive = {
-        app: 'PHUC_PHUC_THINH',
+        app: 'BEEZONE',
         schemaVersion: BACKUP_SCHEMA_VERSION,
         centerName: settings.name,
         exportedAt: new Date().toISOString(),
@@ -208,7 +208,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     setRestoreCandidate(null);
     try {
       const archive = parseBackupArchive(JSON.parse(await file.text()));
-      if (!archive) throw new Error('Tệp không đúng định dạng sao lưu đầy đủ của Phúc Phúc Thịnh, hoặc được tạo bởi phiên bản cũ.');
+      if (!archive) throw new Error('Tệp không đúng định dạng sao lưu đầy đủ của trung tâm BeeZone, hoặc được tạo bởi phiên bản cũ.');
       setRestoreCandidate({ archive, filename: file.name });
     } catch (error) {
       setRestoreError(error instanceof Error ? error.message : 'Không thể đọc tệp JSON sao lưu.');
@@ -225,7 +225,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-red-900 via-slate-900 to-slate-900 text-white p-6 rounded-2xl shadow-md border border-red-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/80 text-white p-6 rounded-2xl shadow-md border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold mb-2 border border-amber-400/30">
             <Sparkles className="w-3.5 h-3.5" /> AN TOÀN DỮ LIỆU CƠ SỞ DỮ LIỆU
@@ -245,7 +245,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
       </div>
 
       {/* PROMINENT SECTION: XUẤT BÁO CÁO TOÀN BỘ HỆ THỐNG */}
-      <div className="bg-white p-5 rounded-2xl border-2 border-red-800/30 shadow-xs space-y-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -257,7 +257,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
             </p>
           </div>
 
-          <div className="text-xs font-bold text-red-800 bg-red-50 px-3 py-1 rounded-lg border border-red-200">
+          <div className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1 rounded-lg border border-amber-200">
             Tổng cộng: {students.length} Học Sinh • {classes.length} Lớp
           </div>
         </div>
@@ -342,9 +342,9 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
             {onOpenImportExportModal && (
               <button
                 onClick={onOpenImportExportModal}
-                className="w-full py-2.5 bg-red-800 hover:bg-red-900 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
               >
-                <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                <FileSpreadsheet className="w-4 h-4 text-slate-950" />
                 Mở Cửa Sổ Import / Export Excel
               </button>
             )}
@@ -422,7 +422,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
                 backups.map((bk) => (
                   <tr key={bk.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
-                      <FileArchive className="w-4 h-4 text-red-700 flex-shrink-0" />
+                      <FileArchive className="w-4 h-4 text-amber-600 flex-shrink-0" />
                       <span>{bk.filename}</span>
                     </td>
                     <td className="py-3 px-4 text-slate-600">{bk.timestamp}</td>

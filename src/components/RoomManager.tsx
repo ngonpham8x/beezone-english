@@ -69,7 +69,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <DoorOpen className="w-6 h-6 text-red-700" />
+            <DoorOpen className="w-6 h-6 text-amber-600" />
             Quản Lý Phòng Học ({rooms.length})
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -80,9 +80,9 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
         {canEdit && (
           <button
             onClick={handleOpenAdd}
-            className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
+            <Plus className="w-4 h-4 text-slate-950" />
             Thêm Phòng Học Mới
           </button>
         )}
@@ -188,7 +188,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
             </button>
 
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <DoorOpen className="w-5 h-5 text-red-700" />
+              <DoorOpen className="w-5 h-5 text-amber-600" />
               {rooms.some(r => r.id === editingRoom.id) ? 'Cập Nhật Phòng Học' : 'Thêm Phòng Học Mới'}
             </h3>
 
@@ -249,9 +249,9 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 flex items-center gap-1.5"
+                  className="px-5 py-2 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-600 flex items-center gap-1.5 shadow-sm active:scale-95"
                 >
-                  <Save className="w-4 h-4 text-amber-400" /> Lưu Phòng Học
+                  <Save className="w-4 h-4 text-slate-950" /> Lưu Phòng Học
                 </button>
               </div>
             </form>

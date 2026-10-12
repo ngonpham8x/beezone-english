@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle, AlertTriangle, Info, RefreshCw, Download, ShieldCheck, CheckCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle, AlertTriangle, Info, RefreshCw, Download } from 'lucide-react';
 import {
   checkDataConsistency,
   autoFixConsistency,
@@ -32,13 +32,12 @@ export default function DataConsistencyChecker({
   const [report, setReport] = useState<ConsistencyReport | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isFixing, setIsFixing] = useState(false);
-  const [fixSuccessMsg, setFixSuccessMsg] = useState<string | null>(null);
 
   const handleCheck = async () => {
     setIsChecking(true);
-    setFixSuccessMsg(null);
     try {
-      await new Promise(resolve => setTimeout(resolve, 600));
+      // Simulate async check
+      await new Promise(resolve => setTimeout(resolve, 1000));
       const foundIssues = checkDataConsistency(students, classrooms, receipts, programs);
       setIssues(foundIssues);
       setReport(generateConsistencyReport(foundIssues));
@@ -49,9 +48,8 @@ export default function DataConsistencyChecker({
 
   const handleAutoFix = async () => {
     setIsFixing(true);
-    setFixSuccessMsg(null);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       const result = autoFixConsistency(students, classrooms, receipts, programs);
       setIssues(result.issues);
       const updatedReport = generateConsistencyReport(result.issues);
@@ -61,7 +59,6 @@ export default function DataConsistencyChecker({
       if (onDataFixed) {
         onDataFixed(result.fixedStudents, result.fixedClassrooms, result.fixedReceipts);
       }
-      setFixSuccessMsg(`Đã tự động sửa thành công ${result.fixedCount} vấn đề đồng bộ dữ liệu!`);
     } finally {
       setIsFixing(false);
     }
@@ -86,54 +83,48 @@ export default function DataConsistencyChecker({
   const getIconBySeverity = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />;
+        return <AlertCircle className="w-5 h-5 text-red-600" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />;
+        return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
       case 'info':
-        return <Info className="w-5 h-5 text-sky-600 flex-shrink-0" />;
+        return <Info className="w-5 h-5 text-blue-600" />;
       default:
-        return <Info className="w-5 h-5 flex-shrink-0" />;
+        return <Info className="w-5 h-5" />;
     }
   };
 
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       'student_not_in_class': '❌ Học viên không có trong lớp (nhưng có học phí)',
-      'class_not_enrolled': '⚠️ ClassID không khớp với danh sách lớp',
+      'class_not_enrolled': '⚠️ ClassID không khớp',
       'student_missing_program': '🔍 Thiếu programId',
-      'multiple_class_single_program': 'ℹ️ Học nhiều lớp cùng chương trình',
-      'orphaned_receipt': '💔 Record học phí không tìm thấy học viên'
+      'multiple_class_single_program': 'ℹ️ Học nhiều lớp, 1 khoá',
+      'orphaned_receipt': '💔 Record học phí mồ côi'
     };
     return labels[type] || type;
   };
 
   return (
-    <div className="w-full bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+    <div className="w-full bg-white rounded-lg shadow-lg">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-800 via-red-900 to-slate-900 px-6 py-5">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-white/10 rounded-xl text-white backdrop-blur-xs">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">
-              Kiểm Tra & Chuẩn Hóa Tính Nhất Quán Dữ Liệu
-            </h2>
-            <p className="text-red-100/80 text-xs mt-0.5">
-              Phát hiện và tự động đồng bộ liên kết giữa Học viên, Lớp học, Học phí và Chương trình học
-            </p>
-          </div>
-        </div>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-lg">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <RefreshCw className="w-6 h-6" />
+          Kiểm Tra & Sửa Tính Nhất Quán Dữ Liệu
+        </h2>
+        <p className="text-blue-100 text-sm mt-1">
+          Phát hiện và tự động sửa các liên kết bị dứt giữa học viên, lớp học, và học phí
+        </p>
       </div>
 
       {/* Main Content */}
       <div className="p-6">
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex gap-3 mb-6">
           <button
             onClick={handleCheck}
             disabled={isChecking}
-            className="flex items-center gap-2 px-4 py-2.5 bg-red-800 hover:bg-red-900 text-white rounded-xl font-bold text-xs shadow-xs disabled:bg-slate-300 disabled:cursor-not-allowed transition"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
           >
             <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
             {isChecking ? 'Đang kiểm tra...' : 'Kiểm Tra Dữ Liệu'}
@@ -144,51 +135,44 @@ export default function DataConsistencyChecker({
               <button
                 onClick={handleAutoFix}
                 disabled={isFixing}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs disabled:bg-slate-300 disabled:cursor-not-allowed transition"
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
               >
                 <CheckCircle className={`w-4 h-4 ${isFixing ? 'animate-spin' : ''}`} />
-                {isFixing ? 'Đang tự động sửa...' : 'Sửa Tự Động'}
+                {isFixing ? 'Đang sửa...' : 'Sửa Tự Động'}
               </button>
 
               <button
                 onClick={handleDownloadReport}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs shadow-xs transition"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
               >
                 <Download className="w-4 h-4" />
-                Tải Báo Cáo Text
+                Tải Báo Cáo
               </button>
             </>
           )}
         </div>
 
-        {fixSuccessMsg && (
-          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 text-xs font-bold">
-            <CheckCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-            <span>{fixSuccessMsg}</span>
-          </div>
-        )}
-
         {/* Summary Cards */}
         {report && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <p className="text-slate-500 text-xs font-semibold">Tổng Vấn Đề</p>
-              <p className="text-2xl font-black text-slate-800 mt-1">{report.totalIssues}</p>
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-gray-600 text-sm font-medium">Tổng Vấn Đề</p>
+              <p className="text-3xl font-bold text-gray-800">{report.totalIssues}</p>
             </div>
 
-            <div className="bg-red-50 p-4 rounded-xl border border-red-200">
-              <p className="text-red-700 text-xs font-semibold">🔴 Nghiêm Trọng</p>
-              <p className="text-2xl font-black text-red-600 mt-1">{report.criticalIssues}</p>
+            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+              <p className="text-red-600 text-sm font-medium">🔴 Nghiêm Trọng</p>
+              <p className="text-3xl font-bold text-red-600">{report.criticalIssues}</p>
             </div>
 
-            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <p className="text-amber-700 text-xs font-semibold">🟡 Cảnh Báo</p>
-              <p className="text-2xl font-black text-amber-600 mt-1">{report.warnings}</p>
+            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+              <p className="text-yellow-600 text-sm font-medium">🟡 Cảnh Báo</p>
+              <p className="text-3xl font-bold text-yellow-600">{report.warnings}</p>
             </div>
 
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-              <p className="text-emerald-700 text-xs font-semibold">✅ Đã Sửa</p>
-              <p className="text-2xl font-black text-emerald-600 mt-1">{report.fixedCount}</p>
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <p className="text-green-600 text-sm font-medium">✅ Đã Sửa</p>
+              <p className="text-3xl font-bold text-green-600">{report.fixedCount}</p>
             </div>
           </div>
         )}
@@ -196,33 +180,33 @@ export default function DataConsistencyChecker({
         {/* Tabs */}
         {issues.length > 0 && (
           <>
-            <div className="flex gap-2 border-b border-slate-200 mb-5">
+            <div className="flex gap-4 border-b border-gray-200 mb-4">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 text-xs font-bold transition border-b-2 ${
+                className={`px-4 py-2 font-medium transition ${
                   activeTab === 'overview'
-                    ? 'text-red-800 border-red-800'
-                    : 'text-slate-500 border-transparent hover:text-slate-800'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
                 📊 Tóm Tắt
               </button>
               <button
                 onClick={() => setActiveTab('issues')}
-                className={`px-4 py-2 text-xs font-bold transition border-b-2 ${
+                className={`px-4 py-2 font-medium transition ${
                   activeTab === 'issues'
-                    ? 'text-red-800 border-red-800'
-                    : 'text-slate-500 border-transparent hover:text-slate-800'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
                 📋 Chi Tiết ({issues.length})
               </button>
               <button
                 onClick={() => setActiveTab('report')}
-                className={`px-4 py-2 text-xs font-bold transition border-b-2 ${
+                className={`px-4 py-2 font-medium transition ${
                   activeTab === 'report'
-                    ? 'text-red-800 border-red-800'
-                    : 'text-slate-500 border-transparent hover:text-slate-800'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
                 📄 Báo Cáo
@@ -232,56 +216,56 @@ export default function DataConsistencyChecker({
             {/* Tab Content */}
             {activeTab === 'overview' && (
               <div className="space-y-4">
-                <div className="bg-slate-50 border-l-4 border-red-700 p-4 rounded-r-xl">
-                  <h3 className="font-bold text-slate-900 text-xs mb-2">Phát hiện được:</h3>
-                  <ul className="text-slate-700 text-xs space-y-1.5">
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                  <h3 className="font-semibold text-blue-900 mb-2">Phát hiện được:</h3>
+                  <ul className="text-blue-800 text-sm space-y-1">
                     {criticalCount > 0 && (
-                      <li>🔴 <strong>{criticalCount}</strong> vấn đề nghiêm trọng cần xử lý (ví dụ: record học phí không có lớp)</li>
+                      <li>🔴 <strong>{criticalCount}</strong> vấn đề nghiêm trọng cần xử lý ngay</li>
                     )}
                     {warningCount > 0 && (
-                      <li>🟡 <strong>{warningCount}</strong> cảnh báo cần kiểm tra (ví dụ: mã lớp học viên không khớp)</li>
+                      <li>🟡 <strong>{warningCount}</strong> cảnh báo cần kiểm tra</li>
                     )}
                     {infoCount > 0 && (
-                      <li>ℹ️ <strong>{infoCount}</strong> thông tin cần lưu ý (ví dụ: học nhiều lớp trong cùng một chương trình)</li>
+                      <li>ℹ️ <strong>{infoCount}</strong> thông tin cần lưu ý</li>
                     )}
                   </ul>
                 </div>
 
-                <div className="bg-emerald-50/70 border-l-4 border-emerald-600 p-4 rounded-r-xl">
-                  <h3 className="font-bold text-emerald-900 text-xs mb-2">Khả năng sửa tự động:</h3>
-                  <ul className="text-emerald-800 text-xs space-y-1.5">
-                    <li>✅ Tự động gán programId phù hợp từ lớp học cho học viên còn thiếu</li>
-                    <li>✅ Tự động đồng bộ và sửa classId trong hồ sơ học sinh khớp với sĩ số lớp</li>
-                    <li>✅ Tự động cập nhật danh sách học viên trực thuộc lớp học</li>
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                  <h3 className="font-semibold text-green-900 mb-2">Có thể sửa tự động:</h3>
+                  <ul className="text-green-800 text-sm space-y-1">
+                    <li>✅ Cập nhật programId từ lớp học</li>
+                    <li>✅ Sửa classId không khớp</li>
+                    <li>✅ Cập nhật danh sách học sinh trong lớp</li>
                   </ul>
                 </div>
               </div>
             )}
 
             {activeTab === 'issues' && (
-              <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+              <div className="space-y-3 max-h-96 overflow-y-auto">
                 {issues.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8 text-xs">Không có vấn đề nào!</p>
+                  <p className="text-gray-500 text-center py-8">Không có vấn đề nào!</p>
                 ) : (
                   issues.map((issue, idx) => (
                     <div
                       key={idx}
-                      className={`p-3.5 rounded-xl border-l-4 shadow-2xs ${
+                      className={`p-4 rounded-lg border-l-4 ${
                         issue.severity === 'critical'
-                          ? 'bg-red-50/70 border-red-600 text-red-950'
+                          ? 'bg-red-50 border-red-500'
                           : issue.severity === 'warning'
-                          ? 'bg-amber-50/70 border-amber-500 text-amber-950'
-                          : 'bg-sky-50/70 border-sky-500 text-sky-950'
+                          ? 'bg-yellow-50 border-yellow-500'
+                          : 'bg-blue-50 border-blue-500'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         {getIconBySeverity(issue.severity)}
                         <div className="flex-1">
-                          <h4 className="font-bold text-xs">
+                          <h4 className="font-semibold text-gray-900">
                             {issue.studentCode} - {issue.studentName}
                           </h4>
-                          <p className="text-[11px] font-semibold opacity-90 mt-0.5">{getTypeLabel(issue.type)}</p>
-                          <p className="text-[11px] opacity-75 mt-0.5">{issue.details}</p>
+                          <p className="text-sm text-gray-700 mt-1">{getTypeLabel(issue.type)}</p>
+                          <p className="text-sm text-gray-600 mt-1">{issue.details}</p>
                         </div>
                       </div>
                     </div>
@@ -291,7 +275,7 @@ export default function DataConsistencyChecker({
             )}
 
             {activeTab === 'report' && report && (
-              <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs whitespace-pre-wrap overflow-auto max-h-96">
+              <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm whitespace-pre-wrap overflow-auto max-h-96">
                 {formatConsistencyReport(report)}
               </div>
             )}
@@ -301,25 +285,17 @@ export default function DataConsistencyChecker({
         {/* Empty State */}
         {!report && (
           <div className="text-center py-12">
-            <ShieldCheck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-700 text-sm font-bold">Chưa kiểm tra dữ liệu</p>
-            <p className="text-slate-400 text-xs mt-1">Nhấn nút "Kiểm Tra Dữ Liệu" ở trên để bắt đầu quét toàn bộ hệ thống</p>
-          </div>
-        )}
-
-        {report && issues.length === 0 && (
-          <div className="text-center py-10 bg-emerald-50 rounded-xl border border-emerald-200">
-            <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto mb-2" />
-            <p className="text-emerald-900 text-sm font-bold">Dữ liệu hoàn toàn nhất quán!</p>
-            <p className="text-emerald-700 text-xs mt-1">Không phát hiện thấy bất kỳ xung đột nào giữa học viên, lớp học và học phí.</p>
+            <RefreshCw className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 text-lg font-medium">Chưa kiểm tra dữ liệu</p>
+            <p className="text-gray-500 text-sm mt-1">Nhấn "Kiểm Tra Dữ Liệu" để bắt đầu</p>
           </div>
         )}
       </div>
 
       {/* Footer Info */}
       {report && (
-        <div className="bg-slate-50 px-6 py-3 rounded-b-2xl border-t border-slate-200 text-xs text-slate-500">
-          <p>🕐 Quét lúc: {new Date(report.timestamp).toLocaleString('vi-VN')}</p>
+        <div className="bg-gray-50 px-6 py-3 rounded-b-lg border-t border-gray-200 text-sm text-gray-600">
+          <p>🕐 Kiểm tra lúc: {new Date(report.timestamp).toLocaleString('vi-VN')}</p>
         </div>
       )}
     </div>

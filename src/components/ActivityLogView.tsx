@@ -69,7 +69,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <History className="w-6 h-6 text-red-700" />
+            <History className="w-6 h-6 text-amber-600" />
             Nhật Ký Hệ Thống (Audit Logs)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -85,7 +85,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
               placeholder="Tìm kiếm nhật ký..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-red-700"
+              className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
             />
           </div>
 
@@ -111,7 +111,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-900"><ShieldCheck className="h-4 w-4 text-red-800" /> Nhật ký tài khoản</h3>
+            <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-900"><ShieldCheck className="h-4 w-4 text-amber-600" /> Nhật ký tài khoản</h3>
             <p className="mt-1 text-[11px] text-slate-500">Ghi riêng các lần cấp quyền, cập nhật quyền, khóa và mở khóa tài khoản. Email không hiển thị.</p>
           </div>
           <button
@@ -146,7 +146,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
                 {filteredAccountLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-[11px] text-slate-500">{new Date(log.occurredAt).toLocaleString('vi-VN')}</td>
-                    <td className="px-4 py-3"><b className="text-slate-900">{log.targetName || 'Chưa đặt tên'}</b><span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{log.targetRole === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'}</span></td>
+                    <td className="px-4 py-3"><b className="text-slate-900">{log.targetName || 'Tài khoản BeeZone'}</b><span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{log.targetRole === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'}</span></td>
                     <td className="px-4 py-3"><span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${accountActionClass(log.action)}`}>{accountActionLabels[log.action]}</span></td>
                     <td className="px-4 py-3 font-semibold text-slate-800">{log.actorName || 'Chủ trung tâm'}</td>
                     <td className="px-4 py-3 leading-5 text-slate-700">{log.details}</td>

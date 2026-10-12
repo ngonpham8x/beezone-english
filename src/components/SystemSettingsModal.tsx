@@ -41,7 +41,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
         </button>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-800 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
             <Settings className="w-6 h-6" />
           </div>
           <div>
@@ -64,7 +64,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-red-900"
+              className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-900"
               required
             />
           </div>
@@ -101,14 +101,26 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Email Trung Tâm</label>
+              <label className="block font-semibold text-slate-700 mb-1">Email Quản Trị 1 (Chính)</label>
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium"
+                required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">Email Quản Trị 2 (Phụ)</label>
+            <input
+              type="email"
+              value={formData.secondaryEmail || ''}
+              onChange={(e) => setFormData({ ...formData, secondaryEmail: e.target.value })}
+              placeholder="chauoaingua679@gmail.com"
+              className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium"
+            />
           </div>
 
           <div>
@@ -160,9 +172,9 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 flex items-center gap-1.5 shadow-sm"
+              className="px-5 py-2 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-600 flex items-center gap-1.5 shadow-sm active:scale-95"
             >
-              <Save className="w-4 h-4 text-amber-400" /> Lưu Cấu Hình
+              <Save className="w-4 h-4 text-slate-950" /> Lưu Cấu Hình
             </button>
           </div>
         </form>

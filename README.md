@@ -1,6 +1,8 @@
-# Trung tâm Anh ngữ Phúc Phúc Thịnh
+# Trung tâm ngoại ngữ BeeZone
+**Địa chỉ**: 111 Ngô Quyền, Long Hải, Long Hoa, Tây Ninh  
+**Hotline**: 0847563679  
 
-Ứng dụng quản lý nội bộ, xây dựng bằng React/Vite và sẵn sàng deploy trên Vercel.
+Ứng dụng quản lý nội bộ trung tâm ngoại ngữ, xây dựng bằng React/Vite và sẵn sàng deploy trên Vercel.
 
 ## Chạy cục bộ
 

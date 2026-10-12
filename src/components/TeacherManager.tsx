@@ -86,7 +86,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <GraduationCap className="w-6 h-6 text-red-700" />
+            <GraduationCap className="w-6 h-6 text-amber-600" />
             {t('teacher.title')} ({teachers.length})
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -97,9 +97,9 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
         {canEdit && (
           <button
             onClick={handleOpenAdd}
-            className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5"
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
+            <Plus className="w-4 h-4 text-slate-950" />
             {t('teacher.add_new')}
           </button>
         )}
@@ -124,7 +124,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                         {teacher.id}
                       </span>
                       <h3 className="font-bold text-slate-900 text-base mt-0.5">{teacher.name}</h3>
-                      <div className="text-xs text-red-700 font-semibold flex items-center gap-1">
+                      <div className="text-xs text-amber-700 font-semibold flex items-center gap-1">
                         <Award className="w-3.5 h-3.5" /> {teacher.specialty}
                       </div>
                     </div>
@@ -177,7 +177,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
                 <div className="mt-4 pt-3 border-t border-slate-100">
                   <div className="text-[11px] font-bold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                    <BookOpen className="w-3.5 h-3.5 text-red-700" /> {t('teacher.assigned_classes')} ({teacherClasses.length}):
+                    <BookOpen className="w-3.5 h-3.5 text-amber-600" /> {t('teacher.assigned_classes')} ({teacherClasses.length}):
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {teacherClasses.length === 0 ? (
@@ -202,7 +202,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                 </span>
                 <button
                   onClick={() => setViewingTeacherDetails(teacher)}
-                  className="px-3 py-1 bg-red-800 hover:bg-red-900 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shrink-0 shadow-2xs"
+                  className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-95"
                 >
                   <Eye className="w-3.5 h-3.5 text-amber-400" />
                   Xem chi tiết
@@ -237,7 +237,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                   </span>
                 </div>
                 <h3 className="text-xl font-black text-slate-900 mt-1">{viewingTeacherDetails.name}</h3>
-                <div className="text-xs text-red-700 font-bold flex items-center justify-center sm:justify-start gap-1 mt-0.5">
+                <div className="text-xs text-amber-700 font-bold flex items-center justify-center sm:justify-start gap-1 mt-0.5">
                   <Award className="w-4 h-4 text-amber-500" /> Chuyên môn: {viewingTeacherDetails.specialty}
                 </div>
               </div>
@@ -249,7 +249,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                 <Phone className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                 <div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase">Số điện thoại</div>
-                  <a href={`tel:${viewingTeacherDetails.phone}`} className="font-bold text-slate-800 hover:text-red-700">{viewingTeacherDetails.phone || 'Chưa cập nhật'}</a>
+                  <a href={`tel:${viewingTeacherDetails.phone}`} className="font-bold text-slate-800 hover:text-amber-700">{viewingTeacherDetails.phone || 'Chưa cập nhật'}</a>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -271,7 +271,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
             {/* Classes Taught */}
             <div className="space-y-4 my-5">
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                <BookOpen className="w-4 h-4 text-red-700" /> Các lớp học đang phụ trách ({classes.filter(c => c.teacherId === viewingTeacherDetails.id).length})
+                <BookOpen className="w-4 h-4 text-amber-600" /> Các lớp học đang phụ trách ({classes.filter(c => c.teacherId === viewingTeacherDetails.id).length})
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -281,14 +281,14 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                   </div>
                 ) : (
                   classes.filter(c => c.teacherId === viewingTeacherDetails.id).map(cls => (
-                    <div key={cls.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-red-300 transition-all">
+                    <div key={cls.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-amber-300 transition-all">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-slate-900 text-sm">{cls.name}</span>
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-red-100 text-red-800 rounded">{cls.code}</span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-200/60 rounded">{cls.code}</span>
                       </div>
                       <div className="text-xs text-slate-600 space-y-1 mt-2">
                         <div className="flex items-center gap-1.5 text-slate-700">
-                          <Clock className="w-3.5 h-3.5 text-red-700" /> Ca dạy: <span className="font-bold">{cls.scheduleTime}</span>
+                          <Clock className="w-3.5 h-3.5 text-amber-600" /> Ca dạy: <span className="font-bold">{cls.scheduleTime}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-700">
                           <CalendarDays className="w-3.5 h-3.5 text-purple-600" /> Ngày dạy: <span className="font-bold">{cls.days.join(', ')}</span>
@@ -321,7 +321,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-medium">Trung Tâm Anh Ngữ Phúc Phúc Thịnh</span>
+              <span className="text-xs text-slate-500 font-medium">Trung tâm ngoại ngữ BeeZone</span>
               <button
                 onClick={() => setViewingTeacherDetails(null)}
                 className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-900 transition-colors"
@@ -348,7 +348,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
             </button>
 
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <GraduationCap className="w-5 h-5 text-red-700" />
+              <GraduationCap className="w-5 h-5 text-amber-600" />
               {teachers.some(t => t.id === editingTeacher.id) ? 'Sửa Thông Tin Giáo Viên' : 'Thêm Giáo Viên Mới'}
             </h3>
 
@@ -417,6 +417,36 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                 />
               </div>
 
+              {classes.length > 0 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <label className="block font-bold text-slate-800 uppercase text-[11px]">
+                    Phân công lớp phụ trách (Chỉ giáo viên này mới được điểm danh & chấm điểm):
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {classes.map(cls => {
+                      const isChecked = editingTeacher.assignedClassIds?.includes(cls.id) || cls.teacherId === editingTeacher.id;
+                      return (
+                        <label key={cls.id} className="flex items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-red-300">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const currentIds = editingTeacher.assignedClassIds || [];
+                              const nextIds = e.target.checked
+                                ? [...new Set([...currentIds, cls.id])]
+                                : currentIds.filter(id => id !== cls.id);
+                              setEditingTeacher({ ...editingTeacher, assignedClassIds: nextIds });
+                            }}
+                            className="rounded text-amber-600 focus:ring-amber-500"
+                          />
+                          <span className="font-semibold text-slate-800 text-[11px] truncate">{cls.name} ({cls.code})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
                 <button
                   type="button"
@@ -430,9 +460,9 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-red-800 text-white rounded-xl font-bold hover:bg-red-900 flex items-center gap-1.5"
+                  className="px-5 py-2 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-600 flex items-center gap-1.5 shadow-sm active:scale-95"
                 >
-                  <Save className="w-4 h-4 text-amber-400" /> Lưu Giáo Viên
+                  <Save className="w-4 h-4 text-slate-950" /> Lưu Giáo Viên
                 </button>
               </div>
             </form>
