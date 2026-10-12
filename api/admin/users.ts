@@ -221,7 +221,7 @@ export default async function handler(req: any, res: any) {
     const permissions = role === 'owner' ? OWNER_PERMISSIONS : normalizeStaffPermissions(body.permissions);
     const { data: existing, error: existingError } = await client
       .from('profiles')
-      .select('id, full_name, role, is_active, permissions')
+      .select('id, email, full_name, role, is_active, permissions')
       .eq('email', email)
       .maybeSingle();
     if (existingError) return json(res, 500, { error: 'Không thể kiểm tra tài khoản.' });
@@ -241,7 +241,7 @@ export default async function handler(req: any, res: any) {
         actorId: callerId,
         actorName: callerName,
         targetId: existing.id,
-        targetName: fullName || existing.full_name || existing.email || 'Tài khoản BeeZone',
+        targetName: fullName || existing.full_name || existing.email || email || 'Tài khoản BeeZone',
         targetRole: role,
         details,
       });
@@ -331,7 +331,7 @@ export default async function handler(req: any, res: any) {
 
   const { data: target, error: targetError } = await client
     .from('profiles')
-    .select('id, full_name, role, is_active')
+    .select('id, email, full_name, role, is_active')
     .eq('id', userId)
     .maybeSingle();
   if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
