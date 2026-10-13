@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { TuitionReceipt, TuitionInstallment, Student, ClassRoom, CourseProgram, StaffPermissions, CenterSettings } from '../types';
-import { CreditCard, Plus, Printer, FileText, CheckCircle, AlertCircle, Search, X, Save, DollarSign, Edit, Trash2, Filter, RotateCcw, Calendar, History, ArrowRight } from 'lucide-react';
+import { CreditCard, Plus, Printer, FileText, CheckCircle, AlertCircle, Search, X, Save, DollarSign, Edit, Trash2, Filter, RotateCcw, Calendar, History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import logoImg from '../assets/images/beezone-logo.png';
 import { getReceiptInstallments, getReceiptPaymentEntries, paymentKindLabel, paymentMethodLabel, paymentPeriodLabel } from '../lib/tuition';
 
@@ -90,6 +91,14 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [filterReceiptStatus, setFilterReceiptStatus] = useState<'all' | 'paid' | 'debt'>('all');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollTable = (direction: 'left' | 'right') => {
+    tableScrollRef.current?.scrollBy({
+      left: direction === 'left' ? -350 : 350,
+      behavior: 'smooth'
+    });
+  };
 
   const canCollect = isOwner || permissions.tuition.collect;
   const canDelete = isOwner || permissions.tuition.delete;
@@ -376,7 +385,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     document.body.dataset.printing = 'tuition-receipt';
     const pageStyle = document.createElement('style');
     pageStyle.id = 'tuition-receipt-page-style';
-    pageStyle.textContent = '@page { size: auto; margin: 8mm; }';
+    pageStyle.textContent = '@page { size: portrait !important; margin: 6mm !important; }';
     document.head.appendChild(pageStyle);
     const cleanup = () => {
       delete document.body.dataset.printing;
@@ -567,15 +576,38 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               {filteredReceipts.length} / {receipts.length} phiếu
             </span>
           </div>
-          <span className="text-xs text-slate-500 font-medium">Bấm vào một dòng để xem hoặc in phiếu PDF</span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline-flex items-center gap-1">
+              ◂ Cuộn ngang xem đầy đủ thông tin ▸
+            </span>
+            <button
+              type="button"
+              onClick={() => scrollTable('left')}
+              className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+              title="Cuộn bảng sang trái"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Trái</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTable('right')}
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+              title="Cuộn bảng sang phải"
+            >
+              <span className="hidden sm:inline">Phải</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full min-w-[1000px] text-left text-xs text-slate-700">
+        <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <table className="w-full min-w-[1050px] text-left text-xs text-slate-700 border-collapse">
             <thead className="bg-slate-100 text-slate-600 uppercase text-[11px] font-bold border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3.5 whitespace-nowrap">Mã Phiếu Thu</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Học Sinh</th>
+                <th className="py-3 px-3.5 whitespace-nowrap sticky left-0 bg-slate-100 z-20 min-w-[120px]">Mã Phiếu Thu</th>
+                <th className="py-3 px-3.5 whitespace-nowrap sticky left-[120px] bg-slate-100 z-20 shadow-r border-r border-slate-200 min-w-[180px]">Học Sinh</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-right">Mức Học Phí</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Khoản Thu</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-right">Đã Đóng (VNĐ)</th>
@@ -593,13 +625,13 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                 const feeAmount = rc.paymentKind === 'course' ? rc.courseFee : (rc.monthlyFee || 0);
 
                 return (
-                  <tr key={rc.id} onClick={() => setSelectedReceipt(rc)} className="cursor-pointer hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3.5 whitespace-nowrap align-middle font-bold">
+                  <tr key={rc.id} onClick={() => setSelectedReceipt(rc)} className="cursor-pointer hover:bg-slate-50 transition-colors group">
+                    <td className="py-3 px-3.5 whitespace-nowrap align-middle font-bold sticky left-0 bg-white group-hover:bg-slate-50 z-10">
                       <span className="font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 text-[11px] font-bold">
                         {rc.code}
                       </span>
                     </td>
-                    <td className="py-3 px-3.5 whitespace-nowrap align-middle font-bold text-slate-900">
+                    <td className="py-3 px-3.5 whitespace-nowrap align-middle font-bold text-slate-900 sticky left-[120px] bg-white group-hover:bg-slate-50 z-10 shadow-r border-r border-slate-100">
                       {student?.name} <span className="text-slate-400 font-normal font-mono text-[11px]">({student?.code})</span>
                     </td>
                     <td className="py-3 px-3.5 whitespace-nowrap align-middle text-right">
@@ -1210,7 +1242,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       )}
 
       {/* PRINTABLE RECEIPT MODAL */}
-      {selectedReceipt && (
+      {selectedReceipt && typeof document !== 'undefined' && createPortal(
         <div data-print-receipt-overlay className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div data-print-receipt className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl border border-slate-300 relative print:m-0 print:p-4 print:shadow-none print:border-none">
             <button
@@ -1327,7 +1359,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

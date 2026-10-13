@@ -131,7 +131,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
         ) : filteredAccountLogs.length === 0 ? (
           <p className="p-5 text-center text-xs text-slate-500">Chưa có thay đổi tài khoản nào được ghi nhận.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[760px] text-left text-xs text-slate-700">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
                 <tr>
@@ -160,8 +160,8 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
 
       {/* Logs Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full min-w-[760px] text-left text-xs text-slate-700">
             <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
               <tr>
                 <th className="py-3 px-4">Thời Gian</th>

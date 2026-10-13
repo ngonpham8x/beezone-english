@@ -147,8 +147,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
         {/* Classes Table */}
         <div>
           <h3 className="font-bold text-slate-900 text-sm mb-3">Chi Tiết Tình Hình Lớp Học & Học Phí:</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border border-slate-200">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[640px] text-left text-xs border border-slate-200">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[10px] font-bold">
                 <tr>
                   <th className="p-2.5">STT</th>

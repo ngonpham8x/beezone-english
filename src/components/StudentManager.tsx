@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../lib/tuition';
 import {
@@ -43,6 +43,8 @@ import {
   CalendarDays,
   DollarSign,
   UserCheck,
+  ChevronLeft,
+  ChevronRight,
   PauseCircle,
   RotateCcw,
   UserMinus
@@ -122,6 +124,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [viewMode, setViewMode] = useState<'table' | 'card'>(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
   ));
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollTable = (direction: 'left' | 'right') => {
+    tableScrollRef.current?.scrollBy({
+      left: direction === 'left' ? -350 : 350,
+      behavior: 'smooth'
+    });
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
@@ -469,30 +479,56 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           </select>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              viewMode === 'table'
-                ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
-                : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <TableIcon className="w-3.5 h-3.5 text-blue-600" />
-            <span>Dạng Bảng</span>
-          </button>
-          <button
-            onClick={() => setViewMode('card')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              viewMode === 'card'
-                ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
-                : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
-            <span>Dạng Thẻ</span>
-          </button>
+        {/* View Mode Switcher & Scroll Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          {viewMode === 'table' && (
+            <div className="flex items-center gap-1.5 mr-1">
+              <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+                ◂ Cuộn xem cột ▸
+              </span>
+              <button
+                type="button"
+                onClick={() => scrollTable('left')}
+                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                title="Cuộn bảng sang trái"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollTable('right')}
+                className="p-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition cursor-pointer shadow-2xs"
+                title="Cuộn bảng sang phải"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5 text-blue-600" />
+              <span>Dạng Bảng</span>
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'card'
+                  ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
+              <span>Dạng Thẻ</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -500,18 +536,18 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       {viewMode === 'table' ? (
         /* Student Table View */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[960px] text-left text-xs text-slate-600">
+          <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[1080px] text-left text-xs text-slate-600 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4">{t('student.table_code')}</th>
-                  <th className="py-3.5 px-4">{t('student.table_name')}</th>
-                  <th className="py-3.5 px-4">{t('student.table_grade_school')}</th>
-                  <th className="py-3.5 px-4">{t('student.table_program_class')}</th>
-                  <th className="py-3.5 px-4">{t('student.table_phone')}</th>
-                  <th className="py-3.5 px-4">{t('student.table_fee')}</th>
-                  <th className="py-3.5 px-4">{t('student.table_status')}</th>
-                  <th className="py-3.5 px-4 text-right">{t('student.table_actions')}</th>
+                  <th className="py-3.5 px-4 sticky left-0 bg-slate-800 z-20 min-w-[110px]">{t('student.table_code')}</th>
+                  <th className="py-3.5 px-4 sticky left-[110px] bg-slate-800 z-20 shadow-r border-r border-slate-700 min-w-[200px]">{t('student.table_name')}</th>
+                  <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_grade_school')}</th>
+                  <th className="py-3.5 px-4 min-w-[160px]">{t('student.table_program_class')}</th>
+                  <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_phone')}</th>
+                  <th className="py-3.5 px-4 min-w-[140px]">{t('student.table_fee')}</th>
+                  <th className="py-3.5 px-4 min-w-[120px]">{t('student.table_status')}</th>
+                  <th className="py-3.5 px-4 text-right min-w-[140px]">{t('student.table_actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -527,14 +563,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     const debt = debtForStudent(st.id);
 
                     return (
-                      <tr key={st.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-bold">
+                      <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
+                        <td className="py-3 px-4 font-bold sticky left-0 bg-white group-hover:bg-slate-50 z-10">
                           <span className="font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 text-xs font-bold">
                             {st.code}
                           </span>
                         </td>
 
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 sticky left-[110px] bg-white group-hover:bg-slate-50 z-10 shadow-r border-r border-slate-100">
                           <div className="flex items-center gap-3">
                             <img
                               src={st.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}

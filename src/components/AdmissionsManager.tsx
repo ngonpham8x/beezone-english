@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Student,
   CourseProgram,
@@ -28,7 +28,11 @@ import {
   Sparkles,
   School,
   AlertCircle,
-  CheckCheck
+  CheckCheck,
+  LayoutGrid,
+  Table as TableIcon,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface AdmissionsManagerProps {
@@ -59,6 +63,19 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProgram, setFilterProgram] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'table' | 'card'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
+  );
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollTable = (direction: 'left' | 'right') => {
+    if (tableScrollRef.current) {
+      tableScrollRef.current.scrollBy({
+        left: direction === 'left' ? -350 : 350,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Modal states
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
@@ -371,177 +388,400 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
         </div>
       </div>
 
-      {/* Admissions Candidate Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
-            <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
-              <tr>
-                <th className="py-3 px-4 w-12 text-center">STT</th>
-                <th className="py-3 px-4">Mã / Học Viên</th>
-                <th className="py-3 px-4">Khóa Học Quan Tâm</th>
-                <th className="py-3 px-4">Thông Tin Phụ Huynh</th>
-                <th className="py-3 px-4 text-center">Trạng Thái</th>
-                <th className="py-3 px-4">Ghi Chú Nhu Cầu</th>
-                <th className="py-3 px-4 text-right">Thao Tác Tuyển Sinh</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 font-medium">
-              {admissionsList.length === 0 ? (
+      {/* View Switcher & Horizontal Scroll Helper Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+        {/* View mode toggle */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'table'
+                ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <TableIcon className="w-3.5 h-3.5 text-blue-600" />
+            <span>Dạng Bảng</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('card')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'card'
+                ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
+            <span>Dạng Thẻ Mobile</span>
+          </button>
+        </div>
+
+        {/* Scroll helper buttons for Table view */}
+        {viewMode === 'table' && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline-flex items-center gap-1">
+              ◂ Cuộn ngang xem đầy đủ {admissionsList.length} hồ sơ ▸
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => scrollTable('left')}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
+                title="Cuộn bảng sang trái"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Cuộn trái</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollTable('right')}
+                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                title="Cuộn bảng sang phải"
+              >
+                <span className="hidden sm:inline">Cuộn phải</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ADMISSIONS CONTENT: TABLE OR RESPONSIVE CARDS */}
+      {viewMode === 'table' ? (
+        /* Admissions Candidate Table */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[1100px] text-left text-xs text-slate-700 border-collapse">
+              <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
-                    <UserPlus className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                    Không tìm thấy hồ sơ tuyển sinh nào phù hợp.
-                  </td>
+                  <th className="py-3 px-4 w-12 text-center sticky left-0 bg-slate-800 z-20">STT</th>
+                  <th className="py-3 px-4 sticky left-12 bg-slate-800 z-20 shadow-r border-r border-slate-700 min-w-[200px]">Mã / Học Viên</th>
+                  <th className="py-3 px-4 min-w-[170px]">Khóa Học Quan Tâm</th>
+                  <th className="py-3 px-4 min-w-[200px]">Thông Tin Phụ Huynh</th>
+                  <th className="py-3 px-4 text-center min-w-[160px]">Trạng Thái</th>
+                  <th className="py-3 px-4 min-w-[180px]">Ghi Chú Nhu Cầu</th>
+                  <th className="py-3 px-4 text-right min-w-[170px]">Thao Tác Tuyển Sinh</th>
                 </tr>
-              ) : (
-                admissionsList.map((candidate, idx) => {
-                  const program = programs.find(p => p.id === candidate.programId);
-                  const currentClass = classes.find(c => c.id === candidate.classId);
-                  const isAlreadyActive = candidate.status === 'active';
+              </thead>
+              <tbody className="divide-y divide-slate-200 font-medium">
+                {admissionsList.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-slate-400">
+                      <UserPlus className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      Không tìm thấy hồ sơ tuyển sinh nào phù hợp.
+                    </td>
+                  </tr>
+                ) : (
+                  admissionsList.map((candidate, idx) => {
+                    const program = programs.find(p => p.id === candidate.programId);
+                    const currentClass = classes.find(c => c.id === candidate.classId);
+                    const isAlreadyActive = candidate.status === 'active';
 
-                  return (
-                    <tr key={candidate.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 text-center text-slate-400 font-bold">
-                        {idx + 1}
-                      </td>
+                    return (
+                      <tr key={candidate.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-4 text-center text-slate-400 font-bold sticky left-0 bg-white z-10">
+                          {idx + 1}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900 text-sm">{candidate.name}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                          <span className="font-semibold font-mono text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/60">{candidate.code}</span>
-                          <span>•</span>
-                          <span>{candidate.gender}</span>
-                          <span>•</span>
-                          <span>{candidate.gradeLevel || 'Chưa rõ khối'}</span>
-                        </div>
-                        {candidate.school && (
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                            <School className="w-3 h-3 text-slate-400" /> {candidate.school}
+                        <td className="py-3 px-4 sticky left-12 bg-white z-10 shadow-r border-r border-slate-100">
+                          <div className="font-bold text-slate-900 text-sm">{candidate.name}</div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                            <span className="font-semibold font-mono text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/60">{candidate.code}</span>
+                            <span>•</span>
+                            <span>{candidate.gender}</span>
+                            <span>•</span>
+                            <span>{candidate.gradeLevel || 'Chưa rõ khối'}</span>
                           </div>
-                        )}
-                      </td>
+                          {candidate.school && (
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <School className="w-3 h-3 text-slate-400" /> {candidate.school}
+                            </div>
+                          )}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-800">
-                          {program?.name || 'Chưa chọn khóa'}
-                        </div>
-                        {program && (
-                          <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                            {program.tuitionFee.toLocaleString('vi-VN')} đ / khóa
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-800">
+                            {program?.name || 'Chưa chọn khóa'}
                           </div>
-                        )}
-                        {currentClass && (
-                          <div className="text-[10px] text-indigo-700 font-bold mt-1 bg-indigo-50 px-2 py-0.5 rounded inline-block">
-                            Lớp: {currentClass.name}
-                          </div>
-                        )}
-                      </td>
+                          {program && (
+                            <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                              {program.tuitionFee.toLocaleString('vi-VN')} đ / khóa
+                            </div>
+                          )}
+                          {currentClass && (
+                            <div className="text-[10px] text-indigo-700 font-bold mt-1 bg-indigo-50 px-2 py-0.5 rounded inline-block">
+                              Lớp: {currentClass.name}
+                            </div>
+                          )}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-800">
-                          {candidate.parentName || 'Chưa cập nhật tên PH'}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-800">
+                            {candidate.parentName || 'Chưa cập nhật tên PH'}
+                          </div>
+                          <div className="text-[11px] mt-0.5">
+                            {candidate.parentPhone || candidate.phone ? (
+                              <a
+                                href={`tel:${candidate.parentPhone || candidate.phone}`}
+                                className="font-bold text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                <Phone className="w-3 h-3" /> {candidate.parentPhone || candidate.phone}
+                              </a>
+                            ) : (
+                              <span className="text-slate-400">Chưa có SĐT</span>
+                            )}
+                          </div>
+                          {candidate.address && (
+                            <div className="text-[10px] text-slate-500 truncate max-w-[150px] mt-0.5">
+                              <MapPin className="w-3 h-3 inline mr-0.5 text-slate-400" />
+                              {candidate.address}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            {getStatusBadge(candidate.status)}
+                            {/* Quick change dropdown for non-active */}
+                            {!isAlreadyActive && canEdit && (
+                              <select
+                                value={candidate.status}
+                                onChange={(e) => handleQuickStatusChange(candidate, e.target.value as StudentStatus)}
+                                className="mt-1 text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded px-1.5 py-0.5 font-semibold text-slate-700 cursor-pointer"
+                              >
+                                <option value="lead">Đổi sang: Tiềm năng</option>
+                                <option value="trial">Đổi sang: Học thử</option>
+                                <option value="registered">Đổi sang: Đã đăng ký</option>
+                              </select>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 max-w-xs">
+                          <p className="text-xs text-slate-600 italic line-clamp-2">
+                            {candidate.notes || 'Chưa có ghi chú tư vấn.'}
+                          </p>
+                        </td>
+
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* ACTION: Xác nhận nhập học chính thức */}
+                            {!isAlreadyActive && canEdit && (
+                              <button
+                                onClick={() => handleOpenEnroll(candidate)}
+                                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                                title="Xác nhận học sinh đăng ký chính thức & Tự động thêm vào lớp"
+                              >
+                                <GraduationCap className="w-3.5 h-3.5" />
+                                <span>Xếp Lớp Chính Thức</span>
+                              </button>
+                            )}
+
+                            {isAlreadyActive && (
+                              <span className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200">
+                                Đang học lớp {currentClass?.name || 'N/A'}
+                              </span>
+                            )}
+
+                            {canEdit && (
+                              <button
+                                onClick={() => {
+                                  setEditingCandidate(candidate);
+                                  setIsAddEditOpen(true);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                                title="Sửa thông tin"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {canDelete && !isAlreadyActive && (
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Xác nhận xóa hồ sơ tuyển sinh ${candidate.name}?`)) {
+                                    onDeleteStudent(candidate.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Xóa hồ sơ"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Responsive Card View (Mobile & Compact View) */
+        <div className="space-y-3">
+          {admissionsList.length === 0 ? (
+            <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-slate-400">
+              <UserPlus className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              Không tìm thấy hồ sơ tuyển sinh nào phù hợp.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {admissionsList.map((candidate, idx) => {
+                const program = programs.find(p => p.id === candidate.programId);
+                const currentClass = classes.find(c => c.id === candidate.classId);
+                const isAlreadyActive = candidate.status === 'active';
+
+                return (
+                  <div
+                    key={candidate.id}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all p-4 flex flex-col justify-between space-y-3"
+                  >
+                    {/* Card Header */}
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="font-mono text-xs font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
+                            {candidate.code}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {candidate.gender}
+                          </span>
                         </div>
-                        <div className="text-[11px] mt-0.5">
-                          {candidate.parentPhone || candidate.phone ? (
+                        <h4 className="font-extrabold text-slate-900 text-base mt-1 truncate">
+                          {candidate.name}
+                        </h4>
+                        {candidate.gradeLevel && (
+                          <p className="text-[11px] text-slate-500">
+                            {candidate.gradeLevel} {candidate.school ? `• ${candidate.school}` : ''}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {getStatusBadge(candidate.status)}
+                        {!isAlreadyActive && canEdit && (
+                          <select
+                            value={candidate.status}
+                            onChange={(e) => handleQuickStatusChange(candidate, e.target.value as StudentStatus)}
+                            className="text-[10px] bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 font-semibold text-slate-700 cursor-pointer"
+                          >
+                            <option value="lead">Tiềm năng</option>
+                            <option value="trial">Học thử</option>
+                            <option value="registered">Đã đăng ký</option>
+                          </select>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-700 bg-slate-50 p-2 rounded-xl">
+                        <span className="font-semibold text-slate-500 text-[11px]">Khóa học:</span>
+                        <div className="text-right">
+                          <strong className="text-slate-900 block">{program?.name || 'Chưa chọn khóa'}</strong>
+                          {program && (
+                            <span className="text-[11px] text-emerald-700 font-bold">
+                              {program.tuitionFee.toLocaleString('vi-VN')} đ
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Parent info with direct Call button */}
+                      <div className="p-2 rounded-xl border border-slate-100 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-slate-500 font-medium">Phụ huynh:</span>
+                          <strong className="text-slate-900 text-xs">{candidate.parentName || 'Chưa cập nhật'}</strong>
+                        </div>
+                        {(candidate.parentPhone || candidate.phone) && (
+                          <div className="flex items-center justify-between pt-0.5">
+                            <span className="text-[11px] text-slate-500 font-medium">SĐT liên hệ:</span>
                             <a
                               href={`tel:${candidate.parentPhone || candidate.phone}`}
-                              className="font-bold text-blue-600 hover:underline flex items-center gap-1"
+                              className="font-bold text-blue-600 hover:underline flex items-center gap-1 text-xs bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200"
                             >
                               <Phone className="w-3 h-3" /> {candidate.parentPhone || candidate.phone}
                             </a>
-                          ) : (
-                            <span className="text-slate-400">Chưa có SĐT</span>
-                          )}
-                        </div>
-                        {candidate.address && (
-                          <div className="text-[10px] text-slate-500 truncate max-w-[150px] mt-0.5">
-                            <MapPin className="w-3 h-3 inline mr-0.5 text-slate-400" />
-                            {candidate.address}
                           </div>
                         )}
-                      </td>
+                        {candidate.address && (
+                          <p className="text-[11px] text-slate-500 truncate pt-0.5">
+                            <MapPin className="w-3 h-3 inline mr-1 text-slate-400" />
+                            {candidate.address}
+                          </p>
+                        )}
+                      </div>
 
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          {getStatusBadge(candidate.status)}
-                          {/* Quick change dropdown for non-active */}
-                          {!isAlreadyActive && canEdit && (
-                            <select
-                              value={candidate.status}
-                              onChange={(e) => handleQuickStatusChange(candidate, e.target.value as StudentStatus)}
-                              className="mt-1 text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded px-1.5 py-0.5 font-semibold text-slate-700 cursor-pointer"
-                            >
-                              <option value="lead">Đổi sang: Tiềm năng</option>
-                              <option value="trial">Đổi sang: Học thử</option>
-                              <option value="registered">Đổi sang: Đã đăng ký</option>
-                            </select>
-                          )}
+                      {candidate.notes && (
+                        <div className="bg-amber-50/60 p-2 rounded-xl border border-amber-200/60 text-[11px] text-slate-700 italic">
+                          "{candidate.notes}"
                         </div>
-                      </td>
+                      )}
+                    </div>
 
-                      <td className="py-3 px-4 max-w-xs">
-                        <p className="text-xs text-slate-600 italic line-clamp-2">
-                          {candidate.notes || 'Chưa có ghi chú tư vấn.'}
-                        </p>
-                      </td>
+                    {/* Card Actions */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCandidate(candidate);
+                              setIsAddEditOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-amber-700 hover:bg-amber-50 rounded-lg border border-slate-200 transition flex items-center gap-1 cursor-pointer"
+                            title="Sửa thông tin"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            <span>Sửa</span>
+                          </button>
+                        )}
+                        {canDelete && !isAlreadyActive && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Xác nhận xóa hồ sơ tuyển sinh ${candidate.name}?`)) {
+                                onDeleteStudent(candidate.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Xóa hồ sơ"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
 
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* ACTION: Xác nhận nhập học chính thức */}
-                          {!isAlreadyActive && canEdit && (
-                            <button
-                              onClick={() => handleOpenEnroll(candidate)}
-                              className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1 transition-all active:scale-95"
-                              title="Xác nhận học sinh đăng ký chính thức & Tự động thêm vào lớp"
-                            >
-                              <GraduationCap className="w-3.5 h-3.5" />
-                              <span>Xếp Lớp Chính Thức</span>
-                            </button>
-                          )}
-
-                          {isAlreadyActive && (
-                            <span className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200">
-                              Đang học lớp {currentClass?.name || 'N/A'}
-                            </span>
-                          )}
-
-                          {canEdit && (
-                            <button
-                              onClick={() => {
-                                setEditingCandidate(candidate);
-                                setIsAddEditOpen(true);
-                              }}
-                              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                              title="Sửa thông tin"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          {canDelete && !isAlreadyActive && (
-                            <button
-                              onClick={() => {
-                                if (confirm(`Xác nhận xóa hồ sơ tuyển sinh ${candidate.name}?`)) {
-                                  onDeleteStudent(candidate.id);
-                                }
-                              }}
-                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Xóa hồ sơ"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                      {!isAlreadyActive && canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEnroll(candidate)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                        >
+                          <GraduationCap className="w-3.5 h-3.5" />
+                          <span>Xếp Lớp</span>
+                        </button>
+                      ) : isAlreadyActive ? (
+                        <span className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200">
+                          Lớp {currentClass?.name || 'N/A'}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* MODAL 1: TIẾP NHẬN / SỬA HỌC VIÊN MỚI */}
       {isAddEditOpen && editingCandidate && (

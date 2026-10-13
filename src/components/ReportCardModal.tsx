@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Grade, Student, ClassRoom, Teacher, CourseProgram, CenterSettings } from '../types';
 import { Award, Printer, X, CheckCircle2, Share2, Edit3, Save, Sparkles, Check } from 'lucide-react';
 import { Logo } from './Logo';
@@ -99,7 +100,8 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
     document.body.dataset.printing = 'report-card';
     const pageStyle = document.createElement('style');
     pageStyle.id = 'report-card-page-style';
-    pageStyle.textContent = '@page { size: auto; margin: 8mm; }';
+    // Force A4 Portrait and ensure zero extra margins to fit strictly onto 1 page
+    pageStyle.textContent = '@page { size: A4 portrait !important; margin: 5mm 6mm !important; }';
     document.head.appendChild(pageStyle);
     const cleanup = () => {
       delete document.body.dataset.printing;
@@ -117,7 +119,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
     { name: 'Writing (Kỹ năng Viết)', score: grade.writing, max: 10, desc: 'Cấu trúc câu, ngữ pháp chính xác và diễn đạt mạch lạc.' }
   ];
 
-  return (
+  const modalContent = (
     <div data-print-report-card-overlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div data-print-report-card className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-auto print:max-w-none print:w-full print:p-0 print:m-0 print:border-none print:shadow-none">
         {/* Actions bar (hidden in print) */}
@@ -155,60 +157,60 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
         </div>
 
         {/* Printable Certificate Content */}
-        <div className="border-4 border-double border-amber-500/50 p-6 sm:p-8 print:p-4 rounded-2xl bg-gradient-to-b from-amber-50/30 via-white to-slate-50/40 print:bg-white print:border-2 break-inside-avoid page-break-inside-avoid">
+        <div className="border-4 border-double border-amber-500/50 p-6 sm:p-8 print:p-3 rounded-2xl bg-gradient-to-b from-amber-50/30 via-white to-slate-50/40 print:bg-white print:border-2 break-inside-avoid page-break-inside-avoid">
           {/* Header */}
-          <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-4">
+          <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-4 print:pb-1.5">
             <div className="flex items-center gap-3">
-              <Logo size={60} />
+              <Logo size={52} />
               <div>
-                <h1 className="text-lg sm:text-xl font-extrabold text-slate-950 uppercase tracking-wide">
+                <h1 className="text-lg sm:text-xl print:text-base font-extrabold text-slate-950 uppercase tracking-wide">
                   {settings.name || 'TRUNG TÂM ANH NGỮ BEEZONE'}
                 </h1>
-                <p className="text-xs text-amber-700 font-bold italic">
+                <p className="text-xs print:text-[10px] text-amber-700 font-bold italic">
                   {settings.slogan || 'Inspiring Excellence in English'}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[11px] print:text-[9.5px] text-slate-500 mt-0.5">
                   Đ/C: {settings.address} · Hotline: {settings.phone} · Email: {settings.email}
                 </p>
               </div>
             </div>
             <div className="text-right hidden sm:block">
-              <span className="text-[11px] font-mono text-slate-400 font-bold">Mã HS: {student.code}</span>
-              <p className="text-xs font-bold text-slate-600 mt-1">NĂM HỌC 2026</p>
+              <span className="text-[11px] print:text-[10px] font-mono text-slate-400 font-bold">Mã HS: {student.code}</span>
+              <p className="text-xs print:text-[10px] font-bold text-slate-600 mt-1">NĂM HỌC 2026</p>
             </div>
           </div>
 
           {/* Title */}
-          <div className="text-center my-6 print:my-2">
-            <h2 className="text-xl sm:text-2xl print:text-lg font-black text-slate-900 tracking-wider uppercase">
+          <div className="text-center my-6 print:my-1.5">
+            <h2 className="text-xl sm:text-2xl print:text-base font-black text-slate-900 tracking-wider uppercase">
               PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP
             </h2>
-            <p className="text-xs print:text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 print:mt-0.5">
+            <p className="text-xs print:text-[9.5px] text-slate-500 font-bold uppercase tracking-widest mt-1 print:mt-0.5">
               STUDENT PROGRESS REPORT & TRANSCRIPT
             </p>
           </div>
 
           {/* Student Info Box */}
-          <div className="bg-amber-50/50 p-4 print:p-2.5 rounded-2xl border border-amber-200/90 text-xs mb-6 print:mb-2.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 print:gap-2">
-              <div className="space-y-2">
+          <div className="bg-amber-50/50 p-4 print:p-2 rounded-2xl border border-amber-200/90 text-xs mb-6 print:mb-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 print:gap-1.5">
+              <div className="space-y-2 print:space-y-1">
                 <div>
-                  <span className="text-slate-500 text-[11px] font-semibold block">Họ và tên học viên:</span>
+                  <span className="text-slate-500 text-[11px] print:text-[10px] font-semibold block">Họ và tên học viên:</span>
                   <strong className="text-slate-950 font-black text-base print:text-sm block leading-snug break-words text-amber-950">
                     {student.name}
                   </strong>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap pt-0.5">
                   <div>
-                    <span className="text-slate-500 text-[10px] font-medium block">Mã học viên:</span>
-                    <span className="font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded text-xs border border-amber-200">
+                    <span className="text-slate-500 text-[10px] print:text-[9px] font-medium block">Mã học viên:</span>
+                    <span className="font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded text-xs print:text-[10px] border border-amber-200">
                       {student.code}
                     </span>
                   </div>
                   {student.dob && (
                     <div>
-                      <span className="text-slate-500 text-[10px] font-medium block">Ngày sinh:</span>
-                      <span className="font-bold text-slate-800 text-xs bg-white px-2 py-0.5 rounded border border-slate-200">
+                      <span className="text-slate-500 text-[10px] print:text-[9px] font-medium block">Ngày sinh:</span>
+                      <span className="font-bold text-slate-800 text-xs print:text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200">
                         {formatDob(student.dob)}
                       </span>
                     </div>
@@ -216,31 +218,31 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 print:space-y-1">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-slate-500 text-[11px] font-semibold block">Lớp học:</span>
-                    <strong className="text-slate-900 font-bold text-xs block leading-snug break-words">
+                    <span className="text-slate-500 text-[11px] print:text-[10px] font-semibold block">Lớp học:</span>
+                    <strong className="text-slate-900 font-bold text-xs print:text-[11px] block leading-snug break-words">
                       {classroom?.name || 'BeeZone'}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-slate-500 text-[11px] font-semibold block">Chương trình / Khóa học:</span>
-                    <strong className="text-slate-900 font-bold text-xs block leading-snug break-words">
+                    <span className="text-slate-500 text-[11px] print:text-[10px] font-semibold block">Chương trình / Khóa học:</span>
+                    <strong className="text-slate-900 font-bold text-xs print:text-[11px] block leading-snug break-words">
                       {program?.name || 'Khóa Tiếng Anh'}
                     </strong>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-0.5">
                   <div>
-                    <span className="text-slate-500 text-[11px] font-semibold block">Giáo viên phụ trách:</span>
-                    <strong className="text-indigo-900 font-bold text-xs block leading-snug break-words">
+                    <span className="text-slate-500 text-[11px] print:text-[10px] font-semibold block">Giáo viên phụ trách:</span>
+                    <strong className="text-indigo-900 font-bold text-xs print:text-[11px] block leading-snug break-words">
                       {teacher?.name || 'Giáo viên BeeZone'}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-slate-500 text-[11px] font-semibold block">Năm học:</span>
-                    <strong className="text-slate-700 font-bold text-xs block">
+                    <span className="text-slate-500 text-[11px] print:text-[10px] font-semibold block">Năm học:</span>
+                    <strong className="text-slate-700 font-bold text-xs print:text-[11px] block">
                       2026
                     </strong>
                   </div>
@@ -250,59 +252,59 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           </div>
 
           {/* 4 Skills Breakdown */}
-          <div className="mb-6 print:mb-2.5">
-            <h3 className="text-xs print:text-[11px] font-black uppercase text-slate-800 tracking-wider mb-3 print:mb-1.5 flex items-center gap-1.5">
+          <div className="mb-6 print:mb-1.5">
+            <h3 className="text-xs print:text-[10px] font-black uppercase text-slate-800 tracking-wider mb-3 print:mb-1 flex items-center gap-1.5">
               <Award className="w-4 h-4 text-red-700" />
               Kết quả đánh giá 4 kỹ năng ngôn ngữ:
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print:gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print:gap-1.5">
               {skills.map(s => (
-                <div key={s.name} className="p-3 print:p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <div key={s.name} className="p-3 print:p-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
                   <div className="flex items-center justify-between text-xs font-bold mb-1 print:mb-0.5">
-                    <span className="text-slate-800">{s.name}</span>
+                    <span className="text-slate-800 print:text-[11px]">{s.name}</span>
                     <span className="text-sm print:text-xs font-extrabold text-red-800">{s.score}/10</span>
                   </div>
                   {/* Progress bar */}
-                  <div className="w-full h-2 print:h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5 print:mb-0.5">
+                  <div className="w-full h-2 print:h-1 bg-slate-100 rounded-full overflow-hidden mb-1.5 print:mb-0.5">
                     <div
                       className="h-full bg-gradient-to-r from-red-600 to-amber-500 rounded-full"
                       style={{ width: `${(s.score / s.max) * 100}%` }}
                     />
                   </div>
-                  <p className="text-[11px] print:text-[10px] text-slate-500">{s.desc}</p>
+                  <p className="text-[11px] print:text-[9.5px] text-slate-500">{s.desc}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Test Scores & Overall Evaluation */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:gap-2 mb-6 print:mb-2.5 text-center">
-            <div className="p-3 print:p-1.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[11px] print:text-[10px] font-bold text-slate-500 uppercase">Giữa Kỳ</span>
-              <p className="text-lg print:text-base font-black text-slate-800 mt-0.5">{grade.midterm}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:gap-1.5 mb-6 print:mb-1.5 text-center">
+            <div className="p-3 print:p-1 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] print:text-[9.5px] font-bold text-slate-500 uppercase">Giữa Kỳ</span>
+              <p className="text-lg print:text-sm font-black text-slate-800 mt-0.5">{grade.midterm}</p>
             </div>
-            <div className="p-3 print:p-1.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[11px] print:text-[10px] font-bold text-slate-500 uppercase">Cuối Kỳ</span>
-              <p className="text-lg print:text-base font-black text-slate-800 mt-0.5">{grade.finalExam}</p>
+            <div className="p-3 print:p-1 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] print:text-[9.5px] font-bold text-slate-500 uppercase">Cuối Kỳ</span>
+              <p className="text-lg print:text-sm font-black text-slate-800 mt-0.5">{grade.finalExam}</p>
             </div>
-            <div className="p-3 print:p-1.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[11px] print:text-[10px] font-bold text-slate-500 uppercase">Chuyên Cần</span>
-              <p className="text-lg print:text-base font-black text-slate-800 mt-0.5">{grade.attendance}/10</p>
+            <div className="p-3 print:p-1 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] print:text-[9.5px] font-bold text-slate-500 uppercase">Chuyên Cần</span>
+              <p className="text-lg print:text-sm font-black text-slate-800 mt-0.5">{grade.attendance}/10</p>
             </div>
-            <div className="p-3 print:p-1.5 bg-amber-50 rounded-xl border border-amber-300">
-              <span className="text-[11px] print:text-[10px] font-bold text-amber-800 uppercase">Điểm Trung Bình</span>
-              <p className="text-2xl print:text-lg font-black text-red-900 mt-0.5">{grade.average}</p>
+            <div className="p-3 print:p-1 bg-amber-50 rounded-xl border border-amber-300">
+              <span className="text-[11px] print:text-[9.5px] font-bold text-amber-800 uppercase">Điểm Trung Bình</span>
+              <p className="text-2xl print:text-base font-black text-red-900 mt-0.5">{grade.average}</p>
             </div>
           </div>
 
           {/* Rank Banner */}
-          <div className={`p-3 print:p-1.5 rounded-xl border text-center font-extrabold text-sm print:text-xs mb-6 print:mb-2 ${rank.color}`}>
+          <div className={`p-3 print:p-1 rounded-xl border text-center font-extrabold text-sm print:text-xs mb-6 print:mb-1.5 ${rank.color}`}>
             XẾP LOẠI TOÀN KHÓA: {rank.label}
           </div>
 
           {/* Teacher's Feedback */}
-          <div className="mb-6 print:mb-2 p-4 print:p-2.5 rounded-2xl border-2 border-slate-200 bg-slate-50/80 transition-all">
+          <div className="mb-6 print:mb-1.5 p-4 print:p-2 rounded-2xl border-2 border-slate-200 bg-slate-50/80 transition-all">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs print:text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -407,14 +409,14 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
             <div>
               <p className="font-bold text-slate-500 print:text-[11px]">GIÁO VIÊN PHỤ TRÁCH</p>
               <p className="italic text-[11px] print:text-[10px] text-slate-400 mt-0.5">(Ký và ghi rõ họ tên)</p>
-              <div className="h-16 print:h-10 flex items-end justify-center font-bold text-indigo-900 print:text-xs">
+              <div className="h-16 print:h-8 flex items-end justify-center font-bold text-indigo-900 print:text-xs">
                 {teacher?.name || 'Giáo viên phụ trách'}
               </div>
             </div>
             <div>
               <p className="font-bold text-slate-500 print:text-[11px]">GIÁM ĐỐC TRUNG TÂM</p>
               <p className="italic text-[11px] print:text-[10px] text-slate-400 mt-0.5">(Ký tên và đóng dấu)</p>
-              <div className="h-16 print:h-10 flex items-end justify-center font-black text-red-950 uppercase print:text-xs">
+              <div className="h-16 print:h-8 flex items-end justify-center font-black text-red-950 uppercase print:text-xs">
                 {settings.name || 'BEEZONE ENGLISH'}
               </div>
             </div>
@@ -438,5 +440,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
       )}
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 

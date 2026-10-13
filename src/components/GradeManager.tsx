@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Grade, Student, ClassRoom, StaffPermissions, Teacher, CourseProgram, CenterSettings, UserAccount } from '../types';
-import { Award, FileText, AlertCircle, BookOpen, Share2 } from 'lucide-react';
+import { Award, FileText, AlertCircle, BookOpen, Share2, LayoutGrid, Table as TableIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReportCardModal } from './ReportCardModal';
 import { ShareReportCardModal } from './ShareReportCardModal';
 
@@ -65,6 +65,19 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'card'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
+  );
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollTable = (direction: 'left' | 'right') => {
+    if (tableScrollRef.current) {
+      tableScrollRef.current.scrollBy({
+        left: direction === 'left' ? -350 : 350,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isOwner && permittedClasses.length > 0 && selectedClassId !== 'all' && !permittedClasses.some(c => c.id === selectedClassId)) {
@@ -147,58 +160,294 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         </div>
       )}
 
-      {/* Subheader info & Horizontal scroll hint */}
-      <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
-        <span>
-          Đang hiển thị: <strong className="text-slate-800 font-bold">{classStudents.length}</strong> học viên
-        </span>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full font-semibold shadow-2xs">
-          ↔️ Hỗ trợ cuộn ngang bảng điểm (Zoom 70-80% / Màn hình nhỏ)
-        </span>
+      {/* View Switcher & Horizontal Scroll Helper Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
+          {/* View mode toggle */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5 text-blue-600" />
+              <span>Dạng Bảng</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('card')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'card'
+                  ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
+              <span>Dạng Thẻ Mobile</span>
+            </button>
+          </div>
+
+          <span className="text-xs text-slate-500 font-medium">
+            <strong className="text-slate-900 font-bold">{classStudents.length}</strong> học viên
+          </span>
+        </div>
+
+        {/* Scroll helper buttons for Table view */}
+        {viewMode === 'table' && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline-flex items-center gap-1">
+              ◂ Cuộn ngang để xem hết cột điểm ▸
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => scrollTable('left')}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
+                title="Cuộn bảng sang trái"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Trái</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollTable('right')}
+                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                title="Cuộn bảng sang phải"
+              >
+                <span className="hidden sm:inline">Phải</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Gradebook Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full min-w-[1100px] text-left text-xs text-slate-700">
-            <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
-              <tr>
-                <th className="py-3.5 px-3 w-28 min-w-[112px] max-w-[112px] sticky left-0 bg-slate-800 z-20 whitespace-nowrap">Mã HS</th>
-                <th className="py-3.5 px-4 min-w-[170px] sticky left-28 bg-slate-800 z-20 border-r border-slate-700 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.3)] whitespace-nowrap">Họ Và Tên</th>
-                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Nghe (Listening)</th>
-                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Nói (Speaking)</th>
-                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Đọc (Reading)</th>
-                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Viết (Writing)</th>
-                <th className="py-3.5 px-3 text-center min-w-[90px]">Giữa Kỳ</th>
-                <th className="py-3.5 px-3 text-center min-w-[90px]">Cuối Kỳ</th>
-                <th className="py-3.5 px-3 text-center min-w-[90px]">Chuyên Cần</th>
-                <th className="py-3.5 px-4 text-center bg-amber-600 text-slate-950 font-extrabold min-w-[80px]">ĐTB</th>
-                <th className="py-3.5 px-3 text-center min-w-[160px]">Hành Động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 font-medium">
-              {classStudents.map((st) => {
-                const grade = grades.find(g => g.studentId === st.id) || {
-                  id: `G_${st.id}`,
-                  studentId: st.id,
-                  classId: st.classId,
-                  listening: 7.0,
-                  speaking: 7.0,
-                  reading: 7.0,
-                  writing: 7.0,
-                  midterm: 7.0,
-                  finalExam: 7.0,
-                  attendance: 10,
-                  average: 7.0
-                };
+      {/* GRADE CONTENT: TABLE OR MOBILE CARDS */}
+      {viewMode === 'table' ? (
+        /* Gradebook Table */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[1100px] text-left text-xs text-slate-700 border-collapse">
+              <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
+                <tr>
+                  <th className="py-3.5 px-3 w-28 min-w-[112px] max-w-[112px] sticky left-0 bg-slate-800 z-20 whitespace-nowrap">Mã HS</th>
+                  <th className="py-3.5 px-4 min-w-[170px] sticky left-28 bg-slate-800 z-20 border-r border-slate-700 shadow-r whitespace-nowrap">Họ Và Tên</th>
+                  <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Nghe (Listening)</th>
+                  <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Nói (Speaking)</th>
+                  <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Đọc (Reading)</th>
+                  <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Viết (Writing)</th>
+                  <th className="py-3.5 px-3 text-center min-w-[90px]">Giữa Kỳ</th>
+                  <th className="py-3.5 px-3 text-center min-w-[90px]">Cuối Kỳ</th>
+                  <th className="py-3.5 px-3 text-center min-w-[90px]">Chuyên Cần</th>
+                  <th className="py-3.5 px-4 text-center bg-amber-600 text-slate-950 font-extrabold min-w-[80px]">ĐTB</th>
+                  <th className="py-3.5 px-3 text-center min-w-[160px]">Hành Động</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 font-medium">
+                {classStudents.map((st) => {
+                  const grade = grades.find(g => g.studentId === st.id) || {
+                    id: `G_${st.id}`,
+                    studentId: st.id,
+                    classId: st.classId,
+                    listening: 7.0,
+                    speaking: 7.0,
+                    reading: 7.0,
+                    writing: 7.0,
+                    midterm: 7.0,
+                    finalExam: 7.0,
+                    attendance: 10,
+                    average: 7.0
+                  };
 
-                return (
-                  <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="py-3 px-3 w-28 min-w-[112px] max-w-[112px] font-bold font-mono text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">{st.code}</td>
-                    <td className="py-3 px-4 min-w-[170px] font-bold text-slate-900 sticky left-28 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] whitespace-nowrap">{st.name}</td>
+                  return (
+                    <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="py-3 px-3 w-28 min-w-[112px] max-w-[112px] font-bold font-mono text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">{st.code}</td>
+                      <td className="py-3 px-4 min-w-[170px] font-bold text-slate-900 sticky left-28 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-r whitespace-nowrap">{st.name}</td>
 
-                    {/* Listening */}
-                    <td className="p-2 text-center bg-slate-50/50">
+                      {/* Listening */}
+                      <td className="p-2 text-center bg-slate-50/50">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.listening}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'listening', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Speaking */}
+                      <td className="p-2 text-center bg-slate-50/50">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.speaking}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'speaking', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Reading */}
+                      <td className="p-2 text-center bg-slate-50/50">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.reading}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'reading', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Writing */}
+                      <td className="p-2 text-center bg-slate-50/50">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.writing}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'writing', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Midterm */}
+                      <td className="p-2 text-center">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.midterm}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'midterm', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Final */}
+                      <td className="p-2 text-center">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.finalExam}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'finalExam', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Attendance */}
+                      <td className="p-2 text-center">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={grade.attendance}
+                          disabled={!canEdit}
+                          onChange={(e) => handleGradeChange(st.id, 'attendance', parseFloat(e.target.value) || 0)}
+                          className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        />
+                      </td>
+
+                      {/* Average */}
+                      <td className="py-3 px-4 text-center bg-amber-50 font-black text-sm text-slate-950 border-l border-amber-200">
+                        {grade.average}
+                      </td>
+
+                      {/* Report Card Action */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setReportingStudent(st)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold hover:bg-slate-800 transition shadow-2xs cursor-pointer"
+                            title="Xem và In Phiếu Báo Điểm"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-amber-400" />
+                            Phiếu Điểm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSharingStudent(st)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition shadow-2xs active:scale-95 cursor-pointer"
+                            title="Gửi phiếu báo điểm qua Zalo, Messenger"
+                          >
+                            <Share2 className="w-3.5 h-3.5 text-white" />
+                            Gửi
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Mobile Card View */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {classStudents.map((st) => {
+            const grade = grades.find(g => g.studentId === st.id) || {
+              id: `G_${st.id}`,
+              studentId: st.id,
+              classId: st.classId,
+              listening: 7.0,
+              speaking: 7.0,
+              reading: 7.0,
+              writing: 7.0,
+              midterm: 7.0,
+              finalExam: 7.0,
+              attendance: 10,
+              average: 7.0
+            };
+
+            return (
+              <div
+                key={st.id}
+                className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all space-y-3"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div className="min-w-0">
+                    <span className="font-mono text-xs font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
+                      {st.code}
+                    </span>
+                    <h4 className="font-extrabold text-slate-900 text-sm mt-1 truncate">
+                      {st.name}
+                    </h4>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">ĐTB</span>
+                    <span className="text-base font-black text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-300">
+                      {grade.average}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4 Skills Inputs/Scores */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-600 block">4 Kỹ năng (0 - 10):</span>
+                  <div className="grid grid-cols-4 gap-1.5 text-center">
+                    <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 font-semibold block">Nghe</span>
                       <input
                         type="number"
                         step="0.1"
@@ -207,12 +456,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         value={grade.listening}
                         disabled={!canEdit}
                         onChange={(e) => handleGradeChange(st.id, 'listening', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
-                    </td>
-
-                    {/* Speaking */}
-                    <td className="p-2 text-center bg-slate-50/50">
+                    </div>
+                    <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 font-semibold block">Nói</span>
                       <input
                         type="number"
                         step="0.1"
@@ -221,12 +469,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         value={grade.speaking}
                         disabled={!canEdit}
                         onChange={(e) => handleGradeChange(st.id, 'speaking', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
-                    </td>
-
-                    {/* Reading */}
-                    <td className="p-2 text-center bg-slate-50/50">
+                    </div>
+                    <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 font-semibold block">Đọc</span>
                       <input
                         type="number"
                         step="0.1"
@@ -235,12 +482,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         value={grade.reading}
                         disabled={!canEdit}
                         onChange={(e) => handleGradeChange(st.id, 'reading', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
-                    </td>
-
-                    {/* Writing */}
-                    <td className="p-2 text-center bg-slate-50/50">
+                    </div>
+                    <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                      <span className="text-[10px] text-slate-500 font-semibold block">Viết</span>
                       <input
                         type="number"
                         step="0.1"
@@ -249,87 +495,79 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         value={grade.writing}
                         disabled={!canEdit}
                         onChange={(e) => handleGradeChange(st.id, 'writing', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
+                        className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
-                    </td>
+                    </div>
+                  </div>
+                </div>
 
-                    {/* Midterm */}
-                    <td className="p-2 text-center">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        value={grade.midterm}
-                        disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'midterm', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
-                      />
-                    </td>
+                {/* Exam Scores */}
+                <div className="grid grid-cols-3 gap-1.5 text-center">
+                  <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Giữa Kỳ</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="10"
+                      value={grade.midterm}
+                      disabled={!canEdit}
+                      onChange={(e) => handleGradeChange(st.id, 'midterm', parseFloat(e.target.value) || 0)}
+                      className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
+                    />
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Cuối Kỳ</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="10"
+                      value={grade.finalExam}
+                      disabled={!canEdit}
+                      onChange={(e) => handleGradeChange(st.id, 'finalExam', parseFloat(e.target.value) || 0)}
+                      className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
+                    />
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Chuyên Cần</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="10"
+                      value={grade.attendance}
+                      disabled={!canEdit}
+                      onChange={(e) => handleGradeChange(st.id, 'attendance', parseFloat(e.target.value) || 0)}
+                      className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
+                    />
+                  </div>
+                </div>
 
-                    {/* Final */}
-                    <td className="p-2 text-center">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        value={grade.finalExam}
-                        disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'finalExam', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
-                      />
-                    </td>
-
-                    {/* Attendance */}
-                    <td className="p-2 text-center">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        value={grade.attendance}
-                        disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'attendance', parseFloat(e.target.value) || 0)}
-                        className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
-                      />
-                    </td>
-
-                    {/* Average */}
-                    <td className="py-3 px-4 text-center bg-amber-50 font-black text-sm text-slate-950 border-l border-amber-200">
-                      {grade.average}
-                    </td>
-
-                    {/* Report Card Action */}
-                    <td className="py-3 px-3 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setReportingStudent(st)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold hover:bg-slate-800 transition shadow-2xs"
-                          title="Xem và In Phiếu Báo Điểm"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-amber-400" />
-                          Phiếu Điểm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSharingStudent(st)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition shadow-2xs active:scale-95"
-                          title="Gửi phiếu báo điểm qua Zalo, Messenger"
-                        >
-                          <Share2 className="w-3.5 h-3.5 text-white" />
-                          Gửi
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                {/* Card Actions */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportingStudent(st)}
+                    className="flex-1 py-1.5 px-3 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Phiếu Điểm</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSharingStudent(st)}
+                    className="flex-1 py-1.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Chia Sẻ Ảnh</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       {/* Report Card Modal */}
       {reportingStudent && (
