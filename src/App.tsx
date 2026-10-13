@@ -1,4 +1,7 @@
+import type { TaskDestination } from './components/TodayTasks';
 import { DialogFrame } from './components/DialogFrame';
+import { updateEnrollmentHistory, validateCourse, validateScheduleChange, lessonsOn } from './lib/operations';
+import { findScheduleConflict } from './lib/schedule';
 import { DRAWER_QUERY, useMediaQuery } from './hooks/useResponsive';
 import React, { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
@@ -18,6 +21,8 @@ import {
   CenterSettings,
   CenterBackupData,
   AttendanceSession,
+  ClassEnrollment,
+  ScheduleChange,
 } from './types';
 import {
   initialSettings,
@@ -61,7 +66,7 @@ import { profileToAccount, ProfileRow, DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT, c
 import { registerActiveSession, removeActiveSession } from './lib/activeSessions';
 import { isSupabaseConfigured, isLocalPreview, supabase } from './lib/supabase';
 import { feeStatusForReceipts } from './lib/tuition';
-import { centerDate } from './lib/dates';
+import { centerDate, isCalendarDate } from './lib/dates';
 import { nextReceiptCode } from './lib/identifiers';
 import { parseCenterData, type CenterDataPayload } from './lib/centerData';
 import { createSyncQueue, SyncConflictError } from './lib/syncQueue';
@@ -324,6 +329,9 @@ export default function App() {
   const [backups, setBackups] = useState<SystemBackup[]>(() => loadStored('backups', initialBackups));
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => loadStored('activityLogs', initialActivityLogs));
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => loadStored('attendanceSessions', initialAttendanceSessions));
+  const [taskRequest, setTaskRequest] = useState<TaskDestination | null>(null);
+  const [enrollments, setEnrollments] = useState<ClassEnrollment[]>(() => loadStored('enrollments', []));
+  const [scheduleChanges, setScheduleChanges] = useState<ScheduleChange[]>(() => loadStored('scheduleChanges', []));
   const [accountAuditLogs, setAccountAuditLogs] = useState<AccountAuditLog[]>(() => loadStored('accountAuditLogs', initialAccountAuditLogs));
   const [accountAuditError, setAccountAuditError] = useState<string | null>(null);
   const [isAccountAuditLoading, setIsAccountAuditLoading] = useState(false);
@@ -447,6 +455,8 @@ export default function App() {
   useEffect(() => saveStored('backups', backups), [backups]);
   useEffect(() => saveStored('activityLogs', activityLogs), [activityLogs]);
   useEffect(() => saveStored('attendanceSessions', attendanceSessions), [attendanceSessions]);
+  useEffect(() => saveStored('enrollments', enrollments), [enrollments]);
+  useEffect(() => saveStored('scheduleChanges', scheduleChanges), [scheduleChanges]);
   useEffect(() => saveStored('accountAuditLogs', accountAuditLogs), [accountAuditLogs]);
 
   useEffect(() => {
@@ -553,6 +563,7 @@ export default function App() {
         setTeachers(hydratedTeachers); setClasses(hydratedClasses); setStudents(hydratedStudents);
         setTimetableSlots(payload.timetableSlots); setGrades(payload.grades); setReceipts(normalizedReceipts);
         setBackups(payload.backups); setAttendanceSessions(payload.attendanceSessions);
+        setEnrollments(payload.enrollments); setScheduleChanges(payload.scheduleChanges);
         setActivityLogs(payload.activityLogs);
         cloudRevisionRef.current = centerData?.updated_at ?? null;
         savedPayloadRef.current = JSON.stringify({ ...payload, teachers: hydratedTeachers, classes: hydratedClasses, students: hydratedStudents, receipts: normalizedReceipts });
@@ -635,14 +646,14 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
-    const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions };
+    const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, enrollments, scheduleChanges };
     if (JSON.stringify(payload) === savedPayloadRef.current) return;
     setSyncStatus(previous => previous === 'error' || previous === 'conflict' ? previous : 'saving');
     const timer = window.setTimeout(() => {
       syncQueueRef.current?.enqueue(payload);
     }, 750);
     return () => window.clearTimeout(timer);
-  }, [settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, currentUser?.id, isCenterDataHydrated, canSyncCenterData]);
+  }, [settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, enrollments, scheduleChanges, currentUser?.id, isCenterDataHydrated, canSyncCenterData]);
 
   useEffect(() => {
     if (syncStatus === 'saved' && !storageError) return;
@@ -707,11 +718,13 @@ export default function App() {
 
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
+    if (newStudent.classId) setEnrollments(prev => updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()));
     setStudents(prev => [{ ...newStudent, feeStatus: feeStatusFromReceipts(newStudent.id, receipts) }, ...prev]);
     addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${newStudent.name} (${newStudent.code})`);
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
+    setEnrollments(prev => updateEnrollmentHistory(prev, students.find(s => s.id === updatedStudent.id), updatedStudent, centerDate()));
     const normalizedStudent = { ...updatedStudent, feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts) };
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? normalizedStudent : s));
     addLog('SỬA', 'Học sinh', `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`);
@@ -720,6 +733,7 @@ export default function App() {
   const handleDeleteStudent = (id: string) => {
     const st = students.find(s => s.id === id);
     const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
+    if (enrollments.some(item => item.studentId === id)) { alert('Học viên có lịch sử đăng ký khóa học. Hãy chuyển trạng thái học để giữ hồ sơ.'); return; }
     if (linkedReceipts.length > 0) {
       alert(`Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`);
       return;
@@ -736,10 +750,12 @@ export default function App() {
     if (!student || student.status === 'active') return false;
     const targetClass = classes.find(c => c.id === classId);
     if (!targetClass) { alert('Lớp nhập học không tồn tại.'); return false; }
+    if (targetClass.courseStatus === 'completed' || targetClass.courseStatus === 'paused') { alert('Chọn một đợt học đang mở.'); return false; }
     if (targetClass.capacity > 0 && students.filter(s => s.classId === classId && s.status === 'active').length >= targetClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return false; }
     const targetProgram = programs.find(p => p.id === targetClass.programId);
     if (!targetProgram) { alert('Lớp chưa có chương trình học hợp lệ.'); return false; }
     const tuitionAmount = targetProgram.tuitionFee;
+    setEnrollments(prev => updateEnrollmentHistory(prev, student, { ...student, classId, status: 'active' }, enrollDate || centerDate()));
 
     // 1. Update student
     setStudents(prev => prev.map(s => {
@@ -812,6 +828,7 @@ export default function App() {
   const handleReserveStudent = (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
+    setEnrollments(prev => updateEnrollmentHistory(prev, student, { ...student, status: 'reserved' }, reserveDate));
     const reserveNote = `\n[BẢO LƯU]: Từ ${reserveDate} đến ${expectedReturnDate || 'chưa định ngày'}. Lý do: ${reason}`;
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
@@ -829,6 +846,7 @@ export default function App() {
   const handleDropStudent = (studentId: string, dropDate: string, reason: string) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
+    setEnrollments(prev => updateEnrollmentHistory(prev, student, { ...student, status: 'dropped' }, dropDate));
     const dropNote = `\n[NGHỈ HỌC NGANG]: Ngày ${dropDate}. Lý do: ${reason}`;
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
@@ -844,12 +862,16 @@ export default function App() {
   };
 
   const handleReEnrollStudent = (studentId: string, targetClassId: string, returnDate: string, note?: string) => {
+    if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.student.edit)) return false;
+    if (!isCalendarDate(returnDate)) { alert('Ngày đăng ký không hợp lệ.'); return false; }
     const student = students.find(s => s.id === studentId);
-    if (!student) return;
+    if (!student) return false;
     const targetClass = classes.find(c => c.id === targetClassId);
-    if (!targetClass) { alert('Lớp quay lại học không tồn tại.'); return; }
-    if (targetClass.capacity > 0 && students.filter(s => s.id !== studentId && s.classId === targetClassId && s.status === 'active').length >= targetClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return; }
+    if (!targetClass) { alert('Lớp quay lại học không tồn tại.'); return false; }
+    if (targetClass.courseStatus === 'completed' || targetClass.courseStatus === 'paused') { alert('Chọn một đợt học đang mở.'); return false; }
+    if (targetClass.capacity > 0 && students.filter(s => s.id !== studentId && s.classId === targetClassId && s.status === 'active').length >= targetClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return false; }
     const reNote = `\n[QUAY LẠI HỌC]: Ngày ${returnDate} tại lớp ${targetClass?.name || targetClassId}. ${note || ''}`;
+    setEnrollments(prev => updateEnrollmentHistory(prev, student, { ...student, classId: targetClassId, status: 'active' }, returnDate));
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
         return {
@@ -872,6 +894,7 @@ export default function App() {
       return c;
     }));
     addLog('SỬA', 'Học sinh', `Học sinh ${student.name} (${student.code}) quay lại học lớp ${targetClass?.name || targetClassId}`);
+    return true;
   };
 
   const handleImportStudents = (newStudentsList: Student[]) => {
@@ -887,6 +910,7 @@ export default function App() {
   };
 
   const handleImportCenterData = (data: CenterWorkbookData) => {
+    if (enrollments.length || scheduleChanges.length) { alert('Đã có lịch sử đăng ký hoặc lịch nghỉ/học bù. Báo cáo Excel không thay thế bản sao lưu đầy đủ. Hãy dùng sao lưu JSON để khôi phục; vẫn có thể nhập thêm học viên bằng Excel.'); return false; }
     try { parseCenterData({ ...data, settings }, settings); }
     catch (error) { alert(error instanceof Error ? error.message : 'Dữ liệu nhập không hợp lệ.'); return false; }
     const normalizedReceipts = normaliseReceipts(data.receipts);
@@ -928,6 +952,7 @@ export default function App() {
   };
 
   const handleDeleteTeacher = (id: string) => {
+    if (scheduleChanges.some(c => c.teacherId === id)) { alert('Giáo viên có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ giáo viên.'); return; }
     const t = teachers.find(item => item.id === id);
     const managedClasses = classes.filter((classroom) => classroom.teacherId === id);
     if (managedClasses.length > 0 || timetableSlots.some(s => s.teacherId === id)) {
@@ -940,11 +965,27 @@ export default function App() {
 
   // Class CRUD Handlers
   const handleAddClass = (c: ClassRoom) => {
+    if (currentUser?.role !== 'owner') return;
+    const error = validateCourse(c); if (error) { alert(error); return; }
+    if (c.courseStatus === 'completed') c = { ...c, completedDate: c.completedDate || centerDate() };
     setClasses(prev => [...prev, c]);
     addLog('THÊM', 'Lớp học', `Tạo lớp học mới ${c.name} (${c.code})`);
   };
 
   const handleUpdateClass = (c: ClassRoom) => {
+    if (currentUser?.role !== 'owner') return;
+    const error = validateCourse(c); if (error) { alert(error); return; }
+    if (c.courseStatus === 'completed' && classes.find(item => item.id === c.id)?.courseStatus !== 'completed') {
+      c = { ...c, completedDate: c.completedDate || centerDate() };
+      setEnrollments(prev => {
+        let history = prev;
+        for (const student of students.filter(s => s.classId === c.id)) history = updateEnrollmentHistory(history, student, student, student.enrollDate || centerDate());
+        return history.map(item => item.classId === c.id && ['active', 'reserved'].includes(item.status) ? { ...item, status: 'completed', endDate: c.completedDate } : item);
+      });
+    } else if (c.courseStatus !== 'completed' && c.completedDate) {
+      c = { ...c, completedDate: undefined };
+      if (classes.find(item => item.id === c.id)?.courseStatus === 'completed') setEnrollments(prev => students.filter(s => s.classId === c.id && ['active', 'reserved'].includes(s.status)).reduce((history, student) => updateEnrollmentHistory(history, undefined, student, centerDate()), prev));
+    }
     setClasses(prev => prev.map(item => item.id === c.id ? c : item));
     setStudents(prev => prev.map(student => student.classId === c.id && student.programId !== c.programId ? { ...student, programId: c.programId } : student));
     addLog('SỬA', 'Lớp học', `Cập nhật lớp học ${c.name} (${c.code})`);
@@ -956,6 +997,7 @@ export default function App() {
   };
 
   const handleDeleteClass = (id: string) => {
+    if (enrollments.some(item => item.classId === id) || scheduleChanges.some(item => item.classId === id)) { alert('Đợt học có lịch sử đăng ký hoặc lịch nghỉ/học bù. Hãy giữ hồ sơ và chuyển trạng thái kết thúc.'); return; }
     const c = classes.find(item => item.id === id);
     const classStudents = students.filter((student) => student.classId === id);
     const classReceipts = receipts.filter((receipt) => receipt.classId === id);
@@ -986,6 +1028,7 @@ export default function App() {
   };
 
   const handleDeleteRoom = (id: string) => {
+    if (scheduleChanges.some(c => c.roomId === id)) { alert('Phòng có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ phòng.'); return; }
     const room = rooms.find((item) => item.id === id);
     const roomClasses = classes.filter((classroom) => classroom.roomId === id);
     if (roomClasses.length > 0 || timetableSlots.some(slot => slot.roomId === id)) {
@@ -1013,6 +1056,7 @@ export default function App() {
   };
 
   const handleDeleteSlot = (id: string) => {
+    if (scheduleChanges.some(c => c.sourceSlotId === id)) { alert('Ca học có lịch nghỉ/học bù liên quan. Giữ ca gốc hoặc hủy điều chỉnh trước.'); return; }
     const deletedSlot = timetableSlots.find(slot => slot.id === id);
     const next = timetableSlots.filter(s => s.id !== id);
     setTimetableSlots(next);
@@ -1079,6 +1123,7 @@ export default function App() {
     setBackups(data.backups.slice(0, 30));
     setActivityLogs(data.activityLogs);
     setAttendanceSessions(data.attendanceSessions || []);
+    setEnrollments(data.enrollments || []); setScheduleChanges(data.scheduleChanges || []);
     setHasCenterData(true);
     addLog('RESTORE', 'Sao lưu', `Đã khôi phục dữ liệu từ tệp ${filename}`);
   };
@@ -1095,6 +1140,30 @@ export default function App() {
       return [sessionData, ...prev];
     });
     addLog('THÊM', 'Điểm danh', `Điểm danh buổi học ngày ${sessionData.date} lớp ${classes.find(c => c.id === sessionData.classId)?.name || sessionData.classId}`);
+  };
+
+  const handleSaveScheduleChange = (change: ScheduleChange): string | null => {
+    if (currentUser?.role !== 'owner') return 'Chỉ Chủ trung tâm được đổi lịch.';
+    const error = validateScheduleChange(change, classes, timetableSlots, scheduleChanges, attendanceSessions);
+    if (error) return error;
+    const room = rooms.find(item => item.id === change.roomId);
+    if (change.kind !== 'cancel' && (!teachers.some(t => t.id === change.teacherId) || !room || room.status !== 'available')) return 'Giáo viên hoặc phòng không còn sẵn sàng.';
+    setScheduleChanges(prev => [...prev.filter(item => item.id !== change.id), change]);
+    addLog('SỬA', 'Lịch theo ngày', change.kind + ': ' + change.date + ' · ' + change.reason);
+    return null;
+  };
+  const handleDeleteScheduleChange = (id: string): string | null => {
+    if (currentUser?.role !== 'owner') return 'Chỉ Chủ trung tâm được đổi lịch.';
+    const change = scheduleChanges.find(item => item.id === id);
+    if (!change) return null;
+    if (attendanceSessions.some(a => a.classId === change.classId && [change.date, change.sourceDate].includes(a.date))) return 'Buổi đã điểm danh; giữ lại điều chỉnh để bảo toàn lịch sử.';
+    const next = scheduleChanges.filter(item => item.id !== id);
+    for (const date of [change.date, change.sourceDate].filter((d): d is string => Boolean(d))) {
+      const lessons = lessonsOn(date, classes, timetableSlots, next);
+      if (lessons.some(lesson => findScheduleConflict(lessons, lesson))) return 'Khôi phục lịch gốc sẽ trùng giờ giáo viên hoặc phòng.';
+    }
+    setScheduleChanges(next); addLog('XÓA', 'Lịch theo ngày', 'Hủy điều chỉnh ngày ' + change.date);
+    return null;
   };
 
   // Program Handlers
@@ -1258,6 +1327,14 @@ export default function App() {
               receipts={receipts}
               programs={programs}
               currentUser={currentUser}
+              timetableSlots={timetableSlots} scheduleChanges={scheduleChanges} attendanceSessions={attendanceSessions}
+              onOpenTask={destination => {
+                if (!canAccessTab(destination.tab, currentUser)) return;
+                setTaskRequest(destination);
+                if (destination.tab === 'students') setSearchQuery(students.find(s => s.id === destination.studentId)?.code || '');
+                if (destination.tab === 'classes' && currentUser.role === 'owner') setClassEditRequest(classes.find(c => c.id === destination.classId) || null);
+                navigateTo(destination.tab);
+              }}
               onNavigateTab={navigateTo}
             />
           )}
@@ -1274,6 +1351,7 @@ export default function App() {
               permissions={currentUser.permissions}
               isOwner={currentUser.role === 'owner'}
               searchQuery={searchQuery}
+              enrollments={enrollments}
               onAddStudent={handleAddStudent}
               onUpdateStudent={handleUpdateStudent}
               onDeleteStudent={handleDeleteStudent}
@@ -1315,6 +1393,7 @@ export default function App() {
               permissions={currentUser.permissions}
               isOwner={currentUser.role === 'owner'}
               searchQuery={searchQuery}
+              enrollments={enrollments} attendanceSessions={attendanceSessions} scheduleChanges={scheduleChanges}
               onAddClass={handleAddClass}
               onUpdateClass={handleUpdateClass}
               onDeleteClass={handleDeleteClass}
@@ -1345,6 +1424,8 @@ export default function App() {
               teachers={teachers}
               rooms={rooms}
               isOwner={currentUser.role === 'owner'}
+              scheduleChanges={scheduleChanges} attendanceSessions={attendanceSessions}
+              onSaveChange={handleSaveScheduleChange} onDeleteChange={handleDeleteScheduleChange}
               onAddSlot={handleAddSlot}
               onUpdateSlot={handleUpdateSlot}
               onDeleteSlot={handleDeleteSlot}
@@ -1353,6 +1434,7 @@ export default function App() {
 
           {activeTab === 'teacher-schedule' && (
             <TeacherScheduleMatrix
+              scheduleChanges={scheduleChanges}
               teachers={teachers}
               timetableSlots={timetableSlots}
               classes={classes}
@@ -1366,6 +1448,9 @@ export default function App() {
               students={students}
               teachers={teachers}
               attendanceSessions={attendanceSessions}
+              timetableSlots={timetableSlots} scheduleChanges={scheduleChanges}
+              enrollments={enrollments}
+              request={taskRequest?.tab === 'attendance' ? taskRequest : null} onRequestHandled={() => setTaskRequest(null)}
               onSaveSession={handleSaveAttendanceSession}
               isOwner={currentUser.role === 'owner'}
               currentUser={currentUser}
@@ -1423,6 +1508,7 @@ export default function App() {
               permissions={currentUser.permissions}
               settings={settings}
               isOwner={currentUser.role === 'owner'}
+              requestReceiptId={taskRequest?.tab === 'tuition' ? taskRequest.receiptId : undefined} onRequestHandled={() => setTaskRequest(null)}
               onAddReceipt={handleAddReceipt}
               onUpdateReceipt={handleUpdateReceipt}
               onDeleteReceipt={handleDeleteReceipt}
@@ -1476,6 +1562,7 @@ export default function App() {
                 programs={programs}
                 timetableSlots={timetableSlots}
                 activityLogs={activityLogs}
+                enrollments={enrollments} scheduleChanges={scheduleChanges}
                 attendanceSessions={attendanceSessions}
                 onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
                 onBackupCreated={handleBackupCreated}
@@ -1588,6 +1675,7 @@ export default function App() {
                 programs={programs}
                 timetableSlots={timetableSlots}
                 activityLogs={activityLogs}
+                enrollments={enrollments} scheduleChanges={scheduleChanges}
                 attendanceSessions={attendanceSessions}
                 onBackupCreated={currentUser.role === 'owner' ? handleBackupCreated : undefined}
                 onRestoreBackup={currentUser.role === 'owner' ? handleRestoreBackup : undefined}

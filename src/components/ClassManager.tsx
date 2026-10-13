@@ -1,8 +1,10 @@
 import { DialogFrame } from './DialogFrame';
+import { courseStatusLabels, validateCourse, validateRecurringChanges } from '../lib/operations';
 import { matchesSearch } from '../lib/search';
 import { findScheduleConflict } from '../lib/schedule';
 import React, { useEffect, useState } from 'react';
-import { ClassRoom, Teacher, Room, CourseProgram, Student, StaffPermissions, TimetableSlot, TuitionReceipt } from '../types';
+import type { ScheduleChange } from '../types';
+import { AttendanceSession, ClassEnrollment, ClassRoom, Teacher, Room, CourseProgram, Student, StaffPermissions, TimetableSlot, TuitionReceipt } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown } from '../lib/tuition';
 import {
@@ -28,6 +30,9 @@ interface ClassManagerProps {
   programs: CourseProgram[];
   students: Student[];
   receipts: TuitionReceipt[];
+  attendanceSessions?: AttendanceSession[];
+  enrollments?: ClassEnrollment[];
+  scheduleChanges?: ScheduleChange[];
   timetableSlots: TimetableSlot[];
   permissions: StaffPermissions;
   isOwner: boolean;
@@ -70,6 +75,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   programs,
   students,
   receipts,
+  attendanceSessions = [],
+  enrollments = [],
+  scheduleChanges = [],
   timetableSlots,
   permissions,
   isOwner,
@@ -147,6 +155,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClass || !editingClass.name.trim()) return;
+    const courseError = validateCourse(editingClass);
+    if (courseError) { setScheduleError(courseError); return; }
     if (!editingClass.code.trim() || classes.some(c => c.id !== editingClass.id && c.code.trim().toLowerCase() === editingClass.code.trim().toLowerCase())) { setScheduleError('Mã lớp không được bỏ trống hoặc trùng với lớp khác.'); return; }
     if (!Number.isInteger(editingClass.capacity) || editingClass.capacity < 0) { setScheduleError('Sĩ số tối đa phải là số nguyên không âm.'); return; }
     const room = rooms.find(r => r.id === editingClass.roomId);
@@ -163,6 +173,10 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       return;
     }
     const validEntries = normalisedEntries as Array<ScheduleDraft & { startTime: string; endTime: string }>;
+    const previousSlots = timetableSlots.filter(slot => slot.classId === editingClass.id);
+    const candidateSlots = validEntries.map((entry, index) => ({ ...entry, id: previousSlots.find(slot => slot.dayOfWeek === entry.dayOfWeek)?.id || `draft-${index}`, classId: editingClass.id, teacherId: editingClass.teacherId, roomId: editingClass.roomId }));
+    const datedError = validateRecurringChanges([...classes.filter(c => c.id !== editingClass.id), editingClass], [...timetableSlots.filter(slot => slot.classId !== editingClass.id), ...candidateSlots], scheduleChanges);
+    if (datedError) { setScheduleError(datedError); return; }
     for (const entry of validEntries) {
       const conflict = findScheduleConflict(timetableSlots.filter(slot => slot.classId !== editingClass.id), { ...entry, id: 'draft', classId: editingClass.id, teacherId: editingClass.teacherId, roomId: editingClass.roomId });
       if (conflict) { setScheduleError(`Trùng giáo viên hoặc phòng với lớp ${classes.find(c => c.id === conflict.classId)?.name || conflict.classId} vào ${entry.dayOfWeek}.`); return; }
@@ -388,6 +402,11 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 </div>
 
                 {/* Sĩ số Bar */}
+                <div className="mt-3 rounded-xl bg-sky-50 p-3 text-xs text-sky-950">
+                  <strong>{courseStatusLabels[cls.courseStatus || 'active']}</strong>
+                  <div className="mt-1">{cls.startDate || 'Chưa đặt ngày khai giảng'} → {cls.endDate || 'Chưa đặt ngày kết thúc'}</div>
+                  <div className="mt-1">Đã ghi nhận {attendanceSessions.filter(item => item.classId === cls.id).length}{cls.totalSessions ? ` / ${cls.totalSessions}` : ''} buổi · {enrollments.filter(item => item.classId === cls.id).length} hồ sơ đăng ký</div>
+                </div>
                 <div className="mt-4 pt-3 border-t border-slate-100">
                   <div className="flex justify-between items-center text-xs font-semibold mb-1.5">
                     <span className="text-slate-600">{t('class.capacity')}</span>
@@ -529,6 +548,16 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
             </h3>
 
             <form onSubmit={handleSave} className="space-y-3 text-xs">
+              <fieldset className="rounded-xl border border-sky-200 bg-sky-50 p-3">
+                <legend className="px-1 font-bold text-sky-950">Đợt học</legend>
+                <p className="mb-3 text-slate-600">Tạo lớp với mã mới cho mỗi đợt để giữ điểm, học phí và điểm danh của đợt trước.</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label>Ngày khai giảng<input aria-label="Ngày khai giảng" type="date" value={editingClass.startDate || ''} onChange={e => setEditingClass({ ...editingClass, startDate: e.target.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Ngày kết thúc<input aria-label="Ngày kết thúc" type="date" value={editingClass.endDate || ''} onChange={e => setEditingClass({ ...editingClass, endDate: e.target.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Số buổi dự kiến<input aria-label="Số buổi dự kiến" type="number" min="1" step="1" value={editingClass.totalSessions ?? ''} onChange={e => setEditingClass({ ...editingClass, totalSessions: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Trạng thái đợt học<select aria-label="Trạng thái đợt học" value={editingClass.courseStatus || 'active'} onChange={e => setEditingClass({ ...editingClass, courseStatus: e.target.value as ClassRoom['courseStatus'] })} className="mt-1 w-full rounded-lg border border-slate-300 p-2">{Object.entries(courseStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                </div>
+              </fieldset>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Mã Lớp *</label>

@@ -1,3 +1,5 @@
+import { TodayTasks, type TaskDestination } from './TodayTasks';
+import type { AttendanceSession, ScheduleChange, TimetableSlot } from '../types';
 import { HorizontalScroll } from './HorizontalScroll';
 import React, { useState } from 'react';
 import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -7,6 +9,8 @@ import { DashboardDetailModal, DashboardDetailType } from './DashboardDetailModa
 import { debtBreakdown, paymentKindOf, getReceiptPaymentEntries } from '../lib/tuition';
 
 interface DashboardViewProps {
+  timetableSlots?: TimetableSlot[]; scheduleChanges?: ScheduleChange[]; attendanceSessions?: AttendanceSession[];
+  onOpenTask?: (destination: TaskDestination) => void;
   students: Student[];
   teachers: Teacher[];
   classes: ClassRoom[];
@@ -21,7 +25,7 @@ const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#6366f1', '#ec4899', '#8b5cf6'
 const currency = (value: number) => `${value.toLocaleString('vi-VN')}đ`;
 const monthLabel = (month: string) => month ? `Tháng ${month.slice(5)}/${month.slice(0, 4)}` : 'Chưa có kỳ thu';
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers, classes, rooms, receipts, programs, currentUser, onNavigateTab }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers, classes, rooms, receipts, programs, currentUser, onNavigateTab, timetableSlots = [], scheduleChanges = [], attendanceSessions = [], onOpenTask }) => {
   const [selectedDetail, setSelectedDetail] = useState<DashboardDetailType | null>(null);
   const [isBannerMinimized, setIsBannerMinimized] = useState<boolean>(() => {
     try {
@@ -153,6 +157,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-8">
+      <TodayTasks classes={classes} students={students} slots={timetableSlots} changes={scheduleChanges} attendance={attendanceSessions} receipts={receipts} teachers={teachers} user={currentUser} onOpen={onOpenTask || (destination => onNavigateTab(destination.tab))} />
       {/* Friendly Hero Banner */}
       <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 p-3.5 sm:p-5 text-slate-950 shadow-xs sm:shadow-md border border-amber-300/60 transition-all">
         {/* Subtle decorative background glow */}

@@ -1,3 +1,6 @@
+import { ScheduleChangesManager } from './ScheduleChangesManager';
+import { validateRecurringChanges } from '../lib/operations';
+import type { AttendanceSession, ScheduleChange } from '../types';
 import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { useResponsiveView } from '../hooks/useResponsive';
@@ -21,6 +24,8 @@ import {
 } from 'lucide-react';
 
 interface TimetableManagerProps {
+  scheduleChanges?: ScheduleChange[]; attendanceSessions?: AttendanceSession[];
+  onSaveChange?: (change: ScheduleChange) => string | null; onDeleteChange?: (id: string) => string | null;
   timetableSlots: TimetableSlot[];
   classes: ClassRoom[];
   teachers: Teacher[];
@@ -42,6 +47,7 @@ const normaliseTime = (value: string) => {
 
 export const TimetableManager: React.FC<TimetableManagerProps> = ({
   timetableSlots,
+  scheduleChanges = [], attendanceSessions = [], onSaveChange, onDeleteChange,
   classes,
   teachers,
   rooms,
@@ -105,7 +111,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         }
       }
     }
-    return null;
+    return validateRecurringChanges(classes, [...existing, targetSlot], scheduleChanges);
   };
 
   const handleOpenAdd = () => {
@@ -270,6 +276,8 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         )}
       </div>
 
+      {onSaveChange && onDeleteChange && <ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={attendanceSessions} isOwner={isOwner} onSave={onSaveChange} onDelete={onDeleteChange} />}
+      <p className="text-xs text-slate-500">Lịch tuần bên dưới là lịch lặp lại. Xem lịch thực tế phía trên để biết buổi nghỉ, đổi lịch và học bù.</p>
       {/* TIMETABLE GRID TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <HorizontalScroll label="Thời khóa biểu" ref={scrollContainerRef} className="overflow-x-auto custom-scrollbar">

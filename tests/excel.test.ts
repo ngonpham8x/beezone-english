@@ -8,6 +8,16 @@ import type { TuitionReceipt } from '../src/types';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('Excel export/import', () => {
+  it('retains course period fields and payment deadlines in the report round trip', async () => {
+    const classroom = { ...initial.initialClasses[0], startDate: '2026-10-01', endDate: '2026-12-30', totalSessions: 24, courseStatus: 'active' as const };
+    const student = { ...initial.initialStudents[0], classId: classroom.id, programId: classroom.programId };
+    const receipt = { ...initial.initialTuitionReceipts[0], studentId: student.id, classId: classroom.id, dueDate: '2026-10-20' };
+    const blob = await generateMasterExcelWorkbook({ centerName: 'Test centre', programs: initial.initialPrograms, students: [student], classes: [classroom], teachers: initial.initialTeachers, rooms: initial.initialRooms, receipts: [receipt], grades: [] });
+    const result = await parseCenterWorkbookFile(new File([await blob.arrayBuffer()], 'operations.xlsx'));
+    expect(result.errors).toEqual([]);
+    expect(result.data!.classes[0]).toMatchObject({ startDate: '2026-10-01', endDate: '2026-12-30', totalSessions: 24, courseStatus: 'active' });
+    expect(result.data!.receipts[0].dueDate).toBe('2026-10-20');
+  }, 30_000);
   it('retains historical classes, grades and every payment across a round trip', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(readFileSync('public/excel/BeeZoneSyncTemplate.xlsm'))));
     const oldClass = initial.initialClasses[0], newClass = initial.initialClasses[1];

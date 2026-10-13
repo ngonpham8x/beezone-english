@@ -7,6 +7,7 @@ import React, { useState, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../lib/tuition';
 import {
+  ClassEnrollment,
   Student,
   CourseProgram,
   ClassRoom,
@@ -78,6 +79,7 @@ const FeeStatusBadge: React.FC<{ feeStatus: FeeStatus; monthlyDebt?: number; cou
 };
 
 interface StudentManagerProps {
+  enrollments?: ClassEnrollment[];
   students: Student[];
   programs: CourseProgram[];
   classes: ClassRoom[];
@@ -93,13 +95,14 @@ interface StudentManagerProps {
   onDeleteStudent: (id: string) => void;
   onReserveStudent?: (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => void;
   onDropStudent?: (studentId: string, dropDate: string, reason: string) => void;
-  onReEnrollStudent?: (studentId: string, targetClassId: string, returnDate: string, note?: string) => void;
+  onReEnrollStudent?: (studentId: string, targetClassId: string, returnDate: string, note?: string) => boolean | void;
   onOpenImportExportModal: () => void;
   onOpenTuition: () => void;
   onCreateProgram: (program: CourseProgram) => void;
 }
 
 export const StudentManager: React.FC<StudentManagerProps> = ({
+  enrollments = [],
   students,
   programs,
   classes,
@@ -178,7 +181,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
   const handleOpenReEnroll = (st: Student) => {
     setReEnrollingStudent(st);
-    setReEnrollClassId(st.classId || classes[0]?.id || '');
+    const available = classes.filter(c => c.courseStatus !== 'completed' && c.courseStatus !== 'paused' && (st.status !== 'active' || c.id !== st.classId));
+    setReEnrollClassId(available.find(c => c.id === st.classId)?.id || available[0]?.id || '');
     setReEnrollDate(centerDate());
     setReEnrollNote('');
   };
@@ -219,7 +223,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     e.preventDefault();
     if (!reEnrollingStudent || !reEnrollClassId) return;
     if (onReEnrollStudent) {
-      onReEnrollStudent(reEnrollingStudent.id, reEnrollClassId, reEnrollDate, reEnrollNote);
+      if (onReEnrollStudent(reEnrollingStudent.id, reEnrollClassId, reEnrollDate, reEnrollNote) === false) return;
     } else {
       const targetClass = classes.find(c => c.id === reEnrollClassId);
       const appendedNote = `[QUAY LẠI HỌC]: Ngày ${reEnrollDate} tại lớp ${targetClass?.name || reEnrollClassId}. ${reEnrollNote}`.trim();
@@ -827,6 +831,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     </button>
 
                     {/* Chức năng Bảo lưu & Nghỉ học & Học lại */}
+                    {canEdit && st.status === 'active' && onReEnrollStudent && <button onClick={() => handleOpenReEnroll(st)} className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-900" title="Đăng ký đợt học tiếp theo">Học đợt tiếp</button>}
                     {canEdit && st.status === 'active' && (
                       <>
                         <button
@@ -1083,6 +1088,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <div className="italic text-slate-700 font-medium">{viewingStudent.notes || 'Không có ghi chú đặc biệt'}</div>
                 </div>
               </div>
+              {enrollments.some(e => e.studentId === viewingStudent.id) && <section className="my-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs"><h4 className="mb-2 font-bold">Lịch sử đăng ký đợt học</h4>{enrollments.filter(e => e.studentId === viewingStudent.id).map(e => <div key={e.id} className="border-t border-sky-100 py-2"><strong>{classes.find(c => c.id === e.classId)?.name || e.classId}</strong> · {{ active: 'Đang học', reserved: 'Bảo lưu', completed: 'Hoàn thành', transferred: 'Đã chuyển lớp', dropped: 'Nghỉ học' }[e.status]}<div>{e.startDate || 'Chưa ghi ngày bắt đầu'} → {e.endDate || 'Chưa kết thúc'}</div></div>)}</section>}
               {(() => {
                 const debtReceipts = receipts.filter((receipt) => receipt.studentId === viewingStudent.id && receipt.debtAmount > 0);
                 if (!debtReceipts.length) return null;
@@ -1602,8 +1608,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 <RotateCcw className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Quay Lại Học Tiếp</h3>
-                <p className="text-xs text-slate-500">Khôi phục trạng thái đang học và xếp lại lớp học</p>
+                <h3 className="text-base font-bold text-slate-900">{reEnrollingStudent.status === 'active' ? 'Đăng ký đợt học tiếp theo' : 'Quay lại học tiếp'}</h3>
+                <p className="text-xs text-slate-500">Giữ lịch sử đợt cũ và xếp lớp. Lập học phí đợt mới tại mục Học phí.</p>
               </div>
             </div>
 
@@ -1611,7 +1617,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80">
                 <div className="font-bold text-slate-900 text-sm">{reEnrollingStudent.name} ({reEnrollingStudent.code})</div>
                 <div className="text-[11px] text-slate-600 mt-0.5">
-                  Trạng thái trước đó: <span className="font-bold text-amber-800">{reEnrollingStudent.status === 'reserved' ? 'Bảo lưu' : 'Nghỉ học'}</span>
+                  Trạng thái trước đó: <span className="font-bold text-amber-800">{reEnrollingStudent.status === 'active' ? 'Đang học' : reEnrollingStudent.status === 'reserved' ? 'Bảo lưu' : 'Nghỉ học'}</span>
                 </div>
               </div>
 
@@ -1623,7 +1629,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   className="w-full px-3 py-2.5 border-2 border-emerald-500 rounded-xl focus:ring-2 focus:ring-emerald-600 font-bold text-slate-900 bg-white"
                   required
                 >
-                  {classes.map(c => (
+                  {classes.filter(c => c.courseStatus !== 'completed' && c.courseStatus !== 'paused' && (reEnrollingStudent.status !== 'active' || c.id !== reEnrollingStudent.classId)).map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} — {c.scheduleTime} ({c.studentIds ? c.studentIds.length : 0}/{c.capacity} HS)
                     </option>

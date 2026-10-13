@@ -50,3 +50,11 @@
 6. **Nhật ký và Auth:** hoạt động quản lý tài khoản còn dùng hoàn tác bù khi ghi audit thất bại, chưa có transaction nguyên tử bao phủ cả Supabase Auth và DB. Nhật ký nghiệp vụ trong document không phải nhật ký kiểm toán bất biến; nhật ký tài khoản riêng vẫn chỉ máy chủ được ghi.
 
 Không có dữ liệu riêng tư hoặc khóa bí mật nào được đưa vào báo cáo này.
+
+## Bổ sung vận hành trung tâm nhỏ
+
+Đã thêm đợt học có ngày/số buổi/trạng thái, lịch sử đăng ký và thao tác học đợt tiếp; hạn học phí và nội dung nhắc phụ huynh; lịch nghỉ/đổi/học bù theo ngày; việc cần làm hôm nay mở đúng lớp/ngày hoặc phiếu. Điểm danh sử dụng lịch thực tế và lịch sử đăng ký theo ngày. JSON giữ dữ liệu mới; Excel có các trường ngày/số buổi/hạn thanh toán. Xem [SMALL_CENTER_GUIDE.md](SMALL_CENTER_GUIDE.md).
+
+Kiểm tra mới nhất: **116 test / 12 tệp**, TypeScript và production build đều qua bằng `npm run check`. Bao gồm migration 001–007 trong PostgreSQL cục bộ, quyền ghi lịch/hồ sơ đăng ký, bảo vệ client cũ, chuyển đợt tương lai, giữ ngày thanh toán khi sửa hạn, lịch học bù/xung đột, bảng việc cần làm và Excel. Bundle chính khoảng 374 KB, Excel tải riêng vẫn khoảng 940 KB.
+
+Không có trình duyệt kết nối để xác minh ảnh giao diện. Chưa áp dụng migration 006/007 lên Supabase thật và chưa kiểm thử đăng nhập Google bằng tài khoản thật. Vercel Production vẫn thiếu secret key máy chủ; domain chính chỉ chuyển khi các điều kiện này được xác nhận. Kiến trúc quyền đọc tài liệu chung vẫn cần xử lý như phần giới hạn nêu trên.

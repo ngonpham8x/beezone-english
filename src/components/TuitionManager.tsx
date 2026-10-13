@@ -1,7 +1,9 @@
 import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
-import React, { useMemo, useState, useRef } from 'react';
+import { isCalendarDate } from '../lib/dates';
+import { TuitionDuePanel } from './TuitionDuePanel';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TuitionReceipt, TuitionInstallment, Student, ClassRoom, CourseProgram, StaffPermissions, CenterSettings } from '../types';
 import { CreditCard, Plus, Printer, FileText, CheckCircle, AlertCircle, Search, X, Save, DollarSign, Edit, Trash2, Filter, RotateCcw, Calendar, History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -29,6 +31,8 @@ const receiptStatusClass: Record<'paid' | 'partial' | 'unpaid' | 'debt', string>
 };
 
 interface TuitionManagerProps {
+  requestReceiptId?: string;
+  onRequestHandled?: () => void;
   receipts: TuitionReceipt[];
   students: Student[];
   classes: ClassRoom[];
@@ -49,6 +53,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   permissions,
   settings,
   isOwner,
+  requestReceiptId, onRequestHandled,
   onAddReceipt,
   onUpdateReceipt,
   onDeleteReceipt
@@ -74,6 +79,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [courseBillingPeriod, setCourseBillingPeriod] = useState<string>(defaultCoursePeriod);
   const [paidAmountInput, setPaidAmountInput] = useState<number>(0);
   const [paymentDateInput, setPaymentDateInput] = useState<string>(centerDate());
+  const [dueDateInput, setDueDateInput] = useState('');
   const [discountInput, setDiscountInput] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định'>('Chưa xác định');
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -106,6 +112,15 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
   const canCollect = isOwner || permissions.tuition.collect;
   const canDelete = isOwner || permissions.tuition.delete;
+  useEffect(() => {
+    if (!requestReceiptId) return;
+    const receipt = receipts.find(r => r.id === requestReceiptId);
+    if (receipt) {
+      resetReceiptFilters(); setReceiptQuery(receipt.code);
+      if (canCollect) handleOpenEditReceipt(receipt); else setSelectedReceipt(receipt);
+    }
+    onRequestHandled?.();
+  }, [requestReceiptId]);
 
   const totalCollected = receipts.reduce((sum, r) => sum + r.paidAmount, 0);
   const totalDebt = receipts.reduce((sum, r) => sum + r.debtAmount, 0);
@@ -177,6 +192,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     setCourseBillingPeriod(coursePeriodOptions[0] || defaultCoursePeriod);
     setPaidAmountInput(suggestedMonthlyFee);
     setPaymentDateInput(centerDate());
+    setDueDateInput('');
     setDiscountInput(0);
     setPaymentMethod('Chưa xác định');
     setPaymentNotes('');
@@ -200,6 +216,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       : (coursePeriodOptions[0] || defaultCoursePeriod));
     setPaidAmountInput(receipt.paidAmount);
     setPaymentDateInput(receipt.paymentDate);
+    setDueDateInput(receipt.dueDate || '');
     setDiscountInput(receipt.discount || 0);
     setPaymentMethod(receipt.paymentMethod || 'Chưa xác định');
     setPaymentNotes(receipt.notes || '');
@@ -274,6 +291,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
   const handleSaveCollect = (e: React.FormEvent) => {
     e.preventDefault();
+    if (dueDateInput && !isCalendarDate(dueDateInput)) { setCollectError('Hạn thanh toán không hợp lệ.'); return; }
     const student = students.find(s => s.id === collectingStudentId);
     if (!student) return;
     if (!student.classId || !classes.some(c => c.id === student.classId)) { setCollectError('Học viên chưa được xếp vào lớp hợp lệ.'); return; }
@@ -317,7 +335,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           notes: debtAmount === 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Đóng học phí đợt tiếp theo',
         };
         nextInstallments = [...nextInstallments, newInst];
-      } else if (addedAmount === 0 && nextInstallments.length === 1) {
+      } else if (addedAmount === 0 && nextInstallments.length === 1 && (paymentDateInput !== editingReceipt.paymentDate || paymentMethod !== editingReceipt.paymentMethod || finalCollector !== editingReceipt.collectorName.trim())) {
         nextInstallments = [{ ...nextInstallments[0], date: paymentDateInput || editingReceipt.paymentDate, paymentMethod, collectorName: finalCollector }];
       } else if (paidAmountInput < editingReceipt.paidAmount) {
         nextInstallments = [
@@ -358,6 +376,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       monthlyFee: paymentKind === 'monthly' || retainContextFee ? monthlyFeeInput : 0,
       paymentKind,
       billingPeriod: cleanBillingPeriod,
+      dueDate: dueDateInput || undefined,
       discount: discountInput,
       paidAmount: paidAmountInput,
       debtAmount,
@@ -406,6 +425,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
   return (
     <div className="space-y-6">
+      {(isOwner || permissions.tuition.showDebt) && <TuitionDuePanel receipts={receipts} students={students} settings={settings} onOpen={r => canCollect ? handleOpenEditReceipt(r) : setSelectedReceipt(r)} />}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
@@ -934,6 +954,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="mb-3 block font-semibold text-slate-700">Hạn thanh toán<input aria-label="Hạn thanh toán" type="date" value={dueDateInput} onChange={e => setDueDateInput(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label>
                   <label className="block font-semibold text-slate-700 mb-1">Ngày Thu Tiền *</label>
                   <input
                     type="date"

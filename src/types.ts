@@ -93,6 +93,35 @@ export interface ClassRoom {
   days: string[]; // e.g., ["Thứ 2", "Thứ 4", "Thứ 6"]
   capacity: number;
   studentIds: string[];
+  startDate?: string;
+  endDate?: string;
+  totalSessions?: number;
+  courseStatus?: 'planned' | 'active' | 'paused' | 'completed';
+  completedDate?: string;
+}
+
+export interface ClassEnrollment {
+  id: string;
+  studentId: string;
+  classId: string;
+  status: 'active' | 'reserved' | 'completed' | 'transferred' | 'dropped';
+  startDate?: string;
+  endDate?: string;
+}
+
+/** A dated exception leaves the recurring weekly timetable intact. */
+export interface ScheduleChange {
+  id: string;
+  classId: string;
+  kind: 'cancel' | 'move' | 'extra';
+  date: string;
+  sourceDate?: string;
+  sourceSlotId?: string;
+  startTime: string;
+  endTime: string;
+  teacherId: string;
+  roomId: string;
+  reason: string;
 }
 
 export interface TimetableSlot {
@@ -141,6 +170,7 @@ export interface TuitionReceipt {
   monthlyFee?: number;
   paymentKind?: 'course' | 'monthly';
   billingPeriod?: string; // YYYY-MM, used for monthly tuition reports
+  dueDate?: string;
   discount: number;
   paidAmount: number;
   debtAmount: number;
@@ -245,5 +275,7 @@ export interface CenterBackupData {
   backups: SystemBackup[];
   activityLogs: ActivityLog[];
   attendanceSessions?: AttendanceSession[];
+  enrollments?: ClassEnrollment[];
+  scheduleChanges?: ScheduleChange[];
 }
 

@@ -18,7 +18,7 @@ Nếu một trong hai chủ đã đăng nhập trước khi được thêm vào 
 
 ## 2. Chỉ dùng đăng nhập Google
 
-Trước khi đưa ứng dụng vào sử dụng, chạy thêm `supabase/migrations/006_enforce_business_permissions.sql` sau migration 005. Migration này giữ nguyên dữ liệu, kiểm tra quyền ghi học viên/học phí/điểm/điểm danh ở cơ sở dữ liệu và bảo vệ Chủ trung tâm cuối cùng. Trong lần rà soát repository, migration đã được kiểm thử bằng PostgreSQL cục bộ; chưa được áp dụng lên project Supabase thật.
+Trước khi đưa ứng dụng vào sử dụng, chạy thêm `supabase/migrations/006_enforce_business_permissions.sql` sau migration 005, rồi `supabase/migrations/007_small_center_operations.sql`. Migration 006 kiểm tra quyền ghi và bảo vệ Chủ trung tâm cuối cùng. Migration 007 kiểm tra ngày/số buổi, lịch sử đăng ký, hạn học phí và quyền đổi lịch, đồng thời chặn client cũ ghi đè làm mất các danh sách mới. Các migration giữ nguyên dữ liệu và được kiểm thử bằng PostgreSQL cục bộ; chưa được áp dụng lên project Supabase thật.
 
 Mô hình `center_data` hiện lưu chung một tài liệu. Quyền xem theo từng lớp và ẩn tài chính trên giao diện chưa phải cách ly quyền đọc ở cơ sở dữ liệu; xem giới hạn và hướng nâng cấp trong `SECURITY.md` trước khi cấp quyền cho người không được phép đọc toàn bộ dữ liệu trung tâm.
 

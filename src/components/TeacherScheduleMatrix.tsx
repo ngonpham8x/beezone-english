@@ -1,4 +1,6 @@
 import { HorizontalScroll } from './HorizontalScroll';
+import { ScheduleChangesManager } from './ScheduleChangesManager';
+import type { ScheduleChange } from '../types';
 import { centerDate } from '../lib/dates';
 import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useRef } from 'react';
@@ -7,6 +9,7 @@ import { CalendarCheck, Printer, FileSpreadsheet, GraduationCap, ChevronLeft, Ch
 import { TeacherAvatar } from './TeacherAvatar';
 
 interface TeacherScheduleMatrixProps {
+  scheduleChanges?: ScheduleChange[];
   teachers: Teacher[];
   timetableSlots: TimetableSlot[];
   classes: ClassRoom[];
@@ -17,7 +20,8 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   teachers,
   timetableSlots,
   classes,
-  rooms
+  rooms,
+  scheduleChanges
 }) => {
   const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
   const todayDay = days[(new Date(`${centerDate()}T12:00:00`).getDay() + 6) % 7];
@@ -54,6 +58,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
   return (
     <div data-print-teacher-schedule className="teacher-print-schedule space-y-6 print:m-0 print:p-0">
+      {scheduleChanges && <div className="print:hidden"><ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={[]} isOwner={false} onSave={() => 'Chỉ Chủ trung tâm được đổi lịch.'} onDelete={() => 'Chỉ Chủ trung tâm được đổi lịch.'} /><p className="mt-2 text-xs text-slate-500">Ma trận bên dưới là lịch tuần lặp lại; lịch thực tế phía trên đã tính buổi nghỉ và học bù.</p></div>}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs print:hidden">
         <div>

@@ -32,6 +32,32 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('rejects writes from an old client that would discard new operations arrays', async () => {
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, enrollments: [], scheduleChanges: [] })]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(base)])).rejects.toThrow(/Client update required/);
+  });
+  it('validates course dates, positive integral lesson counts and payment due dates at the database', async () => {
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, classes: [{ id: 'a', startDate: '2026-10-13', endDate: '2026-10-12' }] })])).rejects.toThrow(/Course dates reversed/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, classes: [{ id: 'a', totalSessions: 1.5 }] })])).rejects.toThrow(/Invalid total sessions/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, receipts: [{ id: 'r', courseFee: 10, discount: 0, paidAmount: 0, debtAmount: 10, dueDate: '2026-02-30' }] })])).rejects.toThrow();
+  });
+  it('denies staff schedule exceptions independently of the UI', async () => {
+    const payload = { ...base, classes: [{ id: 'a', teacherId: 't', studentIds: [] }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({ student: { edit: true }, teacher: { edit: true } });
+    const change = { id: 'change', kind: 'extra', classId: 'a', date: '2026-10-13', startTime: '18:00', endTime: '19:00', reason: 'Makeup' };
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [change] })])).rejects.toThrow(/Owner permission required: scheduleChanges/);
+  });
+  it('permits enrollment history for a student editor and denies a viewer', async () => {
+    const payload = { ...base, students: [{ id: 's', classId: 'a', feeStatus: 'unpaid' }], classes: [{ id: 'a', teacherId: 't', studentIds: ['s'] }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    const history = { ...payload, enrollments: [{ id: 'e', studentId: 's', classId: 'a', status: 'active', startDate: '2026-10-13' }] };
+    await asStaff({ student: { view: true } });
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(history)])).rejects.toThrow(/creation denied/);
+    await db.exec('reset role'); await asStaff({ student: { edit: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(history)]);
+    expect((await db.query<{ payload: typeof history }>('select payload from public.center_data')).rows[0].payload.enrollments[0].classId).toBe('a');
+  });
   it('denies an unauthorized settings write at the database', async () => {
     await asStaff();
     await expect(db.query("update public.center_data set payload=$1::jsonb where id='primary'", [JSON.stringify({ ...base, settings: { name: 'Injected' } })])).rejects.toThrow(/Owner permission/);

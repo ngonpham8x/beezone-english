@@ -16,6 +16,8 @@ import {
   ActivityLog,
   CenterBackupData,
   AttendanceSession,
+  ClassEnrollment,
+  ScheduleChange,
 } from '../types';
 import {
   Database,
@@ -53,6 +55,7 @@ interface BackupManagerProps {
   timetableSlots?: TimetableSlot[];
   activityLogs?: ActivityLog[];
   attendanceSessions?: AttendanceSession[];
+  enrollments?: ClassEnrollment[]; scheduleChanges?: ScheduleChange[];
   onOpenImportExportModal?: () => void;
   onBackupCreated?: (backup: SystemBackup) => void;
   onRestoreBackup?: (data: CenterBackupData, filename: string) => void;
@@ -71,6 +74,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   timetableSlots = [],
   activityLogs = [],
   attendanceSessions = [],
+  enrollments = [], scheduleChanges = [],
   onOpenImportExportModal,
   onBackupCreated,
   onRestoreBackup,
@@ -153,7 +157,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
           grades,
           backups: [backupRecord, ...backups],
           activityLogs,
-          attendanceSessions,
+          attendanceSessions, enrollments, scheduleChanges,
         },
       };
 

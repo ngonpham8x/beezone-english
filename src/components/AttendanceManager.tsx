@@ -1,5 +1,8 @@
 import { HorizontalScroll } from './HorizontalScroll';
 import { centerDate } from '../lib/dates';
+import { lessonsOn } from '../lib/operations';
+import type { TaskDestination } from './TodayTasks';
+import type { ClassEnrollment, ScheduleChange, TimetableSlot } from '../types';
 import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useMemo } from 'react';
 import {
@@ -32,8 +35,14 @@ import {
 } from 'lucide-react';
 
 import { UserAccount } from '../types';
+const EMPTY_ENROLLMENTS: ClassEnrollment[] = [];
 
 interface AttendanceManagerProps {
+  timetableSlots?: TimetableSlot[];
+  scheduleChanges?: ScheduleChange[];
+  enrollments?: ClassEnrollment[];
+  request?: TaskDestination | null;
+  onRequestHandled?: () => void;
   classes: ClassRoom[];
   students: Student[];
   teachers: Teacher[];
@@ -50,7 +59,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   attendanceSessions,
   onSaveSession,
   isOwner,
-  currentUser
+  currentUser,
+  timetableSlots, scheduleChanges = [], enrollments = EMPTY_ENROLLMENTS, request, onRequestHandled
 }) => {
   // Determine classes the current teacher/staff is permitted to access
   const permittedClasses = useMemo(() => {
@@ -121,17 +131,29 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     const recordedIds = existingSession ? existingSession.entries.map(e => e.studentId) : [];
     return students.filter(s => {
       if (recordedIds.includes(s.id)) return true;
+      const history = enrollments.filter(item => item.studentId === s.id && item.classId === selectedClassId);
+      if (history.length) return history.some(item => item.status !== 'reserved' && (!item.startDate || sessionDate >= item.startDate) && (item.endDate ? (item.status === 'transferred' || item.status === 'dropped' ? sessionDate < item.endDate : sessionDate <= item.endDate) : item.status === 'active'));
       if (s.classId !== selectedClassId) return false;
       if (s.status === 'active') return true;
       if (recordedIds.includes(s.id)) return true;
       return false;
     });
-  }, [students, selectedClassId, existingSession]);
+  }, [students, selectedClassId, existingSession, enrollments, sessionDate]);
 
   const teacher = useMemo(
     () => teachers.find(t => t.id === selectedClass?.teacherId),
     [teachers, selectedClass]
   );
+  const datedLesson = timetableSlots ? lessonsOn(sessionDate, classes, timetableSlots, scheduleChanges).find(item => item.classId === selectedClassId) : undefined;
+  const hasSchedule = timetableSlots?.some(slot => slot.classId === selectedClassId) || scheduleChanges.some(c => c.classId === selectedClassId);
+  const noLesson = Boolean(hasSchedule && !datedLesson && !existingSession);
+  React.useEffect(() => {
+    if (!request?.classId) return;
+    if (permittedClasses.some(c => c.id === request.classId)) {
+      setSelectedClassId(request.classId); if (request.date) setSessionDate(request.date);
+    }
+    onRequestHandled?.();
+  }, [request, permittedClasses, onRequestHandled]);
 
   // Working entries state
   const [entries, setEntries] = useState<
@@ -213,13 +235,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
   const handleSave = () => {
     if (!canSave || !selectedClass || !sessionDate) return;
+    if (noLesson) { setStatusMessage('Ngày này không có buổi học theo lịch thực tế. Kiểm tra lịch nghỉ hoặc học bù.'); return; }
 
     const sessionData: AttendanceSession = {
       id: existingSession ? existingSession.id : `ATT_${Date.now()}`,
       classId: selectedClassId,
       date: sessionDate,
       lessonTopic: lessonTopic.trim() || 'Buổi học theo thời khóa biểu',
-      teacherId: selectedClass?.teacherId,
+      teacherId: existingSession?.teacherId || datedLesson?.teacherId || selectedClass?.teacherId,
       generalNotes: generalNotes.trim(),
       entries: [...(existingSession?.entries || []).filter(entry => !classStudents.some(st => st.id === entry.studentId)), ...classStudents.map(st => ({
         studentId: st.id,
