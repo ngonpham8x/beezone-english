@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { parseRequestBody } from '../../server/request';
+import { parseRequestBody } from '../../server/request.js';
 
 const STAFF_PERMISSION_SHAPE = {
   student: ['view', 'add', 'edit', 'delete', 'export'],
