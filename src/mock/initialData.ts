@@ -31,7 +31,7 @@ export const initialPrograms: CourseProgram[] = [
   {
     id: 'PROG-KIDDY',
     code: 'BEE-KIDDY',
-    name: 'Tiếng Anh Mầm Non (Kiddy 1)',
+    name: 'Tiếng Anh Mầm Non',
     category: 'Cambridge',
     tuitionFee: 2400000,
     description: 'Dành cho các bạn ở độ tuổi từ 3 tuổi – 6 tuổi. Học qua trò chơi, bài hát, hình ảnh sinh động. Phát triển Nghe – Nói – Phản xạ tự nhiên trong môi trường vui vẻ, thân thiện.'
@@ -39,7 +39,7 @@ export const initialPrograms: CourseProgram[] = [
   {
     id: 'PROG-STARTERS',
     code: 'BEE-STARTERS',
-    name: 'Chương Trình Cambridge (Starters 1)',
+    name: 'Cambridge Starters',
     category: 'Cambridge',
     tuitionFee: 2800000,
     description: 'Dành cho học viên 6 – 7 tuổi. Chương trình Cambridge chuẩn quốc tế kết hợp giáo viên nước ngoài. Phát triển toàn diện 4 kỹ năng Nghe – Nói – Đọc – Viết.'
@@ -47,7 +47,7 @@ export const initialPrograms: CourseProgram[] = [
   {
     id: 'PROG-BEE-PRI',
     code: 'BEE-PRIMARY',
-    name: 'Tiếng Anh Tiểu Học (Bee 1 & Bee 2 - Family and Friends)',
+    name: 'Tiếng Anh Tiểu Học (Bee 1 - 2)',
     category: 'Family and Friends',
     tuitionFee: 2600000,
     description: 'Sách Family and Friends cho học sinh Lớp 1 (6–7 tuổi) và Lớp 2 (7–8 tuổi). Củng cố từ vựng, ngữ pháp và rèn luyện phản xạ giao tiếp tự tin.'
@@ -55,7 +55,7 @@ export const initialPrograms: CourseProgram[] = [
   {
     id: 'PROG-BEE-JUN',
     code: 'BEE-JUNIOR',
-    name: 'Tiếng Anh Tiểu Học (Bee 3 & Bee 4 - Family and Friends)',
+    name: 'Tiếng Anh Tiểu Học (Bee 3 - 4)',
     category: 'Family and Friends',
     tuitionFee: 2800000,
     description: 'Sách Family and Friends cho học sinh Lớp 3 và Lớp 4 (Học tại 2 cơ sở: Bùi Thị Xuân & Nguyễn Du). Củng cố ngữ pháp – từ vựng – phát triển 4 kỹ năng Nghe – Nói – Đọc – Viết.'
@@ -63,7 +63,7 @@ export const initialPrograms: CourseProgram[] = [
   {
     id: 'PROG-BEE-STAR',
     code: 'BEE-DANCE',
-    name: 'Lớp Nhảy Hiện Đại Trẻ Em (Bee Stars Dance Crew)',
+    name: 'Nhảy Hiện Đại Trẻ Em',
     category: 'Kỹ Năng & Thể Chất',
     tuitionFee: 450000,
     description: 'Lớp nhảy hiện đại cho trẻ em (Kids). Phát triển thể chất, tự tin tỏa sáng, giao tiếp tốt, đam mê âm nhạc & vũ đạo. Học phí 450.000đ/tháng (8 buổi).'
@@ -78,7 +78,7 @@ export const initialTeachers: Teacher[] = [
     phone: '0912 345 678',
     email: 'david.miller@beezone.edu.vn',
     address: 'Quận 1, TP. Hồ Chí Minh',
-    specialty: 'Giáo viên nước ngoài Cambridge & HLV Bee Stars Dance Crew',
+    specialty: 'Giáo viên Cambridge & Bee Stars Dance Crew',
     assignedClassIds: ['CLS-STARTERS-1', 'CLS-BEE-4', 'CLS-BEE-STAR'],
     notes: 'Giáo viên bản ngữ có chứng chỉ quốc tế, phụ trách lớp Cambridge Starters và Bee Stars.'
   },
@@ -89,7 +89,7 @@ export const initialTeachers: Teacher[] = [
     phone: '0933 456 789',
     email: 'maianh.nguyen@beezone.edu.vn',
     address: 'Trường Tây, Hòa Thành, Tây Ninh',
-    specialty: 'Mầm Non Kiddy 1 & Cambridge Starters 1, TESOL Master',
+    specialty: 'Tiếng Anh Mầm Non & Cambridge Starters, TESOL Master',
     assignedClassIds: ['CLS-KIDDY-1', 'CLS-STARTERS-1'],
     notes: 'Thạc sĩ TESOL, phương pháp dạy qua bài hát & trò chơi, rất yêu trẻ và nhiệt huyết.'
   },
@@ -100,7 +100,7 @@ export const initialTeachers: Teacher[] = [
     phone: '0988 777 666',
     email: 'nam.tran@beezone.edu.vn',
     address: 'Trường Tây, Hòa Thành, Tây Ninh',
-    specialty: 'Giáo trình Family and Friends (Lớp Bee 1, Bee 2, Bee 3)',
+    specialty: 'Giáo trình Family and Friends Tiểu Học',
     assignedClassIds: ['CLS-BEE-1', 'CLS-BEE-2', 'CLS-BEE-3'],
     notes: 'Kinh nghiệm dày dặn với bộ giáo trình Family and Friends cho học sinh tiểu học.'
   }
@@ -134,7 +134,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-KIDDY-1',
     code: 'KIDDY-1',
-    name: 'Kiddy 1 (3–6 tuổi)',
+    name: 'Kiddy 1',
     programId: 'PROG-KIDDY',
     teacherId: 'TEA-002',
     roomId: 'ROOM-101',
@@ -146,7 +146,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-BEE-1',
     code: 'BEE-1',
-    name: 'Bee 1 (Lớp 1, 6–7 tuổi)',
+    name: 'Bee 1',
     programId: 'PROG-BEE-PRI',
     teacherId: 'TEA-003',
     roomId: 'ROOM-102',
@@ -158,7 +158,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-BEE-2',
     code: 'BEE-2',
-    name: 'Bee 2 (Lớp 2, 7–8 tuổi)',
+    name: 'Bee 2',
     programId: 'PROG-BEE-PRI',
     teacherId: 'TEA-003',
     roomId: 'ROOM-102',
@@ -170,7 +170,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-BEE-3',
     code: 'BEE-3',
-    name: 'Bee 3 (Lớp 3)',
+    name: 'Bee 3',
     programId: 'PROG-BEE-JUN',
     teacherId: 'TEA-003',
     roomId: 'ROOM-201',
@@ -182,7 +182,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-BEE-4',
     code: 'BEE-4',
-    name: 'Bee 4 (Lớp 4)',
+    name: 'Bee 4',
     programId: 'PROG-BEE-JUN',
     teacherId: 'TEA-001',
     roomId: 'ROOM-201',
@@ -194,7 +194,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-STARTERS-1',
     code: 'STARTERS-1',
-    name: 'Starters 1 (6–7 tuổi)',
+    name: 'Starters 1',
     programId: 'PROG-STARTERS',
     teacherId: 'TEA-002',
     roomId: 'ROOM-101',
@@ -206,7 +206,7 @@ export const initialClasses: ClassRoom[] = [
   {
     id: 'CLS-BEE-STAR',
     code: 'BEE-STAR',
-    name: 'Bee Stars (Nhảy Hiện Đại Kids)',
+    name: 'Bee Stars',
     programId: 'PROG-BEE-STAR',
     teacherId: 'TEA-001',
     roomId: 'ROOM-201',

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Grade, Student, ClassRoom, StaffPermissions, Teacher, CourseProgram, CenterSettings, UserAccount } from '../types';
-import { Award, FileText, AlertCircle, BookOpen } from 'lucide-react';
+import { Award, FileText, AlertCircle, BookOpen, Share2 } from 'lucide-react';
 import { ReportCardModal } from './ReportCardModal';
+import { ShareReportCardModal } from './ShareReportCardModal';
 
 interface GradeManagerProps {
   grades: Grade[];
@@ -63,6 +64,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
+  const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     if (!isOwner && permittedClasses.length > 0 && selectedClassId !== 'all' && !permittedClasses.some(c => c.id === selectedClassId)) {
@@ -289,16 +291,27 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                     </td>
 
                     {/* Report Card Action */}
-                    <td className="py-3 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setReportingStudent(st)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold hover:bg-slate-800 transition shadow-2xs"
-                        title="Xem và In Phiếu Báo Điểm"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-amber-400" />
-                        Phiếu Điểm
-                      </button>
+                    <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setReportingStudent(st)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold hover:bg-slate-800 transition shadow-2xs"
+                          title="Xem và In Phiếu Báo Điểm"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-amber-400" />
+                          Phiếu Điểm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSharingStudent(st)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition shadow-2xs active:scale-95"
+                          title="Gửi phiếu báo điểm qua Zalo, Messenger"
+                        >
+                          <Share2 className="w-3.5 h-3.5 text-white" />
+                          Gửi
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -334,6 +347,40 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           program={programs.find(p => p.id === reportingStudent.programId)}
           settings={settings}
           onClose={() => setReportingStudent(null)}
+        />
+      )}
+
+      {/* Quick Share Report Card Modal */}
+      {sharingStudent && (
+        <ShareReportCardModal
+          isOpen={Boolean(sharingStudent)}
+          onClose={() => setSharingStudent(null)}
+          student={sharingStudent}
+          grade={
+            grades.find(g => g.studentId === sharingStudent.id) || {
+              id: `G_${sharingStudent.id}`,
+              studentId: sharingStudent.id,
+              classId: sharingStudent.classId,
+              listening: 7.0,
+              speaking: 7.0,
+              reading: 7.0,
+              writing: 7.0,
+              midterm: 7.0,
+              finalExam: 7.0,
+              attendance: 10,
+              average: 7.0
+            }
+          }
+          classroom={classes.find(c => c.id === sharingStudent.classId)}
+          teacher={teachers.find(
+            t => t.id === classes.find(c => c.id === sharingStudent.classId)?.teacherId
+          )}
+          program={programs.find(p => p.id === sharingStudent.programId)}
+          settings={settings}
+          onPrintPdf={() => {
+            setReportingStudent(sharingStudent);
+            setSharingStudent(null);
+          }}
         />
       )}
     </div>

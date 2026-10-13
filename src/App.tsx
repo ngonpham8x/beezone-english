@@ -79,7 +79,7 @@ interface CenterDataPayload {
   attendanceSessions?: AttendanceSession[];
 }
 
-const DATA_SCHEMA_VERSION = 'beezone-receipt-table-v4';
+const DATA_SCHEMA_VERSION = 'beezone-receipt-table-v5';
 const ACTIVE_TAB_STORAGE_KEY = 'PHUC_PHUC_THINH_ACTIVE_TAB';
 const DATA_STORE_KEYS = [
   'settings',
@@ -181,6 +181,19 @@ const normaliseReceipt = (receipt: TuitionReceipt): TuitionReceipt => {
 };
 
 const normaliseReceipts = (receipts: TuitionReceipt[]) => receipts.map(normaliseReceipt);
+
+export const sanitizeClassName = (name: string): string => {
+  if (!name) return '';
+  return name
+    .replace(/^(Tiếng Anh\s+(Mầm Non|Tiểu Học|THCS|THPT)|Chương Trình\s+[A-Za-z]+)\s*[-–—:]\s*/gi, '')
+    .replace(/\s*\([^)]*(tuổi|Lớp|Kids|Nhảy|Độ tuổi|Cấp|KIDDY|BEE|STARTER)[^)]*\)/gi, '')
+    .trim();
+};
+
+const normaliseClasses = (classrooms: ClassRoom[]) => classrooms.map(c => ({
+  ...c,
+  name: sanitizeClassName(c.name) || c.name,
+}));
 
 const sameIdList = (left: string[], right: string[]) => (
   left.length === right.length && left.every((id, index) => id === right[index])
@@ -297,7 +310,7 @@ export default function App() {
   const [programs, setPrograms] = useState<CourseProgram[]>(() => loadStored('programs', initialPrograms));
   const [teachers, setTeachers] = useState<Teacher[]>(() => loadStored('teachers', initialTeachers));
   const [rooms, setRooms] = useState<Room[]>(() => loadStored('rooms', initialRooms));
-  const [classes, setClasses] = useState<ClassRoom[]>(() => loadStored('classes', initialClasses));
+  const [classes, setClasses] = useState<ClassRoom[]>(() => normaliseClasses(loadStored('classes', initialClasses)));
   const [students, setStudents] = useState<Student[]>(() => loadStored('students', initialStudents));
   const [timetableSlots, setTimetableSlots] = useState<TimetableSlot[]>(() => loadStored('timetableSlots', initialTimetableSlots));
   const [grades, setGrades] = useState<Grade[]>(() => loadStored('grades', initialGrades));

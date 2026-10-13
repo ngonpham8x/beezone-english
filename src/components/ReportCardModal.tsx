@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Grade, Student, ClassRoom, Teacher, CourseProgram, CenterSettings } from '../types';
-import { Award, Printer, X, CheckCircle2 } from 'lucide-react';
+import { Award, Printer, X, CheckCircle2, Share2 } from 'lucide-react';
 import { Logo } from './Logo';
+import { ShareReportCardModal } from './ShareReportCardModal';
 
 interface ReportCardModalProps {
   grade: Grade;
@@ -30,6 +31,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
     return { label: 'CẦN CỐ GẮNG (NEEDS IMPROVEMENT)', color: 'text-red-700 bg-red-50 border-red-300' };
   };
 
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const rank = getRank(grade.average);
 
   const handlePrint = () => {
@@ -66,6 +68,15 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
             Xem Trước Phiếu Báo Điểm Học Viên
           </span>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsShareModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-bold transition shadow-xs active:scale-95"
+              title="Gửi phiếu báo điểm qua Zalo, Messenger hoặc xuất PDF/Excel"
+            >
+              <Share2 className="w-4 h-4 text-white" />
+              Gửi / Chia Sẻ (Zalo)
+            </button>
             <button
               type="button"
               onClick={handlePrint}
@@ -222,6 +233,20 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           </div>
         </div>
       </div>
+
+      {isShareModalOpen && (
+        <ShareReportCardModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          student={student}
+          grade={grade}
+          classroom={classroom}
+          teacher={teacher}
+          program={program}
+          settings={settings}
+          onPrintPdf={handlePrint}
+        />
+      )}
     </div>
   );
 };

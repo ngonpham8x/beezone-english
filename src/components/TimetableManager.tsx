@@ -398,7 +398,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                   required
                 >
                   {classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>

@@ -797,7 +797,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
                     const currentCount = cls.studentIds ? cls.studentIds.length : 0;
                     return (
                       <option key={cls.id} value={cls.id}>
-                        {cls.name} ({cls.code}) — {cls.scheduleTime} — GV: {teacher?.name || 'Chưa gán'} ({currentCount}/{cls.capacity} HS)
+                        {cls.name} — {cls.scheduleTime} — GV: {teacher?.name || 'Chưa gán'} ({currentCount}/{cls.capacity} HS)
                       </option>
                     );
                   })}

@@ -439,7 +439,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                             }}
                             className="rounded text-amber-600 focus:ring-amber-500"
                           />
-                          <span className="font-semibold text-slate-800 text-[11px] truncate">{cls.name} ({cls.code})</span>
+                          <span className="font-semibold text-slate-800 text-xs truncate">{cls.name.replace(/\s*\([^)]*\)/g, '').trim()}</span>
                         </label>
                       );
                     })}

@@ -539,7 +539,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           </label>
           <select value={filterClassId} onChange={(event) => setFilterClassId(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả lớp</option>
-            {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.code} · {classroom.name}</option>)}
+            {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
           </select>
           <select value={filterPaymentKind} onChange={(event) => setFilterPaymentKind(event.target.value as 'all' | 'monthly' | 'course')} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả khoản thu</option><option value="monthly">Học phí tháng</option><option value="course">Học phí khóa</option>

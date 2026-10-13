@@ -1226,7 +1226,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     >
                       <optgroup label="Danh Sách Lớp Học Tại Trung Tâm">
                         {classes.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </optgroup>
                     </select>
@@ -1584,7 +1584,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 >
                   {classes.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.code}) — {c.scheduleTime} ({c.studentIds ? c.studentIds.length : 0}/{c.capacity} HS)
+                      {c.name} — {c.scheduleTime} ({c.studentIds ? c.studentIds.length : 0}/{c.capacity} HS)
                     </option>
                   ))}
                 </select>

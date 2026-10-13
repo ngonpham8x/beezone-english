@@ -247,7 +247,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                               }}
                               className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                             />
-                            <span className="truncate font-semibold">{c.name} ({c.code})</span>
+                            <span className="truncate font-semibold text-xs">{c.name.replace(/\s*\([^)]*\)/g, '').trim()}</span>
                           </label>
                         );
                       })}
