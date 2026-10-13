@@ -357,6 +357,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           program={programs.find(p => p.id === reportingStudent.programId)}
           settings={settings}
           onClose={() => setReportingStudent(null)}
+          onUpdateGrade={onUpdateGrade}
         />
       )}
 
@@ -387,6 +388,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           )}
           program={programs.find(p => p.id === sharingStudent.programId)}
           settings={settings}
+          onUpdateGrade={onUpdateGrade}
           onPrintPdf={() => {
             setReportingStudent(sharingStudent);
             setSharingStudent(null);

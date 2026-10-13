@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Grade, Student, ClassRoom, Teacher, CourseProgram, CenterSettings } from '../types';
-import { Award, Printer, X, CheckCircle2, Share2 } from 'lucide-react';
+import { Award, Printer, X, CheckCircle2, Share2, Edit3, Save, Sparkles, Check } from 'lucide-react';
 import { Logo } from './Logo';
 import { ShareReportCardModal } from './ShareReportCardModal';
 
@@ -12,6 +12,7 @@ interface ReportCardModalProps {
   program?: CourseProgram;
   settings: CenterSettings;
   onClose: () => void;
+  onUpdateGrade?: (updatedGrade: Grade) => void;
 }
 
 export const ReportCardModal: React.FC<ReportCardModalProps> = ({
@@ -21,8 +22,51 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
   teacher,
   program,
   settings,
-  onClose
+  onClose,
+  onUpdateGrade
 }) => {
+  const defaultFeedback =
+    grade.comment ||
+    student.notes?.trim() ||
+    `Em ${student.name} có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm. Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh hằng ngày và mở rộng thêm vốn từ vựng học thuật để sẵn sàng cho cấp độ tiếp theo.`;
+
+  const [feedback, setFeedback] = useState(defaultFeedback);
+  const [isEditingFeedback, setIsEditingFeedback] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (grade.comment) {
+      setFeedback(grade.comment);
+    }
+  }, [grade.comment]);
+
+  const handleSaveFeedback = () => {
+    const updatedGrade: Grade = {
+      ...grade,
+      comment: feedback
+    };
+    if (onUpdateGrade) {
+      onUpdateGrade(updatedGrade);
+    }
+    setIsEditingFeedback(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2500);
+  };
+
+  const templates = [
+    {
+      title: 'Xuất sắc / Giỏi',
+      text: `Em ${student.name} có thái độ học tập xuất sắc, tiếp thu kiến thức nhanh, phát âm chuẩn và phản xạ giao tiếp tự tin. Rất tích cực đóng góp xây dựng bài học.`
+    },
+    {
+      title: 'Khá / Tiến bộ',
+      text: `Em ${student.name} có thái độ học tập nghiêm túc, kỹ năng Nghe và Đọc tốt. Cần duy trì thói quen luyện nói tiếng Anh hằng ngày để phản xạ lưu loát hơn nữa.`
+    },
+    {
+      title: 'Cần cố gắng',
+      text: `Em ${student.name} ngoan, chú ý nghe giảng. Cần tập trung hơn trong giờ học và chủ động ôn luyện từ vựng, ngữ pháp tại nhà để đạt kết quả cao hơn.`
+    }
+  ];
   const getRank = (avg: number) => {
     if (avg >= 9.0) return { label: 'XUẤT SẮC (EXCELLENT)', color: 'text-emerald-700 bg-emerald-50 border-emerald-300' };
     if (avg >= 8.0) return { label: 'GIỎI (VERY GOOD)', color: 'text-blue-700 bg-blue-50 border-blue-300' };
@@ -258,16 +302,104 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           </div>
 
           {/* Teacher's Feedback */}
-          <div className="mb-6 print:mb-2 p-4 print:p-2 rounded-xl border border-slate-200 bg-slate-50/60">
-            <h4 className="text-xs print:text-[11px] font-bold text-slate-800 uppercase tracking-wider mb-1.5 print:mb-0.5 flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              Nhận xét & Lời khuyên của Giáo viên:
-            </h4>
-            <p className="text-xs print:text-[11px] text-slate-700 leading-relaxed italic">
-              "Em {student.name} có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm.
-              Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh
-              hằng ngày và mở rộng thêm vốn từ vựng học thuật để sẵn sàng cho cấp độ tiếp theo."
-            </p>
+          <div className="mb-6 print:mb-2 p-4 print:p-2.5 rounded-2xl border-2 border-slate-200 bg-slate-50/80 transition-all">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs print:text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                Nhận xét & Lời khuyên của Giáo viên:
+              </h4>
+
+              {/* Edit / Save controls - Hidden in Print */}
+              <div className="print:hidden flex items-center gap-2">
+                {saveSuccess && (
+                  <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1 animate-in fade-in">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" /> Đã lưu nhận xét!
+                  </span>
+                )}
+                {!isEditingFeedback ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingFeedback(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer"
+                    title="Bấm để chỉnh sửa nhận xét trực tiếp trên phiếu điểm"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Sửa nhận xét</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleSaveFeedback}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Lưu</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedback(grade.comment || defaultFeedback);
+                        setIsEditingFeedback(false);
+                      }}
+                      className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Editing mode */}
+            {isEditingFeedback ? (
+              <div className="space-y-2 print:hidden">
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  rows={4}
+                  className="w-full p-3 bg-white border-2 border-amber-400 rounded-xl text-xs text-slate-800 leading-relaxed font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-inner"
+                  placeholder="Nhập nhận xét và lời khuyên dành cho học viên..."
+                  autoFocus
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" /> Mẫu nhanh:
+                  </span>
+                  {templates.map((tpl) => (
+                    <button
+                      key={tpl.title}
+                      type="button"
+                      onClick={() => setFeedback(tpl.text)}
+                      className="text-[11px] px-2.5 py-0.5 bg-white hover:bg-amber-50 border border-slate-300 hover:border-amber-400 rounded-md text-slate-700 font-medium transition cursor-pointer"
+                    >
+                      {tpl.title}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setFeedback(defaultFeedback)}
+                    className="text-[11px] px-2 py-0.5 text-slate-500 hover:text-slate-800 underline ml-auto cursor-pointer"
+                  >
+                    Khôi phục gốc
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Display mode (both screen & print) */
+              <div
+                onClick={() => setIsEditingFeedback(true)}
+                className="group relative cursor-pointer"
+                title="Bấm vào để sửa nhận xét trực tiếp"
+              >
+                <p className="text-xs print:text-[11px] text-slate-700 leading-relaxed italic p-2 -m-2 rounded-xl transition-colors group-hover:bg-amber-50/70 border border-transparent group-hover:border-amber-200">
+                  "{feedback}"
+                </p>
+                <span className="print:hidden text-[10px] text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity font-semibold block mt-1">
+                  ✎ Bấm vào đây để chỉnh sửa lời nhận xét
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Signatures */}
@@ -295,11 +427,12 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
           student={student}
-          grade={grade}
+          grade={{ ...grade, comment: feedback }}
           classroom={classroom}
           teacher={teacher}
           program={program}
           settings={settings}
+          onUpdateGrade={onUpdateGrade}
           onPrintPdf={handlePrint}
         />
       )}

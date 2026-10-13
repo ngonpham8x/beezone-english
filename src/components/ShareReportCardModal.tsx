@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Grade, Student, ClassRoom, Teacher, CourseProgram, CenterSettings } from '../types';
 import {
   Share2,
@@ -14,7 +14,9 @@ import {
   Sparkles,
   Award,
   Smartphone,
-  Info
+  Info,
+  Edit3,
+  Save
 } from 'lucide-react';
 import { toPng, toBlob } from 'html-to-image';
 import ExcelJS from 'exceljs';
@@ -29,6 +31,7 @@ interface ShareReportCardModalProps {
   teacher?: Teacher;
   program?: CourseProgram;
   settings: CenterSettings;
+  onUpdateGrade?: (updatedGrade: Grade) => void;
   onPrintPdf?: () => void;
 }
 
@@ -41,6 +44,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   teacher,
   program,
   settings,
+  onUpdateGrade,
   onPrintPdf
 }) => {
   const [activeTab, setActiveTab] = useState<'image' | 'text' | 'files'>('image');
@@ -113,9 +117,46 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     year: 'numeric'
   }).format(new Date());
 
-  const teacherFeedback =
+  const initialFeedback =
+    grade.comment ||
     student.notes?.trim() ||
-    'Em có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm. Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh hằng ngày để sẵn sàng cho cấp độ tiếp theo.';
+    `Em ${student.name} có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm. Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh hằng ngày để sẵn sàng cho cấp độ tiếp theo.`;
+
+  const [feedback, setFeedback] = useState(initialFeedback);
+  const [isEditingFeedback, setIsEditingFeedback] = useState(false);
+
+  useEffect(() => {
+    if (grade.comment) {
+      setFeedback(grade.comment);
+    }
+  }, [grade.comment]);
+
+  const handleSaveFeedback = (newComment: string) => {
+    setFeedback(newComment);
+    setIsEditingFeedback(false);
+    if (onUpdateGrade) {
+      onUpdateGrade({
+        ...grade,
+        comment: newComment
+      });
+    }
+    showToast('Đã lưu nhận xét mới vào bảng điểm!');
+  };
+
+  const templates = [
+    {
+      title: 'Xuất sắc / Giỏi',
+      text: `Em ${student.name} có thái độ học tập xuất sắc, tiếp thu kiến thức nhanh, phát âm chuẩn và phản xạ giao tiếp tự tin. Rất tích cực đóng góp xây dựng bài học.`
+    },
+    {
+      title: 'Khá / Tiến bộ',
+      text: `Em ${student.name} có thái độ học tập nghiêm túc, kỹ năng Nghe và Đọc tốt. Cần duy trì thói quen luyện nói tiếng Anh hằng ngày để phản xạ lưu loát hơn nữa.`
+    },
+    {
+      title: 'Cần cố gắng',
+      text: `Em ${student.name} ngoan, chú ý nghe giảng. Cần tập trung hơn trong giờ học và chủ động ôn luyện từ vựng, ngữ pháp tại nhà để đạt kết quả cao hơn.`
+    }
+  ];
 
   const skills = [
     { name: 'Listening (Kỹ năng Nghe)', score: grade.listening, max: 10, desc: 'Khả năng nhận diện ngữ âm, bắt ý chính và từ khóa bài nghe' },
@@ -146,7 +187,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     `🏆 XẾP LOẠI TOÀN KHÓA: ${rank.label}`,
     `────────────────────────────────────────`,
     `💬 NHẬN XÉT CỦA GIÁO VIÊN:`,
-    `"${teacherFeedback}"`,
+    `"${feedback}"`,
     `────────────────────────────────────────`,
     `📍 ${settings.name || 'TRUNG TÂM ANH NGỮ BEEZONE'}`,
     `🏡 Đ/C: ${settings.address || '111 Ngô Quyền, Long Hải, Trường Tây, Hòa Thành, Tây Ninh'}`,
@@ -532,13 +573,70 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       </div>
 
       {/* 7. Teacher's Evaluation & Advice */}
-      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 mb-4">
-        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block mb-1">
-          💬 Nhận xét & lời khuyên của giáo viên:
-        </span>
-        <p className="text-xs text-slate-700 leading-relaxed italic">
-          "{teacherFeedback}"
-        </p>
+      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 mb-4 transition-all">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block">
+            💬 Nhận xét & lời khuyên của giáo viên:
+          </span>
+          {!isExport && (
+            <button
+              type="button"
+              onClick={() => setIsEditingFeedback(!isEditingFeedback)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/80 hover:bg-amber-200 px-2 py-0.5 rounded-md transition cursor-pointer"
+            >
+              <Edit3 className="w-3 h-3 text-amber-700" />
+              <span>{isEditingFeedback ? 'Đóng' : 'Sửa nhận xét'}</span>
+            </button>
+          )}
+        </div>
+
+        {!isExport && isEditingFeedback ? (
+          <div className="space-y-2 mt-2">
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              rows={3}
+              className="w-full p-2.5 bg-white border-2 border-amber-400 rounded-xl text-xs text-slate-800 leading-relaxed font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-inner"
+              placeholder="Nhập nhận xét của giáo viên..."
+              autoFocus
+            />
+            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] text-slate-500 font-semibold">Mẫu nhanh:</span>
+                {templates.map((tpl) => (
+                  <button
+                    key={tpl.title}
+                    type="button"
+                    onClick={() => setFeedback(tpl.text)}
+                    className="text-[10px] px-2 py-0.5 bg-white hover:bg-amber-50 border border-slate-300 rounded text-slate-700 font-medium transition cursor-pointer"
+                  >
+                    {tpl.title}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveFeedback(feedback)}
+                className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <Save className="w-3 h-3" />
+                <span>Lưu nhận xét</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p
+            onClick={() => {
+              if (!isExport) setIsEditingFeedback(true);
+            }}
+            className={`text-xs text-slate-700 leading-relaxed italic ${
+              !isExport ? 'cursor-pointer hover:bg-amber-50/60 p-1.5 -m-1.5 rounded-lg transition-colors' : ''
+            }`}
+            title={!isExport ? 'Bấm để chỉnh sửa nhận xét' : undefined}
+          >
+            "{feedback}"
+          </p>
+        )}
       </div>
 
       {/* 8. Signatures */}

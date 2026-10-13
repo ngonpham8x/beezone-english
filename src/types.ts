@@ -117,6 +117,7 @@ export interface Grade {
   finalExam: number;
   attendance: number;
   average: number;
+  comment?: string;
 }
 
 export interface TuitionInstallment {
