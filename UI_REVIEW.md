@@ -63,3 +63,26 @@ Có thêm kiểm thử mở nhóm nhắc hạn đang thu gọn rồi sửa đún
 ## Giới hạn cần xác nhận trực quan
 
 Công cụ trình duyệt trả về danh sách kết nối trống (`apps: [], browsers: []`). Chưa thể chụp ảnh, đo tràn ngang bằng trình duyệt thật hoặc xác nhận Chrome/Safari/iOS/Android. Bản in A4, ảnh xuất/chia sẻ và PWA ở chế độ độc lập cũng cần kiểm tra trên trình duyệt/thiết bị thật. Không có cam kết rằng mọi thiết bị và mọi mức zoom đã được kiểm tra trực quan.
+
+## Bổ sung: thứ tự Tổng quan và bố cục từng nhóm mục
+
+- Đưa khung chào mừng lên trước **Việc cần làm hôm nay** theo ảnh đánh dấu. Bỏ nút **Thu học phí** màu xanh trong khung công việc; giữ lối vào học phí ở khung chào mừng.
+- Khung chào mừng và công việc dùng khoảng đệm nhỏ hơn, dòng hành động tự xuống hàng. Thẻ công việc không bị kéo cao theo thẻ bên cạnh; lưới một/hai/bốn cột theo chiều rộng nội dung.
+- Đưa thông báo xem thử vào header được đo chiều cao, để menu desktop tính cả dòng thông báo khi xác định vùng cuộn. Giữ nguyên cảnh báo dữ liệu chỉ lưu trên trình duyệt; có kiểm thử slot thông báo và cập nhật chiều cao khi resize.
+- Dùng tiêu đề trang chung ở 11 màn hình danh sách/lịch, tự xuống dòng giữa tiêu đề và công cụ khi không đủ chỗ. Chữ tiêu đề 18 px, biểu tượng 20 px; ô nhập/nút trên màn hình nhỏ vẫn giữ kích thước thao tác.
+- Lưới thẻ chương trình, lớp, giáo viên, phòng và các danh sách ở dạng thẻ dùng `auto-fill` theo chiều rộng nội dung. Thẻ thông thường tối thiểu 18 rem, phòng 15 rem; màn hình hẹp cho thẻ chiếm toàn bộ chiều rộng mà không vượt khung. Thống kê lớp/chương trình và phần thu học phí Tổng quan dùng thẻ gọn chung.
+- Biểu đồ Tổng quan chuyển giữa một/hai/ba cột theo vùng nội dung; hai bảng chi tiết chỉ nằm cạnh nhau khi đủ chỗ. Nhãn số liệu và bộ lọc vẫn giữ nghiệp vụ hiện có. Thêm tên truy cập cho nút sửa/xóa phòng.
+
+| Nhóm mục | Bố cục được rà trong mã |
+| --- | --- |
+| Tổng quan | Chào mừng → công việc → thống kê; biểu đồ/bảng theo chiều rộng nội dung |
+| Học viên, Tuyển sinh, Điểm danh, Điểm số | Thẻ trên màn hình hẹp, bảng khi đủ rộng hoặc theo lựa chọn người dùng; công cụ xuống hàng |
+| Chương trình, Lớp, Giáo viên, Phòng | Thẻ tự chia cột theo chỗ còn lại sau menu; tiêu đề và hành động gọn |
+| Thời khóa biểu, Lịch giáo viên | Xem theo ngày trên điện thoại; lịch tuần và nút nhảy cuối tuần; cuộn dùng chung |
+| Học phí, Báo cáo | Thống kê gọn; biểu mẫu theo viewport; bảng có cuộn riêng; nhắc hạn mở khi cần |
+| Nhật ký, Kiểm tra dữ liệu | Bảng/cuộn và công cụ tự xuống dòng; giữ phân quyền và xác nhận nghiệp vụ |
+| Tài khoản, Sao lưu, Cấu hình và các biểu mẫu | Dialog/vùng nội dung cuộn theo viewport, giữ focus và đóng bằng Esc |
+
+`tests/navigation.test.tsx` chạy 18 mục × 3 chiều rộng 390/820/1366 px (54 trường hợp). `tests/dashboard-layout.test.tsx` kiểm tra thứ tự khung, nút học phí còn lại và thu gọn banner tại các kích thước 320/390/820/1024/1366 px. Toàn bộ **183 test / 15 tệp**, TypeScript và production build qua.
+
+Đã thử truy cập trực tiếp `http://localhost:3000/?tab=dashboard`: HTTP và các module phục vụ bình thường. Công cụ UI vẫn không có browser kết nối; cả thao tác mở browser trong ứng dụng (`iab`) và Chrome đều trả **Browser is not available**. Các kết quả trên là kiểm tra mã/hành vi jsdom, chưa phải xác nhận bố cục pixel trên thiết bị thật.

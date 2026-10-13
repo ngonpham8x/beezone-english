@@ -181,3 +181,17 @@ it('releases the drawer lock when rotating into a desktop layout', () => {
   expect(document.body.style.overflow).toBe('');
   expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('includes the preview notice in the measured header height', () => {
+  viewport(390, 844);
+  let measuredHeight = 88;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+    x: 0, y: 0, top: 0, left: 0, right: 390, bottom: measuredHeight,
+    width: 390, height: measuredHeight, toJSON: () => ({}),
+  }));
+  render(<LanguageProvider><Header currentUser={DEV_OWNER_ACCOUNT} settings={initial.initialSettings} onOpenLogin={vi.fn()} onOpenUserManagement={vi.fn()} onOpenBackupModal={vi.fn()} onOpenSettingsModal={vi.fn()} onLogout={vi.fn()} searchQuery="" setSearchQuery={vi.fn()} sidebarCollapsed onToggleSidebar={vi.fn()} statusNotice={<div>Bản xem thử</div>} /></LanguageProvider>);
+  expect(screen.getByRole('banner').contains(screen.getByText('Bản xem thử'))).toBe(true);
+  expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('88px');
+  act(() => { measuredHeight = 116; window.dispatchEvent(new Event('resize')); });
+  expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('116px');
+});

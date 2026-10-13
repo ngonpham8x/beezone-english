@@ -1,3 +1,4 @@
+import { StatCard } from './StatCard';
 import { DialogFrame } from './DialogFrame';
 import React, { useState, useMemo } from 'react';
 import { CourseProgram, ClassRoom, Student } from '../types';
@@ -131,9 +132,9 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   const totalStudentsEnrolled = students.length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-amber-600" />
@@ -156,39 +157,10 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Layers className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase">Tổng Khóa Học</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-0.5">{totalPrograms}</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase">Học Phí Trung Bình</p>
-            <p className="text-2xl font-extrabold text-emerald-700 mt-0.5">
-              {avgTuition.toLocaleString('vi-VN')} đ
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase">Tổng Học Viên Theo Học</p>
-            <p className="text-2xl font-extrabold text-blue-700 mt-0.5">{totalStudentsEnrolled}</p>
-          </div>
-        </div>
+      <div className="stats-grid stats-grid--three">
+        <StatCard label="Tổng chương trình" value={totalPrograms} icon={Layers} />
+        <StatCard label="Học phí trung bình" value={avgTuition.toLocaleString('vi-VN') + ' đ'} icon={Sparkles} tone="emerald" />
+        <StatCard label="Tổng học viên" value={totalStudentsEnrolled} icon={Users} tone="sky" />
       </div>
 
       {/* Filter and Search Bar */}
@@ -220,7 +192,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       </div>
 
       {/* Programs Grid */}
-      <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-5">
+      <div className="entity-grid">
         {filteredPrograms.map(prog => {
           const classCount = classes.filter(c => c.programId === prog.id).length;
           const studentCount = students.filter(s => s.programId === prog.id).length;

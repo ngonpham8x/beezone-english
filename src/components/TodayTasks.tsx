@@ -93,45 +93,37 @@ export function TodayTasks({
       )
     : [];
   const tile = (title: string, body: React.ReactNode) => (
-    <div className="min-w-0 rounded-xl border border-slate-200 p-3">
-      <h4 className="mb-2 text-sm font-bold text-slate-800">{title}</h4>
-      <div className="max-h-60 space-y-2 overflow-y-auto text-sm">{body}</div>
+    <div className="min-w-0 rounded-lg border border-slate-200 p-3">
+      <h4 className="mb-2 text-xs font-semibold text-slate-800">{title}</h4>
+      <div className="max-h-52 space-y-2 overflow-y-auto text-xs">{body}</div>
     </div>
   );
   const empty = <p className="text-xs text-slate-500">Không có việc cần xử lý.</p>;
   return (
     <section
       aria-label="Việc cần làm hôm nay"
-      className="rounded-2xl border border-amber-200 bg-white p-4 sm:p-5"
+      className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Việc cần làm hôm nay</h2>
+          <h2 className="text-base font-bold text-slate-900">Việc cần làm hôm nay</h2>
           <p className="text-xs text-slate-500">
             {today.split('-').reverse().join('/')} · Học phí nhắc trước 7 ngày, đợt học nhắc trước
             14 ngày.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {studentView && (
+          {(owner || user.permissions.student.add) && (
             <button
               onClick={() => onOpen({ tab: 'admissions' })}
-              className="rounded-lg bg-amber-100 px-3 py-2 text-sm font-bold text-amber-950"
+              className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950"
             >
               Thêm học viên
             </button>
           )}
-          {(owner || user.permissions.tuition.view) && (
-            <button
-              onClick={() => onOpen({ tab: 'tuition' })}
-              className="rounded-lg bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950"
-            >
-              Thu học phí
-            </button>
-          )}
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="today-tasks-grid mt-3 grid items-start gap-3">
         {tile(
           `Lớp hôm nay (${lessons.length})`,
           lessons.length

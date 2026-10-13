@@ -1312,9 +1312,9 @@ export default function App() {
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         syncStatus={isLocalPreview ? 'preview' : syncStatus}
+        statusNotice={isLocalPreview ? <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-900">Bản xem thử • Dữ liệu chỉ lưu trên trình duyệt của máy này.</div> : undefined}
       />
 
-      {isLocalPreview && <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">Bản xem thử • Dữ liệu chỉ lưu trên trình duyệt của máy này.</div>}
       {searchQuery.trim() && <section aria-label="Kết quả tìm kiếm nhanh" className="border-b border-amber-200 bg-white px-4 py-3"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold text-slate-600">Kết quả tìm kiếm nhanh</p><button onClick={() => setSearchQuery('')} className="rounded-lg px-3 py-1 text-xs font-bold text-slate-500">Xóa tìm kiếm</button></div><div className="mt-2 flex flex-wrap gap-2">{searchResults.length ? searchResults.map(result => <button key={`${result.tab}:${result.id}`} onClick={() => navigateTo(result.tab)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs hover:border-amber-400"><span className="font-bold text-amber-700">{result.label}: </span>{result.name}</button>) : <p className="text-sm text-slate-500">Không tìm thấy kết quả trong dữ liệu bạn được phép xem.</p>}</div></section>}
       {(syncError || storageError) && <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span className="flex-1">{syncError || storageError}</span>{syncStatus === 'error' && <button onClick={() => syncQueueRef.current?.retry()} className="rounded-lg border border-red-300 px-3 py-1 font-bold">Thử lưu lại</button>}{(currentUser.role === 'owner' || currentUser.permissions.excel.export) && <button onClick={() => setIsBackupModalOpen(true)} className="rounded-lg border border-red-300 px-3 py-1 font-bold">Xuất sao lưu</button>}</div>}
 

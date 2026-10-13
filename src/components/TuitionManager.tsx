@@ -429,7 +429,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <CreditCard className="w-6 h-6 text-amber-600" />

@@ -16,6 +16,29 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 }
 @media (min-width: 640px) { .workspace-content { --workspace-padding: 1rem; padding-top: 1rem; } }
 
+.dashboard-welcome-compact > div:first-child { flex: 1 1 12rem; }
+@container (min-width: 850px) { .dashboard-welcome-layout { flex-direction: row; align-items: center; } }
+.today-tasks-grid { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 520px) { .today-tasks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 900px) { .today-tasks-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.page-heading { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 1rem; border-radius: 0.75rem; box-shadow: none; }
+.page-heading > div:first-child { flex: 1 1 18rem; min-width: 0; }
+.page-heading > :last-child { min-width: 0; max-width: 100%; }
+.page-heading h2 { font-size: 1.125rem; line-height: 1.4; }
+.page-heading h2 svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+.page-heading select { max-width: 100%; }
+.entity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 0.75rem; }
+.entity-grid--rooms { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+.entity-grid > * { min-width: 0; }
+.entity-grid > .p-5, .entity-grid > * > .p-5 { padding: 1rem; }
+.dashboard-analytics, .dashboard-tables { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+.dashboard-analytics > *, .dashboard-tables > * { min-width: 0; }
+@container (min-width: 650px) { .dashboard-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 1050px) { .dashboard-analytics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (min-width: 950px) { .dashboard-tables { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) { .page-heading { padding: 0.75rem; } }
+
 /* Dialogs follow the visible viewport, including the mobile keyboard. */
 @media screen {
   .dialog-viewport {
@@ -71,6 +94,7 @@ button.stat-card:hover { border-color: #cbd5e1; background: #f8fafc; }
 .stat-card[data-tone="sky"] .stat-card-label { color: #0369a1; }
 .stat-card[data-tone="violet"] .stat-card-label { color: #6d28d9; }
 @container (min-width: 700px) { .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (min-width: 700px) { .stats-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container (min-width: 950px) { .stats-grid--five { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 479px) { .stat-card-value { font-size: 1.0625rem; } }
 .tuition-tools { border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #fff; }

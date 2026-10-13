@@ -110,7 +110,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Award className="w-6 h-6 text-amber-600" />
@@ -368,7 +368,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         </div>
       ) : (
         /* Mobile Card View */
-        <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-3.5">
+        <div className="entity-grid">
           {classStudents.map((st) => {
             const grade = grades.find(g => g.studentId === st.id && g.classId === st.classId) || {
               id: `G_${st.id}`,

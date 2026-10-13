@@ -60,7 +60,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
     <div data-print-teacher-schedule className="teacher-print-schedule space-y-6 print:m-0 print:p-0">
       {scheduleChanges && <div className="print:hidden"><ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={[]} isOwner={false} onSave={() => 'Chỉ Chủ trung tâm được đổi lịch.'} onDelete={() => 'Chỉ Chủ trung tâm được đổi lịch.'} /><p className="mt-2 text-xs text-slate-500">Ma trận bên dưới là lịch tuần lặp lại; lịch thực tế phía trên đã tính buổi nghỉ và học bù.</p></div>}
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs print:hidden">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs print:hidden">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <CalendarCheck className="w-6 h-6 text-amber-600" />

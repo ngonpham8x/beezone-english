@@ -4,7 +4,7 @@ import type { AttendanceSession, ScheduleChange, TimetableSlot } from '../types'
 import { HorizontalScroll } from './HorizontalScroll';
 import React, { useState } from 'react';
 import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { AlertTriangle, Building2, CheckCircle2, DollarSign, GraduationCap, Users, UserCheck, UserMinus, Sparkles, TrendingUp, Calendar, ArrowRight, UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle2, DollarSign, GraduationCap, Users, UserCheck, UserMinus, Sparkles, Calendar, ArrowRight, UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { ClassRoom, CourseProgram, Room, Student, Teacher, TuitionReceipt, UserAccount } from '../types';
 import { DashboardDetailModal, DashboardDetailType } from './DashboardDetailModal';
 import { debtBreakdown, paymentKindOf, getReceiptPaymentEntries } from '../lib/tuition';
@@ -138,6 +138,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   };
 
   const todayString = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
     weekday: 'long',
     day: '2-digit',
     month: '2-digit',
@@ -145,16 +146,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   }).format(new Date());
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-8">
-      <TodayTasks classes={classes} students={students} slots={timetableSlots} changes={scheduleChanges} attendance={attendanceSessions} receipts={receipts} teachers={teachers} user={currentUser} onOpen={onOpenTask || (destination => onNavigateTab(destination.tab))} />
+    <div className="space-y-4 pb-6">
       {/* Friendly Hero Banner */}
-      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 p-3.5 sm:p-5 text-slate-950 shadow-xs sm:shadow-md border border-amber-300/60 transition-all">
+      <section aria-label="Chào mừng" className="dashboard-welcome relative overflow-hidden rounded-xl border border-amber-300 bg-gradient-to-r from-amber-300 to-amber-400 p-3 sm:p-4 text-slate-950">
         {/* Subtle decorative background glow */}
         <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-white/20 blur-xl" />
         <div className="pointer-events-none absolute -left-8 -bottom-8 h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-slate-950/10 blur-xl" />
 
         {isBannerMinimized ? (
-          <div className="relative z-10 flex items-center justify-between gap-2">
+          <div className="dashboard-welcome-compact relative z-10 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-base sm:text-lg shrink-0">🐝</span>
               <p className="text-xs sm:text-sm font-bold text-slate-950 truncate">
@@ -189,7 +189,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             </div>
           </div>
         ) : (
-          <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4">
+          <div className="dashboard-welcome-layout relative z-10 flex flex-col justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2 mb-1">
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/10 px-2.5 py-0.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-950">
@@ -207,18 +207,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
                 </button>
               </div>
 
-              <h1 className="text-base sm:text-xl md:text-2xl font-black tracking-tight text-slate-950 flex items-center gap-1.5 flex-wrap leading-tight">
+              <h1 className="text-base sm:text-xl font-bold tracking-tight text-slate-950 flex items-center gap-1.5 flex-wrap leading-tight">
                 <span>Xin chào, {currentUser.name.replace(/\s*\(Quản [L|l]ý\)/gi, '')}!</span>
                 <span className="text-lg sm:text-xl">🐝</span>
               </h1>
 
-              <p className="text-xs sm:text-sm font-semibold text-slate-950/85 mt-1 leading-snug">
+              <p className="text-xs text-slate-950/85 mt-1 leading-relaxed">
                 Hôm nay là <span className="capitalize">{todayString}</span> • <b>{activeStudents.length} học viên</b> đang học • <b>{classes.length} lớp</b> đang vận hành
               </p>
             </div>
 
             {/* Action buttons: Side-by-side pills */}
-            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 pt-0.5 xl:pt-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => onNavigateTab('attendance')}
@@ -239,6 +239,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
           </div>
         )}
       </section>
+
+      <TodayTasks classes={classes} students={students} slots={timetableSlots} changes={scheduleChanges} attendance={attendanceSessions} receipts={receipts} teachers={teachers} user={currentUser} onOpen={onOpenTask || (destination => onNavigateTab(destination.tab))} />
 
       {/* Primary Metric Cards */}
       <section className="stats-grid stats-grid--five">
@@ -264,57 +266,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
         <Card label="Đã đóng đủ" value={paidStudents.length} icon={CheckCircle2} color="bg-emerald-100 text-emerald-600" detail="paid" subtitle="Hoàn thành học phí" />
       </section>
 
-      {/* Financial Transparency Banner & Progress */}
-      {showDebt && (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
-                Minh Bạch Tài Chính & Tiến Độ Thu Học Phí Toàn Trung Tâm
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Cập nhật tức thời từ tất cả các phiếu thu và công nợ thực tế trong hệ thống
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                Đã thu đạt {collectionRate}%
-              </span>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200">
-            <div
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(collectionRate, 100)}%` }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-              <p className="text-slate-500 font-semibold uppercase text-[10px]">1. Tổng Phải Thu</p>
-              <p className="mt-1 text-lg font-black text-slate-900">{currency(totalDue)}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Bao gồm học phí tháng, khóa và buổi</p>
-            </div>
-            <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200">
-              <p className="text-emerald-700 font-semibold uppercase text-[10px]">2. Thực Thu (Đã Vào Quỹ)</p>
-              <p className="mt-1 text-lg font-black text-emerald-700">{currency(totalCollected)}</p>
-              <p className="text-[10px] text-emerald-600/80 mt-0.5">Đã xuất phiếu thu hợp lệ</p>
-            </div>
-            <div className="p-3.5 bg-rose-50/60 rounded-xl border border-rose-200">
-              <p className="text-rose-700 font-semibold uppercase text-[10px]">3. Còn Nợ Đọng</p>
-              <p className="mt-1 text-lg font-black text-rose-700">{currency(totalDebt)}</p>
-              <p className="text-[10px] text-rose-600/80 mt-0.5">Tháng: {currency(totalDebtBreakdown.monthly)} · Khóa: {currency(totalDebtBreakdown.course)} · Buổi: {currency(totalDebtBreakdown.session)}</p>
-            </div>
-          </div>
-        </section>
-      )}
+      {showDebt && <section className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-800">Thu học phí toàn trung tâm</h2>
+          <div className="flex items-center gap-3 text-xs"><span className="text-slate-500">Đã thu {collectionRate}%</span><button type="button" onClick={() => onNavigateTab('tuition')} className="rounded-lg px-2 py-1.5 font-semibold text-amber-800 hover:bg-amber-50">Xem phiếu thu</button></div>
+        </div>
+        <div className="stats-grid stats-grid--three">
+          <StatCard label="Tổng phải thu" value={currency(totalDue)} subtitle="Tháng, khóa và buổi" />
+          <StatCard label="Tiền đã nhận" value={currency(totalCollected)} tone="emerald" subtitle="Các đợt thu thực tế" />
+          <StatCard label="Còn phải thu" value={currency(totalDebt)} tone="rose" subtitle={'Tháng: '+currency(totalDebtBreakdown.monthly)+' · Khóa: '+currency(totalDebtBreakdown.course)+' · Buổi: '+currency(totalDebtBreakdown.session)} />
+        </div>
+        <div className="h-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div className="h-full rounded-full bg-emerald-500" style={{width:Math.min(collectionRate,100)+'%'}} /></div>
+      </section>}
 
       {/* Visual Analytics */}
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+      <section className="dashboard-analytics">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-sm font-bold text-slate-900">Học sinh theo chương trình</h2>
           <div className="mt-3 flex flex-col items-center gap-3">
             <div className="h-36 w-36 shrink-0">
@@ -340,9 +307,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
-          <h2 className="text-sm font-bold text-slate-900">Doanh thu theo tháng & khóa</h2>
-          <p className="mt-0.5 text-[10px] text-slate-500">Tách theo khoản thu trên phiếu đã lập trong từng tháng.</p>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-bold text-slate-900">Doanh thu theo tháng</h2>
+          <p className="mt-0.5 text-[10px] text-slate-500">Theo ngày nhận tiền của từng đợt thu.</p>
           <div className="mt-2 h-44">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyRevenueData} barGap={4}>
@@ -358,7 +325,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-sm font-bold text-slate-900">Tình trạng học phí</h2>
           <div className="mt-3 flex flex-col items-center gap-3">
             <div className="h-36 w-36 shrink-0">
@@ -396,7 +363,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <section className="dashboard-tables">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Tổng thu từng lớp — {monthLabel(latestReceiptMonth)}</h2><p className="mt-1 text-[11px] text-slate-500">Đã thu và nợ của các phiếu thu trong tháng này.</p></div><button onClick={() => onNavigateTab('tuition')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Quản lý học phí</button></div><HorizontalScroll label="Tổng thu từng lớp" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Lớp</th><th className="px-4 py-3 text-right">Đã thu</th>{showDebt && <th className="px-4 py-3 text-right">Công nợ theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{classMonthlyData.map(({ classroom, collected, debt }) => <tr key={classroom.id}><td className="px-4 py-3"><b className="text-slate-900">{classroom.code}</b><span className="ml-2 text-slate-500">{classroom.name}</span></td><td className="px-4 py-3 text-right font-bold text-emerald-700">{currency(collected)}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{debt.total > 0 ? <><div>{currency(debt.total)}</div>{debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(debt.monthly)}</div>}{debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(debt.course)}</div>}{debt.session > 0 && <div className="mt-0.5 text-[10px]">Buổi: {currency(debt.session)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Danh sách học sinh</h2><p className="mt-1 text-[11px] text-slate-500">Dữ liệu từ hồ sơ và phiếu thu đã chuẩn hoá.</p></div><button onClick={() => onNavigateTab('students')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Xem tất cả</button></div><HorizontalScroll label="Danh sách học viên" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Học sinh</th><th className="px-4 py-3">Lớp</th>{showDebt && <th className="px-4 py-3 text-right">Nợ theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{studentRows.map((student) => <tr key={student.id}><td className="px-4 py-3 font-bold text-slate-700">{student.code}</td><td className="px-4 py-3"><b className="text-slate-900">{student.name}</b><span className="mt-0.5 block text-[11px] text-slate-500">{student.status === 'reserved' ? 'Bảo lưu' : student.status === 'dropped' ? 'Nghỉ học' : 'Đang học'}</span></td><td className="px-4 py-3 text-slate-600">{student.classroom?.code || 'Chưa xếp'}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{student.debt.total > 0 ? <><div>{currency(student.debt.total)}</div>{student.debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(student.debt.monthly)}</div>}{student.debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(student.debt.course)}</div>}{student.debt.session > 0 && <div className="mt-0.5 text-[10px]">Buổi: {currency(student.debt.session)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
       </section>

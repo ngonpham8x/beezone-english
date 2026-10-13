@@ -12,7 +12,7 @@ Kiểm tra: **139 test / 14 tệp**, TypeScript và build local qua; build Verce
 
 Domain chính đã được kiểm tra lại: HTTP 200, vẫn dùng CSS cũ `index-D6DviX8x.css`. Alias `beezone-english-ngonpham8x.vercel.app` trỏ tới bản staged và có bảo vệ bằng tài khoản Vercel; domain chính chưa được chuyển.
 
-Đợt chỉnh giao diện theo phản hồi zoom 100% đã chạy tại `localhost:3000` và cập nhật trong GitHub: thẻ thống kê gọn, bộ lọc theo chiều rộng nội dung, thanh cuộn tối giản. 140 kiểm thử và build local qua; chưa đưa thay đổi giao diện này vào deployment Vercel nêu trên. Chi tiết tại [UI_REVIEW.md](UI_REVIEW.md).
+Đợt chỉnh giao diện đã chạy tại `localhost:3000` và cập nhật trong GitHub: thẻ thống kê gọn, bộ lọc theo chiều rộng nội dung, thanh cuộn tối giản, khung chào mừng trước công việc, bỏ nút thu học phí xanh lặp, thống nhất tiêu đề/lưới thẻ và chiều cao header gồm thông báo xem thử. 183 kiểm thử và build local qua; chưa đưa thay đổi giao diện này vào deployment Vercel nêu trên. Công cụ chưa có browser để xác nhận trực quan. Chi tiết tại [UI_REVIEW.md](UI_REVIEW.md).
 
 ## Hai bước còn thiếu trước khi chuyển domain
 

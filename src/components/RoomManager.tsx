@@ -68,7 +68,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <DoorOpen className="w-6 h-6 text-amber-600" />
@@ -91,7 +91,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 @min-[580px]:grid-cols-2 @min-[1100px]:grid-cols-4 gap-4 sm:gap-6">
+      <div className="entity-grid entity-grid--rooms">
         {rooms.map((room) => {
           const roomClasses = classes.filter(c => c.roomId === room.id);
 
@@ -112,6 +112,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                   {canEdit && (
                     <div className="flex items-center gap-1">
                       <button
+                        aria-label={`Sửa phòng ${room.name}`}
                         onClick={() => {
                           setEditingRoom(room);
                           setIsModalOpen(true);
@@ -121,6 +122,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
+                        aria-label={`Xóa phòng ${room.name}`}
                         onClick={() => {
                           if (confirm(`Xóa phòng ${room.name}?`)) onDeleteRoom(room.id);
                         }}

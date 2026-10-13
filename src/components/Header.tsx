@@ -32,6 +32,7 @@ interface HeaderProps {
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   syncStatus?: 'preview' | 'saved' | 'saving' | 'error' | 'conflict';
+  statusNotice?: React.ReactNode;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,7 +45,8 @@ export const Header: React.FC<HeaderProps> = ({
   setSearchQuery,
   sidebarCollapsed,
   onToggleSidebar,
-  syncStatus = 'saved'
+  syncStatus = 'saved',
+  statusNotice
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -220,6 +222,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       )}
+      {statusNotice}
     </header>
   );
 };

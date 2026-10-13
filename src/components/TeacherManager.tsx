@@ -87,7 +87,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-amber-600" />
@@ -110,7 +110,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       </div>
 
       {/* Teacher Cards Grid */}
-      <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-4 sm:gap-6">
+      <div className="entity-grid">
         {teachers.filter(teacher => matchesSearch(searchQuery, teacher.name, teacher.phone, teacher.email)).map((teacher) => {
           const teacherClasses = classes.filter(c => c.teacherId === teacher.id);
 

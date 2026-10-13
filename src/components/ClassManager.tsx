@@ -1,3 +1,4 @@
+import { StatCard } from './StatCard';
 import { DialogFrame } from './DialogFrame';
 import { courseStatusLabels, validateCourse, validateRecurringChanges } from '../lib/operations';
 import { matchesSearch } from '../lib/search';
@@ -261,7 +262,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-amber-600" />
@@ -283,57 +284,15 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
         )}
       </div>
 
-      {/* Quick Stats Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng Lớp Mở</div>
-            <div className="text-xl font-black text-slate-900 mt-0.5">{classes.length} lớp</div>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <BookOpen className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Đã Phân Công GV</div>
-            <div className="text-xl font-black text-emerald-700 mt-0.5">
-              {classes.filter(c => c.teacherId).length} / {classes.length}
-            </div>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <UserCheck className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Học Viên Đang Học</div>
-            <div className="text-xl font-black text-sky-700 mt-0.5">
-              {classes.reduce((sum, c) => sum + students.filter(s => s.classId === c.id).length, 0)} bạn
-            </div>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng Sức Chứa</div>
-            <div className="text-xl font-black text-slate-900 mt-0.5">
-              {classes.reduce((sum, c) => sum + (c.capacity || 0), 0)} chỗ
-            </div>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <DoorOpen className="w-5 h-5" />
-          </div>
-        </div>
+      <div className="stats-grid">
+        <StatCard label="Tổng lớp mở" value={classes.length + ' lớp'} icon={BookOpen} />
+        <StatCard label="Đã phân công giáo viên" value={classes.filter(c => c.teacherId).length + ' / ' + classes.length} icon={UserCheck} tone="emerald" />
+        <StatCard label="Học viên theo lớp" value={classes.reduce((sum,c) => sum+students.filter(s => s.classId === c.id).length,0) + ' bạn'} icon={Users} tone="sky" />
+        <StatCard label="Tổng sức chứa" value={classes.reduce((sum,c) => sum+(c.capacity || 0),0) + ' chỗ'} icon={DoorOpen} tone="violet" />
       </div>
 
       {/* Class Cards Grid */}
-      <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-4 sm:gap-6">
+      <div className="entity-grid">
         {classes.filter(cls => matchesSearch(searchQuery, cls.name, cls.code)).map((cls) => {
           const teacher = teachers.find(t => t.id === cls.teacherId);
           const room = rooms.find(r => r.id === cls.roomId);
