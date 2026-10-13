@@ -34,6 +34,21 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const rank = getRank(grade.average);
 
+  const formatDob = (dob?: string) => {
+    if (!dob) return '';
+    try {
+      const d = new Date(dob);
+      if (isNaN(d.getTime())) return dob;
+      return new Intl.DateTimeFormat('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }).format(d);
+    } catch {
+      return dob;
+    }
+  };
+
   const handlePrint = () => {
     const prevTitle = document.title;
     document.title = `BEEZONE_PhieuDiem_${student.name.replace(/\s+/g, '_')}_${classroom?.name || 'BeeZone'}`;
@@ -130,22 +145,63 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           </div>
 
           {/* Student Info Box */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:gap-2 bg-slate-50/80 p-4 print:p-2.5 rounded-xl border border-slate-200 text-xs mb-6 print:mb-2.5">
-            <div>
-              <span className="text-slate-500 font-medium block">Học viên:</span>
-              <strong className="text-slate-900 font-bold text-sm print:text-xs">{student.name}</strong>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium block">Lớp học:</span>
-              <strong className="text-slate-800">{classroom?.name || 'Chưa gán'}</strong>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium block">Khóa học:</span>
-              <strong className="text-slate-800">{program?.name || 'Khóa Tiếng Anh'}</strong>
-            </div>
-            <div>
-              <span className="text-slate-500 font-medium block">Giáo viên phụ trách:</span>
-              <strong className="text-indigo-800">{teacher?.name || 'Giáo viên phụ trách'}</strong>
+          <div className="bg-amber-50/50 p-4 print:p-2.5 rounded-2xl border border-amber-200/90 text-xs mb-6 print:mb-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 print:gap-2">
+              <div className="space-y-2">
+                <div>
+                  <span className="text-slate-500 text-[11px] font-semibold block">Họ và tên học viên:</span>
+                  <strong className="text-slate-950 font-black text-base print:text-sm block leading-snug break-words text-amber-950">
+                    {student.name}
+                  </strong>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap pt-0.5">
+                  <div>
+                    <span className="text-slate-500 text-[10px] font-medium block">Mã học viên:</span>
+                    <span className="font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded text-xs border border-amber-200">
+                      {student.code}
+                    </span>
+                  </div>
+                  {student.dob && (
+                    <div>
+                      <span className="text-slate-500 text-[10px] font-medium block">Ngày sinh:</span>
+                      <span className="font-bold text-slate-800 text-xs bg-white px-2 py-0.5 rounded border border-slate-200">
+                        {formatDob(student.dob)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-slate-500 text-[11px] font-semibold block">Lớp học:</span>
+                    <strong className="text-slate-900 font-bold text-xs block leading-snug break-words">
+                      {classroom?.name || 'BeeZone'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px] font-semibold block">Chương trình / Khóa học:</span>
+                    <strong className="text-slate-900 font-bold text-xs block leading-snug break-words">
+                      {program?.name || 'Khóa Tiếng Anh'}
+                    </strong>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <div>
+                    <span className="text-slate-500 text-[11px] font-semibold block">Giáo viên phụ trách:</span>
+                    <strong className="text-indigo-900 font-bold text-xs block leading-snug break-words">
+                      {teacher?.name || 'Giáo viên BeeZone'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[11px] font-semibold block">Năm học:</span>
+                    <strong className="text-slate-700 font-bold text-xs block">
+                      2026
+                    </strong>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

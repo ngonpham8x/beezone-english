@@ -13,8 +13,6 @@ import {
   Image as ImageIcon,
   Sparkles,
   Award,
-  Send,
-  Printer,
   Smartphone,
   Info
 } from 'lucide-react';
@@ -51,7 +49,10 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const cardRef = useRef<HTMLDivElement>(null);
+  // Dedicated unclipped DOM element for 100% full-height image generation
+  const exportCardRef = useRef<HTMLDivElement>(null);
+  // Preview DOM element inside the modal
+  const previewCardRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
@@ -60,35 +61,47 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const formatDob = (dob?: string) => {
+    if (!dob) return '';
+    try {
+      const d = new Date(dob);
+      if (isNaN(d.getTime())) return dob;
+      return new Intl.DateTimeFormat('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }).format(d);
+    } catch {
+      return dob;
+    }
+  };
+
+  const dobText = formatDob(student.dob);
+
   const getRank = (avg: number) => {
     if (avg >= 9.0)
       return {
         label: 'XUẤT SẮC (EXCELLENT)',
-        color: 'text-emerald-700 bg-emerald-50 border-emerald-300',
-        badge: 'bg-emerald-600'
+        color: 'text-emerald-800 bg-emerald-50 border-emerald-300'
       };
     if (avg >= 8.0)
       return {
         label: 'GIỎI (VERY GOOD)',
-        color: 'text-blue-700 bg-blue-50 border-blue-300',
-        badge: 'bg-blue-600'
+        color: 'text-blue-800 bg-blue-50 border-blue-300'
       };
     if (avg >= 6.5)
       return {
         label: 'KHÁ (GOOD)',
-        color: 'text-amber-700 bg-amber-50 border-amber-300',
-        badge: 'bg-amber-600'
+        color: 'text-amber-800 bg-amber-50 border-amber-300'
       };
     if (avg >= 5.0)
       return {
         label: 'TRUNG BÌNH (AVERAGE)',
-        color: 'text-orange-700 bg-orange-50 border-orange-300',
-        badge: 'bg-orange-600'
+        color: 'text-orange-800 bg-orange-50 border-orange-300'
       };
     return {
       label: 'CẦN CỐ GẮNG (NEEDS IMPROVEMENT)',
-      color: 'text-red-700 bg-red-50 border-red-300',
-      badge: 'bg-red-600'
+      color: 'text-red-800 bg-red-50 border-red-300'
     };
   };
 
@@ -101,19 +114,20 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   }).format(new Date());
 
   const teacherFeedback =
+    student.notes?.trim() ||
     'Em có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm. Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh hằng ngày để sẵn sàng cho cấp độ tiếp theo.';
 
   const skills = [
-    { name: 'Listening (Kỹ năng Nghe)', score: grade.listening, max: 10, desc: 'Nghe hiểu ý chính, nhận diện từ khóa và ngữ điệu' },
-    { name: 'Speaking (Kỹ năng Nói)', score: grade.speaking, max: 10, desc: 'Phát âm chuẩn IPA, phản xạ giao tiếp tự tin' },
-    { name: 'Reading (Kỹ năng Đọc)', score: grade.reading, max: 10, desc: 'Vốn từ vựng, đọc hiểu ngữ cảnh bài đọc' },
-    { name: 'Writing (Kỹ năng Viết)', score: grade.writing, max: 10, desc: 'Cấu trúc câu, ngữ pháp chính xác và mạch lạc' }
+    { name: 'Listening (Kỹ năng Nghe)', score: grade.listening, max: 10, desc: 'Khả năng nhận diện ngữ âm, bắt ý chính và từ khóa bài nghe' },
+    { name: 'Speaking (Kỹ năng Nói)', score: grade.speaking, max: 10, desc: 'Phát âm chuẩn IPA, độ lưu loát và phản xạ giao tiếp tự tin' },
+    { name: 'Reading (Kỹ năng Đọc)', score: grade.reading, max: 10, desc: 'Vốn từ vựng phong phú, đọc hiểu ngữ cảnh và cấu trúc đoạn' },
+    { name: 'Writing (Kỹ năng Viết)', score: grade.writing, max: 10, desc: 'Cấu trúc câu, ngữ pháp chính xác và diễn đạt mạch lạc' }
   ];
 
   // Formatted report text for quick sharing via chat apps
   const reportText = [
     `🎓 BÁO CÁO KẾT QUẢ HỌC TẬP — ${settings.name || 'ANH NGỮ BEEZONE'} 🐝`,
-    `👤 Học viên: ${student.name} (Mã: ${student.code})`,
+    `👤 Học viên: ${student.name} (Mã: ${student.code}${dobText ? `, Ngày sinh: ${dobText}` : ''})`,
     `🏫 Lớp học: ${classroom?.name || 'BeeZone'} • Khóa: ${program?.name || 'Tiếng Anh'}`,
     `👩‍🏫 Giáo viên phụ trách: ${teacher?.name || 'Giáo viên BeeZone'}`,
     `📅 Ngày báo cáo: ${todayStr}`,
@@ -139,22 +153,24 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     `☎️ Hotline: ${settings.phone || '0847 563 679 - 098 440 6157'}`
   ].join('\n');
 
-  // Generate PNG data URL from DOM card
+  // Generate PNG data URL using the dedicated unclipped container
   const generatePngImage = async (): Promise<string | null> => {
-    if (!cardRef.current) return null;
-    return await toPng(cardRef.current, {
-      quality: 0.95,
+    const target = exportCardRef.current || previewCardRef.current;
+    if (!target) return null;
+    return await toPng(target, {
+      quality: 0.98,
       pixelRatio: 2,
       backgroundColor: '#ffffff',
       cacheBust: true
     });
   };
 
-  // Generate PNG Blob from DOM card
+  // Generate PNG Blob using the dedicated unclipped container
   const generatePngBlob = async (): Promise<Blob | null> => {
-    if (!cardRef.current) return null;
-    return await toBlob(cardRef.current, {
-      quality: 0.95,
+    const target = exportCardRef.current || previewCardRef.current;
+    if (!target) return null;
+    return await toBlob(target, {
+      quality: 0.98,
       pixelRatio: 2,
       backgroundColor: '#ffffff',
       cacheBust: true
@@ -165,7 +181,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   const handleDownloadImage = async () => {
     try {
       setIsGeneratingImage(true);
-      showToast('Đang kết xuất hình ảnh phiếu điểm chất lượng cao...');
+      showToast('Đang kết xuất hình ảnh phiếu điểm đầy đủ thông tin...');
       const dataUrl = await generatePngImage();
       if (!dataUrl) throw new Error('Không thể tạo hình ảnh');
 
@@ -174,7 +190,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       const cleanName = student.name.replace(/\s+/g, '_');
       a.download = `BEEZONE_PhieuDiem_${cleanName}_${todayStr.replace(/\//g, '-')}.png`;
       a.click();
-      showToast('Đã tải hình ảnh phiếu điểm thành công!');
+      showToast('✅ Đã tải ảnh phiếu điểm đầy đủ thành công!');
     } catch (err) {
       console.error(err);
       showToast('Lỗi khi tải ảnh phiếu điểm. Vui lòng thử lại!');
@@ -187,7 +203,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   const handleCopyImage = async () => {
     try {
       setIsGeneratingImage(true);
-      showToast('Đang tạo và sao chép ảnh phiếu điểm...');
+      showToast('Đang tạo và sao chép ảnh phiếu điểm đầy đủ...');
       const blob = await generatePngBlob();
       if (!blob) throw new Error('Không thể tạo blob ảnh');
 
@@ -198,17 +214,15 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
           })
         ]);
         setCopiedImage(true);
-        showToast('✅ Đã sao chép ảnh! Bạn có thể dán (Ctrl+V) ngay vào ô chat Zalo / Messenger.');
+        showToast('✅ Đã sao chép toàn bộ ảnh phiếu điểm! Bạn có thể dán (Ctrl+V) ngay vào Zalo / Messenger.');
         setTimeout(() => setCopiedImage(false), 3000);
       } else {
-        // Fallback for browsers without ClipboardItem write support: trigger download
-        handleDownloadImage();
-        showToast('Trình duyệt không hỗ trợ chép ảnh trực tiếp, đã tự động tải ảnh về máy cho bạn!');
+        await handleDownloadImage();
+        showToast('Đã tự động tải ảnh về máy để bạn gửi Zalo.');
       }
     } catch (err) {
       console.error(err);
-      // Fallback
-      handleDownloadImage();
+      await handleDownloadImage();
     } finally {
       setIsGeneratingImage(false);
     }
@@ -232,7 +246,6 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
         });
         showToast('Đã mở hộp thoại chia sẻ!');
       } else {
-        // Desktop fallback: copy image and open Zalo
         await handleCopyImage();
         const phone = (student.parentPhone || student.phone || '').replace(/[^0-9]/g, '');
         const zaloUrl = phone.length >= 9 ? `https://zalo.me/${phone}` : 'https://zalo.me/';
@@ -240,7 +253,6 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       }
     } catch (err) {
       console.error(err);
-      // Fallback to copying image
       await handleCopyImage();
     } finally {
       setIsGeneratingImage(false);
@@ -302,8 +314,9 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       sheet.getRow(1).height = 36;
 
       sheet.addRow(['Họ và tên:', student.name, 'Mã học viên:', student.code]);
-      sheet.addRow(['Lớp học:', classroom?.name || 'BeeZone', 'Khóa học:', program?.name || 'Tiếng Anh']);
-      sheet.addRow(['Giáo viên:', teacher?.name || 'BeeZone', 'Ngày xuất:', todayStr]);
+      sheet.addRow(['Ngày sinh:', dobText || 'Chưa cập nhật', 'Lớp học:', classroom?.name || 'BeeZone']);
+      sheet.addRow(['Khóa học:', program?.name || 'Tiếng Anh', 'Giáo viên:', teacher?.name || 'BeeZone']);
+      sheet.addRow(['Ngày xuất:', todayStr, 'Điểm TB:', grade.average]);
       sheet.addRow([]);
 
       const headerRow = sheet.addRow(['Mục Đánh Giá', 'Điểm Đạt Được', 'Thang Điểm', 'Ghi Chú']);
@@ -351,8 +364,235 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     }
   };
 
+  /**
+   * Helper component rendering the full certificate card
+   * Used both in the modal preview and the dedicated off-screen capture container.
+   */
+  const renderCardContent = (isExport: boolean) => (
+    <div
+      className={`bg-white text-slate-900 select-none ${
+        isExport
+          ? 'p-8 rounded-3xl border-4 border-double border-amber-500/80 shadow-none'
+          : 'p-5 sm:p-7 rounded-2xl border-4 border-double border-amber-500/80 shadow-md'
+      }`}
+      style={{
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+      }}
+    >
+      {/* 1. Header */}
+      <div className="flex items-center justify-between border-b-2 border-amber-400/50 pb-4 mb-4">
+        <div className="flex items-center gap-3.5">
+          <Logo size={isExport ? 64 : 54} />
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-wide">
+              {settings.name || 'TRUNG TÂM ANH NGỮ BEEZONE'}
+            </h1>
+            <p className="text-xs text-amber-700 font-bold italic">
+              {settings.slogan || 'Học tiếng Anh thật vui - Bé tự tin mỗi ngày!'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Hotline: {settings.phone || '0847 563 679 - 098 440 6157'}
+            </p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <span className="text-xs font-mono font-black text-amber-900 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-full inline-block">
+            Mã: {student.code}
+          </span>
+          <p className="text-[11px] font-black text-slate-600 mt-1 uppercase tracking-wider">
+            NĂM HỌC 2026
+          </p>
+        </div>
+      </div>
+
+      {/* 2. Main Title */}
+      <div className="text-center my-4">
+        <h2 className="text-lg sm:text-xl font-black text-slate-950 uppercase tracking-wider">
+          PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP
+        </h2>
+        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+          STUDENT PROGRESS REPORT & TRANSCRIPT
+        </p>
+      </div>
+
+      {/* 3. Student Profile Info Box (Spacious 2-column layout - NEVER truncated) */}
+      <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-200/90 text-xs mb-4.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {/* Left Column: Student name & basic info */}
+          <div className="space-y-2">
+            <div>
+              <span className="text-slate-500 text-[11px] font-semibold block">Họ và tên học viên:</span>
+              <strong className="text-slate-950 font-black text-base block leading-snug break-words text-amber-950">
+                {student.name}
+              </strong>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap pt-0.5">
+              <div>
+                <span className="text-slate-500 text-[10px] font-medium block">Mã học viên:</span>
+                <span className="font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded text-xs border border-amber-200">
+                  {student.code}
+                </span>
+              </div>
+              {dobText && (
+                <div>
+                  <span className="text-slate-500 text-[10px] font-medium block">Ngày sinh:</span>
+                  <span className="font-bold text-slate-800 text-xs bg-white px-2 py-0.5 rounded border border-slate-200">
+                    {dobText}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Classroom, Program, Teacher, Assessment Date */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-slate-500 text-[11px] font-semibold block">Lớp học:</span>
+                <strong className="text-slate-900 font-bold text-xs block leading-snug break-words">
+                  {classroom?.name || 'BeeZone'}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[11px] font-semibold block">Chương trình / Khóa học:</span>
+                <strong className="text-slate-900 font-bold text-xs block leading-snug break-words">
+                  {program?.name || 'Tiếng Anh'}
+                </strong>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
+              <div>
+                <span className="text-slate-500 text-[11px] font-semibold block">Giáo viên phụ trách:</span>
+                <strong className="text-indigo-900 font-bold text-xs block leading-snug break-words">
+                  {teacher?.name || 'Giáo viên BeeZone'}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[11px] font-semibold block">Ngày đánh giá:</span>
+                <strong className="text-slate-700 font-bold text-xs block">
+                  {todayStr}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Four Core Language Skills Breakdown */}
+      <div className="mb-4.5">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Award className="w-4 h-4 text-amber-600" />
+          <span className="text-xs font-black uppercase text-slate-800 tracking-wider">
+            Kết quả đánh giá 4 kỹ năng ngôn ngữ:
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {skills.map((s) => (
+            <div key={s.name} className="p-3 bg-slate-50/70 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                <span className="text-slate-800 font-bold">{s.name}</span>
+                <span className="text-sm font-black text-amber-700">{s.score}/10</span>
+              </div>
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-1.5 border border-slate-200/80">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(0, (s.score / s.max) * 100))}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-normal">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 5. Exam Milestones & Grade Summary */}
+      <div className="grid grid-cols-4 gap-2.5 mb-4 text-center">
+        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+          <span className="text-[10px] font-bold text-slate-500 uppercase block">Giữa Kỳ</span>
+          <p className="text-base font-black text-slate-800 mt-0.5">{grade.midterm}/10</p>
+        </div>
+        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+          <span className="text-[10px] font-bold text-slate-500 uppercase block">Cuối Kỳ</span>
+          <p className="text-base font-black text-slate-800 mt-0.5">{grade.finalExam}/10</p>
+        </div>
+        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+          <span className="text-[10px] font-bold text-slate-500 uppercase block">Chuyên Cần</span>
+          <p className="text-base font-black text-slate-800 mt-0.5">{grade.attendance}/10</p>
+        </div>
+        <div className="p-2.5 bg-amber-50 rounded-xl border-2 border-amber-400 shadow-2xs">
+          <span className="text-[10px] font-black text-amber-800 uppercase block">Điểm Trung Bình</span>
+          <p className="text-lg font-black text-amber-950 mt-0.5">{grade.average}/10</p>
+        </div>
+      </div>
+
+      {/* 6. Overall Classification Rank Banner */}
+      <div className={`py-2 px-4 rounded-xl border-2 text-center font-black text-xs sm:text-sm mb-4 tracking-wide shadow-2xs ${rank.color}`}>
+        🏆 XẾP LOẠI TOÀN KHÓA: {rank.label}
+      </div>
+
+      {/* 7. Teacher's Evaluation & Advice */}
+      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 mb-4">
+        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block mb-1">
+          💬 Nhận xét & lời khuyên của giáo viên:
+        </span>
+        <p className="text-xs text-slate-700 leading-relaxed italic">
+          "{teacherFeedback}"
+        </p>
+      </div>
+
+      {/* 8. Signatures */}
+      <div className="grid grid-cols-2 text-center text-xs pt-3 border-t border-slate-200">
+        <div>
+          <p className="font-bold text-slate-600 uppercase text-[11px]">GIÁO VIÊN PHỤ TRÁCH</p>
+          <p className="italic text-[10px] text-slate-400">(Ký và ghi rõ họ tên)</p>
+          <div className="h-12 flex items-end justify-center font-bold text-indigo-950 text-xs">
+            {teacher?.name || 'Giáo viên phụ trách'}
+          </div>
+        </div>
+        <div>
+          <p className="font-bold text-slate-600 uppercase text-[11px]">GIÁM ĐỐC TRUNG TÂM</p>
+          <p className="italic text-[10px] text-slate-400">(Ký tên và đóng dấu)</p>
+          <div className="h-12 flex items-end justify-center font-black text-amber-950 uppercase text-xs">
+            {settings.name || 'BEEZONE ENGLISH'}
+          </div>
+        </div>
+      </div>
+
+      {/* 9. Footer Watermark */}
+      <div className="mt-4 pt-3 border-t border-dashed border-slate-200 text-center text-[10px] text-slate-500 leading-normal">
+        📍 <strong>{settings.name || 'Trung Tâm Anh Ngữ BeeZone'}</strong> • Đ/C: {settings.address || '111 Ngô Quyền, Long Hải, Trường Tây, Hòa Thành, Tây Ninh'} • Hotline: {settings.phone || '0847 563 679 - 098 440 6157'}
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-60 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+      {/* =========================================================================
+          OFF-SCREEN DEDICATED CAPTURE ELEMENT
+          Guarantees 100% full natural height with zero scroll clipping,
+          full typography resolution, and no truncated text!
+          ========================================================================= */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: 0,
+          width: '720px',
+          zIndex: -999,
+          pointerEvents: 'none',
+          opacity: 1
+        }}
+      >
+        <div ref={exportCardRef} style={{ width: '720px', backgroundColor: '#ffffff' }}>
+          {renderCardContent(true)}
+        </div>
+      </div>
+
+      {/* =========================================================================
+          MAIN MODAL DIALOG
+          ========================================================================= */}
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-slate-900 px-5 py-3.5 text-white relative shrink-0">
@@ -376,7 +616,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-amber-100/90 font-medium mt-0.5">
-                Chia sẻ hình ảnh phiếu điểm hoặc gửi văn bản qua Zalo, Messenger, PDF, Excel
+                Tải ảnh chất lượng cao hoặc chia sẻ qua Zalo, Messenger, PDF, Excel
               </p>
             </div>
           </div>
@@ -440,7 +680,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
                   disabled={isGeneratingImage}
                   onClick={handleDownloadImage}
                   className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-2xl text-xs shadow-sm transition active:scale-95 disabled:opacity-50"
-                  title="Tải file ảnh PNG độ nét cao về thiết bị"
+                  title="Tải file ảnh PNG đầy đủ chất lượng cao về thiết bị"
                 >
                   <Download className="w-4 h-4 shrink-0 text-slate-950" />
                   <span>Tải Ảnh PNG</span>
@@ -452,7 +692,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
                   disabled={isGeneratingImage}
                   onClick={handleCopyImage}
                   className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs shadow-sm transition active:scale-95 disabled:opacity-50"
-                  title="Sao chép ảnh vào bộ nhớ tạm để dán (Ctrl+V) ngay vào Zalo"
+                  title="Sao chép toàn bộ ảnh vào bộ nhớ tạm để dán (Ctrl+V) ngay vào Zalo"
                 >
                   {copiedImage ? <Check className="w-4 h-4 text-emerald-300 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
                   <span>{copiedImage ? 'Đã Chép Ảnh' : 'Chép Ảnh (Dán Zalo)'}</span>
@@ -492,7 +732,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
                   <strong className="font-bold">Mẹo gửi Zalo nhanh chóng:</strong> Nhấn{' '}
                   <span className="underline font-bold">Chép Ảnh (Dán Zalo)</span>, sau đó mở cửa sổ trò chuyện Zalo với phụ huynh và nhấn{' '}
                   <span className="bg-amber-200/80 px-1 py-0.5 rounded font-mono font-bold text-slate-900">Ctrl + V</span>{' '}
-                  (hoặc Dán ảnh) để gửi phiếu điểm dưới dạng ảnh chụp sắc nét!
+                  (hoặc Dán ảnh) để gửi toàn bộ ảnh phiếu điểm đầy đủ chi tiết!
                 </div>
               </div>
 
@@ -501,166 +741,19 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    Bản xem trước hình ảnh phiếu điểm (Độ nét cao 2x):
+                    Bản xem trước phiếu điểm (Cuộn xuống để xem toàn bộ nội dung):
                   </span>
                   {isGeneratingImage && (
                     <span className="text-xs text-amber-600 font-semibold animate-pulse">
-                      Đang xử lý hình ảnh...
+                      Đang kết xuất hình ảnh...
                     </span>
                   )}
                 </div>
 
-                {/* Scrollable Frame for the Card */}
-                <div className="max-h-[360px] sm:max-h-[420px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-100 p-2 sm:p-4 shadow-inner flex justify-center custom-scrollbar">
-                  {/* The actual element captured by html-to-image */}
-                  <div
-                    ref={cardRef}
-                    className="w-full max-w-[580px] bg-white rounded-2xl p-5 sm:p-6 shadow-md border-4 border-double border-amber-500/70 text-slate-900 select-none"
-                    style={{
-                      fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-                    }}
-                  >
-                    {/* BeeZone Header */}
-                    <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-3.5">
-                      <div className="flex items-center gap-3">
-                        <Logo size={52} />
-                        <div>
-                          <h1 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-wide">
-                            {settings.name || 'TRUNG TÂM ANH NGỮ BEEZONE'}
-                          </h1>
-                          <p className="text-[11px] text-amber-700 font-bold italic">
-                            {settings.slogan || 'Inspiring Excellence in English'}
-                          </p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            Hotline: {settings.phone || '0847 563 679 - 098 440 6157'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-block">
-                          Mã: {student.code}
-                        </span>
-                        <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-wider">
-                          NĂM HỌC 2026
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Title */}
-                    <div className="text-center my-3.5">
-                      <h2 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-wider">
-                        PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP
-                      </h2>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                        STUDENT PROGRESS REPORT & TRANSCRIPT
-                      </p>
-                    </div>
-
-                    {/* Student Info Box */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs mb-3.5">
-                      <div>
-                        <span className="text-slate-500 text-[10px] block font-medium">Học viên:</span>
-                        <strong className="text-slate-950 font-bold text-xs truncate block">{student.name}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[10px] block font-medium">Lớp học:</span>
-                        <strong className="text-slate-800 text-xs truncate block">{classroom?.name || 'BeeZone'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[10px] block font-medium">Khóa học:</span>
-                        <strong className="text-slate-800 text-xs truncate block">{program?.name || 'Tiếng Anh'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[10px] block font-medium">Giáo viên:</span>
-                        <strong className="text-indigo-800 text-xs truncate block">{teacher?.name || 'BeeZone Teacher'}</strong>
-                      </div>
-                    </div>
-
-                    {/* 4 Skills Breakdown */}
-                    <div className="mb-3.5">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Award className="w-3.5 h-3.5 text-amber-600" />
-                        <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider">
-                          Đánh giá 4 kỹ năng ngôn ngữ:
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        {skills.map((s) => (
-                          <div key={s.name} className="p-2 bg-slate-50/60 rounded-xl border border-slate-200">
-                            <div className="flex items-center justify-between text-[11px] font-bold mb-1">
-                              <span className="text-slate-700 truncate">{s.name}</span>
-                              <span className="text-xs font-black text-amber-700">{s.score}/10</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1">
-                              <div
-                                className="h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full"
-                                style={{ width: `${(s.score / s.max) * 100}%` }}
-                              />
-                            </div>
-                            <p className="text-[9px] text-slate-500 leading-tight truncate">{s.desc}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Test Scores Overview */}
-                    <div className="grid grid-cols-4 gap-2 mb-3 text-center">
-                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase block">Giữa Kỳ</span>
-                        <p className="text-sm font-black text-slate-800 mt-0.5">{grade.midterm}</p>
-                      </div>
-                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase block">Cuối Kỳ</span>
-                        <p className="text-sm font-black text-slate-800 mt-0.5">{grade.finalExam}</p>
-                      </div>
-                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase block">Chuyên Cần</span>
-                        <p className="text-sm font-black text-slate-800 mt-0.5">{grade.attendance}/10</p>
-                      </div>
-                      <div className="p-2 bg-amber-50 rounded-xl border border-amber-300">
-                        <span className="text-[9px] font-black text-amber-800 uppercase block">Điểm TB</span>
-                        <p className="text-base font-black text-amber-900 mt-0.5">{grade.average}</p>
-                      </div>
-                    </div>
-
-                    {/* Rank Badge */}
-                    <div className={`py-1.5 px-3 rounded-xl border text-center font-black text-xs mb-3 ${rank.color}`}>
-                      XẾP LOẠI TOÀN KHÓA: {rank.label}
-                    </div>
-
-                    {/* Teacher Feedback */}
-                    <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/80 mb-3">
-                      <span className="text-[10px] font-bold text-slate-800 uppercase tracking-wider block mb-0.5">
-                        Nhận xét của giáo viên:
-                      </span>
-                      <p className="text-[10px] text-slate-700 leading-relaxed italic">
-                        "{teacherFeedback}"
-                      </p>
-                    </div>
-
-                    {/* Signatures */}
-                    <div className="grid grid-cols-2 text-center text-[10px] pt-2 border-t border-slate-200">
-                      <div>
-                        <p className="font-bold text-slate-600 uppercase">GIÁO VIÊN PHỤ TRÁCH</p>
-                        <p className="italic text-[9px] text-slate-400">(Ký và ghi rõ họ tên)</p>
-                        <div className="h-8 flex items-end justify-center font-bold text-indigo-950">
-                          {teacher?.name || 'Giáo viên phụ trách'}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-600 uppercase">GIÁM ĐỐC TRUNG TÂM</p>
-                        <p className="italic text-[9px] text-slate-400">(Ký tên và đóng dấu)</p>
-                        <div className="h-8 flex items-end justify-center font-black text-amber-950 uppercase">
-                          {settings.name || 'BEEZONE ENGLISH'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer Contact */}
-                    <div className="mt-3 pt-2 border-t border-dashed border-slate-200 text-center text-[9px] text-slate-500">
-                      {settings.name || 'Anh Ngữ BeeZone'} • Đ/C: {settings.address || '111 Ngô Quyền, Long Hải, Trường Tây, Hòa Thành, Tây Ninh'} • Hotline: {settings.phone || '0847 563 679'}
-                    </div>
+                {/* Scrollable Frame for the Card Preview */}
+                <div className="max-h-[440px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-100 p-2 sm:p-4 shadow-inner flex justify-center custom-scrollbar">
+                  <div ref={previewCardRef} className="w-full max-w-[620px]">
+                    {renderCardContent(false)}
                   </div>
                 </div>
               </div>
