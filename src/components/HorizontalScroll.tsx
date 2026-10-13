@@ -5,7 +5,7 @@ interface HorizontalScrollProps extends React.HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-// Native scrollbars may be hidden by the OS. Keep a large, independent control
+// Native scrollbars may be hidden by the OS. Keep an independent control
 // above wide tables so reaching the final columns does not require scrolling down.
 export const HorizontalScroll = forwardRef<HTMLDivElement, HorizontalScrollProps>(function HorizontalScroll(
   { children, label = 'Bảng dữ liệu', className = '', onScroll, onKeyDown, ...props }, forwardedRef,
@@ -42,15 +42,14 @@ export const HorizontalScroll = forwardRef<HTMLDivElement, HorizontalScrollProps
 
   return <div className="min-w-0">
     {scroll.max > 1 && <div role="group" aria-label={`${label}: điều khiển cuộn ngang`} className="horizontal-scroll-controls print:hidden">
-      <span className="hidden shrink-0 text-xs font-semibold text-slate-600 sm:inline">Cuộn ngang</span>
-      <button type="button" onClick={() => move(-1)} disabled={scroll.position <= 1} aria-label={`${label}: cuộn trái`}><ChevronLeft className="h-5 w-5" /></button>
+      <button type="button" onClick={() => move(-1)} disabled={scroll.position <= 1} aria-label={`${label}: cuộn trái`}><ChevronLeft className="h-4 w-4" /></button>
       <input type="range" min={0} max={scroll.max} step={1} value={scroll.position} aria-label={`${label}: vị trí cuộn ngang`} onChange={event => {
         const viewport = viewportRef.current;
         if (!viewport) return;
         viewport.scrollLeft = Number(event.target.value);
         measure();
       }} />
-      <button type="button" onClick={() => move(1)} disabled={scroll.position >= scroll.max - 1} aria-label={`${label}: cuộn phải`}><ChevronRight className="h-5 w-5" /></button>
+      <button type="button" onClick={() => move(1)} disabled={scroll.position >= scroll.max - 1} aria-label={`${label}: cuộn phải`}><ChevronRight className="h-4 w-4" /></button>
     </div>}
     <div {...props} ref={viewportRef} role="region" aria-label={label} tabIndex={scroll.max > 1 ? 0 : undefined} className={`horizontal-scroll-viewport overflow-x-auto custom-scrollbar ${className}`} onScroll={event => { measure(); onScroll?.(event); }} onKeyDown={event => {
       onKeyDown?.(event);

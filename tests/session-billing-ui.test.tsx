@@ -190,3 +190,36 @@ it('updates the deadline of a session invoice without altering the billed lesson
   fireEvent.click(screen.getByRole('button', { name: 'Lưu hạn thanh toán' }));
   expect(onUpdate).toHaveBeenCalledWith({ ...receipt, dueDate: '2026-10-20' });
 });
+
+it('opens payment reminders from the compact section without losing receipt editing', () => {
+  const receipt: TuitionReceipt = {
+    ...withUnbilledSessionReceipts([], sessions)[0],
+    id: 'r',
+    code: 'PT-2026-0001',
+  };
+  render(
+    <TuitionManager
+      receipts={[receipt]}
+      attendanceSessions={sessions}
+      students={[student]}
+      classes={[classroom]}
+      programs={initial.initialPrograms}
+      settings={initial.initialSettings}
+      permissions={DEV_OWNER_ACCOUNT.permissions}
+      isOwner
+      onAddReceipt={vi.fn()}
+      onUpdateReceipt={vi.fn()}
+      onDeleteReceipt={vi.fn()}
+    />,
+  );
+  const summary = screen.getByText(/Nhắc hạn thanh toán · 1 phiếu còn nợ/);
+  const section = summary.closest('details')!;
+  expect(section.open).toBe(false);
+  fireEvent.click(summary);
+  expect(section.open).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Mở phiếu' }));
+  expect(screen.getByRole('dialog', { name: 'Điều chỉnh hạn thanh toán' })).toBeTruthy();
+  expect(screen.getByLabelText('Hạn thanh toán phiếu theo buổi').getAttribute('value')).toBe(
+    '2026-10-06',
+  );
+});

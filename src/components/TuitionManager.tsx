@@ -1,3 +1,4 @@
+import { StatCard } from './StatCard';
 import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
@@ -6,10 +7,10 @@ import { TuitionDuePanel } from './TuitionDuePanel';
 import { SessionTuitionManager } from './SessionTuitionManager';
 import type { AttendanceSession } from '../types';
 import { withUnbilledSessionReceipts } from '../lib/sessionBilling';
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TuitionReceipt, TuitionInstallment, Student, ClassRoom, CourseProgram, StaffPermissions, CenterSettings } from '../types';
-import { CreditCard, Plus, Printer, FileText, CheckCircle, AlertCircle, Search, X, Save, DollarSign, Edit, Trash2, Filter, RotateCcw, Calendar, History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CreditCard, Plus, Printer, FileText, CheckCircle, AlertCircle, Search, X, Save, DollarSign, Edit, Trash2, Filter, RotateCcw, Calendar, History, ArrowRight } from 'lucide-react';
 import logoImg from '../assets/images/beezone-logo.png';
 import { getReceiptInstallments, getReceiptPaymentEntries, paymentKindLabel, paymentKindOf, receiptFee, paymentMethodLabel, paymentPeriodLabel } from '../lib/tuition';
 import { nextReceiptCode } from '../lib/identifiers';
@@ -110,15 +111,6 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [filterReceiptStatus, setFilterReceiptStatus] = useState<'all' | 'paid' | 'debt'>('all');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
-  const tableScrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollTable = (direction: 'left' | 'right') => {
-    tableScrollRef.current?.scrollBy({
-      left: direction === 'left' ? -350 : 350,
-      behavior: 'smooth'
-    });
-  };
-
   const canCollect = isOwner || permissions.tuition.collect;
   const canDelete = isOwner || permissions.tuition.delete;
   useEffect(() => {
@@ -435,14 +427,11 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <SessionTuitionManager sessions={attendanceSessions} receipts={receipts} students={students} classes={classes} canCollect={canCollect} showDebt={isOwner || permissions.tuition.showDebt} requestId={requestReceiptId} onRequestHandled={onRequestHandled} onCreate={onAddReceipt} />
-      {sessionNotice && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{sessionNotice}</p>}
-      {(isOwner || permissions.tuition.showDebt) && <TuitionDuePanel receipts={receipts} students={students} settings={settings} onOpen={r => canCollect ? handleOpenEditReceipt(r) : setSelectedReceipt(r)} />}
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <CreditCard className="w-6 h-6 text-amber-600" />
             Quản Lý Học Phí & Phiếu Thu
           </h2>
@@ -462,129 +451,38 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         )}
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="tuition-kpis grid grid-cols-1 sm:grid-cols-2 @min-[1100px]:grid-cols-4 gap-4">
-        <button
-          type="button"
-          onClick={() => showReceiptDetail('all')}
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all text-left flex items-center justify-between group active:scale-[0.98]"
-        >
-          <div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-              <CheckCircle className="w-3 h-3 text-emerald-600" /> THỰC THU
-            </span>
-            <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight group-hover:text-emerald-700 transition-colors">
-              {totalCollected.toLocaleString('vi-VN')} đ
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Đã cấp phiếu thu hóa đơn</div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 group-hover:scale-110 transition-all">
-            <CheckCircle className="w-6 h-6" />
-          </div>
-        </button>
 
-        <button
-          type="button"
-          onClick={() => showReceiptDetail('debt')}
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-rose-300 transition-all text-left flex items-center justify-between group active:scale-[0.98]"
-        >
-          <div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100">
-              <AlertCircle className="w-3 h-3 text-rose-600" /> CÔNG NỢ TỒN ĐỌNG
-            </span>
-            <div className="text-2xl font-black text-rose-700 mt-2 tracking-tight">
-              {totalDebt.toLocaleString('vi-VN')} đ
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Bấm để lọc phiếu còn nợ</div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-100 group-hover:scale-110 transition-all">
-            <AlertCircle className="w-6 h-6" />
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => showReceiptDetail('monthly')}
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-sky-300 transition-all text-left flex items-center justify-between group active:scale-[0.98]"
-        >
-          <div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-100">
-              <DollarSign className="w-3 h-3 text-sky-600" /> HỌC PHÍ THÁNG
-            </span>
-            <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight group-hover:text-sky-700 transition-colors">
-              {monthlyCollected.toLocaleString('vi-VN')} đ
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Bấm xem danh sách phiếu tháng</div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 group-hover:bg-sky-100 group-hover:scale-110 transition-all">
-            <DollarSign className="w-6 h-6" />
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => showReceiptDetail('course')}
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all text-left flex items-center justify-between group active:scale-[0.98]"
-        >
-          <div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
-              <FileText className="w-3 h-3 text-amber-600" /> HỌC PHÍ KHÓA
-            </span>
-            <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight group-hover:text-amber-700 transition-colors">
-              {courseCollected.toLocaleString('vi-VN')} đ
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Bấm xem danh sách phiếu khóa</div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-100 group-hover:scale-110 transition-all">
-            <FileText className="w-6 h-6" />
-          </div>
-        </button>
+      <div className="stats-grid stats-grid--five tuition-kpis">
+        <StatCard label="Thực thu" value={totalCollected.toLocaleString('vi-VN') + ' đ'} icon={CheckCircle} tone="emerald" subtitle="Tiền đã nhận" onClick={() => showReceiptDetail('all')} />
+        <StatCard label="Công nợ" value={totalDebt.toLocaleString('vi-VN') + ' đ'} icon={AlertCircle} tone="rose" subtitle="Gồm buổi chưa lập phiếu" onClick={() => showReceiptDetail('debt')} />
+        <StatCard label="Học phí tháng" value={monthlyCollected.toLocaleString('vi-VN') + ' đ'} icon={DollarSign} tone="sky" subtitle="Đã thu theo tháng" onClick={() => showReceiptDetail('monthly')} />
+        <StatCard label="Học phí khóa" value={courseCollected.toLocaleString('vi-VN') + ' đ'} icon={FileText} tone="amber" subtitle="Đã thu theo khóa" onClick={() => showReceiptDetail('course')} />
+        <StatCard label="Học phí buổi" value={receipts.filter(r => r.paymentKind === 'session').reduce((sum,r) => sum+r.paidAmount,0).toLocaleString('vi-VN') + ' đ'} icon={Calendar} tone="violet" subtitle="Đã thu theo buổi" onClick={() => showReceiptDetail('session')} />
       </div>
-
-      <button type="button" onClick={() => showReceiptDetail('session')} className="w-full rounded-xl border border-violet-200 bg-violet-50 p-4 text-left text-sm font-semibold text-violet-900">Học phí buổi đã thu: {receipts.filter(r => r.paymentKind === 'session').reduce((sum,r) => sum+r.paidAmount,0).toLocaleString('vi-VN')} đ · Bấm xem các phiếu theo buổi</button>
-      {/* Financial Transparency Bar */}
       {(() => {
-        const totalReceivable = totalCollected + totalDebt;
-        const collectionRate = totalReceivable > 0 ? Math.round((totalCollected / totalReceivable) * 100) : 100;
-        return (
-          <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-emerald-500/10 border border-amber-200/80 rounded-2xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-amber-950 tracking-wide flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Minh Bạch Dòng Tiền & Tiến Độ Thu Học Phí
-                </span>
-                <span className="bg-amber-500 text-slate-950 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-2xs">
-                  Đạt {collectionRate}%
-                </span>
-              </div>
-              <p className="text-xs text-slate-600">
-                Tổng phải thu: <strong className="text-slate-900">{totalReceivable.toLocaleString('vi-VN')} đ</strong> · Đã vào quỹ: <strong className="text-emerald-700">{totalCollected.toLocaleString('vi-VN')} đ</strong> · Cần thu tiếp: <strong className="text-rose-700">{totalDebt.toLocaleString('vi-VN')} đ</strong>
-              </p>
-            </div>
-            <div className="w-full md:w-64 space-y-1.5">
-              <div className="flex justify-between text-[11px] font-bold">
-                <span className="text-emerald-700">Đã thu: {collectionRate}%</span>
-                <span className="text-rose-600">Còn nợ: {100 - collectionRate}%</span>
-              </div>
-              <div className="w-full h-3 bg-rose-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-500"
-                  style={{ width: `${collectionRate}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        );
+        const totalReceivable=totalCollected+totalDebt;
+        const collectionRate=totalReceivable>0?Math.round(totalCollected/totalReceivable*100):100;
+        return <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1 text-xs text-slate-500">
+          <p>Phải thu: <strong className="font-semibold text-slate-700">{totalReceivable.toLocaleString('vi-VN')} đ</strong> · Còn nợ: <strong className="font-semibold text-rose-700">{totalDebt.toLocaleString('vi-VN')} đ</strong></p>
+          <div className="flex items-center gap-2"><span>Đã thu {collectionRate}%</span><div className="h-1 w-24 overflow-hidden rounded-full bg-slate-200" aria-hidden="true"><div className="h-full rounded-full bg-emerald-500" style={{width:Math.min(100,collectionRate)+'%'}} /></div></div>
+        </div>;
       })()}
+      {sessionNotice && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{sessionNotice}</p>}
+      {(classes.some(c => c.billingMode === 'session') || attendanceSessions.some(a => a.billing) || requestReceiptId?.startsWith('pending-session:')) && (
+      <SessionTuitionManager sessions={attendanceSessions} receipts={receipts} students={students} classes={classes} canCollect={canCollect} showDebt={isOwner || permissions.tuition.showDebt} requestId={requestReceiptId} onRequestHandled={onRequestHandled} onCreate={onAddReceipt} />
+      )}
+      {(isOwner || permissions.tuition.showDebt) && receipts.some(r => r.debtAmount > 0) && <details className="tuition-tools">
+        <summary>Nhắc hạn thanh toán · {receipts.filter(r => r.debtAmount > 0).length} phiếu còn nợ</summary>
+        <TuitionDuePanel receipts={receipts} students={students} settings={settings} onOpen={r => canCollect ? handleOpenEditReceipt(r) : setSelectedReceipt(r)} />
+      </details>}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <section className="rounded-xl border border-slate-200 bg-white p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-800"><Filter className="h-4 w-4 text-amber-600" /> Lọc phiếu thu nhanh</h3>
           <button type="button" onClick={resetReceiptFilters} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-amber-800"><RotateCcw className="h-3.5 w-3.5" /> Xóa bộ lọc</button>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <label className="relative xl:col-span-2">
+        <div className="tuition-filters">
+          <label className="tuition-filter-search relative">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input value={receiptQuery} onChange={(event) => setReceiptQuery(event.target.value)} placeholder="Mã phiếu, mã/tên học sinh, kỳ thu..." className="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-xs outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
           </label>
@@ -609,7 +507,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
       {/* Receipts History Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+        <div className="px-3 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="font-extrabold text-xs uppercase text-slate-800">
               Lịch Sử Phiếu Thu Học Phí
@@ -619,32 +517,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline-flex items-center gap-1">
-              ◂ Cuộn ngang xem đầy đủ thông tin ▸
-            </span>
-            <button
-              type="button"
-              onClick={() => scrollTable('left')}
-              className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-              title="Cuộn bảng sang trái"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Trái</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollTable('right')}
-              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-              title="Cuộn bảng sang phải"
-            >
-              <span className="hidden sm:inline">Phải</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
         </div>
 
-        <HorizontalScroll label="Học phí" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+        <HorizontalScroll label="Học phí" className="overflow-x-auto custom-scrollbar">
           <table className="w-full min-w-[1050px] text-left text-xs text-slate-700 border-collapse">
             <thead className="bg-slate-100 text-slate-600 uppercase text-[11px] font-bold border-b border-slate-200">
               <tr>

@@ -1,8 +1,9 @@
+import { StatCard } from './StatCard';
 import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { useResponsiveView } from '../hooks/useResponsive';
 import { centerDate } from '../lib/dates';
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Student,
   CourseProgram,
@@ -35,8 +36,6 @@ import {
   CheckCheck,
   LayoutGrid,
   Table as TableIcon,
-  ChevronLeft,
-  ChevronRight
 } from 'lucide-react';
 
 interface AdmissionsManagerProps {
@@ -68,17 +67,6 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProgram, setFilterProgram] = useState<string>('all');
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
-  const tableScrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollTable = (direction: 'left' | 'right') => {
-    if (tableScrollRef.current) {
-      tableScrollRef.current.scrollBy({
-        left: direction === 'left' ? -350 : 350,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   // Modal states
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Partial<Student> | null>(null);
@@ -281,7 +269,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
@@ -312,43 +300,11 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
         </div>
       )}
 
-      {/* Admissions Pipeline Statistics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-bold text-indigo-700">
-            <span>Tiềm Năng / Tư Vấn</span>
-            <Users className="w-4 h-4 opacity-70" />
-          </div>
-          <div className="mt-2 text-2xl font-black text-slate-900">{stats.leads}</div>
-          <div className="mt-1 text-[11px] text-slate-500">Đang tìm hiểu & nhận tư vấn</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-amber-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-bold text-amber-700">
-            <span>Đang Học Thử</span>
-            <Sparkles className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="mt-2 text-2xl font-black text-slate-900">{stats.trials}</div>
-          <div className="mt-1 text-[11px] text-slate-500">Trải nghiệm 1-2 buổi miễn phí</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-bold text-blue-700">
-            <span>Đã Đăng Ký</span>
-            <CheckCheck className="w-4 h-4 opacity-70" />
-          </div>
-          <div className="mt-2 text-2xl font-black text-slate-900">{stats.registered}</div>
-          <div className="mt-1 text-[11px] text-slate-500">Đã chốt học - Chờ xếp lớp</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-700">
-            <span>Đã Vào Lớp Chính Thức</span>
-            <GraduationCap className="w-4 h-4 opacity-70" />
-          </div>
-          <div className="mt-2 text-2xl font-black text-slate-900">{stats.officiallyEnrolled}</div>
-          <div className="mt-1 text-[11px] text-slate-500">Đang theo học tại trung tâm</div>
-        </div>
+      <div className="stats-grid">
+        <StatCard label="Tiềm năng / Tư vấn" value={stats.leads} icon={Users} tone="violet" subtitle="Đang nhận tư vấn" />
+        <StatCard label="Đang học thử" value={stats.trials} icon={Sparkles} tone="amber" subtitle="Trải nghiệm buổi học" />
+        <StatCard label="Đã đăng ký" value={stats.registered} icon={CheckCheck} tone="sky" subtitle="Chờ xếp lớp" />
+        <StatCard label="Đã vào lớp chính thức" value={stats.officiallyEnrolled} icon={GraduationCap} tone="emerald" subtitle="Đang theo học" />
       </div>
 
       {/* Filter and Search Bar */}
@@ -426,41 +382,13 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
           </button>
         </div>
 
-        {/* Scroll helper buttons for Table view */}
-        {viewMode === 'table' && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline-flex items-center gap-1">
-              ◂ Cuộn ngang xem đầy đủ {admissionsList.length} hồ sơ ▸
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => scrollTable('left')}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
-                title="Cuộn bảng sang trái"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Cuộn trái</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollTable('right')}
-                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                title="Cuộn bảng sang phải"
-              >
-                <span className="hidden sm:inline">Cuộn phải</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ADMISSIONS CONTENT: TABLE OR RESPONSIVE CARDS */}
       {viewMode === 'table' ? (
         /* Admissions Candidate Table */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <HorizontalScroll label="Tuyển sinh" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Tuyển sinh" className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[1100px] text-left text-xs text-slate-700 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
                 <tr>

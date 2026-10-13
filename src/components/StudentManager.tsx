@@ -1,9 +1,10 @@
+import { StatCard } from './StatCard';
 import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { useResponsiveView } from '../hooks/useResponsive';
 import { matchesSearch as matchesSearchText } from '../lib/search';
 import { centerDate } from '../lib/dates';
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../lib/tuition';
 import {
@@ -49,8 +50,6 @@ import {
   CalendarDays,
   DollarSign,
   UserCheck,
-  ChevronLeft,
-  ChevronRight,
   PauseCircle,
   RotateCcw,
   UserMinus
@@ -131,15 +130,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   // On phones, cards are readable without horizontal scrolling; desktops keep
   // the denser table as the default.
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
-  const tableScrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollTable = (direction: 'left' | 'right') => {
-    tableScrollRef.current?.scrollBy({
-      left: direction === 'left' ? -350 : 350,
-      behavior: 'smooth'
-    });
-  };
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -365,7 +355,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
@@ -410,36 +400,11 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         </div>
       </div>
 
-      {/* Transparency & Quick Overview Stats Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Tổng học sinh</p>
-            <p className="text-lg font-black text-slate-900 mt-0.5">{students.length} HS</p>
-          </div>
-          <span className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Users className="w-4 h-4" /></span>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-emerald-600 uppercase">Đang theo học</p>
-            <p className="text-lg font-black text-emerald-700 mt-0.5">{students.filter(s => s.status === 'active').length} HS</p>
-          </div>
-          <span className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><UserCheck className="w-4 h-4" /></span>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-amber-600 uppercase">Đang bảo lưu</p>
-            <p className="text-lg font-black text-amber-700 mt-0.5">{students.filter(s => s.status === 'reserved').length} HS</p>
-          </div>
-          <span className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Clock className="w-4 h-4" /></span>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-rose-600 uppercase">Còn nợ học phí</p>
-            <p className="text-lg font-black text-rose-700 mt-0.5">{students.filter(s => debtBreakdown(receipts.filter(r => r.studentId === s.id)).total > 0).length} HS</p>
-          </div>
-          <span className="p-2 bg-rose-50 text-rose-600 rounded-lg"><AlertCircle className="w-4 h-4" /></span>
-        </div>
+      <div className="stats-grid">
+        <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} />
+        <StatCard label="Đang theo học" value={students.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
+        <StatCard label="Đang bảo lưu" value={students.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
+        <StatCard label="Còn nợ học phí" value={students.filter(s => debtBreakdown(receipts.filter(r => r.studentId === s.id)).total > 0).length + ' HS'} icon={AlertCircle} tone="rose" />
       </div>
 
       {/* Filters & View Mode Bar */}
@@ -488,30 +453,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
         {/* View Mode Switcher & Scroll Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {viewMode === 'table' && (
-            <div className="flex items-center gap-1.5 mr-1">
-              <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
-                ◂ Cuộn xem cột ▸
-              </span>
-              <button
-                type="button"
-                onClick={() => scrollTable('left')}
-                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
-                title="Cuộn bảng sang trái"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollTable('right')}
-                className="p-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition cursor-pointer shadow-2xs"
-                title="Cuộn bảng sang phải"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')}
@@ -543,7 +484,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       {viewMode === 'table' ? (
         /* Student Table View */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <HorizontalScroll label="Học viên" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Học viên" className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[1080px] text-left text-xs text-slate-600 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold tracking-wider">
                 <tr>

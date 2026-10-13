@@ -30,8 +30,6 @@ import {
   ChevronUp,
   LayoutGrid,
   Table as TableIcon,
-  ChevronLeft,
-  ChevronRight,
   Sparkles
 } from 'lucide-react';
 
@@ -94,16 +92,6 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [applyOldSessionBilling, setApplyOldSessionBilling] = useState(false);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
-  const tableScrollRef = React.useRef<HTMLDivElement>(null);
-
-  const scrollTable = (direction: 'left' | 'right') => {
-    if (tableScrollRef.current) {
-      tableScrollRef.current.scrollBy({
-        left: direction === 'left' ? -350 : 350,
-        behavior: 'smooth'
-      });
-    }
-  };
 
   // Sync selected class if permitted classes changes
   React.useEffect(() => {
@@ -478,30 +466,6 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
         {/* Right: Scroll helper for Table view or Save button */}
         <div className="flex items-center gap-2 ml-auto">
-          {viewMode === 'table' && (
-            <div className="hidden sm:flex items-center gap-1.5 mr-2">
-              <span className="text-[11px] font-semibold text-slate-500">
-                ◂ Cuộn xem cột ▸
-              </span>
-              <button
-                type="button"
-                onClick={() => scrollTable('left')}
-                className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
-                title="Cuộn bảng sang trái"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollTable('right')}
-                className="p-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition cursor-pointer shadow-2xs"
-                title="Cuộn bảng sang phải"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
           <button
             type="button"
             onClick={handleSave}
@@ -662,7 +626,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       ) : (
         /* Attendance Roster Table - Responsive Desktop Table View */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <HorizontalScroll label="Điểm danh" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Điểm danh" className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[980px] text-left text-xs text-slate-700 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
                 <tr>

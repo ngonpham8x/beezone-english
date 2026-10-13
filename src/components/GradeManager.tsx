@@ -1,8 +1,8 @@
 import { HorizontalScroll } from './HorizontalScroll';
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useResponsiveView } from '../hooks/useResponsive';
 import { Grade, Student, ClassRoom, StaffPermissions, Teacher, CourseProgram, CenterSettings, UserAccount } from '../types';
-import { Award, FileText, AlertCircle, BookOpen, Share2, LayoutGrid, Table as TableIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Award, FileText, AlertCircle, BookOpen, Share2, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import { ReportCardModal } from './ReportCardModal';
 import { ShareReportCardModal } from './ShareReportCardModal';
 
@@ -68,17 +68,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
-  const tableScrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollTable = (direction: 'left' | 'right') => {
-    if (tableScrollRef.current) {
-      tableScrollRef.current.scrollBy({
-        left: direction === 'left' ? -350 : 350,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   useEffect(() => {
     if (!isOwner && permittedClasses.length > 0 && selectedClassId !== 'all' && !permittedClasses.some(c => c.id === selectedClassId)) {
       setSelectedClassId(permittedClasses[0].id);
@@ -119,7 +108,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
@@ -200,41 +189,13 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           </span>
         </div>
 
-        {/* Scroll helper buttons for Table view */}
-        {viewMode === 'table' && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline-flex items-center gap-1">
-              ◂ Cuộn ngang để xem hết cột điểm ▸
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => scrollTable('left')}
-                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
-                title="Cuộn bảng sang trái"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Trái</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollTable('right')}
-                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                title="Cuộn bảng sang phải"
-              >
-                <span className="hidden sm:inline">Phải</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* GRADE CONTENT: TABLE OR MOBILE CARDS */}
       {viewMode === 'table' ? (
         /* Gradebook Table */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <HorizontalScroll label="Điểm số" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Điểm số" className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[1100px] text-left text-xs text-slate-700 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
                 <tr>

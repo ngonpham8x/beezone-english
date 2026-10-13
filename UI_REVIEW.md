@@ -34,7 +34,7 @@
 
 `tests/responsive.test.tsx` kiểm tra 11 viewport, xoay/đổi kích thước, lựa chọn dạng thẻ/bảng, màn hình điểm số thực, dialog trong StrictMode, dialog lồng nhau, viewport thu nhỏ khi mở bàn phím, truy cập phân quyền trên điện thoại và hủy xóa phiếu thu bằng Esc. Các kiểm tra phân hệ, xác thực và nghiệp vụ cũ được chạy lại bằng `npm run check`.
 
-Kết quả mới nhất: TypeScript qua; **88 test / 10 tệp qua** (19 test responsive và 6 test cuộn ngang); Vite production build qua; kiểm tra bundle production không chứa xác thực xem thử qua. ExcelJS vẫn có cảnh báo kích thước chunk lớn như đợt rà soát trước.
+Các kiểm tra viewport và cuộn nằm trong bộ kiểm thử toàn dự án. Kết quả mới nhất được ghi tại [PROJECT_REVIEW.md](PROJECT_REVIEW.md). ExcelJS vẫn có cảnh báo kích thước chunk lớn như đợt rà soát trước.
 
 ## Bổ sung: lịch cuối tuần và thanh cuộn ngang
 
@@ -42,11 +42,23 @@ Theo ảnh người dùng cung cấp, bảng lịch có tổng chiều rộng c�
 
 - Bảng thời khóa biểu theo tuần dùng bố cục cột cố định, chiều rộng tối thiểu 980 px và cột giờ 128 px. Các cột ngày chia đều phần còn lại để có thể hiện cả tuần trên vùng nội dung của laptop thông thường; màn hình hẹp vẫn cuộn ngang.
 - “Thứ 7 & CN” đi thẳng tới vị trí cuối cùng (`scrollWidth - clientWidth`); “Đầu tuần” quay về đầu bảng. Áp dụng cả lịch giáo viên. Các nút chọn ngày xuống dòng thay vì giấu cuối tuần.
-- Thanh cuộn ngang đặt cao 20 px, bỏ chế độ `thin`. Với Chromium/WebKit, đặt lại màu chuẩn về `auto` để quy tắc thanh cuộn 20 px có hiệu lực; thuộc tính màu/chiều rộng chuẩn có thể ghi đè kiểu WebKit. Tham khảo [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::-webkit-scrollbar).
-- 14 vùng bảng có thêm thanh kéo phía trên khi bị tràn ngang, tay kéo 30×28 px và nút 44×44 px. Không cần xuống cuối bảng để xem cột bên phải. Thanh trên đồng bộ với cuộn gốc, nút cuộn hiện có và thay đổi kích thước màn hình; hỗ trợ Home/End khi focus vùng bảng. Điều khiển phụ được ẩn khi in.
+- Các bảng rộng có thanh kéo phía trên khi bị tràn ngang. Thanh trên đồng bộ với cuộn gốc và thay đổi kích thước màn hình; hỗ trợ Home/End khi focus vùng bảng. Điều khiển phụ được ẩn khi in.
 - Sáu test bổ sung kiểm tra kéo thanh trên, đồng bộ cuộn, đổi kích thước, phím Home/End không ảnh hưởng ô nhập, hiện đủ bảy tiêu đề ngày và nhảy đúng tới cuối tuần ở hai trang lịch.
 
 Kiểm tra mới dùng kích thước vùng cuộn giả lập trong jsdom; chưa xác nhận ảnh kết quả trên Cốc Cốc/Chrome thật vì trình duyệt chưa kết nối.
+
+## Bổ sung: bố cục gọn ở zoom 100%
+
+Theo ảnh màn hình học phí ở mức 100%, breakpoint 1100 px của vùng nội dung khiến laptop vẫn có hai cột thống kê. Quy tắc CSS xếp biểu tượng thành hàng riêng làm các thẻ cao hơn cần thiết.
+
+- Dùng `StatCard` chung ở Học phí, Tổng quan, Học viên, Tuyển sinh và Báo cáo. Nhãn/biểu tượng nằm cùng dòng, số liệu dùng chữ 20 px trên desktop, khoảng đệm 12 px và viền nhẹ.
+- Thống kê học phí gồm cả thu theo buổi trong một nhóm: hai cột ở màn hình hẹp, bốn cột từ chiều rộng nội dung 700 px, năm cột từ 950 px. Không phụ thuộc chiều rộng của toàn cửa sổ nên việc thu gọn/mở menu được tính đến.
+- Giảm khoảng đệm nội dung desktop từ 24 xuống 16 px và khoảng cách giữa các phần về 16 px tại các màn hình danh sách. Phần nhắc hạn thanh toán học phí mở khi chọn; các biểu mẫu và luồng thu tiền vẫn hoạt động.
+- Bộ lọc học phí xếp cùng một hàng khi vùng nội dung đủ 950 px; ô tìm kiếm chiếm hai phần chiều rộng. Màn hình hẹp tự xuống dòng để giữ ô nhập dễ dùng.
+- Thanh kéo ngang dùng màu xám, đường ray 4 px và tay kéo có vùng tương tác 28×20 px. Nút 28 px trên desktop; giữ vùng bấm 44 px trên màn hình nhỏ/thiết bị cảm ứng. Chromium/WebKit chỉ dùng thanh kéo chung cho trục ngang; thanh cuộn dọc vẫn có thể sử dụng. Trình duyệt khác có thanh cuộn gốc mảnh làm phương án tương thích.
+- Bỏ bộ nút cuộn chung bị lặp ở Học phí, Học viên, Tuyển sinh, Điểm số và Điểm danh. Giữ nút nhảy Đầu tuần/Thứ 7 & CN ở hai trang lịch.
+
+Có thêm kiểm thử mở nhóm nhắc hạn đang thu gọn rồi sửa đúng phiếu. Các kiểm thử cuộn, bàn phím, đổi kích thước và nghiệp vụ được chạy lại. Công cụ giao diện vẫn trả danh sách trình duyệt trống; ảnh người dùng là căn cứ bố cục, chưa có ảnh kết quả dựng bằng trình duyệt thật.
 
 ## Giới hạn cần xác nhận trực quan
 

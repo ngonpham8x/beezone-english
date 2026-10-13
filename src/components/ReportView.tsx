@@ -1,3 +1,4 @@
+import { StatCard } from './StatCard';
 import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
@@ -65,7 +66,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs print:hidden">
         <div>
@@ -121,31 +122,11 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <p className="text-xs text-slate-400 italic">Ngày xuất: {new Date().toLocaleDateString('vi-VN')}</p>
         </div>
 
-        {/* 4 Summary Boxes */}
-        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 @min-[1000px]:grid-cols-4 gap-3 sm:gap-4 text-xs">
-          <button type="button" onClick={() => onNavigateTab('students')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
-            <div className="text-slate-500 font-semibold uppercase">Tổng Học Sinh</div>
-            <div className="text-xl font-bold text-slate-900 mt-1">{students.length} HS</div>
-            <div className="text-[11px] text-emerald-700 font-medium">{activeCount} đang học • {reservedCount} bảo lưu</div>
-          </button>
-
-          <button type="button" onClick={() => onNavigateTab('tuition')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
-            <div className="text-slate-500 font-semibold uppercase">Tổng Doanh Thu</div>
-            <div className="text-xl font-bold text-amber-700 mt-1">{totalRevenue.toLocaleString('vi-VN')} đ</div>
-            <div className="text-[11px] text-slate-500">Theo {timeFilter === 'day' ? 'ngày' : timeFilter === 'week' ? 'tuần' : 'tháng'} đã chọn: {reportDate}</div>
-          </button>
-
-          <button type="button" onClick={() => onNavigateTab('tuition')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
-            <div className="text-slate-500 font-semibold uppercase">Tổng Công Nợ</div>
-            <div className="text-xl font-bold text-rose-700 mt-1">{totalDebt.toLocaleString('vi-VN')} đ</div>
-            <div className="text-[11px] text-rose-600 font-medium">Tháng: {totalDebtBreakdown.monthly.toLocaleString('vi-VN')} đ · Khóa: {totalDebtBreakdown.course.toLocaleString('vi-VN')} đ · Buổi: {totalDebtBreakdown.session.toLocaleString('vi-VN')} đ</div>
-          </button>
-
-          <button type="button" onClick={() => onNavigateTab('classes')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
-            <div className="text-slate-500 font-semibold uppercase">Số Lớp Đang Mở</div>
-            <div className="text-xl font-bold text-blue-700 mt-1">{classes.length} Lớp</div>
-            <div className="text-[11px] text-slate-500">{teachers.length} giáo viên phụ trách</div>
-          </button>
+        <div className="stats-grid">
+          <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} subtitle={activeCount + ' đang học · ' + reservedCount + ' bảo lưu'} onClick={() => onNavigateTab('students')} />
+          <StatCard label="Tổng doanh thu" value={totalRevenue.toLocaleString('vi-VN') + ' đ'} icon={DollarSign} tone="emerald" subtitle={(timeFilter === 'day' ? 'Ngày ' : timeFilter === 'week' ? 'Tuần của ' : 'Tháng của ') + reportDate} onClick={() => onNavigateTab('tuition')} />
+          <StatCard label="Tổng công nợ" value={totalDebt.toLocaleString('vi-VN') + ' đ'} tone="rose" subtitle={'Tháng: ' + totalDebtBreakdown.monthly.toLocaleString('vi-VN') + ' · Khóa: ' + totalDebtBreakdown.course.toLocaleString('vi-VN') + ' · Buổi: ' + totalDebtBreakdown.session.toLocaleString('vi-VN')} onClick={() => onNavigateTab('tuition')} />
+          <StatCard label="Lớp đang mở" value={classes.length + ' Lớp'} icon={BookOpen} tone="sky" subtitle={teachers.length + ' giáo viên'} onClick={() => onNavigateTab('classes')} />
         </div>
 
         {/* Classes Table */}
