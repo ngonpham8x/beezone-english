@@ -84,6 +84,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
         month: monthLabel(month),
         monthly: monthEntries.filter((entry) => entry.paymentKind === 'monthly').reduce((sum, entry) => sum + entry.amount, 0),
         course: monthEntries.filter((entry) => entry.paymentKind === 'course').reduce((sum, entry) => sum + entry.amount, 0),
+        session: monthEntries.filter((entry) => entry.paymentKind === 'session').reduce((sum, entry) => sum + entry.amount, 0),
       };
     });
   const programData = (canViewStudents ? programs : []).map((program, index) => ({
@@ -99,6 +100,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   const tuitionKindSummary = (showDebt ? [
     { name: 'Học phí tháng', value: paymentEntries.filter((entry) => entry.paymentKind === 'monthly').reduce((sum, entry) => sum + entry.amount, 0), color: '#f59e0b' },
     { name: 'Học phí khóa', value: paymentEntries.filter((entry) => entry.paymentKind === 'course').reduce((sum, entry) => sum + entry.amount, 0), color: '#7c3aed' },
+    { name: 'Học phí buổi', value: paymentEntries.filter((entry) => entry.paymentKind === 'session').reduce((sum, entry) => sum + entry.amount, 0), color: '#059669' },
   ] : []);
   const classMonthlyData = (showRevenue ? classes : []).map((classroom) => {
     const monthClassEntries = paymentEntries.filter((entry) => entry.classId === classroom.id && entry.monthKey === latestReceiptMonth);
@@ -127,7 +129,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             ? canViewRooms
             : detail === 'revenue'
               ? showRevenue
-              : detail === 'debt' || detail === 'paid' || detail === 'monthly-debt' || detail === 'course-debt'
+              : detail === 'debt' || detail === 'paid' || detail === 'monthly-debt' || detail === 'course-debt' || detail === 'session-debt'
                 ? showDebt
                 : false;
     const content = (
@@ -271,6 +273,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
         <Card label="Học sinh nợ phí" value={showDebt ? debtStudents.length : '—'} icon={AlertTriangle} color="bg-orange-100 text-orange-600" detail="debt" subtitle="Cần theo dõi" />
         {showDebt && <Card label="Nợ học phí tháng" value={currency(totalDebtBreakdown.monthly)} icon={AlertTriangle} color="bg-rose-100 text-rose-600" detail="monthly-debt" subtitle="Bấm để xem danh sách" />}
         {showDebt && <Card label="Nợ học phí khóa" value={currency(totalDebtBreakdown.course)} icon={AlertTriangle} color="bg-rose-100 text-rose-600" detail="course-debt" subtitle="Bấm để xem danh sách" />}
+        {showDebt && <Card label="Nợ học phí buổi" value={currency(totalDebtBreakdown.session)} icon={AlertTriangle} color="bg-rose-100 text-rose-600" detail="session-debt" subtitle="Gồm cả buổi chưa lập phiếu" />}
         <Card label="Đã đóng đủ" value={paidStudents.length} icon={CheckCircle2} color="bg-emerald-100 text-emerald-600" detail="paid" subtitle="Hoàn thành học phí" />
       </section>
 
@@ -306,7 +309,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <p className="text-slate-500 font-semibold uppercase text-[10px]">1. Tổng Phải Thu</p>
               <p className="mt-1 text-lg font-black text-slate-900">{currency(totalDue)}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Bao gồm toàn bộ học phí tháng & khóa</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Bao gồm học phí tháng, khóa và buổi</p>
             </div>
             <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200">
               <p className="text-emerald-700 font-semibold uppercase text-[10px]">2. Thực Thu (Đã Vào Quỹ)</p>
@@ -316,7 +319,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             <div className="p-3.5 bg-rose-50/60 rounded-xl border border-rose-200">
               <p className="text-rose-700 font-semibold uppercase text-[10px]">3. Còn Nợ Đọng</p>
               <p className="mt-1 text-lg font-black text-rose-700">{currency(totalDebt)}</p>
-              <p className="text-[10px] text-rose-600/80 mt-0.5">Tháng: {currency(totalDebtBreakdown.monthly)} · Khóa: {currency(totalDebtBreakdown.course)}</p>
+              <p className="text-[10px] text-rose-600/80 mt-0.5">Tháng: {currency(totalDebtBreakdown.monthly)} · Khóa: {currency(totalDebtBreakdown.course)} · Buổi: {currency(totalDebtBreakdown.session)}</p>
             </div>
           </div>
         </section>
@@ -362,6 +365,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
                 <Bar name="Học phí tháng" dataKey="monthly" fill="#f59e0b" radius={[3, 3, 0, 0]} />
                 <Bar name="Học phí khóa" dataKey="course" fill="#7c3aed" radius={[3, 3, 0, 0]} />
+                <Bar name="Học phí buổi" dataKey="session" fill="#059669" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -406,8 +410,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Tổng thu từng lớp — {monthLabel(latestReceiptMonth)}</h2><p className="mt-1 text-[11px] text-slate-500">Đã thu và nợ của các phiếu thu trong tháng này.</p></div><button onClick={() => onNavigateTab('tuition')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Quản lý học phí</button></div><HorizontalScroll label="Tổng thu từng lớp" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Lớp</th><th className="px-4 py-3 text-right">Đã thu</th>{showDebt && <th className="px-4 py-3 text-right">Công nợ theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{classMonthlyData.map(({ classroom, collected, debt }) => <tr key={classroom.id}><td className="px-4 py-3"><b className="text-slate-900">{classroom.code}</b><span className="ml-2 text-slate-500">{classroom.name}</span></td><td className="px-4 py-3 text-right font-bold text-emerald-700">{currency(collected)}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{debt.total > 0 ? <><div>{currency(debt.total)}</div>{debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(debt.monthly)}</div>}{debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(debt.course)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Danh sách học sinh</h2><p className="mt-1 text-[11px] text-slate-500">Dữ liệu từ hồ sơ và phiếu thu đã chuẩn hoá.</p></div><button onClick={() => onNavigateTab('students')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Xem tất cả</button></div><HorizontalScroll label="Danh sách học viên" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Học sinh</th><th className="px-4 py-3">Lớp</th>{showDebt && <th className="px-4 py-3 text-right">Nợ theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{studentRows.map((student) => <tr key={student.id}><td className="px-4 py-3 font-bold text-slate-700">{student.code}</td><td className="px-4 py-3"><b className="text-slate-900">{student.name}</b><span className="mt-0.5 block text-[11px] text-slate-500">{student.status === 'reserved' ? 'Bảo lưu' : student.status === 'dropped' ? 'Nghỉ học' : 'Đang học'}</span></td><td className="px-4 py-3 text-slate-600">{student.classroom?.code || 'Chưa xếp'}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{student.debt.total > 0 ? <><div>{currency(student.debt.total)}</div>{student.debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(student.debt.monthly)}</div>}{student.debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(student.debt.course)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Tổng thu từng lớp — {monthLabel(latestReceiptMonth)}</h2><p className="mt-1 text-[11px] text-slate-500">Đã thu và nợ của các phiếu thu trong tháng này.</p></div><button onClick={() => onNavigateTab('tuition')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Quản lý học phí</button></div><HorizontalScroll label="Tổng thu từng lớp" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Lớp</th><th className="px-4 py-3 text-right">Đã thu</th>{showDebt && <th className="px-4 py-3 text-right">Công nợ theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{classMonthlyData.map(({ classroom, collected, debt }) => <tr key={classroom.id}><td className="px-4 py-3"><b className="text-slate-900">{classroom.code}</b><span className="ml-2 text-slate-500">{classroom.name}</span></td><td className="px-4 py-3 text-right font-bold text-emerald-700">{currency(collected)}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{debt.total > 0 ? <><div>{currency(debt.total)}</div>{debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(debt.monthly)}</div>}{debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(debt.course)}</div>}{debt.session > 0 && <div className="mt-0.5 text-[10px]">Buổi: {currency(debt.session)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Danh sách học sinh</h2><p className="mt-1 text-[11px] text-slate-500">Dữ liệu từ hồ sơ và phiếu thu đã chuẩn hoá.</p></div><button onClick={() => onNavigateTab('students')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Xem tất cả</button></div><HorizontalScroll label="Danh sách học viên" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Học sinh</th><th className="px-4 py-3">Lớp</th>{showDebt && <th className="px-4 py-3 text-right">Nợ theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{studentRows.map((student) => <tr key={student.id}><td className="px-4 py-3 font-bold text-slate-700">{student.code}</td><td className="px-4 py-3"><b className="text-slate-900">{student.name}</b><span className="mt-0.5 block text-[11px] text-slate-500">{student.status === 'reserved' ? 'Bảo lưu' : student.status === 'dropped' ? 'Nghỉ học' : 'Đang học'}</span></td><td className="px-4 py-3 text-slate-600">{student.classroom?.code || 'Chưa xếp'}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{student.debt.total > 0 ? <><div>{currency(student.debt.total)}</div>{student.debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(student.debt.monthly)}</div>}{student.debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(student.debt.course)}</div>}{student.debt.session > 0 && <div className="mt-0.5 text-[10px]">Buổi: {currency(student.debt.session)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
       </section>
 
       <DashboardDetailModal detail={selectedDetail} students={students} teachers={teachers} classes={classes} rooms={rooms} receipts={receipts} programs={programs} revenueMonth={latestReceiptMonth || null} canViewDebt={showDebt} onClose={() => setSelectedDetail(null)} onViewFull={onNavigateTab} />

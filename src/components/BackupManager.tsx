@@ -118,7 +118,8 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
         teachers,
         rooms,
         receipts,
-        grades
+        grades,
+        attendanceSessions
       });
 
       const fileName = `BEEZONE_BaoCaoToanHeThong_${centerDate()}.xlsx`;
@@ -157,7 +158,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
           grades,
           backups: [backupRecord, ...backups],
           activityLogs,
-          attendanceSessions, enrollments, scheduleChanges,
+          attendanceSessions, enrollments, scheduleChanges, sessionBillingVersion: 1,
         },
       };
 

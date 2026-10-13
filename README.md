@@ -9,7 +9,7 @@
 1. Cài Node.js 22.22.2+ hoặc 24.15.0+ (phù hợp yêu cầu của bộ kiểm thử).
 2. Chạy `npm ci` để cài đúng các phiên bản trong `package-lock.json`.
 3. Chạy `npm run dev`. Khi chưa có Supabase, ứng dụng mở **bản xem thử cục bộ**; dữ liệu chỉ lưu trên trình duyệt này.
-4. Để dùng dữ liệu thật, nhập cấu hình Supabase trong `.env.local` theo `.env.example`, chạy các migration theo thứ tự `001`–`007`, rồi khởi động lại server.
+4. Để dùng dữ liệu thật, nhập cấu hình Supabase trong `.env.local` theo `.env.example`, chạy các migration theo thứ tự `001`–`008`, rồi khởi động lại server.
 
 ## Kiểm tra và build
 
@@ -23,7 +23,7 @@ npm run build
 
 ## Dữ liệu và sao lưu
 
-Hướng dẫn khóa học theo đợt, hạn học phí, lịch nghỉ/học bù và việc cần làm hôm nay: [SMALL_CENTER_GUIDE.md](SMALL_CENTER_GUIDE.md).
+Hướng dẫn khóa học theo đợt, thu học phí theo buổi, hạn thanh toán, lịch nghỉ/học bù và việc cần làm hôm nay: [SMALL_CENTER_GUIDE.md](SMALL_CENTER_GUIDE.md).
 
 - Dữ liệu thật lưu trong `public.center_data`; thay đổi được lưu tuần tự và kiểm tra phiên bản để tránh ghi đè dữ liệu của người khác. Khi có lỗi hoặc xung đột, xem thông báo và sao lưu trước khi tải lại.
 - Sao lưu **JSON** giữ đầy đủ cài đặt, học viên, lớp, giáo viên, phòng, lịch học, học phí, điểm, điểm danh và nhật ký.

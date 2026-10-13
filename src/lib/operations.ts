@@ -8,6 +8,7 @@ import type {
   TuitionReceipt,
 } from '../types';
 import { centerDate, isCalendarDate } from './dates';
+import { validSessionRate } from './sessionBilling';
 import { findScheduleConflict, timeMinutes } from './schedule';
 
 export const courseStatusLabels = {
@@ -25,6 +26,7 @@ export function addDays(date: string, count: number): string {
   return value.toISOString().slice(0, 10);
 }
 export function validateCourse(c: ClassRoom): string | null {
+  if (c.billingMode === 'session' && (!validSessionRate(c.sessionRate) || !isCalendarDate(c.sessionBillingStartDate))) return 'Nhập đơn giá mỗi buổi (số nguyên lớn hơn 0) và ngày bắt đầu tính phí theo buổi.';
   if ((c.startDate && !isCalendarDate(c.startDate)) || (c.endDate && !isCalendarDate(c.endDate)))
     return 'Ngày khai giảng hoặc kết thúc không hợp lệ.';
   if (c.startDate && c.endDate && c.startDate > c.endDate)

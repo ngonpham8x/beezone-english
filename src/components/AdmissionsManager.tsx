@@ -1011,7 +1011,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">Xác Nhận Nhập Học Chính Thức</h3>
-                <p className="text-xs text-slate-500">Tự động chuyển vào lớp, tạo bảng điểm & phiếu thu học phí</p>
+                <p className="text-xs text-slate-500">Chuyển vào lớp, tạo bảng điểm và áp dụng hình thức học phí của lớp</p>
               </div>
             </div>
 
@@ -1091,7 +1091,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                    <span>Tạo phiếu báo thu học phí ban đầu theo khóa học</span>
+                    <span>{classes.find(c => c.id === enrollClassId)?.billingMode === 'session' ? 'Ghi nhận học phí theo buổi sau khi điểm danh; có mặt hoặc đi trễ mới tính phí theo quy tắc mặc định' : 'Tạo phiếu báo thu học phí ban đầu theo hình thức tháng/khóa của lớp'}</span>
                   </div>
                 </div>
               </div>

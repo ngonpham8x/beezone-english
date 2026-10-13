@@ -1,14 +1,16 @@
 import { FeeStatus, TuitionInstallment, TuitionReceipt } from '../types';
 
-export type TuitionPaymentKind = 'course' | 'monthly';
+export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 
 export const paymentKindOf = (receipt: Pick<TuitionReceipt, 'paymentKind'>): TuitionPaymentKind => (
-  receipt.paymentKind === 'course' ? 'course' : 'monthly'
+  receipt.paymentKind === 'course' ? 'course' : receipt.paymentKind === 'session' ? 'session' : 'monthly'
 );
 
 export const paymentKindLabel = (receipt: Pick<TuitionReceipt, 'paymentKind'>) => (
-  paymentKindOf(receipt) === 'course' ? 'Học phí khóa' : 'Học phí tháng'
+  paymentKindOf(receipt) === 'course' ? 'Học phí khóa' : paymentKindOf(receipt) === 'session' ? 'Học phí buổi' : 'Học phí tháng'
 );
+
+export const receiptFee = (receipt: TuitionReceipt) => paymentKindOf(receipt) === 'session' ? receipt.sessionFee || 0 : paymentKindOf(receipt) === 'course' ? receipt.courseFee : receipt.monthlyFee || 0;
 
 // "Chưa xác định" is an internal value. Documents should display the
 // conventional cash/bank-transfer placeholder instead of an unfinished state.
@@ -22,13 +24,14 @@ export const paymentPeriodLabel = (receipt: Pick<TuitionReceipt, 'paymentKind' |
     const [year, month] = period.split('-');
     return `Tháng ${month}/${year}`;
   }
-  return period || (paymentKindOf(receipt) === 'monthly' ? `Tháng ${receipt.paymentDate.slice(5, 7)}/${receipt.paymentDate.slice(0, 4)}` : 'Chưa ghi mốc khóa');
+  return period || (paymentKindOf(receipt) === 'monthly' ? `Tháng ${receipt.paymentDate.slice(5, 7)}/${receipt.paymentDate.slice(0, 4)}` : paymentKindOf(receipt) === 'session' ? 'Thu theo buổi học' : 'Chưa ghi mốc khóa');
 };
 
 export interface TuitionDebtBreakdown {
   total: number;
   monthly: number;
   course: number;
+  session: number;
 }
 
 export const debtBreakdown = (receipts: TuitionReceipt[]): TuitionDebtBreakdown => receipts.reduce<TuitionDebtBreakdown>((summary, receipt) => {
@@ -36,9 +39,10 @@ export const debtBreakdown = (receipts: TuitionReceipt[]): TuitionDebtBreakdown 
   if (!debt) return summary;
   summary.total += debt;
   if (paymentKindOf(receipt) === 'course') summary.course += debt;
+  else if (paymentKindOf(receipt) === 'session') summary.session += debt;
   else summary.monthly += debt;
   return summary;
-}, { total: 0, monthly: 0, course: 0 });
+}, { total: 0, monthly: 0, course: 0, session: 0 });
 
 export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
   const debt = debtBreakdown(receipts).total;

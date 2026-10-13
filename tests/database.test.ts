@@ -32,6 +32,75 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  const sessionPayload = (billed=true) => ({...base,sessionBillingVersion:1,classes:[{id:'a',teacherId:'t',studentIds:['s'],billingMode:'session',sessionRate:150000,sessionBillingStartDate:'2020-01-01',sessionAbsencePolicy:'attended'}],students:[{id:'s',classId:'a',status:'active',feeStatus:billed?'debt':'unpaid'}],attendanceSessions:billed?[{id:'att',classId:'a',date:'2020-01-02',billing:{unitPrice:150000,absencePolicy:'attended'},entries:[{studentId:'s',status:'present'}]}]:[]});
+  const sessionReceipt = {id:'r',studentId:'s',classId:'a',paymentKind:'session',courseFee:0,monthlyFee:0,sessionFee:150000,sessionLines:[{attendanceSessionId:'att',date:'2020-01-02',unitPrice:150000}],discount:0,paidAmount:50000,debtAmount:100000,paymentDate:'2020-01-10'};
+  it('includes unbilled lessons in student debt when a teacher saves attendance',async()=>{
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(sessionPayload(false))]);
+    await asStaff({teacher:{edit:true},teacherId:'t'});
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(sessionPayload())]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify({...sessionPayload(),students:[{...sessionPayload().students[0],feeStatus:'unpaid'}]})])).rejects.toThrow(/derived fee status/);
+  });
+  it('charges no fee for either kind of absence under the center policy',async()=>{
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(sessionPayload())]);
+    await asStaff({teacher:{edit:true},teacherId:'t'});
+    for(const status of ['absent','excused','late']){
+      const data=sessionPayload();data.attendanceSessions[0].entries[0].status=status;data.students[0].feeStatus=status==='late'?'debt':'unpaid';
+      await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    }
+  });
+  it('keeps historical price immutable while the owner changes future class rates',async()=>{
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(sessionPayload())]);
+    const data=sessionPayload();data.classes[0].sessionRate=200000;
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    data.attendanceSessions[0].billing.unitPrice=200000;
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)])).rejects.toThrow(/price is immutable/);
+  });
+  it('rejects forged teacher prices and charging students outside the date roster',async()=>{
+    const data=sessionPayload(false); await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    await asStaff({teacher:{edit:true},teacherId:'t'});
+    const forged=sessionPayload();forged.attendanceSessions[0].billing.unitPrice=1;
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(forged)])).rejects.toThrow(/configuration/);
+    await db.exec('reset role'); await db.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+    const withOther={...data,students:[...data.students,{id:'other',classId:'b',status:'active',feeStatus:'unpaid'}],classes:[...data.classes,{id:'b',teacherId:'other',studentIds:['other'],billingMode:'course',sessionRate:150000,sessionBillingStartDate:'2020-01-01',sessionAbsencePolicy:'attended'}]};
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(withOther)]);
+    await asStaff({teacher:{edit:true},teacherId:'t'});
+    const invalid={...withOther,attendanceSessions:sessionPayload().attendanceSessions}; invalid.attendanceSessions[0].entries[0].studentId='other';
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(invalid)])).rejects.toThrow(/not enrolled/);
+  });
+  it('allows a collector to invoice recorded lessons and rejects double billing',async()=>{
+    const data=sessionPayload();await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    await asStaff({tuition:{collect:true}});
+    const collected={...data,receipts:[sessionReceipt],students:[{...data.students[0],feeStatus:'partial'}]};
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(collected)]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify({...collected,receipts:[sessionReceipt,{...sessionReceipt,id:'r2'}]})])).rejects.toThrow(/already billed/);
+  });
+  it('prevents removing or changing the charged part of attendance referenced by a receipt',async()=>{
+    const data={...sessionPayload(),receipts:[sessionReceipt]};await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify({...data,attendanceSessions:[]})])).rejects.toThrow(/receipt reference/);
+    data.attendanceSessions[0].entries[0].status='excused';
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)])).rejects.toThrow(/receipt reference/);
+    data.attendanceSessions[0].entries[0].status='late';
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+  });
+  it('validates session invoice arithmetic and payment history at the database',async()=>{
+    const data=sessionPayload();
+    for(const receipt of [{...sessionReceipt,debtAmount:1},{...sessionReceipt,paidAmount:50000.5,debtAmount:99999.5},{...sessionReceipt,installments:[{date:'2020-01-10',amount:60000}]}]){
+      await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify({...data,receipts:[receipt]})])).rejects.toThrow(/amount/);
+    }
+  });
+  it('requires an owner to enable billing on legacy attendance',async()=>{
+    const data=sessionPayload();delete (data.attendanceSessions[0] as any).billing;data.students[0].feeStatus='unpaid';
+    await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    await asStaff({teacher:{edit:true},teacherId:'t'});
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(sessionPayload())])).rejects.toThrow(/Only owner/);
+  });
+  it('rejects old clients that drop billing version and future billable attendance',async()=>{
+    const data=sessionPayload();await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(data)]);
+    const oldClient={...data};delete (oldClient as any).sessionBillingVersion;
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(oldClient)])).rejects.toThrow(/Client update required/);
+    const future=sessionPayload();future.attendanceSessions[0].id='future';future.attendanceSessions[0].date='2099-01-01';
+    await expect(db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(future)])).rejects.toThrow(/future attendance/);
+  });
   it('rejects writes from an old client that would discard new operations arrays', async () => {
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, enrollments: [], scheduleChanges: [] })]);
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(base)])).rejects.toThrow(/Client update required/);

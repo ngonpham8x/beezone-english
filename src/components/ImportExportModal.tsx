@@ -2,7 +2,7 @@ import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
 import React, { useRef, useState } from 'react';
 import { CenterWorkbookData, generateMasterExcelWorkbook, parseCenterWorkbookFile, parseExcelStudentFile, ImportValidationResult, ImportedStudentRow } from '../services/excelService';
-import { Student, Teacher, ClassRoom, Room, TuitionReceipt, Grade, CenterSettings, StaffPermissions, CourseProgram } from '../types';
+import { Student, Teacher, ClassRoom, Room, TuitionReceipt, Grade, CenterSettings, StaffPermissions, CourseProgram, AttendanceSession } from '../types';
 import { FileSpreadsheet, FileUp, FileDown, CheckCircle2, AlertTriangle, Download, Upload, X, RefreshCw } from 'lucide-react';
 import { isLocalPreview } from '../lib/supabase';
 
@@ -15,6 +15,7 @@ interface ImportExportModalProps {
   rooms: Room[];
   classes: ClassRoom[];
   receipts: TuitionReceipt[];
+  attendanceSessions?: AttendanceSession[];
   grades: Grade[];
   settings: CenterSettings;
   canSyncCenterData: boolean;
@@ -34,6 +35,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   rooms,
   classes,
   receipts,
+  attendanceSessions = [],
   grades,
   settings,
   canSyncCenterData,
@@ -68,7 +70,8 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         teachers,
         rooms,
         receipts,
-        grades
+        grades,
+        attendanceSessions
       });
 
       const url = window.URL.createObjectURL(blob);

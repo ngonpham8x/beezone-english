@@ -29,6 +29,8 @@ export type StudentStatus = 'active' | 'reserved' | 'dropped' | 'lead' | 'trial'
 // 'trial': Học thử
 // 'registered': Đã đăng ký (chờ xếp lớp)
 export type FeeStatus = 'paid' | 'unpaid' | 'debt' | 'partial';
+export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
+export type SessionAbsencePolicy = 'attended' | 'unexcused' | 'all';
 
 export interface Student {
   id: string;
@@ -98,6 +100,10 @@ export interface ClassRoom {
   totalSessions?: number;
   courseStatus?: 'planned' | 'active' | 'paused' | 'completed';
   completedDate?: string;
+  billingMode?: TuitionPaymentKind;
+  sessionRate?: number;
+  sessionBillingStartDate?: string;
+  sessionAbsencePolicy?: SessionAbsencePolicy;
 }
 
 export interface ClassEnrollment {
@@ -168,7 +174,7 @@ export interface TuitionReceipt {
   // The course price and the monthly price are retained independently so a
   // receipt can clearly state what the family is paying for.
   monthlyFee?: number;
-  paymentKind?: 'course' | 'monthly';
+  paymentKind?: TuitionPaymentKind;
   billingPeriod?: string; // YYYY-MM, used for monthly tuition reports
   dueDate?: string;
   discount: number;
@@ -180,6 +186,19 @@ export interface TuitionReceipt {
   paymentMethod: 'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định';
   notes?: string;
   installments?: TuitionInstallment[];
+  sessionFee?: number;
+  sessionLines?: SessionChargeLine[];
+}
+
+export interface SessionChargeLine {
+  attendanceSessionId: string;
+  date: string;
+  unitPrice: number;
+}
+
+export interface SessionBillingSnapshot {
+  unitPrice: number;
+  absencePolicy: SessionAbsencePolicy;
 }
 
 export interface ActivityLog {
@@ -257,12 +276,14 @@ export interface AttendanceSession {
   teacherId?: string;
   entries: AttendanceStudentEntry[];
   generalNotes?: string;
+  billing?: SessionBillingSnapshot;
 }
 
 // The complete center dataset saved in an offline JSON backup. Keeping this
 // contract separate from the UI makes the restore path explicit and avoids
 // silently omitting related records such as rooms or timetable slots.
 export interface CenterBackupData {
+  sessionBillingVersion?: 1;
   settings: CenterSettings;
   programs: CourseProgram[];
   teachers: Teacher[];

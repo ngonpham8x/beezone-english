@@ -138,7 +138,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <button type="button" onClick={() => onNavigateTab('tuition')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
             <div className="text-slate-500 font-semibold uppercase">Tổng Công Nợ</div>
             <div className="text-xl font-bold text-rose-700 mt-1">{totalDebt.toLocaleString('vi-VN')} đ</div>
-            <div className="text-[11px] text-rose-600 font-medium">Tháng: {totalDebtBreakdown.monthly.toLocaleString('vi-VN')} đ · Khóa: {totalDebtBreakdown.course.toLocaleString('vi-VN')} đ</div>
+            <div className="text-[11px] text-rose-600 font-medium">Tháng: {totalDebtBreakdown.monthly.toLocaleString('vi-VN')} đ · Khóa: {totalDebtBreakdown.course.toLocaleString('vi-VN')} đ · Buổi: {totalDebtBreakdown.session.toLocaleString('vi-VN')} đ</div>
           </button>
 
           <button type="button" onClick={() => onNavigateTab('classes')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
@@ -161,7 +161,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                   <th className="p-2.5">Sĩ Số</th>
                   <th className="p-2.5">Doanh Thu Thu</th>
                   <th className="p-2.5">Nợ Tháng</th>
-                  <th className="p-2.5">Nợ Khóa</th>
+                  <th className="p-2.5">Nợ Khóa</th><th className="p-2.5">Nợ Buổi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
@@ -184,7 +184,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                       <td className="p-2.5">{classStudents.length} / {cls.capacity > 0 ? cls.capacity : 'Chưa cập nhật'} HS</td>
                       <td className="p-2.5 font-bold text-emerald-700">{paid.toLocaleString('vi-VN')} đ</td>
                       <td className="p-2.5 font-bold text-rose-700">{debt.monthly > 0 ? `${debt.monthly.toLocaleString('vi-VN')} đ` : '—'}</td>
-                      <td className="p-2.5 font-bold text-rose-700">{debt.course > 0 ? `${debt.course.toLocaleString('vi-VN')} đ` : '—'}</td>
+                      <td className="p-2.5 font-bold text-rose-700">{debt.course > 0 ? `${debt.course.toLocaleString('vi-VN')} đ` : '—'}</td><td className="p-2.5 font-bold text-rose-700">{debt.session > 0 ? `${debt.session.toLocaleString('vi-VN')} đ` : '—'}</td>
                     </tr>
                   );
                 })}
@@ -216,17 +216,18 @@ export const ReportView: React.FC<ReportViewProps> = ({
               <div className="rounded-xl bg-emerald-50 p-3"><p className="text-emerald-700">Đã thu</p><b className="mt-1 block text-emerald-800">{selectedClassPaid.toLocaleString('vi-VN')} đ</b></div>
               <div className="rounded-xl bg-rose-50 p-3"><p className="text-rose-700">Nợ tháng</p><b className="mt-1 block text-rose-800">{selectedClassDebt.monthly.toLocaleString('vi-VN')} đ</b></div>
               <div className="rounded-xl bg-violet-50 p-3"><p className="text-violet-700">Nợ khóa</p><b className="mt-1 block text-violet-800">{selectedClassDebt.course.toLocaleString('vi-VN')} đ</b></div>
+              <div className="rounded-xl bg-amber-50 p-3"><p className="text-amber-700">Nợ buổi</p><b className="mt-1 block text-amber-800">{selectedClassDebt.session.toLocaleString('vi-VN')} đ</b></div>
             </div>
 
             <HorizontalScroll label="Học phí theo học viên" className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Nợ tháng</th><th className="px-3 py-2.5 text-right">Nợ khóa</th></tr></thead>
+                <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Nợ tháng</th><th className="px-3 py-2.5 text-right">Nợ khóa</th><th className="px-3 py-2.5 text-right">Nợ buổi</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {selectedClassStudents.length === 0 ? <tr><td colSpan={5} className="px-3 py-7 text-center text-slate-500">Chưa có học viên trong lớp.</td></tr> : selectedClassStudents.map((student) => {
                     const studentReceipts = selectedClassReceipts.filter((receipt) => receipt.studentId === student.id);
                     const studentDebt = debtBreakdown(studentReceipts);
                     const studentPaid = periodPaymentEntries.filter((entry) => entry.studentId === student.id).reduce((sum, entry) => sum + entry.amount, 0);
-                    return <tr key={student.id}><td className="px-3 py-2.5 font-bold font-mono text-slate-900">{student.code}</td><td className="px-3 py-2.5 font-semibold text-slate-800">{student.name}</td><td className="px-3 py-2.5 text-right font-bold text-emerald-700">{studentPaid.toLocaleString('vi-VN')} đ</td><td className="px-3 py-2.5 text-right font-bold text-rose-700">{studentDebt.monthly > 0 ? `${studentDebt.monthly.toLocaleString('vi-VN')} đ` : '—'}</td><td className="px-3 py-2.5 text-right font-bold text-violet-700">{studentDebt.course > 0 ? `${studentDebt.course.toLocaleString('vi-VN')} đ` : '—'}</td></tr>;
+                    return <tr key={student.id}><td className="px-3 py-2.5 font-bold font-mono text-slate-900">{student.code}</td><td className="px-3 py-2.5 font-semibold text-slate-800">{student.name}</td><td className="px-3 py-2.5 text-right font-bold text-emerald-700">{studentPaid.toLocaleString('vi-VN')} đ</td><td className="px-3 py-2.5 text-right font-bold text-rose-700">{studentDebt.monthly > 0 ? `${studentDebt.monthly.toLocaleString('vi-VN')} đ` : '—'}</td><td className="px-3 py-2.5 text-right font-bold text-violet-700">{studentDebt.course > 0 ? `${studentDebt.course.toLocaleString('vi-VN')} đ` : '—'}</td><td className="px-3 py-2.5 text-right font-bold text-violet-700">{studentDebt.session > 0 ? `${studentDebt.session.toLocaleString('vi-VN')} đ` : '—'}</td></tr>;
                   })}
                 </tbody>
               </table>

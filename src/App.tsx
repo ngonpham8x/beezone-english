@@ -1,9 +1,10 @@
+import { withUnbilledSessionReceipts, validateSessionReceipt, validateBilledAttendanceEdit } from './lib/sessionBilling';
 import type { TaskDestination } from './components/TodayTasks';
 import { DialogFrame } from './components/DialogFrame';
 import { updateEnrollmentHistory, validateCourse, validateScheduleChange, lessonsOn } from './lib/operations';
 import { findScheduleConflict } from './lib/schedule';
 import { DRAWER_QUERY, useMediaQuery } from './hooks/useResponsive';
-import React, { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
   Student,
@@ -150,12 +151,12 @@ const withClassScheduleSummary = (classroom: ClassRoom, slots: TimetableSlot[]):
   };
 };
 
-const feeStatusFromReceipts = (studentId: string, receipts: TuitionReceipt[]): Student['feeStatus'] => {
-  return feeStatusForReceipts(receipts.filter((receipt) => receipt.studentId === studentId));
+const feeStatusFromReceipts = (studentId: string, receipts: TuitionReceipt[], sessions: AttendanceSession[] = []): Student['feeStatus'] => {
+  return feeStatusForReceipts(withUnbilledSessionReceipts(receipts, sessions).filter((receipt) => receipt.studentId === studentId));
 };
 
 const normaliseReceipt = (receipt: TuitionReceipt): TuitionReceipt => {
-  const paymentKind = receipt.paymentKind === 'course' ? 'course' : 'monthly';
+  const paymentKind = receipt.paymentKind === 'course' ? 'course' : receipt.paymentKind === 'session' ? 'session' : 'monthly';
   const recordedAmount = Math.max(receipt.paidAmount + receipt.debtAmount + receipt.discount, 0);
   const status: NonNullable<TuitionReceipt['status']> = receipt.debtAmount > 0
     ? (receipt.paidAmount > 0 ? 'partial' : 'debt')
@@ -332,6 +333,7 @@ export default function App() {
   const [taskRequest, setTaskRequest] = useState<TaskDestination | null>(null);
   const [enrollments, setEnrollments] = useState<ClassEnrollment[]>(() => loadStored('enrollments', []));
   const [scheduleChanges, setScheduleChanges] = useState<ScheduleChange[]>(() => loadStored('scheduleChanges', []));
+  const billingReceipts = useMemo(() => withUnbilledSessionReceipts(receipts, attendanceSessions), [receipts, attendanceSessions]);
   const [accountAuditLogs, setAccountAuditLogs] = useState<AccountAuditLog[]>(() => loadStored('accountAuditLogs', initialAccountAuditLogs));
   const [accountAuditError, setAccountAuditError] = useState<string | null>(null);
   const [isAccountAuditLoading, setIsAccountAuditLoading] = useState(false);
@@ -471,14 +473,14 @@ export default function App() {
     setStudents((previousStudents) => {
       let changed = false;
       const nextStudents = previousStudents.map((student) => {
-        const feeStatus = feeStatusFromReceipts(student.id, receipts);
+        const feeStatus = feeStatusFromReceipts(student.id, receipts, attendanceSessions);
         if (feeStatus === student.feeStatus) return student;
         changed = true;
         return { ...student, feeStatus };
       });
       return changed ? nextStudents : previousStudents;
     });
-  }, [receipts]);
+  }, [receipts, attendanceSessions]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -504,7 +506,7 @@ export default function App() {
         setCanSyncCenterData(false);
         setHasCenterData(false);
         setPrograms([]); setTeachers([]); setRooms([]); setClasses([]); setStudents([]);
-        setTimetableSlots([]); setGrades([]); setReceipts([]); setBackups([]);
+        setTimetableSlots([]); setGrades([]); setReceipts([]); setBackups([]); setEnrollments([]); setScheduleChanges([]);
         setAttendanceSessions([]); setActivityLogs([]); setAccountAuditLogs([]);
         setAuthStatus('signed-out');
         return;
@@ -556,7 +558,7 @@ export default function App() {
         const payload = parseCenterData(centerData?.payload || {}, initialSettings);
         const hasPayload = Boolean(centerData && Object.keys(centerData.payload || {}).length);
         const normalizedReceipts = normaliseReceipts(payload.receipts);
-        const hydratedStudents = payload.students.map(student => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts) }));
+        const hydratedStudents = payload.students.map(student => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts, payload.attendanceSessions) }));
         const hydratedClasses = reconcileClassStudentIds(payload.classes, hydratedStudents);
         const hydratedTeachers = reconcileTeacherAssignments(payload.teachers, hydratedClasses);
         setSettings(payload.settings); setPrograms(payload.programs); setRooms(payload.rooms);
@@ -646,7 +648,7 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
-    const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, enrollments, scheduleChanges };
+    const payload: CenterDataPayload = { sessionBillingVersion: 1, settings, programs, teachers, rooms, classes, students: students.map(s => ({ ...s, feeStatus: feeStatusFromReceipts(s.id, receipts, attendanceSessions) })), timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, enrollments, scheduleChanges };
     if (JSON.stringify(payload) === savedPayloadRef.current) return;
     setSyncStatus(previous => previous === 'error' || previous === 'conflict' ? previous : 'saving');
     const timer = window.setTimeout(() => {
@@ -719,19 +721,20 @@ export default function App() {
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
     if (newStudent.classId) setEnrollments(prev => updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()));
-    setStudents(prev => [{ ...newStudent, feeStatus: feeStatusFromReceipts(newStudent.id, receipts) }, ...prev]);
+    setStudents(prev => [{ ...newStudent, feeStatus: feeStatusFromReceipts(newStudent.id, receipts, attendanceSessions) }, ...prev]);
     addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${newStudent.name} (${newStudent.code})`);
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     setEnrollments(prev => updateEnrollmentHistory(prev, students.find(s => s.id === updatedStudent.id), updatedStudent, centerDate()));
-    const normalizedStudent = { ...updatedStudent, feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts) };
+    const normalizedStudent = { ...updatedStudent, feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts, attendanceSessions) };
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? normalizedStudent : s));
     addLog('SỬA', 'Học sinh', `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`);
   };
 
   const handleDeleteStudent = (id: string) => {
     const st = students.find(s => s.id === id);
+    if (attendanceSessions.some(session => session.billing && session.entries.some(entry => entry.studentId === id))) { alert('Học viên có lịch sử học phí theo buổi. Hãy chuyển trạng thái học để giữ hồ sơ.'); return; }
     const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
     if (enrollments.some(item => item.studentId === id)) { alert('Học viên có lịch sử đăng ký khóa học. Hãy chuyển trạng thái học để giữ hồ sơ.'); return; }
     if (linkedReceipts.length > 0) {
@@ -745,7 +748,7 @@ export default function App() {
   };
 
   const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
-    if (!currentUser || (currentUser.role !== 'owner' && (!currentUser.permissions.student.edit || !currentUser.permissions.tuition.collect))) { alert('Cần quyền sửa học viên và thu học phí để xác nhận nhập học.'); return false; }
+    if (!currentUser || (currentUser.role !== 'owner' && (!currentUser.permissions.student.edit || (classes.find(c => c.id === classId)?.billingMode !== 'session' && !currentUser.permissions.tuition.collect)))) { alert('Cần quyền sửa học viên và thu học phí để xác nhận nhập học.'); return false; }
     const student = students.find(s => s.id === studentId);
     if (!student || student.status === 'active') return false;
     const targetClass = classes.find(c => c.id === classId);
@@ -806,10 +809,10 @@ export default function App() {
       code: nextReceiptCode(receipts),
       studentId,
       classId,
-      courseFee: tuitionAmount,
-      monthlyFee: 0,
-      paymentKind: 'course',
-      billingPeriod: `Nhập học ${enrollDate || centerDate()}`,
+      courseFee: targetClass.billingMode === 'monthly' ? 0 : tuitionAmount,
+      monthlyFee: targetClass.billingMode === 'monthly' ? tuitionAmount : 0,
+      paymentKind: targetClass.billingMode === 'monthly' ? 'monthly' : 'course',
+      billingPeriod: targetClass.billingMode === 'monthly' ? (enrollDate || centerDate()).slice(0,7) : `Nhập học ${enrollDate || centerDate()}`,
       discount: 0,
       paidAmount: 0,
       debtAmount: tuitionAmount,
@@ -819,7 +822,7 @@ export default function App() {
       paymentMethod: 'Chưa xác định',
       notes: `Học phí nhập học khóa ${targetProgram?.name || targetClass?.name || ''}`,
     };
-    if (tuitionAmount > 0 && !receipts.some(r => r.studentId === studentId && r.classId === classId && r.paymentKind === 'course')) setReceipts(prev => [newReceipt, ...prev]);
+    if (targetClass.billingMode !== 'session' && tuitionAmount > 0 && !receipts.some(r => r.studentId === studentId && r.classId === classId && r.paymentKind === 'course')) setReceipts(prev => [newReceipt, ...prev]);
 
     addLog('THÊM', 'Tuyển sinh', `Xác nhận nhập học chính thức học viên ${student.name} (${student.code}) vào lớp ${targetClass?.name || classId}`);
     return true;
@@ -910,11 +913,11 @@ export default function App() {
   };
 
   const handleImportCenterData = (data: CenterWorkbookData) => {
-    if (enrollments.length || scheduleChanges.length) { alert('Đã có lịch sử đăng ký hoặc lịch nghỉ/học bù. Báo cáo Excel không thay thế bản sao lưu đầy đủ. Hãy dùng sao lưu JSON để khôi phục; vẫn có thể nhập thêm học viên bằng Excel.'); return false; }
+    if (enrollments.length || scheduleChanges.length || attendanceSessions.some(s => s.billing)) { alert('Đã có lịch sử đăng ký hoặc lịch nghỉ/học bù. Báo cáo Excel không thay thế bản sao lưu đầy đủ. Hãy dùng sao lưu JSON để khôi phục; vẫn có thể nhập thêm học viên bằng Excel.'); return false; }
     try { parseCenterData({ ...data, settings }, settings); }
     catch (error) { alert(error instanceof Error ? error.message : 'Dữ liệu nhập không hợp lệ.'); return false; }
     const normalizedReceipts = normaliseReceipts(data.receipts);
-    const importedStudents = data.students.map((student) => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts) }));
+    const importedStudents = data.students.map((student) => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts, data.attendanceSessions || []) }));
     const importedClasses = reconcileClassStudentIds(data.classes, importedStudents);
     setPrograms(data.programs);
     setTeachers(reconcileTeacherAssignments(data.teachers, importedClasses));
@@ -925,7 +928,7 @@ export default function App() {
     setGrades(data.grades);
     setReceipts(normalizedReceipts);
     setBackups([]);
-    setAttendanceSessions([]);
+    setAttendanceSessions(data.attendanceSessions || []);
     setHasCenterData(true);
     const importLog: ActivityLog[] = currentUser ? [{
       id: `LOG_IMPORT_${Date.now()}`,
@@ -997,6 +1000,7 @@ export default function App() {
   };
 
   const handleDeleteClass = (id: string) => {
+    if (attendanceSessions.some(session => session.classId === id && session.billing)) { alert('Lớp có lịch sử học phí theo buổi. Hãy kết thúc đợt học để giữ hồ sơ.'); return; }
     if (enrollments.some(item => item.classId === id) || scheduleChanges.some(item => item.classId === id)) { alert('Đợt học có lịch sử đăng ký hoặc lịch nghỉ/học bù. Hãy giữ hồ sơ và chuyển trạng thái kết thúc.'); return; }
     const c = classes.find(item => item.id === id);
     const classStudents = students.filter((student) => student.classId === id);
@@ -1086,20 +1090,29 @@ export default function App() {
 
   // Tuition Handler
   const handleAddReceipt = (r: TuitionReceipt) => {
+    if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.tuition.collect)) return false;
+    if (r.paymentKind !== 'session' && classes.find(c => c.id === r.classId)?.billingMode === 'session') { alert('Lớp này thu theo buổi. Chọn các buổi đã điểm danh trong mục Học phí theo buổi.'); return false; }
+    const issue = validateSessionReceipt(r, attendanceSessions, receipts);
+    if (issue) { alert(issue); return false; }
     setReceipts(prev => [r, ...prev]);
 
     addLog('THÊM', 'Học phí', `Lập phiếu thu ${r.code} số tiền ${r.paidAmount.toLocaleString('vi-VN')} đ`);
+    return true;
   };
 
   const handleUpdateReceipt = (updatedReceipt: TuitionReceipt) => {
+    if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.tuition.collect)) return false;
+    const issue = validateSessionReceipt(updatedReceipt, attendanceSessions, receipts);
+    if (issue) { alert(issue); return false; }
     setReceipts(prev => prev.map((receipt) => receipt.id === updatedReceipt.id ? updatedReceipt : receipt));
-    addLog('SỬA', 'Học phí', `Cập nhật phiếu thu ${updatedReceipt.code} (${updatedReceipt.paymentKind === 'course' ? 'học phí khóa' : 'học phí tháng'})`);
+    addLog('SỬA', 'Học phí', `Cập nhật phiếu thu ${updatedReceipt.code} (${updatedReceipt.paymentKind === 'course' ? 'học phí khóa' : updatedReceipt.paymentKind === 'session' ? 'học phí buổi' : 'học phí tháng'})`);
   };
 
   const handleDeleteReceipt = (id: string) => {
+    if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.tuition.delete)) return;
     const receipt = receipts.find((item) => item.id === id);
     setReceipts(prev => prev.filter((item) => item.id !== id));
-    if (receipt) addLog('XÓA', 'Học phí', `Xóa phiếu thu ${receipt.code} (${receipt.paymentKind === 'course' ? 'học phí khóa' : 'học phí tháng'})`);
+    if (receipt) addLog('XÓA', 'Học phí', `Xóa phiếu thu ${receipt.code} (${receipt.paymentKind === 'course' ? 'học phí khóa' : receipt.paymentKind === 'session' ? 'học phí buổi' : 'học phí tháng'})`);
   };
 
   const handleBackupCreated = (backup: SystemBackup) => {
@@ -1109,7 +1122,7 @@ export default function App() {
 
   const handleRestoreBackup = (data: CenterBackupData, filename: string) => {
     const normalizedReceipts = normaliseReceipts(data.receipts);
-    const restoredStudents = data.students.map((student) => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts) }));
+    const restoredStudents = data.students.map((student) => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts, data.attendanceSessions || []) }));
     const restoredClasses = reconcileClassStudentIds(data.classes, restoredStudents);
     setSettings(data.settings);
     setPrograms(data.programs);
@@ -1130,6 +1143,8 @@ export default function App() {
 
   // Attendance Handler
   const handleSaveAttendanceSession = (sessionData: AttendanceSession) => {
+    const issue = validateBilledAttendanceEdit(sessionData, receipts);
+    if (issue) { alert(issue); return false; }
     setAttendanceSessions(prev => {
       const idx = prev.findIndex(s => s.id === sessionData.id);
       if (idx >= 0) {
@@ -1140,6 +1155,7 @@ export default function App() {
       return [sessionData, ...prev];
     });
     addLog('THÊM', 'Điểm danh', `Điểm danh buổi học ngày ${sessionData.date} lớp ${classes.find(c => c.id === sessionData.classId)?.name || sessionData.classId}`);
+    return true;
   };
 
   const handleSaveScheduleChange = (change: ScheduleChange): string | null => {
@@ -1324,7 +1340,7 @@ export default function App() {
               teachers={teachers}
               classes={classes}
               rooms={rooms}
-              receipts={receipts}
+              receipts={billingReceipts}
               programs={programs}
               currentUser={currentUser}
               timetableSlots={timetableSlots} scheduleChanges={scheduleChanges} attendanceSessions={attendanceSessions}
@@ -1344,7 +1360,7 @@ export default function App() {
               students={students}
               programs={programs}
               classes={classes}
-              receipts={receipts}
+              receipts={billingReceipts}
               timetableSlots={timetableSlots}
               teachers={teachers}
               rooms={rooms}
@@ -1388,7 +1404,7 @@ export default function App() {
               rooms={rooms}
               programs={programs}
               students={students}
-              receipts={receipts}
+              receipts={billingReceipts}
               timetableSlots={timetableSlots}
               permissions={currentUser.permissions}
               isOwner={currentUser.role === 'owner'}
@@ -1509,6 +1525,7 @@ export default function App() {
               settings={settings}
               isOwner={currentUser.role === 'owner'}
               requestReceiptId={taskRequest?.tab === 'tuition' ? taskRequest.receiptId : undefined} onRequestHandled={() => setTaskRequest(null)}
+              attendanceSessions={attendanceSessions}
               onAddReceipt={handleAddReceipt}
               onUpdateReceipt={handleUpdateReceipt}
               onDeleteReceipt={handleDeleteReceipt}
@@ -1533,7 +1550,7 @@ export default function App() {
               students={students}
               teachers={teachers}
               classes={classes}
-              receipts={receipts}
+              receipts={billingReceipts}
               onNavigateTab={navigateTo}
             />
           )}
@@ -1629,7 +1646,7 @@ export default function App() {
             teachers={teachers}
             rooms={rooms}
             classes={classes}
-            receipts={receipts}
+            receipts={receipts} attendanceSessions={attendanceSessions}
             grades={grades}
             settings={settings}
             canSyncCenterData={canSyncCenterData}

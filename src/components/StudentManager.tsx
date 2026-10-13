@@ -56,7 +56,7 @@ import {
   UserMinus
 } from 'lucide-react';
 
-const FeeStatusBadge: React.FC<{ feeStatus: FeeStatus; monthlyDebt?: number; courseDebt?: number }> = ({ feeStatus, monthlyDebt = 0, courseDebt = 0 }) => {
+const FeeStatusBadge: React.FC<{ feeStatus: FeeStatus; monthlyDebt?: number; courseDebt?: number; sessionDebt?: number }> = ({ feeStatus, monthlyDebt = 0, courseDebt = 0, sessionDebt = 0 }) => {
   const isPaid = feeStatus === 'paid';
   const isUnpaid = feeStatus === 'unpaid';
   const label = isPaid ? 'Đã đóng đủ' : isUnpaid ? 'Chưa đóng' : 'Đóng thiếu';
@@ -74,6 +74,7 @@ const FeeStatusBadge: React.FC<{ feeStatus: FeeStatus; monthlyDebt?: number; cou
       </span>
       {monthlyDebt > 0 && <div className="text-[10px] font-bold text-rose-700">Nợ tháng: {monthlyDebt.toLocaleString('vi-VN')} đ</div>}
       {courseDebt > 0 && <div className="text-[10px] font-bold text-rose-700">Nợ khóa: {courseDebt.toLocaleString('vi-VN')} đ</div>}
+      {sessionDebt > 0 && <div className="text-[10px] font-bold text-rose-700">Nợ buổi: {sessionDebt.toLocaleString('vi-VN')} đ</div>}
     </div>
   );
 };
@@ -633,7 +634,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         </td>
 
                         <td className="py-3 px-4">
-                          <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} />
+                          <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
                         </td>
 
                         <td className="py-3 px-4">
@@ -785,7 +786,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                       {/* Fee Badge */}
                       <div className="shrink-0 text-right">
-                        <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} />
+                        <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
                       </div>
                     </div>
 
@@ -1079,7 +1080,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     <FeeStatusBadge
                       feeStatus={viewingStudent.feeStatus}
                       monthlyDebt={debtForStudent(viewingStudent.id).monthly}
-                      courseDebt={debtForStudent(viewingStudent.id).course}
+                      courseDebt={debtForStudent(viewingStudent.id).course} sessionDebt={debtForStudent(viewingStudent.id).session}
                     />
                   </div>
                 </div>

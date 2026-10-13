@@ -22,6 +22,8 @@ import {
   Eye
 } from 'lucide-react';
 import { TeacherAvatar } from './TeacherAvatar';
+import { absencePolicyLabels } from '../lib/sessionBilling';
+import { centerDate } from '../lib/dates';
 
 interface ClassManagerProps {
   classes: ClassRoom[];
@@ -406,6 +408,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <strong>{courseStatusLabels[cls.courseStatus || 'active']}</strong>
                   <div className="mt-1">{cls.startDate || 'Chưa đặt ngày khai giảng'} → {cls.endDate || 'Chưa đặt ngày kết thúc'}</div>
                   <div className="mt-1">Đã ghi nhận {attendanceSessions.filter(item => item.classId === cls.id).length}{cls.totalSessions ? ` / ${cls.totalSessions}` : ''} buổi · {enrollments.filter(item => item.classId === cls.id).length} hồ sơ đăng ký</div>
+                  {cls.billingMode === 'session' && <div className="mt-1 font-semibold text-violet-700">Thu theo buổi · {cls.sessionRate?.toLocaleString('vi-VN')} đ/buổi · {absencePolicyLabels[cls.sessionAbsencePolicy || 'attended']}</div>}
                 </div>
                 <div className="mt-4 pt-3 border-t border-slate-100">
                   <div className="flex justify-between items-center text-xs font-semibold mb-1.5">
@@ -497,7 +500,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                             {debt.total > 0 ? 'Đóng thiếu' : st.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa có phiếu'}
                           </span>
                           {debt.monthly > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Tháng: {debt.monthly.toLocaleString('vi-VN')} đ</div>}
-                          {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}
+                          {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}{debt.session > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Buổi: {debt.session.toLocaleString('vi-VN')} đ</div>}
                         </div>
                       </div>
                     );
@@ -557,6 +560,16 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <label>Số buổi dự kiến<input aria-label="Số buổi dự kiến" type="number" min="1" step="1" value={editingClass.totalSessions ?? ''} onChange={e => setEditingClass({ ...editingClass, totalSessions: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
                   <label>Trạng thái đợt học<select aria-label="Trạng thái đợt học" value={editingClass.courseStatus || 'active'} onChange={e => setEditingClass({ ...editingClass, courseStatus: e.target.value as ClassRoom['courseStatus'] })} className="mt-1 w-full rounded-lg border border-slate-300 p-2">{Object.entries(courseStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 </div>
+              </fieldset>
+              <fieldset className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <legend className="px-1 font-bold text-amber-950">Hình thức học phí</legend>
+                <label className="block">Thu học phí theo<select aria-label="Hình thức học phí của lớp" value={editingClass.billingMode || 'course'} onChange={e => setEditingClass({ ...editingClass, billingMode: e.target.value as ClassRoom['billingMode'], sessionBillingStartDate: editingClass.sessionBillingStartDate || centerDate(), sessionAbsencePolicy: editingClass.sessionAbsencePolicy || 'attended' })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2"><option value="course">Theo khóa</option><option value="monthly">Theo tháng</option><option value="session">Theo buổi học</option></select></label>
+                {editingClass.billingMode === 'session' && <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label>Đơn giá mỗi buổi (VNĐ)<input aria-label="Đơn giá mỗi buổi" type="number" min="1" step="1" required value={editingClass.sessionRate ?? ''} onChange={e => setEditingClass({ ...editingClass, sessionRate: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Bắt đầu tính phí từ<input aria-label="Ngày bắt đầu tính phí theo buổi" type="date" required value={editingClass.sessionBillingStartDate || ''} onChange={e => setEditingClass({ ...editingClass, sessionBillingStartDate: e.target.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label className="sm:col-span-2">Quy tắc buổi vắng<select aria-label="Quy tắc tính phí buổi vắng" value={editingClass.sessionAbsencePolicy || 'attended'} onChange={e => setEditingClass({ ...editingClass, sessionAbsencePolicy: e.target.value as ClassRoom['sessionAbsencePolicy'] })} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2">{Object.entries(absencePolicyLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <p className="text-xs text-slate-600 sm:col-span-2">Đơn giá được giữ theo buổi điểm danh mới. Các buổi cũ và phiếu đã lập giữ mức phí trước đó.</p>
+                </div>}
               </fieldset>
               <div className="grid grid-cols-2 gap-3">
                 <div>

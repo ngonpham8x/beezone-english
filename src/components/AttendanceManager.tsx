@@ -1,6 +1,7 @@
 import { HorizontalScroll } from './HorizontalScroll';
 import { centerDate } from '../lib/dates';
 import { lessonsOn } from '../lib/operations';
+import { snapshotForSession } from '../lib/sessionBilling';
 import type { TaskDestination } from './TodayTasks';
 import type { ClassEnrollment, ScheduleChange, TimetableSlot } from '../types';
 import { useResponsiveView } from '../hooks/useResponsive';
@@ -47,7 +48,7 @@ interface AttendanceManagerProps {
   students: Student[];
   teachers: Teacher[];
   attendanceSessions: AttendanceSession[];
-  onSaveSession: (session: AttendanceSession) => void;
+  onSaveSession: (session: AttendanceSession) => boolean | void;
   isOwner: boolean;
   currentUser?: UserAccount;
 }
@@ -91,6 +92,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const [generalNotes, setGeneralNotes] = useState<string>('');
   const [showTopicNote, setShowTopicNote] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [applyOldSessionBilling, setApplyOldSessionBilling] = useState(false);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   const tableScrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -162,6 +164,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
   // Sync entries when class or date changes
   React.useEffect(() => {
+    setApplyOldSessionBilling(false);
     if (existingSession) {
       setLessonTopic(existingSession.lessonTopic || '');
       setGeneralNotes(existingSession.generalNotes || '');
@@ -235,6 +238,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
   const handleSave = () => {
     if (!canSave || !selectedClass || !sessionDate) return;
+    if (selectedClass.billingMode === 'session' && sessionDate > centerDate()) { setStatusMessage('Chỉ ghi nhận học phí cho buổi đã tổ chức; ngày điểm danh không được ở tương lai.'); return; }
     if (noLesson) { setStatusMessage('Ngày này không có buổi học theo lịch thực tế. Kiểm tra lịch nghỉ hoặc học bù.'); return; }
 
     const sessionData: AttendanceSession = {
@@ -243,6 +247,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       date: sessionDate,
       lessonTopic: lessonTopic.trim() || 'Buổi học theo thời khóa biểu',
       teacherId: existingSession?.teacherId || datedLesson?.teacherId || selectedClass?.teacherId,
+      billing: snapshotForSession(selectedClass, sessionDate, applyOldSessionBilling ? undefined : existingSession),
       generalNotes: generalNotes.trim(),
       entries: [...(existingSession?.entries || []).filter(entry => !classStudents.some(st => st.id === entry.studentId)), ...classStudents.map(st => ({
         studentId: st.id,
@@ -252,7 +257,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       }))]
     };
 
-    onSaveSession(sessionData);
+    if (onSaveSession(sessionData) === false) return;
     setStatusMessage('✅ Đã lưu kết quả điểm danh thành công!');
     setTimeout(() => setStatusMessage(null), 3500);
   };
@@ -510,6 +515,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       </div>
 
       {/* ATTENDANCE CONTENT: CARD OR TABLE VIEW */}
+      {selectedClass?.billingMode === 'session' && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Lớp thu học phí theo buổi. Khi lưu điểm danh, hệ thống ghi nhận buổi phải thu theo quy tắc của lớp; thu tiền tại mục Học phí. Buổi cũ chưa áp dụng hình thức này giữ nguyên.</p>}
+      {isOwner && existingSession && !existingSession.billing && selectedClass?.billingMode === 'session' && sessionDate >= (selectedClass.sessionBillingStartDate || '9999') && <label className="flex items-center gap-2 rounded-xl border border-amber-200 bg-white p-3 text-sm"><input type="checkbox" checked={applyOldSessionBilling} onChange={e => setApplyOldSessionBilling(e.target.checked)} />Ghi nhận học phí cho buổi cũ này theo đơn giá hiện tại</label>}
       {viewMode === 'card' ? (
         /* Attendance Roster - Responsive Mobile Card View */
         <div className="space-y-3">

@@ -1,8 +1,11 @@
 import type { CenterBackupData, CenterSettings } from '../types';
-import { isCalendarDate } from './dates';
+import { centerDate, isCalendarDate } from './dates';
 import { timeMinutes } from './schedule';
+import { validSessionRate, validateSessionReceipt } from './sessionBilling';
+import type { AttendanceSession, TuitionReceipt } from '../types';
 
 export interface CenterDataPayload extends CenterBackupData {
+  sessionBillingVersion: 1;
   attendanceSessions: NonNullable<CenterBackupData['attendanceSessions']>;
   enrollments: NonNullable<CenterBackupData['enrollments']>;
   scheduleChanges: NonNullable<CenterBackupData['scheduleChanges']>;
@@ -38,7 +41,8 @@ const stringArray = (value: unknown) => Array.isArray(value) && value.every((ite
 /** Validate imported/cloud data before any live state is replaced. Missing legacy arrays start empty. */
 export function parseCenterData(value: unknown, fallbackSettings: CenterSettings): CenterDataPayload {
   if (!isRecord(value)) throw new Error('Dữ liệu trung tâm không đúng định dạng.');
-  const result: Record<string, unknown> = {};
+  if (value.sessionBillingVersion !== undefined && value.sessionBillingVersion !== 1) throw new Error('Phiên bản dữ liệu học phí theo buổi không được hỗ trợ.');
+  const result: Record<string, unknown> = { sessionBillingVersion: 1 };
   for (const key of arrays) {
     const records = value[key] ?? [];
     if (!Array.isArray(records)) throw new Error(`Danh sách ${key} không hợp lệ.`);
@@ -53,6 +57,7 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
         if (record.startDate && record.endDate && (record.startDate as string) > (record.endDate as string)) throw new Error('Ngày kết thúc trước ngày bắt đầu.');
       }
       if (key === 'classes' && ((record.totalSessions !== undefined && (!Number.isInteger(record.totalSessions) || (record.totalSessions as number) < 1)) || (record.courseStatus !== undefined && !['planned', 'active', 'paused', 'completed'].includes(record.courseStatus as string)))) throw new Error('Thông tin đợt học không hợp lệ.');
+      if (key === 'classes' && ((record.billingMode !== undefined && !['course','monthly','session'].includes(record.billingMode as string)) || (record.sessionRate !== undefined && !validSessionRate(record.sessionRate)) || (record.sessionBillingStartDate !== undefined && !isCalendarDate(record.sessionBillingStartDate)) || (record.sessionAbsencePolicy !== undefined && !['attended','unexcused','all'].includes(record.sessionAbsencePolicy as string)) || (record.billingMode === 'session' && (!validSessionRate(record.sessionRate) || !isCalendarDate(record.sessionBillingStartDate))))) throw new Error('Cấu hình học phí theo buổi không hợp lệ.');
       if (key === 'enrollments' && !['active', 'reserved', 'completed', 'transferred', 'dropped'].includes(record.status as string)) throw new Error('Lịch sử đăng ký học không hợp lệ.');
       if (key === 'scheduleChanges') {
         if (!['cancel', 'move', 'extra'].includes(record.kind as string) || !isCalendarDate(record.date) || (record.sourceDate !== undefined && !isCalendarDate(record.sourceDate)) || (record.kind !== 'extra' && typeof record.sourceSlotId !== 'string') || (record.kind === 'move' && !isCalendarDate(record.sourceDate))) throw new Error('Lịch nghỉ/học bù không hợp lệ.');
@@ -63,6 +68,8 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
       if (key === 'grades' && numbers.grades!.some((field) => (record[field] as number) > 10)) throw new Error('Điểm phải trong khoảng 0–10.');
       if (key === 'receipts') {
+        if (record.paymentKind !== undefined && !['course','monthly','session'].includes(record.paymentKind as string)) throw new Error('Hình thức học phí không hợp lệ.');
+        if (record.paymentKind === 'session' && (!Array.isArray(record.sessionLines) || record.sessionLines.some(line => !isRecord(line) || typeof line.attendanceSessionId !== 'string' || !isCalendarDate(line.date) || !validSessionRate(line.unitPrice)) || !money(record.sessionFee))) throw new Error('Chi tiết phiếu học phí theo buổi không hợp lệ.');
         if (record.dueDate !== undefined && !isCalendarDate(record.dueDate)) throw new Error('Hạn thanh toán không hợp lệ.');
         if (!isCalendarDate(record.paymentDate) || (record.monthlyFee !== undefined && !money(record.monthlyFee))) throw new Error('Ngày thu hoặc học phí tháng không hợp lệ.');
         if (record.installments !== undefined) {
@@ -72,8 +79,18 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
         }
       }
       if (key === 'attendanceSessions' && (!isCalendarDate(record.date) || !Array.isArray(record.entries) || record.entries.some((entry) => !isRecord(entry) || typeof entry.studentId !== 'string' || !['present', 'absent', 'excused', 'late'].includes(entry.status as string)))) throw new Error('Dữ liệu điểm danh không hợp lệ.');
+      if (key === 'attendanceSessions' && record.billing !== undefined && (!isRecord(record.billing) || !validSessionRate(record.billing.unitPrice) || !['attended','unexcused','all'].includes(record.billing.absencePolicy as string) || new Set((record.entries as {studentId:string}[]).map(entry => entry.studentId)).size !== (record.entries as unknown[]).length)) throw new Error('Đơn giá hoặc danh sách tính phí buổi học không hợp lệ.');
     }
     result[key] = records;
+  }
+  for (const session of result.attendanceSessions as AttendanceSession[]) {
+    if (!session.billing) continue;
+    if (session.date > centerDate() || !(result.classes as {id:string}[]).some(c => c.id === session.classId) || session.entries.some(entry => !(result.students as {id:string}[]).some(s => s.id === entry.studentId))) throw new Error('Buổi tính phí ở tương lai hoặc thiếu hồ sơ lớp/học viên.');
+    if ((result.attendanceSessions as AttendanceSession[]).filter(item => item.classId === session.classId && item.date === session.date).length > 1) throw new Error('Lớp có buổi tính phí trùng ngày.');
+  }
+  for (const receipt of result.receipts as TuitionReceipt[]) {
+    const message = validateSessionReceipt(receipt, result.attendanceSessions as AttendanceSession[], result.receipts as TuitionReceipt[]);
+    if (message) throw new Error(message);
   }
   const settings = value.settings ?? fallbackSettings;
   if (!isRecord(settings) || ['name', 'slogan', 'address', 'phone', 'email', 'adminReportEmail'].some((key) => typeof settings[key] !== 'string') || ['autoEmailReport', 'autoBackup'].some((key) => typeof settings[key] !== 'boolean')) throw new Error('Cài đặt trung tâm không hợp lệ.');
