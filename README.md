@@ -21,6 +21,10 @@ npm run build
 
 `npm run check` chạy cả ba bước. `npm run clean` dọn thư mục build và hoạt động trên Windows. Bản production không cho dùng tài khoản xem thử; thiếu cấu hình Supabase sẽ hiển thị thông báo chưa cấu hình.
 
+## Cấu trúc và cập nhật mã
+
+Giao diện và nghiệp vụ được chia theo thư mục trong `src/modules`; `src/app` ghép các màn hình, còn dịch vụ Excel tách theo bước nhập và từng sheet. Đọc [ARCHITECTURE.md](ARCHITECTURE.md) để biết nơi sửa từng chức năng, quy tắc dữ liệu và cách bổ sung module. GitHub Actions tự chạy `npm run check` khi push `main` hoặc mở PR, bao gồm kiểm tra vòng phụ thuộc và các luồng nghiệp vụ liên quan.
+
 ## Dữ liệu và sao lưu
 
 Hướng dẫn khóa học theo đợt, thu học phí theo buổi, hạn thanh toán, lịch nghỉ/học bù và việc cần làm hôm nay: [SMALL_CENTER_GUIDE.md](SMALL_CENTER_GUIDE.md).

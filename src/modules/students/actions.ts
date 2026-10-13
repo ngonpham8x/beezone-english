@@ -1,0 +1,393 @@
+import type { Student, TuitionReceipt, UserAccount } from '../../types';
+import type { CenterStore } from '../center/useCenterStore';
+import type { ActivityLogger } from '../system/activityLogger';
+
+import { centerDate, isCalendarDate } from '../../lib/dates';
+import { nextReceiptCode } from '../../lib/identifiers';
+import { updateEnrollmentHistory } from '../../lib/operations';
+import { feeStatusFromReceipts } from '../center/model';
+
+type Context = Pick<
+  CenterStore,
+  | 'programs'
+  | 'classes'
+  | 'setClasses'
+  | 'students'
+  | 'setStudents'
+  | 'grades'
+  | 'setGrades'
+  | 'receipts'
+  | 'setReceipts'
+  | 'attendanceSessions'
+  | 'enrollments'
+  | 'setEnrollments'
+> & { currentUser: UserAccount | null; addLog: ActivityLogger };
+export function createStudentActions({
+  programs,
+  classes,
+  setClasses,
+  students,
+  setStudents,
+  grades,
+  setGrades,
+  receipts,
+  setReceipts,
+  attendanceSessions,
+  enrollments,
+  setEnrollments,
+  currentUser,
+  addLog,
+}: Context) {
+  // Student CRUD Handlers
+  const handleAddStudent = (newStudent: Student) => {
+    if (newStudent.classId)
+      setEnrollments((prev) =>
+        updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()),
+      );
+    setStudents((prev) => [
+      {
+        ...newStudent,
+        feeStatus: feeStatusFromReceipts(newStudent.id, receipts, attendanceSessions),
+      },
+      ...prev,
+    ]);
+    addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${newStudent.name} (${newStudent.code})`);
+  };
+
+  const handleUpdateStudent = (updatedStudent: Student) => {
+    setEnrollments((prev) =>
+      updateEnrollmentHistory(
+        prev,
+        students.find((s) => s.id === updatedStudent.id),
+        updatedStudent,
+        centerDate(),
+      ),
+    );
+    const normalizedStudent = {
+      ...updatedStudent,
+      feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts, attendanceSessions),
+    };
+    setStudents((prev) => prev.map((s) => (s.id === updatedStudent.id ? normalizedStudent : s)));
+    addLog(
+      'SỬA',
+      'Học sinh',
+      `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`,
+    );
+  };
+
+  const handleDeleteStudent = (id: string) => {
+    const st = students.find((s) => s.id === id);
+    if (
+      attendanceSessions.some(
+        (session) => session.billing && session.entries.some((entry) => entry.studentId === id),
+      )
+    ) {
+      alert('Học viên có lịch sử học phí theo buổi. Hãy chuyển trạng thái học để giữ hồ sơ.');
+      return;
+    }
+    const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
+    if (enrollments.some((item) => item.studentId === id)) {
+      alert('Học viên có lịch sử đăng ký khóa học. Hãy chuyển trạng thái học để giữ hồ sơ.');
+      return;
+    }
+    if (linkedReceipts.length > 0) {
+      alert(
+        `Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`,
+      );
+      return;
+    }
+    if (
+      currentUser?.role !== 'owner' &&
+      (grades.some((grade) => grade.studentId === id) ||
+        attendanceSessions.some((session) =>
+          session.entries.some((entry) => entry.studentId === id),
+        ))
+    ) {
+      alert(
+        'Học viên có lịch sử điểm hoặc điểm danh. Hãy chuyển trạng thái học hoặc liên hệ Chủ trung tâm.',
+      );
+      return;
+    }
+    setStudents((prev) => prev.filter((s) => s.id !== id));
+    setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
+    if (st)
+      addLog(
+        'XÓA',
+        'Học sinh',
+        `Xóa học sinh ${st.name} (${st.code}) và dữ liệu điểm liên quan khỏi hệ thống`,
+      );
+  };
+
+  const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
+    if (
+      !currentUser ||
+      (currentUser.role !== 'owner' &&
+        (!currentUser.permissions.student.edit ||
+          (classes.find((c) => c.id === classId)?.billingMode !== 'session' &&
+            !currentUser.permissions.tuition.collect)))
+    ) {
+      alert('Cần quyền sửa học viên và thu học phí để xác nhận nhập học.');
+      return false;
+    }
+    const student = students.find((s) => s.id === studentId);
+    if (!student || student.status === 'active') return false;
+    const targetClass = classes.find((c) => c.id === classId);
+    if (!targetClass) {
+      alert('Lớp nhập học không tồn tại.');
+      return false;
+    }
+    if (targetClass.courseStatus === 'completed' || targetClass.courseStatus === 'paused') {
+      alert('Chọn một đợt học đang mở.');
+      return false;
+    }
+    if (
+      targetClass.capacity > 0 &&
+      students.filter((s) => s.classId === classId && s.status === 'active').length >=
+        targetClass.capacity
+    ) {
+      alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
+      return false;
+    }
+    const targetProgram = programs.find((p) => p.id === targetClass.programId);
+    if (!targetProgram) {
+      alert('Lớp chưa có chương trình học hợp lệ.');
+      return false;
+    }
+    const tuitionAmount = targetProgram.tuitionFee;
+    setEnrollments((prev) =>
+      updateEnrollmentHistory(
+        prev,
+        student,
+        { ...student, classId, status: 'active' },
+        enrollDate || centerDate(),
+      ),
+    );
+
+    // 1. Update student
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            status: 'active' as const,
+            classId: classId,
+            programId: targetClass?.programId || s.programId,
+            enrollDate: enrollDate || centerDate(),
+          };
+        }
+        return s;
+      }),
+    );
+
+    // 2. Add student to target class studentIds
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id === classId && !c.studentIds.includes(studentId)) {
+          return { ...c, studentIds: [...c.studentIds, studentId] };
+        }
+        return c;
+      }),
+    );
+
+    // 3. Create initial grade record for class
+    if (currentUser.role === 'owner')
+      setGrades((prev) => {
+        if (prev.some((g) => g.studentId === studentId && g.classId === classId)) return prev;
+        return [
+          ...prev,
+          {
+            id: `GR_${Date.now()}_${studentId}`,
+            studentId,
+            classId,
+            listening: 0,
+            speaking: 0,
+            reading: 0,
+            writing: 0,
+            midterm: 0,
+            finalExam: 0,
+            attendance: 10,
+            average: 0,
+          },
+        ];
+      });
+
+    // 4. Create initial tuition receipt
+    const newReceipt: TuitionReceipt = {
+      id: `REC_${crypto.randomUUID()}`,
+      code: nextReceiptCode(receipts),
+      studentId,
+      classId,
+      courseFee: targetClass.billingMode === 'monthly' ? 0 : tuitionAmount,
+      monthlyFee: targetClass.billingMode === 'monthly' ? tuitionAmount : 0,
+      paymentKind: targetClass.billingMode === 'monthly' ? 'monthly' : 'course',
+      billingPeriod:
+        targetClass.billingMode === 'monthly'
+          ? (enrollDate || centerDate()).slice(0, 7)
+          : `Nhập học ${enrollDate || centerDate()}`,
+      discount: 0,
+      paidAmount: 0,
+      debtAmount: tuitionAmount,
+      status: 'unpaid',
+      paymentDate: enrollDate || centerDate(),
+      collectorName: currentUser?.name || 'BeeZone English',
+      paymentMethod: 'Chưa xác định',
+      notes: `Học phí nhập học khóa ${targetProgram?.name || targetClass?.name || ''}`,
+    };
+    if (
+      targetClass.billingMode !== 'session' &&
+      tuitionAmount > 0 &&
+      !receipts.some(
+        (r) => r.studentId === studentId && r.classId === classId && r.paymentKind === 'course',
+      )
+    )
+      setReceipts((prev) => [newReceipt, ...prev]);
+
+    addLog(
+      'THÊM',
+      'Tuyển sinh',
+      `Xác nhận nhập học chính thức học viên ${student.name} (${student.code}) vào lớp ${targetClass?.name || classId}`,
+    );
+    return true;
+  };
+
+  const handleReserveStudent = (
+    studentId: string,
+    reserveDate: string,
+    expectedReturnDate: string,
+    reason: string,
+  ) => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return;
+    setEnrollments((prev) =>
+      updateEnrollmentHistory(prev, student, { ...student, status: 'reserved' }, reserveDate),
+    );
+    const reserveNote = `\n[BẢO LƯU]: Từ ${reserveDate} đến ${expectedReturnDate || 'chưa định ngày'}. Lý do: ${reason}`;
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            status: 'reserved' as const,
+            notes: (s.notes || '') + reserveNote,
+          };
+        }
+        return s;
+      }),
+    );
+    addLog(
+      'SỬA',
+      'Học sinh',
+      `Bảo lưu học tập học sinh ${student.name} (${student.code}) từ ${reserveDate}`,
+    );
+  };
+
+  const handleDropStudent = (studentId: string, dropDate: string, reason: string) => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return;
+    setEnrollments((prev) =>
+      updateEnrollmentHistory(prev, student, { ...student, status: 'dropped' }, dropDate),
+    );
+    const dropNote = `\n[NGHỈ HỌC NGANG]: Ngày ${dropDate}. Lý do: ${reason}`;
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            status: 'dropped' as const,
+            notes: (s.notes || '') + dropNote,
+          };
+        }
+        return s;
+      }),
+    );
+    addLog(
+      'SỬA',
+      'Học sinh',
+      `Học sinh ${student.name} (${student.code}) nghỉ học từ ngày ${dropDate}`,
+    );
+  };
+
+  const handleReEnrollStudent = (
+    studentId: string,
+    targetClassId: string,
+    returnDate: string,
+    note?: string,
+  ) => {
+    if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.student.edit))
+      return false;
+    if (!isCalendarDate(returnDate)) {
+      alert('Ngày đăng ký không hợp lệ.');
+      return false;
+    }
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return false;
+    const targetClass = classes.find((c) => c.id === targetClassId);
+    if (!targetClass) {
+      alert('Lớp quay lại học không tồn tại.');
+      return false;
+    }
+    if (targetClass.courseStatus === 'completed' || targetClass.courseStatus === 'paused') {
+      alert('Chọn một đợt học đang mở.');
+      return false;
+    }
+    if (
+      targetClass.capacity > 0 &&
+      students.filter(
+        (s) => s.id !== studentId && s.classId === targetClassId && s.status === 'active',
+      ).length >= targetClass.capacity
+    ) {
+      alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
+      return false;
+    }
+    const reNote = `\n[QUAY LẠI HỌC]: Ngày ${returnDate} tại lớp ${targetClass?.name || targetClassId}. ${note || ''}`;
+    setEnrollments((prev) =>
+      updateEnrollmentHistory(
+        prev,
+        student,
+        { ...student, classId: targetClassId, status: 'active' },
+        returnDate,
+      ),
+    );
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            status: 'active' as const,
+            classId: targetClassId,
+            programId: targetClass.programId,
+            notes: (s.notes || '') + reNote,
+          };
+        }
+        return s;
+      }),
+    );
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id !== targetClassId && c.studentIds.includes(studentId)) {
+          return { ...c, studentIds: c.studentIds.filter((id) => id !== studentId) };
+        }
+        if (c.id === targetClassId && !c.studentIds.includes(studentId)) {
+          return { ...c, studentIds: [...c.studentIds, studentId] };
+        }
+        return c;
+      }),
+    );
+    addLog(
+      'SỬA',
+      'Học sinh',
+      `Học sinh ${student.name} (${student.code}) quay lại học lớp ${targetClass?.name || targetClassId}`,
+    );
+    return true;
+  };
+
+  return {
+    handleAddStudent,
+    handleUpdateStudent,
+    handleDeleteStudent,
+    handleEnrollStudent,
+    handleReserveStudent,
+    handleDropStudent,
+    handleReEnrollStudent,
+  };
+}

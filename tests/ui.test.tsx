@@ -2,10 +2,10 @@
 import React from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { GradeManager } from '../src/components/GradeManager';
-import { AttendanceManager } from '../src/components/AttendanceManager';
-import { SystemSettingsModal } from '../src/components/SystemSettingsModal';
-import { UserManagementModal } from '../src/components/UserManagementModal';
+import { GradeManager } from '../src/modules/grades/GradeManager';
+import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
+import { SystemSettingsModal } from '../src/modules/system/SystemSettingsModal';
+import { UserManagementModal } from '../src/modules/auth/UserManagementModal';
 import { OWNER_PERMISSIONS, DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import * as initial from '../src/mock/initialData';
 

@@ -35,20 +35,22 @@ beforeAll(async () => {
   // Compile lazy modules before measuring navigation. Cold Vite transforms on
   // Windows are independent of the application's loading/interaction logic.
   await Promise.all([
-    import('../src/components/DashboardView'),
-    import('../src/components/StudentManager'),
-    import('../src/components/TeacherManager'),
-    import('../src/components/ClassManager'),
-    import('../src/components/RoomManager'),
-    import('../src/components/TimetableManager'),
-    import('../src/components/TeacherScheduleMatrix'),
-    import('../src/components/GradeManager'),
-    import('../src/components/TuitionManager'),
-    import('../src/components/ReportView'),
-    import('../src/components/AttendanceManager'),
-    import('../src/components/AdmissionsManager'),
-    import('../src/components/CourseProgramManager'),
-    import('../src/components/BackupManager'),
+    import('../src/modules/dashboard/DashboardView'),
+    import('../src/modules/students/StudentManager'),
+    import('../src/modules/teachers/TeacherManager'),
+    import('../src/modules/classes/ClassManager'),
+    import('../src/modules/rooms/RoomManager'),
+    import('../src/modules/timetable/TimetableManager'),
+    import('../src/modules/timetable/TeacherScheduleMatrix'),
+    import('../src/modules/grades/GradeManager'),
+    import('../src/modules/tuition/TuitionManager'),
+    import('../src/modules/reports/ReportView'),
+    import('../src/modules/attendance/AttendanceManager'),
+    import('../src/modules/admissions/AdmissionsManager'),
+    import('../src/modules/programs/CourseProgramManager'),
+    import('../src/modules/system/BackupManager'),
+    import('../src/modules/system/ActivityLogView'),
+    import('../src/modules/system/DataConsistencyChecker'),
   ]);
   localStorage.clear();
   sessionStorage.clear();

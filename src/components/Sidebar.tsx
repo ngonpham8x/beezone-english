@@ -1,34 +1,10 @@
+import { ChevronLeft, ChevronRight, Smartphone } from 'lucide-react';
 import React, { useRef } from 'react';
-import { DRAWER_QUERY, useMediaQuery } from '../hooks/useResponsive';
-import { useOverlay } from '../hooks/useOverlay';
-import { UserAccount } from '../types';
+import { getNavigationGroups } from '../app/navigation';
 import { useLanguage } from '../context/LanguageContext';
-import {
-  LayoutDashboard,
-  Users,
-  GraduationCap,
-  BookOpen,
-  DoorOpen,
-  CalendarDays,
-  CalendarCheck,
-  XCircle,
-  DollarSign,
-  BarChart3,
-  FileSpreadsheet,
-  FileDown,
-  CloudUpload,
-  Settings,
-  History,
-  ChevronLeft,
-  ChevronRight,
-  Smartphone,
-  Globe,
-  UserCheck,
-  RefreshCw,
-  Layers,
-  UserPlus,
-  X
-} from 'lucide-react';
+import { useOverlay } from '../hooks/useOverlay';
+import { DRAWER_QUERY, useMediaQuery } from '../hooks/useResponsive';
+import { UserAccount } from '../types';
 
 interface SidebarProps {
   activeTab: string;
@@ -54,46 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sidebarRef = useRef<HTMLElement>(null);
   useOverlay(sidebarRef, isDrawer && !collapsed, () => setCollapsed(true));
 
-  const menuGroups = [
-    {
-      title: 'TỔNG QUAN & ĐIỂM DANH',
-      items: [
-        { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard, visible: true, iconColor: 'text-amber-600' },
-        { id: 'attendance', label: 'Điểm danh buổi học', icon: UserCheck, visible: isOwner || perms.student.view || perms.teacher.view, iconColor: 'text-emerald-600' },
-        { id: 'admissions', label: 'Tuyển sinh & Ghi danh', icon: UserPlus, visible: isOwner || perms.student.view, iconColor: 'text-blue-600' },
-      ]
-    },
-    {
-      title: 'ĐÀO TẠO & HỌC VỤ',
-      items: [
-        { id: 'programs', label: 'Chương trình học', icon: Layers, visible: isOwner || perms.student.view, iconColor: 'text-amber-600' },
-        { id: 'students', label: t('students'), icon: Users, visible: isOwner || perms.student.view, iconColor: 'text-emerald-600' },
-        { id: 'teachers', label: t('teachers'), icon: GraduationCap, visible: isOwner || perms.teacher.view, iconColor: 'text-indigo-600' },
-        { id: 'classes', label: t('classes'), icon: BookOpen, visible: isOwner || perms.student.view, iconColor: 'text-amber-600' },
-        { id: 'rooms', label: t('rooms'), icon: DoorOpen, visible: isOwner || perms.student.view || perms.teacher.view, iconColor: 'text-rose-600' },
-        { id: 'timetable', label: t('timetable'), icon: CalendarDays, visible: isOwner || perms.student.view || perms.teacher.view, iconColor: 'text-purple-600' },
-        { id: 'teacher-schedule', label: 'Lịch giáo viên', icon: CalendarCheck, visible: isOwner || perms.student.view || perms.teacher.view, iconColor: 'text-cyan-600' },
-        { id: 'grades', label: t('grades'), icon: XCircle, visible: isOwner || perms.grade.view, iconColor: 'text-orange-600' },
-      ]
-    },
-    {
-      title: 'TÀI CHÍNH & BÁO CÁO',
-      items: [
-        { id: 'tuition', label: t('tuition'), icon: DollarSign, visible: isOwner || perms.tuition.view, iconColor: 'text-emerald-700' },
-        { id: 'reports', label: t('reports'), icon: BarChart3, visible: isOwner || (perms.report?.view && perms.report?.revenue), iconColor: 'text-indigo-700' },
-      ]
-    },
-    {
-      title: 'HỆ THỐNG',
-      items: [
-        { id: 'excel-import-export', label: t('excel'), icon: FileDown, visible: isOwner || perms.excel.import || perms.excel.export, iconColor: 'text-teal-600' },
-        { id: 'data-consistency', label: 'Kiểm tra dữ liệu', icon: RefreshCw, visible: isOwner, iconColor: 'text-violet-600' },
-        { id: 'backups', label: t('backups'), icon: CloudUpload, visible: isOwner, iconColor: 'text-sky-600' },
-        { id: 'settings', label: t('settings'), icon: Settings, visible: isOwner, iconColor: 'text-slate-600' },
-        { id: 'activity-logs', label: t('system_logs'), icon: History, visible: isOwner, iconColor: 'text-slate-700' },
-      ]
-    }
-  ];
+  const menuGroups = getNavigationGroups(currentUser, t);
 
   return (
     <>

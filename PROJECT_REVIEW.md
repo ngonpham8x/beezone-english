@@ -33,8 +33,8 @@
 ## Kiểm tra
 
 - TypeScript: `npm run lint`; build gồm kiểm tra kiểu trước khi bundle.
-- **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 63 test và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
-- **88 test / 10 tệp đã qua**, trong đó điều hướng cả 18 phân hệ, 19 test responsive và 6 test cuộn ngang/cuối tuần. Test trong `tests/`: dữ liệu/sao lưu, tiền và ngày, xác thực, phiên làm mới, xung đột/lỗi lưu, API trả HTML, Excel xuất–nhập, quyền DB, điều hướng, menu/dialog/focus, thay đổi viewport và các điều khiển cuộn bảng. Xem [UI_REVIEW.md](UI_REVIEW.md) để biết phạm vi kiểm tra đa thiết bị.
+- **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 195 test / 17 tệp và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
+- Lượt kiểm tra giao diện đầu tiên có **88 test / 10 tệp**, trong đó điều hướng cả 18 phân hệ, 19 test responsive và 6 test cuộn ngang/cuối tuần. Test trong `tests/`: dữ liệu/sao lưu, tiền và ngày, xác thực, phiên làm mới, xung đột/lỗi lưu, API trả HTML, Excel xuất–nhập, quyền DB, điều hướng, menu/dialog/focus, thay đổi viewport và các điều khiển cuộn bảng. Xem [UI_REVIEW.md](UI_REVIEW.md) để biết phạm vi kiểm tra đa thiết bị.
 - Các migration 001–006 được thực thi trên PostgreSQL cục bộ (PGlite). Kiểm tra RLS tài khoản khóa, quyền ghi, lớp được phân công, dữ liệu không hợp lệ, chủ cuối cùng và cập nhật snapshot cũ.
 - Kiểm tra HTTP development: API chưa cấu hình trả lỗi JSON đúng, không trả danh sách giả hoặc báo thành công giả.
 - `npm audit`: **0 lỗ hổng**, kiểm tra cả dependency phát triển theo lockfile.
@@ -57,10 +57,20 @@ Không có dữ liệu riêng tư hoặc khóa bí mật nào được đưa và
 
 Đã bổ sung học phí theo buổi: cấu hình giá/ngày áp dụng theo lớp, lưu giá và quy tắc khi điểm danh, thu một hoặc nhiều buổi, thu từng phần, phiếu có ngày học/đơn giá, công nợ gồm buổi chưa lập phiếu. Mặc định chỉ có mặt/đi trễ tính phí theo lựa chọn của trung tâm. Giá cũ giữ nguyên khi thay cấu hình; điểm danh trước khi bật tính phí không tự phát sinh khoản thu. Excel giữ nguồn điểm danh và chi tiết phiếu, JSON giữ toàn bộ lịch sử.
 
-Kiểm tra mới nhất: **183 test / 15 tệp**, TypeScript và production build đều qua bằng `npm run check`. Bao gồm migration 001–008 trong PostgreSQL cục bộ; quyền giáo viên/thu ngân, giá lịch sử, người học đúng lớp/ngày, tham chiếu phiếu, khoản thu, tính phí trùng, client cũ, quy tắc vắng, công nợ/doanh thu, luồng thu theo buổi và Excel/JSON. Điều hướng 18 mục được kiểm tra ở 390/820/1366 px; có kiểm tra thứ tự khung Tổng quan, bỏ nút học phí lặp và chiều cao header gồm thông báo xem thử. Bundle chính khoảng 381 KB, Excel tải riêng khoảng 940 KB.
+Lượt kiểm tra trước refactor: **183 test / 15 tệp**, TypeScript và production build đều qua bằng `npm run check`. Bao gồm migration 001–008 trong PostgreSQL cục bộ; quyền giáo viên/thu ngân, giá lịch sử, người học đúng lớp/ngày, tham chiếu phiếu, khoản thu, tính phí trùng, client cũ, quy tắc vắng, công nợ/doanh thu, luồng thu theo buổi và Excel/JSON. Điều hướng 18 mục được kiểm tra ở 390/820/1366 px; có kiểm tra thứ tự khung Tổng quan, bỏ nút học phí lặp và chiều cao header gồm thông báo xem thử. Bundle chính khoảng 381 KB, Excel tải riêng khoảng 940 KB.
 
 Theo phản hồi giao diện ở zoom 100%, đã dùng thẻ thống kê gọn chung cho Học phí, Tổng quan, Học viên, Tuyển sinh và Báo cáo; điều chỉnh số cột theo chiều rộng nội dung, bộ lọc học phí cùng hàng khi đủ chỗ, giảm khoảng đệm và bỏ bộ nút cuộn lặp. Thanh cuộn xám nhẹ vẫn hỗ trợ kéo, nút điều hướng, bàn phím và vùng bấm lớn trên thiết bị cảm ứng. Nhóm nhắc hạn học phí mở khi cần; đã kiểm thử mở nhóm rồi sửa phiếu. Chi tiết: [UI_REVIEW.md](UI_REVIEW.md).
 
 Đã đổi vị trí khung chào mừng/công việc theo ảnh, xóa nút thu học phí xanh bị lặp, thống nhất tiêu đề trang, lưới thẻ, biểu đồ và bảng theo vùng nội dung. Thông báo xem thử nằm trong chiều cao header được đo để menu không tính thiếu dòng này. Kiểm tra link localhost trả HTTP 200; việc mở browser qua công cụ UI không thực hiện được vì browser chưa kết nối. Chưa xác nhận trực quan từng thiết bị.
 
 Không có trình duyệt kết nối để xác minh ảnh giao diện. Chưa áp dụng migration 006/007/008 lên Supabase thật và chưa kiểm thử đăng nhập Google bằng tài khoản thật. Vercel Production vẫn thiếu secret key máy chủ; domain chính chỉ chuyển khi các điều kiện này được xác nhận. Kiến trúc quyền đọc tài liệu chung vẫn cần xử lý như phần giới hạn nêu trên. Trạng thái triển khai hiện tại xem [DEPLOYMENT_STATUS.md](DEPLOYMENT_STATUS.md).
+
+## Refactor module và kiểm tra cập nhật
+
+`App.tsx` giảm từ 1.713 xuống 163 dòng, chỉ ghép bộ điều khiển và khung giao diện. Màn hình và thao tác nghiệp vụ nằm trong `src/modules` theo từng phần; `src/app` ghép trang/dialog và dùng chung quy tắc quyền điều hướng. Hồ sơ học viên và bản in phiếu thu được tách khỏi màn hình lớn. Dịch vụ Excel giữ API công khai 11 dòng và chia phần xử lý thành các bước nhập, công thức, định dạng và từng sheet xuất.
+
+Tải cloud, nhập Excel và khôi phục JSON dùng chung chuẩn hóa quan hệ dữ liệu. Công nợ, roster và phân công giáo viên dùng chỉ mục theo ID để giảm các lượt quét lặp; không thay chính sách tính phí hoặc xóa lịch sử. Tất cả khóa trình duyệt, URL, định dạng sao lưu, API và migration được giữ tương thích. Không thay schema hoặc dữ liệu production trong lần refactor.
+
+Kiểm tra mới nhất: **195 test / 17 tệp**, TypeScript và build production qua. Bổ sung kiểm tra vòng phụ thuộc và hướng phụ thuộc module; kiểm thử thao tác với store gồm chuyển lớp, đổi giáo viên, công nợ buổi chưa thu, chống lập phiếu hai lần/sửa đơn giá đã thu, khôi phục JSON cũ, chặn nhập thay thế mất lịch sử, quyền thu tiền và lỗi lưu trình duyệt. GitHub Actions chạy cùng bộ kiểm tra khi push/PR. Hướng dẫn bổ sung chức năng: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+Nhật ký và công cụ kiểm tra dữ liệu được tải khi mở mục tương ứng. Bundle chính sau refactor khoảng **364 KB** (trước đó 381 KB); thư viện Excel khoảng 940 KB vẫn tải riêng khi cần. Dev server ở `localhost:3000` trả HTTP 200 cho trang và các module Học viên/Học phí sau khi đổi cấu trúc.

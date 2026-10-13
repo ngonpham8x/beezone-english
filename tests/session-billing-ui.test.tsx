@@ -2,9 +2,9 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { SessionTuitionManager } from '../src/components/SessionTuitionManager';
-import { AttendanceManager } from '../src/components/AttendanceManager';
-import { TuitionManager } from '../src/components/TuitionManager';
+import { SessionTuitionManager } from '../src/modules/tuition/SessionTuitionManager';
+import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
+import { TuitionManager } from '../src/modules/tuition/TuitionManager';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import { withUnbilledSessionReceipts } from '../src/lib/sessionBilling';
 import * as initial from '../src/mock/initialData';

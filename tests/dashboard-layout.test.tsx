@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { DashboardView } from '../src/components/DashboardView';
+import { DashboardView } from '../src/modules/dashboard/DashboardView';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import * as initial from '../src/mock/initialData';
 vi.mock('recharts', () => ({

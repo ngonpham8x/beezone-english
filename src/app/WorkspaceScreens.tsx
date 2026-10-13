@@ -1,0 +1,443 @@
+import { lazy, Suspense } from 'react';
+import type { CenterActions } from '../modules/center/createCenterActions';
+import type { CenterStore } from '../modules/center/useCenterStore';
+import type { AccountAudit } from '../modules/system/useAccountAudit';
+import type { UserAccount } from '../types';
+import { canAccessTab } from './navigation';
+import type { WorkspaceDialogs } from './useWorkspaceDialogs';
+import type { WorkspaceNavigation } from './useWorkspaceNavigation';
+
+const DashboardView = lazy(() =>
+  import('../modules/dashboard/DashboardView').then((m) => ({ default: m.DashboardView })),
+);
+const StudentManager = lazy(() =>
+  import('../modules/students/StudentManager').then((m) => ({ default: m.StudentManager })),
+);
+const TeacherManager = lazy(() =>
+  import('../modules/teachers/TeacherManager').then((m) => ({ default: m.TeacherManager })),
+);
+const ClassManager = lazy(() =>
+  import('../modules/classes/ClassManager').then((m) => ({ default: m.ClassManager })),
+);
+const RoomManager = lazy(() =>
+  import('../modules/rooms/RoomManager').then((m) => ({ default: m.RoomManager })),
+);
+const TimetableManager = lazy(() =>
+  import('../modules/timetable/TimetableManager').then((m) => ({ default: m.TimetableManager })),
+);
+const TeacherScheduleMatrix = lazy(() =>
+  import('../modules/timetable/TeacherScheduleMatrix').then((m) => ({
+    default: m.TeacherScheduleMatrix,
+  })),
+);
+const GradeManager = lazy(() =>
+  import('../modules/grades/GradeManager').then((m) => ({ default: m.GradeManager })),
+);
+const TuitionManager = lazy(() =>
+  import('../modules/tuition/TuitionManager').then((m) => ({ default: m.TuitionManager })),
+);
+const ReportView = lazy(() =>
+  import('../modules/reports/ReportView').then((m) => ({ default: m.ReportView })),
+);
+const AttendanceManager = lazy(() =>
+  import('../modules/attendance/AttendanceManager').then((m) => ({ default: m.AttendanceManager })),
+);
+const AdmissionsManager = lazy(() =>
+  import('../modules/admissions/AdmissionsManager').then((m) => ({ default: m.AdmissionsManager })),
+);
+const CourseProgramManager = lazy(() =>
+  import('../modules/programs/CourseProgramManager').then((m) => ({
+    default: m.CourseProgramManager,
+  })),
+);
+const BackupManager = lazy(() =>
+  import('../modules/system/BackupManager').then((module) => ({ default: module.BackupManager })),
+);
+const ActivityLogView = lazy(() =>
+  import('../modules/system/ActivityLogView').then((module) => ({
+    default: module.ActivityLogView,
+  })),
+);
+const DataConsistencyChecker = lazy(() => import('../modules/system/DataConsistencyChecker'));
+interface Props {
+  store: CenterStore;
+  actions: CenterActions;
+  navigation: WorkspaceNavigation;
+  dialogs: WorkspaceDialogs;
+  audit: AccountAudit;
+  currentUser: UserAccount;
+}
+export function WorkspaceScreens({
+  store,
+  actions,
+  navigation,
+  dialogs,
+  audit,
+  currentUser,
+}: Props) {
+  const {
+    settings,
+    programs,
+    teachers,
+    rooms,
+    classes,
+    students,
+    timetableSlots,
+    grades,
+    receipts,
+    backups,
+    activityLogs,
+    attendanceSessions,
+    enrollments,
+    scheduleChanges,
+    accountAuditLogs,
+    billingReceipts,
+  } = store;
+  const {
+    handleAddStudent,
+    handleUpdateStudent,
+    handleDeleteStudent,
+    handleEnrollStudent,
+    handleReserveStudent,
+    handleDropStudent,
+    handleReEnrollStudent,
+    handleAddTeacher,
+    handleUpdateTeacher,
+    handleDeleteTeacher,
+    handleAddClass,
+    handleUpdateClass,
+    handleDeleteClass,
+    handleAddRoom,
+    handleUpdateRoom,
+    handleDeleteRoom,
+    handleAddSlot,
+    handleUpdateSlot,
+    handleDeleteSlot,
+    handleReplaceClassSchedule,
+    handleSaveScheduleChange,
+    handleDeleteScheduleChange,
+    handleUpdateGrade,
+    handleAddReceipt,
+    handleUpdateReceipt,
+    handleDeleteReceipt,
+    handleSaveAttendanceSession,
+    handleCreateProgram,
+    handleAddProgram,
+    handleUpdateProgram,
+    handleDeleteProgram,
+    handleBackupCreated,
+    handleRestoreBackup,
+    handleDataFixed,
+  } = actions;
+  const {
+    activeTab,
+    navigateTo,
+    searchQuery,
+    setSearchQuery,
+    classEditRequest,
+    setClassEditRequest,
+    taskRequest,
+    setTaskRequest,
+  } = navigation;
+  const { setIsImportExportModalOpen, setIsSettingsModalOpen } = dialogs;
+  const { accountAuditError, isAccountAuditLoading, loadAccountAuditLogs } = audit;
+  switch (activeTab) {
+    case 'dashboard':
+      return (
+        <DashboardView
+          students={students}
+          teachers={teachers}
+          classes={classes}
+          rooms={rooms}
+          receipts={billingReceipts}
+          programs={programs}
+          currentUser={currentUser}
+          timetableSlots={timetableSlots}
+          scheduleChanges={scheduleChanges}
+          attendanceSessions={attendanceSessions}
+          onOpenTask={(destination) => {
+            if (!canAccessTab(destination.tab, currentUser)) return;
+            setTaskRequest(destination);
+            if (destination.tab === 'students')
+              setSearchQuery(students.find((s) => s.id === destination.studentId)?.code || '');
+            if (destination.tab === 'classes' && currentUser.role === 'owner')
+              setClassEditRequest(classes.find((c) => c.id === destination.classId) || null);
+            navigateTo(destination.tab);
+          }}
+          onNavigateTab={navigateTo}
+        />
+      );
+    case 'students':
+      return (
+        <StudentManager
+          students={students}
+          programs={programs}
+          classes={classes}
+          receipts={billingReceipts}
+          timetableSlots={timetableSlots}
+          teachers={teachers}
+          rooms={rooms}
+          permissions={currentUser.permissions}
+          isOwner={currentUser.role === 'owner'}
+          searchQuery={searchQuery}
+          enrollments={enrollments}
+          onAddStudent={handleAddStudent}
+          onUpdateStudent={handleUpdateStudent}
+          onDeleteStudent={handleDeleteStudent}
+          onReserveStudent={handleReserveStudent}
+          onDropStudent={handleDropStudent}
+          onReEnrollStudent={handleReEnrollStudent}
+          onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
+          onOpenTuition={() => navigateTo('tuition')}
+          onCreateProgram={handleCreateProgram}
+        />
+      );
+    case 'teachers':
+      return (
+        <TeacherManager
+          teachers={teachers}
+          classes={classes}
+          permissions={currentUser.permissions}
+          isOwner={currentUser.role === 'owner'}
+          searchQuery={searchQuery}
+          onAddTeacher={handleAddTeacher}
+          onUpdateTeacher={handleUpdateTeacher}
+          onDeleteTeacher={handleDeleteTeacher}
+          onEditClass={(classroom) => {
+            setClassEditRequest(classroom);
+            navigateTo('classes');
+          }}
+        />
+      );
+    case 'classes':
+      return (
+        <ClassManager
+          classes={classes}
+          teachers={teachers}
+          rooms={rooms}
+          programs={programs}
+          students={students}
+          receipts={billingReceipts}
+          timetableSlots={timetableSlots}
+          permissions={currentUser.permissions}
+          isOwner={currentUser.role === 'owner'}
+          searchQuery={searchQuery}
+          enrollments={enrollments}
+          attendanceSessions={attendanceSessions}
+          scheduleChanges={scheduleChanges}
+          onAddClass={handleAddClass}
+          onUpdateClass={handleUpdateClass}
+          onDeleteClass={handleDeleteClass}
+          onReplaceClassSchedule={handleReplaceClassSchedule}
+          onCreateRoom={handleAddRoom}
+          onCreateProgram={handleCreateProgram}
+          editRequest={classEditRequest}
+          onEditRequestHandled={() => setClassEditRequest(null)}
+        />
+      );
+    case 'rooms':
+      return (
+        <RoomManager
+          rooms={rooms}
+          classes={classes}
+          permissions={currentUser.permissions}
+          isOwner={currentUser.role === 'owner'}
+          onAddRoom={handleAddRoom}
+          onUpdateRoom={handleUpdateRoom}
+          onDeleteRoom={handleDeleteRoom}
+        />
+      );
+    case 'timetable':
+      return (
+        <TimetableManager
+          timetableSlots={timetableSlots}
+          classes={classes}
+          teachers={teachers}
+          rooms={rooms}
+          isOwner={currentUser.role === 'owner'}
+          scheduleChanges={scheduleChanges}
+          attendanceSessions={attendanceSessions}
+          onSaveChange={handleSaveScheduleChange}
+          onDeleteChange={handleDeleteScheduleChange}
+          onAddSlot={handleAddSlot}
+          onUpdateSlot={handleUpdateSlot}
+          onDeleteSlot={handleDeleteSlot}
+        />
+      );
+    case 'teacher-schedule':
+      return (
+        <TeacherScheduleMatrix
+          scheduleChanges={scheduleChanges}
+          teachers={teachers}
+          timetableSlots={timetableSlots}
+          classes={classes}
+          rooms={rooms}
+        />
+      );
+    case 'attendance':
+      return (
+        <AttendanceManager
+          classes={classes}
+          students={students}
+          teachers={teachers}
+          attendanceSessions={attendanceSessions}
+          timetableSlots={timetableSlots}
+          scheduleChanges={scheduleChanges}
+          enrollments={enrollments}
+          request={taskRequest?.tab === 'attendance' ? taskRequest : null}
+          onRequestHandled={() => setTaskRequest(null)}
+          onSaveSession={handleSaveAttendanceSession}
+          isOwner={currentUser.role === 'owner'}
+          currentUser={currentUser}
+        />
+      );
+    case 'admissions':
+      return (
+        <AdmissionsManager
+          students={students}
+          programs={programs}
+          classes={classes}
+          teachers={teachers}
+          permissions={currentUser.permissions}
+          isOwner={currentUser.role === 'owner'}
+          onAddStudent={handleAddStudent}
+          onUpdateStudent={handleUpdateStudent}
+          onDeleteStudent={handleDeleteStudent}
+          onEnrollStudent={handleEnrollStudent}
+        />
+      );
+    case 'programs':
+      return (
+        <CourseProgramManager
+          programs={programs}
+          classes={classes}
+          students={students}
+          onAddProgram={handleAddProgram}
+          onUpdateProgram={handleUpdateProgram}
+          onDeleteProgram={handleDeleteProgram}
+          isOwner={currentUser.role === 'owner'}
+        />
+      );
+    case 'grades':
+      return (
+        <GradeManager
+          grades={grades}
+          students={students}
+          classes={classes}
+          teachers={teachers}
+          programs={programs}
+          settings={settings}
+          permissions={currentUser.permissions}
+          isOwner={currentUser.role === 'owner'}
+          currentUser={currentUser}
+          onUpdateGrade={handleUpdateGrade}
+        />
+      );
+    case 'tuition':
+      return (
+        <TuitionManager
+          receipts={receipts}
+          students={students}
+          classes={classes}
+          programs={programs}
+          permissions={currentUser.permissions}
+          settings={settings}
+          isOwner={currentUser.role === 'owner'}
+          requestReceiptId={taskRequest?.tab === 'tuition' ? taskRequest.receiptId : undefined}
+          onRequestHandled={() => setTaskRequest(null)}
+          attendanceSessions={attendanceSessions}
+          onAddReceipt={handleAddReceipt}
+          onUpdateReceipt={handleUpdateReceipt}
+          onDeleteReceipt={handleDeleteReceipt}
+        />
+      );
+    case 'excel-import-export':
+      return (
+        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+          <h3 className="font-bold text-lg text-slate-900 mb-2">Nhập / Xuất Excel</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Quản lý nhập dữ liệu hàng loạt và xuất Workbook nhiều Sheet liên kết công thức
+          </p>
+          <button
+            onClick={() => setIsImportExportModalOpen(true)}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs shadow-xs transition"
+          >
+            Mở Cửa Sổ Import / Export Excel
+          </button>
+        </div>
+      );
+    case 'reports':
+      return (
+        <ReportView
+          students={students}
+          teachers={teachers}
+          classes={classes}
+          receipts={billingReceipts}
+          onNavigateTab={navigateTo}
+        />
+      );
+    case 'data-consistency':
+      return (
+        <DataConsistencyChecker
+          students={students}
+          classrooms={classes}
+          receipts={receipts}
+          programs={programs}
+          onDataFixed={handleDataFixed}
+        />
+      );
+    case 'backups':
+      return (
+        <Suspense
+          fallback={<div className="p-6 text-sm text-slate-500">Đang tải công cụ sao lưu…</div>}
+        >
+          <BackupManager
+            backups={backups}
+            settings={settings}
+            students={students}
+            teachers={teachers}
+            rooms={rooms}
+            classes={classes}
+            receipts={receipts}
+            grades={grades}
+            programs={programs}
+            timetableSlots={timetableSlots}
+            activityLogs={activityLogs}
+            enrollments={enrollments}
+            scheduleChanges={scheduleChanges}
+            attendanceSessions={attendanceSessions}
+            onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
+            onBackupCreated={handleBackupCreated}
+            onRestoreBackup={handleRestoreBackup}
+          />
+        </Suspense>
+      );
+    case 'activity-logs':
+      return (
+        <ActivityLogView
+          logs={activityLogs}
+          accountLogs={accountAuditLogs}
+          isAccountAuditLoading={isAccountAuditLoading}
+          accountAuditError={accountAuditError}
+          onRefreshAccountLogs={() => void loadAccountAuditLogs()}
+        />
+      );
+    case 'settings':
+      return (
+        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+          <h3 className="font-bold text-lg text-slate-900 mb-2">Cài Đặt Hệ Thống</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Thông tin trung tâm & cấu hình gửi email tự động
+          </p>
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs"
+          >
+            Chỉnh Sửa Cài Đặt Hệ Thống
+          </button>
+        </div>
+      );
+    default:
+      return null;
+  }
+}

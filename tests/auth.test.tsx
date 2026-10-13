@@ -35,8 +35,8 @@ vi.mock('../src/lib/supabase', () => {
     },
   } };
 });
-vi.mock('../src/components/DashboardView', () => ({ DashboardView: ({ onNavigateTab }: any) => <button onClick={() => onNavigateTab('students')}>Open students</button> }));
-vi.mock('../src/components/StudentManager', () => ({ StudentManager: ({ students, onUpdateStudent }: any) => <div><p>{students[0]?.name}</p><button onClick={() => onUpdateStudent({ ...students[0], name: 'Edited locally' })}>Edit student</button></div> }));
+vi.mock('../src/modules/dashboard/DashboardView', () => ({ DashboardView: ({ onNavigateTab }: any) => <button onClick={() => onNavigateTab('students')}>Open students</button> }));
+vi.mock('../src/modules/students/StudentManager', () => ({ StudentManager: ({ students, onUpdateStudent }: any) => <div><p>{students[0]?.name}</p><button onClick={() => onUpdateStudent({ ...students[0], name: 'Edited locally' })}>Edit student</button></div> }));
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear(); window.history.replaceState(null, '', '/');
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});

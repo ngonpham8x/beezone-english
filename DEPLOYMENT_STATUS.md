@@ -14,6 +14,8 @@ Domain chính đã được kiểm tra lại: HTTP 200, vẫn dùng CSS cũ `ind
 
 Đợt chỉnh giao diện đã chạy tại `localhost:3000` và cập nhật trong GitHub: thẻ thống kê gọn, bộ lọc theo chiều rộng nội dung, thanh cuộn tối giản, khung chào mừng trước công việc, bỏ nút thu học phí xanh lặp, thống nhất tiêu đề/lưới thẻ và chiều cao header gồm thông báo xem thử. 183 kiểm thử và build local qua; chưa đưa thay đổi giao diện này vào deployment Vercel nêu trên. Công cụ chưa có browser để xác nhận trực quan. Chi tiết tại [UI_REVIEW.md](UI_REVIEW.md).
 
+Đợt refactor tiếp theo chia giao diện/nghiệp vụ thành module, tách dịch vụ Excel và thêm CI/kiểm tra phụ thuộc; 195 test / 17 tệp và build local qua. Mã refactor chưa nằm trong deployment Vercel nêu trên. Không chạy migration hoặc thay dữ liệu Supabase trong đợt này. Chi tiết tại [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Hai bước còn thiếu trước khi chuyển domain
 
 1. Trong [Vercel Environment Variables](https://vercel.com/ngonpham8x/beezone-english/settings/environment-variables), thêm `SUPABASE_SECRET_KEY` từ đúng project Supabase, chọn **Production**. Có thể dùng `SUPABASE_SERVICE_ROLE_KEY` nếu dùng khóa legacy. Không dùng tiền tố `VITE_` cho khóa máy chủ, không đưa khóa vào GitHub hoặc chat.

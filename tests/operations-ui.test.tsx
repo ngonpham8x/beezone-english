@@ -2,12 +2,12 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { TodayTasks } from '../src/components/TodayTasks';
-import { ScheduleChangesManager } from '../src/components/ScheduleChangesManager';
-import { TuitionDuePanel } from '../src/components/TuitionDuePanel';
-import { AttendanceManager } from '../src/components/AttendanceManager';
-import { ClassManager } from '../src/components/ClassManager';
-import { TuitionManager } from '../src/components/TuitionManager';
+import { TodayTasks } from '../src/modules/dashboard/TodayTasks';
+import { ScheduleChangesManager } from '../src/modules/timetable/ScheduleChangesManager';
+import { TuitionDuePanel } from '../src/modules/tuition/TuitionDuePanel';
+import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
+import { ClassManager } from '../src/modules/classes/ClassManager';
+import { TuitionManager } from '../src/modules/tuition/TuitionManager';
 import { LanguageProvider } from '../src/context/LanguageContext';
 import * as initial from '../src/mock/initialData';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';

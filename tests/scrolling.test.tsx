@@ -3,8 +3,8 @@ import React, { createRef } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { HorizontalScroll } from '../src/components/HorizontalScroll';
-import { TimetableManager } from '../src/components/TimetableManager';
-import { TeacherScheduleMatrix } from '../src/components/TeacherScheduleMatrix';
+import { TimetableManager } from '../src/modules/timetable/TimetableManager';
+import { TeacherScheduleMatrix } from '../src/modules/timetable/TeacherScheduleMatrix';
 import * as initial from '../src/mock/initialData';
 
 let visibleWidth = 600, contentWidth = 1500;
