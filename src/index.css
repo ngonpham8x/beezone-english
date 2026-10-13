@@ -101,6 +101,15 @@ button.stat-card:hover { border-color: #cbd5e1; background: #f8fafc; }
 .tuition-tools > summary { padding: 0.75rem; cursor: pointer; font-size: 0.75rem; font-weight: 600; color: #475569; }
 .tuition-tools[open] > summary { border-bottom: 1px solid #e2e8f0; }
 .tuition-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+.admissions-filters { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+@container (min-width: 560px) {
+  .admissions-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admissions-filter-search { grid-column: 1 / -1; }
+}
+@container (min-width: 850px) {
+  .admissions-filters { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.25fr); }
+  .admissions-filter-search { grid-column: auto; }
+}
 @container (min-width: 450px) {
   .tuition-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tuition-filter-search { grid-column: span 2; }

@@ -86,3 +86,16 @@ Công cụ trình duyệt trả về danh sách kết nối trống (`apps: [], 
 `tests/navigation.test.tsx` chạy 18 mục × 3 chiều rộng 390/820/1366 px (54 trường hợp). `tests/dashboard-layout.test.tsx` kiểm tra thứ tự khung, nút học phí còn lại và thu gọn banner tại các kích thước 320/390/820/1024/1366 px. Toàn bộ **183 test / 15 tệp**, TypeScript và production build qua.
 
 Đã thử truy cập trực tiếp `http://localhost:3000/?tab=dashboard`: HTTP và các module phục vụ bình thường. Công cụ UI vẫn không có browser kết nối; cả thao tác mở browser trong ứng dụng (`iab`) và Chrome đều trả **Browser is not available**. Các kết quả trên là kiểm tra mã/hành vi jsdom, chưa phải xác nhận bố cục pixel trên thiết bị thật.
+
+## Bộ lọc tuyển sinh — 14/10/2026
+
+Ảnh phản hồi cho thấy ô chương trình giãn theo tên lựa chọn dài, vượt khung bộ lọc và làm trang cuộn ngang. Đã tách `AdmissionsFilters` trong module Tuyển sinh và thay nhóm flex có chiều rộng nội tại bằng grid với `minmax(0, ...)`; các wrapper và control có `min-width: 0`, control rộng 100% khung.
+
+- Vùng nội dung dưới 560 px: tìm kiếm, giai đoạn và chương trình xếp dọc, cùng chiều rộng/cao 44 px.
+- Từ 560 px: tìm kiếm chiếm một hàng; hai bộ chọn nằm ở hàng tiếp theo.
+- Từ 850 px: ba ô cùng một hàng. Bố cục theo vùng nội dung còn lại, gồm trường hợp tab nằm cạnh chat hoặc menu đang mở.
+- Tên chương trình dài được thu gọn trong ô đóng; danh sách lựa chọn và tooltip giữ tên đầy đủ. Icon không nhận click; control native giữ thao tác bàn phím và có nhãn đọc rõ ràng.
+
+`tests/admissions-filters.test.tsx` kiểm tra kết hợp bộ lọc ở 320/480/820/1366 px, giữ lựa chọn khi đổi dạng bảng/thẻ, thứ tự focus và tên chương trình dài. Có 5 trường hợp mới; jsdom kiểm tra hành vi, không đo pixel. Browser của phiên công cụ vẫn không cung cấp tab sau khi người dùng chia sẻ/chọn Browser, nên chưa xác nhận ảnh dựng sau sửa trực tiếp.
+
+`npm run check` qua toàn bộ: **200 test / 18 tệp**, TypeScript và build production. Localhost phục vụ module bộ lọc mới và CSS grid với HTTP 200. Giữ nguyên dữ liệu và nghiệp vụ tuyển sinh.

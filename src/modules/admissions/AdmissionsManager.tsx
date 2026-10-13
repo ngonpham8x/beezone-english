@@ -1,17 +1,14 @@
 import {
-  BookOpen,
   CheckCheck,
   CheckCircle2,
   Clock,
   Edit,
-  Filter,
   GraduationCap,
   LayoutGrid,
   MapPin,
   Phone,
   Save,
   School,
-  Search,
   Sparkles,
   Table as TableIcon,
   Trash2,
@@ -25,6 +22,7 @@ import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
+import { AdmissionsFilters } from './AdmissionsFilters';
 import {
   ClassRoom,
   CourseProgram,
@@ -303,50 +301,15 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
         <StatCard label="Đã vào lớp chính thức" value={stats.officiallyEnrolled} icon={GraduationCap} tone="emerald" subtitle="Đang theo học" />
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Tìm tên học viên, SĐT phụ huynh..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-700 focus:outline-hidden"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs">
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-transparent font-semibold text-slate-700 focus:outline-hidden"
-            >
-              <option value="all">Tất cả giai đoạn</option>
-              <option value="lead">Tiềm năng / Tư vấn</option>
-              <option value="trial">Đang học thử</option>
-              <option value="registered">Đã đăng ký (Chờ lớp)</option>
-              <option value="active">Đã nhập học chính thức</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs">
-            <BookOpen className="w-3.5 h-3.5 text-slate-500" />
-            <select
-              value={filterProgram}
-              onChange={(e) => setFilterProgram(e.target.value)}
-              className="bg-transparent font-semibold text-slate-700 focus:outline-hidden"
-            >
-              <option value="all">Tất cả chương trình</option>
-              {programs.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      <AdmissionsFilters
+        search={searchTerm}
+        status={filterStatus}
+        programId={filterProgram}
+        programs={programs}
+        onSearchChange={setSearchTerm}
+        onStatusChange={setFilterStatus}
+        onProgramChange={setFilterProgram}
+      />
 
       {/* View Switcher & Horizontal Scroll Helper Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
