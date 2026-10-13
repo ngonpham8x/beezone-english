@@ -56,7 +56,7 @@ export interface CourseProgram {
   id: string;
   code: string;
   name: string;
-  category: 'Cấp 1' | 'Cấp 2' | 'Cấp 3' | 'Cambridge' | 'IELTS' | 'TOEIC' | 'TOEFL' | 'Khác';
+  category: 'Cấp 1' | 'Cấp 2' | 'Cấp 3' | 'Cambridge' | 'IELTS' | 'TOEIC' | 'TOEFL' | 'Family and Friends' | 'Kỹ Năng & Thể Chất' | 'Khác' | string;
   tuitionFee: number;
   description?: string;
 }

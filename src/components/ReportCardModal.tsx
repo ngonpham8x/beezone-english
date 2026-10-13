@@ -71,11 +71,11 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
             <button
               type="button"
               onClick={() => setIsShareModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-bold transition shadow-xs active:scale-95"
-              title="Gửi phiếu báo điểm qua Zalo, Messenger hoặc xuất PDF/Excel"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:opacity-95 text-slate-950 rounded-xl text-xs font-black transition shadow-xs active:scale-95"
+              title="Chia sẻ hình ảnh phiếu điểm qua Zalo, Messenger hoặc tải ảnh PNG"
             >
-              <Share2 className="w-4 h-4 text-white" />
-              Gửi / Chia Sẻ (Zalo)
+              <Share2 className="w-4 h-4 text-slate-950" />
+              Chia Sẻ Ảnh & Zalo
             </button>
             <button
               type="button"
