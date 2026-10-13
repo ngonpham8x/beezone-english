@@ -1,9 +1,12 @@
+import { DialogFrame } from './DialogFrame';
+import { centerDate } from '../lib/dates';
 import React, { useMemo, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TuitionReceipt, TuitionInstallment, Student, ClassRoom, CourseProgram, StaffPermissions, CenterSettings } from '../types';
 import { CreditCard, Plus, Printer, FileText, CheckCircle, AlertCircle, Search, X, Save, DollarSign, Edit, Trash2, Filter, RotateCcw, Calendar, History, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import logoImg from '../assets/images/beezone-logo.png';
 import { getReceiptInstallments, getReceiptPaymentEntries, paymentKindLabel, paymentMethodLabel, paymentPeriodLabel } from '../lib/tuition';
+import { nextReceiptCode } from '../lib/identifiers';
 
 const receiptStatus = (receipt: Pick<TuitionReceipt, 'paidAmount' | 'debtAmount' | 'status'>) => {
   if (receipt.debtAmount > 0) return receipt.paidAmount > 0 ? 'partial' as const : 'debt' as const;
@@ -49,7 +52,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   onUpdateReceipt,
   onDeleteReceipt
 }) => {
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = centerDate().slice(0, 7);
   const defaultCoursePeriod = `Khóa ${new Date().getFullYear()}`;
   const [selectedReceipt, setSelectedReceipt] = useState<TuitionReceipt | null>(null);
   const [isCollectModalOpen, setIsCollectModalOpen] = useState(false);
@@ -69,7 +72,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [monthlyBillingPeriod, setMonthlyBillingPeriod] = useState<string>(currentMonth);
   const [courseBillingPeriod, setCourseBillingPeriod] = useState<string>(defaultCoursePeriod);
   const [paidAmountInput, setPaidAmountInput] = useState<number>(0);
-  const [paymentDateInput, setPaymentDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [paymentDateInput, setPaymentDateInput] = useState<string>(centerDate());
   const [discountInput, setDiscountInput] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định'>('Chưa xác định');
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -79,7 +82,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   // Thu học phí đợt tiếp theo / đóng đợt cuối cho học viên đóng nhiều đợt
   const [collectingInstallmentReceipt, setCollectingInstallmentReceipt] = useState<TuitionReceipt | null>(null);
   const [installmentAmountInput, setInstallmentAmountInput] = useState<number>(0);
-  const [installmentDateInput, setInstallmentDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [installmentDateInput, setInstallmentDateInput] = useState<string>(centerDate());
   const [installmentMethod, setInstallmentMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định'>('Chuyển khoản');
   const [installmentNotes, setInstallmentNotes] = useState<string>('Đóng học phí đợt cuối (hoàn tất học phí)');
   const [installmentCollectorInput, setInstallmentCollectorInput] = useState('');
@@ -172,7 +175,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     setMonthlyBillingPeriod(currentMonth);
     setCourseBillingPeriod(coursePeriodOptions[0] || defaultCoursePeriod);
     setPaidAmountInput(suggestedMonthlyFee);
-    setPaymentDateInput(new Date().toISOString().split('T')[0]);
+    setPaymentDateInput(centerDate());
     setDiscountInput(0);
     setPaymentMethod('Chưa xác định');
     setPaymentNotes('');
@@ -207,7 +210,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const handleOpenCollectInstallment = (receipt: TuitionReceipt) => {
     setCollectingInstallmentReceipt(receipt);
     setInstallmentAmountInput(receipt.debtAmount);
-    setInstallmentDateInput(new Date().toISOString().split('T')[0]);
+    setInstallmentDateInput(centerDate());
     setInstallmentMethod(receipt.paymentMethod || 'Chuyển khoản');
     setInstallmentNotes(receipt.debtAmount > 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Thu học phí đợt tiếp theo');
     setInstallmentCollectorInput(receipt.collectorName || '');
@@ -218,7 +221,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     e.preventDefault();
     if (!collectingInstallmentReceipt) return;
 
-    if (installmentAmountInput <= 0) {
+    if (!Number.isFinite(installmentAmountInput) || installmentAmountInput <= 0) {
       setInstallmentError('Số tiền thu đợt này phải lớn hơn 0.');
       return;
     }
@@ -272,6 +275,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     e.preventDefault();
     const student = students.find(s => s.id === collectingStudentId);
     if (!student) return;
+    if (!student.classId || !classes.some(c => c.id === student.classId)) { setCollectError('Học viên chưa được xếp vào lớp hợp lệ.'); return; }
+    if ([courseFeeInput, monthlyFeeInput, paidAmountInput, discountInput].some(value => !Number.isFinite(value) || value < 0)) { setCollectError('Học phí, giảm giá và số tiền đóng phải là số không âm.'); return; }
 
     const selectedFee = paymentKind === 'monthly' ? monthlyFeeInput : courseFeeInput;
     const finalPrice = Math.max(selectedFee - discountInput, 0);
@@ -304,13 +309,15 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         // Tăng số tiền đóng: thêm đợt thanh toán mới vào ngày thu được chọn
         const newInst: TuitionInstallment = {
           id: `INST_${Date.now()}`,
-          date: paymentDateInput || new Date().toISOString().split('T')[0],
+          date: paymentDateInput || centerDate(),
           amount: addedAmount,
           paymentMethod,
           collectorName: finalCollector,
           notes: debtAmount === 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Đóng học phí đợt tiếp theo',
         };
         nextInstallments = [...nextInstallments, newInst];
+      } else if (addedAmount === 0 && nextInstallments.length === 1) {
+        nextInstallments = [{ ...nextInstallments[0], date: paymentDateInput || editingReceipt.paymentDate, paymentMethod, collectorName: finalCollector }];
       } else if (paidAmountInput < editingReceipt.paidAmount) {
         nextInstallments = [
           {
@@ -327,7 +334,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       nextInstallments = [
         {
           id: `INST_${Date.now()}`,
-          date: paymentDateInput || new Date().toISOString().split('T')[0],
+          date: paymentDateInput || centerDate(),
           amount: paidAmountInput,
           paymentMethod,
           collectorName: finalCollector,
@@ -340,9 +347,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const nextReceipt: TuitionReceipt = {
       ...(editingReceipt ?? {}),
       id: editingReceipt?.id || `TR_${Date.now()}`,
-      code: editingReceipt?.code || `PT-${new Date().getFullYear()}-${(receipts.length + 1).toString().padStart(3, '0')}`,
+      code: editingReceipt?.code || nextReceiptCode(receipts),
       studentId: student.id,
-      classId: student.classId,
+      classId: editingReceipt?.classId || student.classId,
       // An existing receipt retains the other fee field as readable audit
       // context when the operator switches monthly <-> course. New receipts
       // keep the unused field empty so reports remain uncluttered.
@@ -354,7 +361,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       paidAmount: paidAmountInput,
       debtAmount,
       status,
-      paymentDate: paymentDateInput || editingReceipt?.paymentDate || new Date().toISOString().split('T')[0],
+      paymentDate: paymentDateInput || editingReceipt?.paymentDate || centerDate(),
       collectorName: finalCollector,
       paymentMethod,
       notes: paymentNotes || 'Thu học phí',
@@ -422,7 +429,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="tuition-kpis grid grid-cols-1 sm:grid-cols-2 @min-[1100px]:grid-cols-4 gap-4">
         <button
           type="button"
           onClick={() => showReceiptDetail('all')}
@@ -742,9 +749,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
       {/* COLLECT TUITION MODAL */}
       {isCollectModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Phiếu thu học phí" onClose={() => { setIsCollectModalOpen(false); setEditingReceipt(null); }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => { setIsCollectModalOpen(false); setEditingReceipt(null); }}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -1008,14 +1015,14 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* COLLECT INSTALLMENT (THU TIẾP / ĐÓNG ĐỢT CUỐI) MODAL */}
       {collectingInstallmentReceipt && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Thu học phí bổ sung" onClose={() => setCollectingInstallmentReceipt(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => setCollectingInstallmentReceipt(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -1221,12 +1228,12 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               );
             })()}
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {pendingReceiptAction && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <section role="dialog" aria-modal="true" aria-label="Xác nhận thao tác phiếu thu" className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <DialogFrame label="Xác nhận thao tác phiếu thu" onClose={() => setPendingReceiptAction(null)} className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <section    className="dialog-panel w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-extrabold text-slate-900">{pendingReceiptAction.type === 'delete' ? 'Xóa phiếu thu?' : pendingReceiptAction.isUpdate ? 'Hoàn thành cập nhật?' : 'Hoàn thành lập phiếu?'}</h3>
             <p className="mt-2 text-sm text-slate-600">
               {pendingReceiptAction.type === 'delete'
@@ -1238,14 +1245,14 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               <button type="button" onClick={handleConfirmReceiptAction} className={`rounded-xl px-4 py-2 text-xs font-bold text-white ${pendingReceiptAction.type === 'delete' ? 'bg-rose-700 hover:bg-rose-800' : 'bg-emerald-700 hover:bg-emerald-800'}`}>Có, {pendingReceiptAction.type === 'delete' ? 'xóa' : 'hoàn thành'}</button>
             </div>
           </section>
-        </div>
+        </DialogFrame>
       )}
 
       {/* PRINTABLE RECEIPT MODAL */}
       {selectedReceipt && typeof document !== 'undefined' && createPortal(
-        <div data-print-receipt-overlay className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div data-print-receipt className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl border border-slate-300 relative print:m-0 print:p-4 print:shadow-none print:border-none">
-            <button
+        <DialogFrame label="In phiếu thu" onClose={() => setSelectedReceipt(null)} data-print-receipt-overlay className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div data-print-receipt className="dialog-panel bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl border border-slate-300 relative print:m-0 print:p-4 print:shadow-none print:border-none">
+            <button aria-label="Đóng"
               onClick={() => setSelectedReceipt(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg print:hidden"
             >
@@ -1359,7 +1366,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>,
+        </DialogFrame>,
         document.body
       )}
     </div>

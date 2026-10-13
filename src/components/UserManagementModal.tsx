@@ -1,7 +1,10 @@
+import { DialogFrame } from './DialogFrame';
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { LoaderCircle, ShieldCheck, UserRoundCheck, X, CheckCircle2 } from 'lucide-react';
 import { ClassRoom, StaffPermissions, Teacher, UserRole, UserAccount } from '../types';
 import { getActiveSessions, ActiveSession } from '../lib/activeSessions';
+import { isLocalPreview } from '../lib/supabase';
+import { readApiJson } from '../lib/http';
 
 interface ManagedUser {
   id: string;
@@ -105,6 +108,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const loadMembers = useCallback(async () => {
     if (!accessToken) return;
+    if (isLocalPreview) { setMembers([]); setError('Bản xem thử chưa kết nối quản lý tài khoản. Cấp quyền Google cần cấu hình Supabase và máy chủ.'); return; }
     setIsLoading(true);
     setError(null);
     try {
@@ -112,15 +116,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
       });
-      const contentType = response.headers.get('content-type') || '';
-      if (response.ok && contentType.includes('application/json')) {
-        const payload = await response.json();
-        setMembers(payload.users || []);
-        return;
-      }
+      const payload = await readApiJson<{ users: ManagedUser[] }>(response, 'Không thể tải danh sách tài khoản.');
+      if (!Array.isArray(payload.users)) throw new Error('Danh sách tài khoản không đúng định dạng.');
+      setMembers(payload.users);
+    } catch (error) {
       setMembers([]);
-    } catch {
-      setMembers([]);
+      setError(error instanceof Error ? error.message : 'Không thể tải danh sách tài khoản.');
     } finally {
       setIsLoading(false);
     }
@@ -147,6 +148,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const grantGoogleAccess = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isLocalPreview || isSubmitting) return;
     setError(null);
     setMessage(null);
     setIsSubmitting(true);
@@ -156,11 +158,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ email, fullName, role, permissions: role === 'staff' ? staffPermissions : undefined }),
       });
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || 'Không thể cấp quyền Google.');
-      }
+      await readApiJson(response, 'Không thể cấp quyền Google.');
       setEmail('');
       setFullName('');
       setRole('staff');
@@ -175,9 +173,24 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     }
   };
 
+  const setAccountActive = async (member: ManagedUser) => {
+    if (isSubmitting || isLocalPreview || member.id === currentUser?.id) return;
+    setIsSubmitting(true); setError(null); setMessage(null);
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ action: 'setActive', userId: member.id, active: !member.is_active }),
+      });
+      await readApiJson(response, 'Không thể cập nhật trạng thái tài khoản.');
+      await loadMembers(); onAccountChanged?.();
+      setMessage(member.is_active ? 'Đã khóa tài khoản.' : 'Đã mở khóa tài khoản.');
+    } catch (error) { setError(error instanceof Error ? error.message : 'Không thể cập nhật tài khoản.'); }
+    finally { setIsSubmitting(false); }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <section role="dialog" aria-modal="true" aria-label="Quản lý tài khoản" className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+    <DialogFrame label="Quản lý tài khoản" onClose={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <section    className="dialog-panel relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
         <button onClick={onClose} className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Đóng">
           <X className="h-5 w-5" />
         </button>
@@ -255,7 +268,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                   )}
 
                   {teachers.length > 0 && (
-                    <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center gap-2">
+                    <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex flex-col sm:flex-row sm:items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-700 whitespace-nowrap">Gán hồ sơ giáo viên:</span>
                       <select
                         value={staffPermissions.teacherId || ''}
@@ -274,7 +287,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
             </fieldset>
           )}
           <div className="flex items-end">
-            <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-60 flex items-center justify-center gap-2 shadow-xs transition">
+            <button type="submit" disabled={isSubmitting || isLocalPreview} className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-60 flex items-center justify-center gap-2 shadow-xs transition">
               {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin text-slate-950" /> : <UserRoundCheck className="h-4 w-4 text-slate-950" />} Cấp quyền Google
             </button>
           </div>
@@ -283,19 +296,28 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-800">{error}</p>}
         {message && <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-800">{message}</p>}
 
+        <div className="mt-6 flex items-center justify-between gap-3"><h3 className="text-sm font-bold">Tài khoản đã được cấp quyền</h3><button disabled={isLoading || isLocalPreview} onClick={() => void loadMembers()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold">{isLoading ? 'Đang tải…' : 'Làm mới'}</button></div>
+        <div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {!isLoading && members.length === 0 && <p className="p-4 text-sm text-slate-500">Chưa có danh sách tài khoản.</p>}
+          {members.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+            <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{member.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
+            <div className="flex gap-2"><button disabled={isSubmitting} onClick={() => { setFullName(member.full_name); setEmail(member.email || ''); setRole(member.role || 'staff'); setStaffPermissions({ ...createEmptyPermissions(), ...member.permissions }); }} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800">Sửa quyền</button><button disabled={isSubmitting || member.id === currentUser?.id} onClick={() => void setAccountActive(member)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">{member.is_active ? 'Khóa' : 'Mở khóa'}</button></div>
+          </div>)}
+        </div>
+
         <div className="mt-6 flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-slate-900 text-sm">Tài khoản đang đăng nhập</h3>
+            <h3 className="font-bold text-slate-900 text-sm">Phiên ghi nhận trên trình duyệt này</h3>
             <p className="text-[11px] text-slate-500">
               {activeSessions.length > 0
-                ? `Hiện có ${activeSessions.length} tài khoản đang đăng nhập vào hệ thống`
+                ? `${activeSessions.length} phiên được ghi nhận cục bộ; không phản ánh trạng thái trực tuyến trên các máy khác.`
                 : 'Chưa có tài khoản nào đăng nhập'}
             </p>
           </div>
           {activeSessions.length > 0 && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {activeSessions.length} trực tuyến
+              {activeSessions.length} phiên cục bộ
             </span>
           )}
         </div>
@@ -370,6 +392,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           )}
         </div>
       </section>
-    </div>
+    </DialogFrame>
   );
 };

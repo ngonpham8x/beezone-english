@@ -1,3 +1,5 @@
+import { DialogFrame } from './components/DialogFrame';
+import { DRAWER_QUERY, useMediaQuery } from './hooks/useResponsive';
 import React, { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
@@ -35,49 +37,40 @@ import {
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
-import { DashboardView } from './components/DashboardView';
-import { StudentManager } from './components/StudentManager';
-import { TeacherManager } from './components/TeacherManager';
-import { ClassManager } from './components/ClassManager';
-import { RoomManager } from './components/RoomManager';
-import { TimetableManager } from './components/TimetableManager';
-import { TeacherScheduleMatrix } from './components/TeacherScheduleMatrix';
-import { GradeManager } from './components/GradeManager';
-import { TuitionManager } from './components/TuitionManager';
-import { ReportView } from './components/ReportView';
+const DashboardView = lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const StudentManager = lazy(() => import('./components/StudentManager').then(m => ({ default: m.StudentManager })));
+const TeacherManager = lazy(() => import('./components/TeacherManager').then(m => ({ default: m.TeacherManager })));
+const ClassManager = lazy(() => import('./components/ClassManager').then(m => ({ default: m.ClassManager })));
+const RoomManager = lazy(() => import('./components/RoomManager').then(m => ({ default: m.RoomManager })));
+const TimetableManager = lazy(() => import('./components/TimetableManager').then(m => ({ default: m.TimetableManager })));
+const TeacherScheduleMatrix = lazy(() => import('./components/TeacherScheduleMatrix').then(m => ({ default: m.TeacherScheduleMatrix })));
+const GradeManager = lazy(() => import('./components/GradeManager').then(m => ({ default: m.GradeManager })));
+const TuitionManager = lazy(() => import('./components/TuitionManager').then(m => ({ default: m.TuitionManager })));
+const ReportView = lazy(() => import('./components/ReportView').then(m => ({ default: m.ReportView })));
 import { ActivityLogView } from './components/ActivityLogView';
 import { SystemSettingsModal } from './components/SystemSettingsModal';
 import { LoginModal } from './components/LoginModal';
 import { PwaInstallModal } from './components/PwaInstallModal';
 import { AuthScreen } from './components/AuthScreen';
 import { UserManagementModal } from './components/UserManagementModal';
-import { AttendanceManager } from './components/AttendanceManager';
-import { AdmissionsManager } from './components/AdmissionsManager';
-import { CourseProgramManager } from './components/CourseProgramManager';
+const AttendanceManager = lazy(() => import('./components/AttendanceManager').then(m => ({ default: m.AttendanceManager })));
+const AdmissionsManager = lazy(() => import('./components/AdmissionsManager').then(m => ({ default: m.AdmissionsManager })));
+const CourseProgramManager = lazy(() => import('./components/CourseProgramManager').then(m => ({ default: m.CourseProgramManager })));
 import DataConsistencyChecker from './components/DataConsistencyChecker';
-import { profileToAccount, ProfileRow, DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT, DEV_MOCK_SESSION, createMockSessionForAccount, findAdminAccountByEmail } from './lib/auth';
+import { profileToAccount, ProfileRow, DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT, createMockSessionForAccount, findAdminAccountByEmail } from './lib/auth';
 import { registerActiveSession, removeActiveSession } from './lib/activeSessions';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { isSupabaseConfigured, isLocalPreview, supabase } from './lib/supabase';
 import { feeStatusForReceipts } from './lib/tuition';
+import { centerDate } from './lib/dates';
+import { nextReceiptCode } from './lib/identifiers';
+import { parseCenterData, type CenterDataPayload } from './lib/centerData';
+import { createSyncQueue, SyncConflictError } from './lib/syncQueue';
+import { matchesSearch } from './lib/search';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import type { CenterWorkbookData } from './services/excelService';
 
 const ImportExportModal = lazy(() => import('./components/ImportExportModal').then((module) => ({ default: module.ImportExportModal })));
 const BackupManager = lazy(() => import('./components/BackupManager').then((module) => ({ default: module.BackupManager })));
-
-interface CenterDataPayload {
-  settings: CenterSettings;
-  programs: CourseProgram[];
-  teachers: Teacher[];
-  rooms: Room[];
-  classes: ClassRoom[];
-  students: Student[];
-  timetableSlots: TimetableSlot[];
-  grades: Grade[];
-  receipts: TuitionReceipt[];
-  backups: SystemBackup[];
-  activityLogs: ActivityLog[];
-  attendanceSessions?: AttendanceSession[];
-}
 
 const DATA_SCHEMA_VERSION = 'beezone-receipt-table-v5';
 const ACTIVE_TAB_STORAGE_KEY = 'PHUC_PHUC_THINH_ACTIVE_TAB';
@@ -97,6 +90,7 @@ const DATA_STORE_KEYS = [
 ] as const;
 
 const MAX_ACTIVITY_LOGS = 500;
+const VALID_TABS = new Set(['dashboard', 'attendance', 'admissions', 'programs', 'students', 'teachers', 'classes', 'rooms', 'timetable', 'teacher-schedule', 'grades', 'tuition', 'reports', 'excel-import-export', 'data-consistency', 'backups', 'settings', 'activity-logs']);
 
 const mergeActivityLogs = (...lists: ActivityLog[][]) => {
   const seen = new Set<string>();
@@ -113,6 +107,7 @@ const mergeActivityLogs = (...lists: ActivityLog[][]) => {
 };
 
 const canAccessTab = (tab: string, user: UserAccount) => {
+  if (!VALID_TABS.has(tab)) return false;
   if (user.role === 'owner') return true;
   const permissions = user.permissions;
 
@@ -239,7 +234,7 @@ export default function App() {
   const ensureDataSchema = () => {
     try {
       if (localStorage.getItem('PHUC_PHUC_THINH_DATA_VERSION') === DATA_SCHEMA_VERSION) return;
-      DATA_STORE_KEYS.forEach((key) => localStorage.removeItem(`PHUC_PHUC_THINH_${key}`));
+      // Preserve existing browser data across schema updates; never erase it on launch.
       localStorage.setItem('PHUC_PHUC_THINH_DATA_VERSION', DATA_SCHEMA_VERSION);
     } catch (error) {
       console.error(error);
@@ -249,9 +244,10 @@ export default function App() {
   const loadStored = <T,>(key: string, fallback: T): T => {
     try {
       ensureDataSchema();
-      if (isSupabaseConfigured) return fallback;
+      if (!isLocalPreview) return (Array.isArray(fallback) ? [] : fallback) as T;
       const stored = localStorage.getItem(`PHUC_PHUC_THINH_${key}`);
-      return stored ? JSON.parse(stored) : fallback;
+      const parsed = stored ? JSON.parse(stored) : fallback;
+      return Array.isArray(fallback) && !Array.isArray(parsed) ? fallback : parsed;
     } catch (e) {
       return fallback;
     }
@@ -259,17 +255,18 @@ export default function App() {
 
   const saveStored = <T,>(key: string, value: T) => {
     try {
-      if (isSupabaseConfigured) return;
+      if (!isLocalPreview) return;
       localStorage.setItem(`PHUC_PHUC_THINH_${key}`, JSON.stringify(value));
     } catch (e) {
       console.error(e);
+      setStorageError('Không thể lưu trên trình duyệt. Hãy xuất bản sao lưu trước khi đóng trang.');
     }
   };
 
   // State Management
   const [settings, setSettings] = useState<CenterSettings>(() => loadStored('settings', initialSettings));
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
-    if (!isSupabaseConfigured) {
+    if (isLocalPreview) {
       try {
         const savedDevRole = sessionStorage.getItem('BEEZONE_DEV_ROLE');
         const savedEmail = sessionStorage.getItem('BEEZONE_ACTIVE_EMAIL');
@@ -286,8 +283,9 @@ export default function App() {
     return null;
   });
   const [session, setSession] = useState<Session | null>(() => {
-    if (!isSupabaseConfigured) {
+    if (isLocalPreview) {
       try {
+        if (sessionStorage.getItem('BEEZONE_DEV_ROLE') === 'teacher') return createMockSessionForAccount(DEV_TEACHER_ACCOUNT);
         const savedEmail = sessionStorage.getItem('BEEZONE_ACTIVE_EMAIL');
         if (savedEmail) {
           const matched = findAdminAccountByEmail(savedEmail);
@@ -296,16 +294,24 @@ export default function App() {
       } catch {
         // ignore
       }
-      return DEV_MOCK_SESSION;
+      return createMockSessionForAccount(DEV_OWNER_ACCOUNT);
     }
     return null;
   });
-  const [authStatus, setAuthStatus] = useState<'loading' | 'ready' | 'signed-out' | 'blocked'>(
-    isSupabaseConfigured ? 'loading' : 'ready'
+  const [authStatus, setAuthStatus] = useState<'loading' | 'ready' | 'signed-out' | 'blocked' | 'error'>(
+    isSupabaseConfigured ? 'loading' : isLocalPreview ? 'ready' : 'signed-out'
   );
   const [isCenterDataHydrated, setIsCenterDataHydrated] = useState(!isSupabaseConfigured);
   const [canSyncCenterData, setCanSyncCenterData] = useState(false);
   const [hasCenterData, setHasCenterData] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authRetry, setAuthRetry] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<'saved' | 'saving' | 'error' | 'conflict'>('saved');
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const cloudRevisionRef = useRef<string | null>(null);
+  const savedPayloadRef = useRef('');
+  const syncQueueRef = useRef<ReturnType<typeof createSyncQueue<CenterDataPayload>> | null>(null);
 
   const [programs, setPrograms] = useState<CourseProgram[]>(() => loadStored('programs', initialPrograms));
   const [teachers, setTeachers] = useState<Teacher[]>(() => loadStored('teachers', initialTeachers));
@@ -326,18 +332,21 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
       const tabFromUrl = new URLSearchParams(window.location.search).get('tab');
-      return tabFromUrl || sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || 'dashboard';
+      const candidate = tabFromUrl || sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || 'dashboard';
+      return VALID_TABS.has(candidate) ? candidate : 'dashboard';
     } catch {
       return 'dashboard';
     }
   });
+  const isDrawer = useMediaQuery(DRAWER_QUERY);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
-      return typeof window !== 'undefined' && window.innerWidth < 768;
+      return typeof window !== 'undefined' && window.innerWidth < 1280;
     } catch {
       return false;
     }
   });
+  useEffect(() => { if (isDrawer) setSidebarCollapsed(true); }, [isDrawer]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [classEditRequest, setClassEditRequest] = useState<ClassRoom | null>(null);
   const contentViewportRef = useRef<HTMLElement>(null);
@@ -465,92 +474,99 @@ export default function App() {
     if (!supabase) return;
 
     let isMounted = true;
-    let lastResolvedUserId: string | null = null;
+    let hydratedUserId: string | null = null;
+    let resolvingUserId: string | null = null;
+    let resolutionId = 0;
+    let authEventObserved = false;
+    const deferredEvents = new Set<number>();
 
     const resolveSession = async (nextSession: Session | null) => {
       if (!isMounted) return;
       setSession(nextSession);
 
       if (!nextSession) {
-        lastResolvedUserId = null;
+        resolutionId += 1;
+        hydratedUserId = null;
+        resolvingUserId = null;
+        syncQueueRef.current?.stop();
         setCurrentUser(null);
-        setIsCenterDataHydrated(!isSupabaseConfigured);
+        setIsCenterDataHydrated(false);
         setCanSyncCenterData(false);
         setHasCenterData(false);
+        setPrograms([]); setTeachers([]); setRooms([]); setClasses([]); setStudents([]);
+        setTimetableSlots([]); setGrades([]); setReceipts([]); setBackups([]);
+        setAttendanceSessions([]); setActivityLogs([]); setAccountAuditLogs([]);
         setAuthStatus('signed-out');
         return;
       }
 
-      if (lastResolvedUserId === nextSession.user.id && isCenterDataHydrated) {
-        return;
-      }
-      lastResolvedUserId = nextSession.user.id;
+      if (resolvingUserId === nextSession.user.id) return;
+      resolvingUserId = nextSession.user.id;
+      const runId = ++resolutionId;
+      const isCurrent = () => isMounted && runId === resolutionId;
+      const alreadyHydrated = hydratedUserId === nextSession.user.id;
 
-      setAuthStatus('loading');
+      if (!alreadyHydrated) setAuthStatus('loading');
+      setAuthError(null);
+      try {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, role, is_active, permissions')
         .eq('id', nextSession.user.id)
         .maybeSingle();
 
-      if (!isMounted) return;
-      if (error || !data || !data.is_active) {
+      if (!isCurrent()) return;
+      if (error) throw new Error('Không thể kiểm tra quyền tài khoản. Kiểm tra kết nối và thử lại.');
+      if (!data || !data.is_active || !['owner', 'staff'].includes(data.role)) {
+        hydratedUserId = null;
+        syncQueueRef.current?.stop();
         setCurrentUser(null);
+        setCanSyncCenterData(false);
+        setIsCenterDataHydrated(false);
         setAuthStatus('blocked');
         return;
       }
 
       const account = profileToAccount(data as ProfileRow, nextSession.user);
       setCurrentUser(account);
+      // Refresh the profile on auth events without replacing unsaved business data.
+      if (alreadyHydrated) { setAuthStatus('ready'); return; }
+      syncQueueRef.current?.stop();
       setIsCenterDataHydrated(false);
+      setCanSyncCenterData(false);
       setHasCenterData(false);
       const { data: centerData, error: centerDataError } = await supabase
         .from('center_data')
-        .select('payload')
+        .select('payload, updated_at')
         .eq('id', 'primary')
         .maybeSingle();
 
-      if (!isMounted) return;
+      if (!isCurrent()) return;
       if (!centerDataError) {
-        const payload = centerData?.payload as Partial<CenterDataPayload> | undefined;
-        const hasPayload = Boolean(payload && typeof payload === 'object' && Object.keys(payload).length > 0);
-        if (hasPayload && payload) {
-          if (payload.settings) setSettings(payload.settings);
-          if (Array.isArray(payload.programs)) setPrograms(payload.programs);
-          if (Array.isArray(payload.rooms)) setRooms(payload.rooms);
-          const normalizedReceipts = Array.isArray(payload.receipts) ? normaliseReceipts(payload.receipts) : [];
-          const hydratedStudents = Array.isArray(payload.students)
-            ? payload.students.map((student) => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts) }))
-            : [];
-          const hydratedClasses = Array.isArray(payload.classes)
-            ? reconcileClassStudentIds(payload.classes, hydratedStudents)
-            : [];
-          if (Array.isArray(payload.teachers)) setTeachers(reconcileTeacherAssignments(payload.teachers, hydratedClasses));
-          if (Array.isArray(payload.classes)) setClasses(hydratedClasses);
-          if (Array.isArray(payload.students)) setStudents(hydratedStudents);
-          if (Array.isArray(payload.timetableSlots)) setTimetableSlots(payload.timetableSlots);
-          if (Array.isArray(payload.grades)) setGrades(payload.grades);
-          if (Array.isArray(payload.receipts)) setReceipts(normalizedReceipts);
-          if (Array.isArray(payload.backups)) setBackups(payload.backups);
-          if (Array.isArray(payload.attendanceSessions)) setAttendanceSessions(payload.attendanceSessions);
-          if (Array.isArray(payload.activityLogs)) {
-            // Do not discard local history if an older cloud payload has no
-            // logs yet; merge by log id and let the next sync persist it.
-            setActivityLogs((previous) => mergeActivityLogs(payload.activityLogs, previous));
-          }
-        }
+        const payload = parseCenterData(centerData?.payload || {}, initialSettings);
+        const hasPayload = Boolean(centerData && Object.keys(centerData.payload || {}).length);
+        const normalizedReceipts = normaliseReceipts(payload.receipts);
+        const hydratedStudents = payload.students.map(student => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts) }));
+        const hydratedClasses = reconcileClassStudentIds(payload.classes, hydratedStudents);
+        const hydratedTeachers = reconcileTeacherAssignments(payload.teachers, hydratedClasses);
+        setSettings(payload.settings); setPrograms(payload.programs); setRooms(payload.rooms);
+        setTeachers(hydratedTeachers); setClasses(hydratedClasses); setStudents(hydratedStudents);
+        setTimetableSlots(payload.timetableSlots); setGrades(payload.grades); setReceipts(normalizedReceipts);
+        setBackups(payload.backups); setAttendanceSessions(payload.attendanceSessions);
+        setActivityLogs(payload.activityLogs);
+        cloudRevisionRef.current = centerData?.updated_at ?? null;
+        savedPayloadRef.current = JSON.stringify({ ...payload, teachers: hydratedTeachers, classes: hydratedClasses, students: hydratedStudents, receipts: normalizedReceipts });
+        setSyncStatus('saved'); setSyncError(null);
         setCanSyncCenterData(true);
         setHasCenterData(hasPayload);
       } else {
-        console.warn('Không thể tải dữ liệu trung tâm từ Supabase:', centerDataError.message);
-        setCanSyncCenterData(false);
-        setHasCenterData(false);
+        throw new Error('Không thể tải dữ liệu trung tâm. Kiểm tra kết nối và cấu trúc Supabase rồi thử lại.');
       }
       try {
         const loginLogKey = `PHUC_PHUC_THINH_LOGIN_LOGGED_${nextSession.user.id}`;
         if (!sessionStorage.getItem(loginLogKey)) {
           const loginLog: ActivityLog = {
-            id: `LOG_LOGIN_${Date.now()}`,
+            id: `LOG_LOGIN_${crypto.randomUUID()}`,
             timestamp: new Date().toLocaleString('vi-VN'),
             userEmail: account.email,
             userName: account.name,
@@ -564,34 +580,76 @@ export default function App() {
       } catch {
         // Session storage can be unavailable in restricted browser contexts.
       }
+      hydratedUserId = nextSession.user.id;
       setIsCenterDataHydrated(true);
       setAuthStatus('ready');
+      } catch (error) {
+        if (!isCurrent()) return;
+        hydratedUserId = null;
+        syncQueueRef.current?.stop();
+        setCanSyncCenterData(false);
+        setIsCenterDataHydrated(false);
+        setAuthError(error instanceof Error ? error.message : 'Không thể tải dữ liệu.');
+        setAuthStatus('error');
+      } finally {
+        if (isCurrent()) resolvingUserId = null;
+      }
     };
 
-    void supabase.auth.getSession().then(({ data }) => resolveSession(data.session));
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!isMounted || authEventObserved) return;
+      if (error) { setAuthError('Không thể kiểm tra phiên đăng nhập.'); setAuthStatus('error'); return; }
+      void resolveSession(data.session);
+    }).catch(() => { if (isMounted) { setAuthError('Không thể kết nối hệ thống đăng nhập.'); setAuthStatus('error'); } });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      void resolveSession(nextSession);
+      authEventObserved = true;
+      // Supabase holds an auth lock while callbacks run. Defer queries outside it.
+      const timer = window.setTimeout(() => { deferredEvents.delete(timer); void resolveSession(nextSession); }, 0);
+      deferredEvents.add(timer);
     });
 
     return () => {
       isMounted = false;
+      deferredEvents.forEach(timer => window.clearTimeout(timer));
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [authRetry]);
 
   useEffect(() => {
-    if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData || !hasCenterData) return;
+    if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
+    let active = true;
+    const queue = createSyncQueue<CenterDataPayload>(async payload => {
+      const revision = cloudRevisionRef.current;
+      const result = revision
+        ? await supabase.from('center_data').update({ payload }).eq('id', 'primary').eq('updated_at', revision).select('updated_at').maybeSingle()
+        : await supabase.from('center_data').insert({ id: 'primary', payload }).select('updated_at').single();
+      if (result.error?.code === '23505' || (!result.error && !result.data)) throw new SyncConflictError();
+      if (result.error) throw new Error('Không thể lưu dữ liệu lên máy chủ. Kiểm tra kết nối và quyền truy cập rồi thử lại.');
+      if (!active) return;
+      cloudRevisionRef.current = result.data.updated_at;
+      savedPayloadRef.current = JSON.stringify(payload);
+    }, (status, error) => { setSyncStatus(status); setSyncError(error || null); });
+    syncQueueRef.current = queue;
+    return () => { active = false; queue.stop(); if (syncQueueRef.current === queue) syncQueueRef.current = null; };
+  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData]);
+
+  useEffect(() => {
+    if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
     const payload: CenterDataPayload = { settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions };
+    if (JSON.stringify(payload) === savedPayloadRef.current) return;
+    setSyncStatus(previous => previous === 'error' || previous === 'conflict' ? previous : 'saving');
     const timer = window.setTimeout(() => {
-      void supabase
-        .from('center_data')
-        .upsert({ id: 'primary', payload }, { onConflict: 'id' })
-        .then(({ error }) => {
-          if (error) console.error('Không thể đồng bộ dữ liệu trung tâm:', error.message);
-        });
+      syncQueueRef.current?.enqueue(payload);
     }, 750);
     return () => window.clearTimeout(timer);
-  }, [settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, currentUser, isCenterDataHydrated, canSyncCenterData, hasCenterData]);
+  }, [settings, programs, teachers, rooms, classes, students, timetableSlots, grades, receipts, backups, activityLogs, attendanceSessions, currentUser?.id, isCenterDataHydrated, canSyncCenterData]);
+
+  useEffect(() => {
+    if (syncStatus === 'saved' && !storageError) return;
+    const warnBeforeClose = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warnBeforeClose);
+    return () => window.removeEventListener('beforeunload', warnBeforeClose);
+  }, [syncStatus, storageError]);
 
   // Activity Logger
   const addLog = (
@@ -601,7 +659,7 @@ export default function App() {
   ) => {
     if (!currentUser) return;
     const newLog: ActivityLog = {
-      id: `LOG_${Date.now()}`,
+      id: `LOG_${crypto.randomUUID()}`,
       timestamp: new Date().toLocaleString('vi-VN'),
       userEmail: currentUser.email,
       userName: currentUser.name,
@@ -618,6 +676,7 @@ export default function App() {
       setAccountAuditError(null);
       return;
     }
+    if (isLocalPreview) { setAccountAuditLogs(initialAccountAuditLogs); setAccountAuditError(null); return; }
     setIsAccountAuditLoading(true);
     setAccountAuditError(null);
     try {
@@ -634,14 +693,9 @@ export default function App() {
           return;
         }
       }
-      // If endpoint returns non-JSON (e.g. Vite dev or offline), fallback gracefully to local storage
-      const localLogs = loadStored<AccountAuditLog[]>('accountAuditLogs', initialAccountAuditLogs);
-      setAccountAuditLogs(localLogs);
-      setAccountAuditError(null);
-    } catch {
-      const localLogs = loadStored<AccountAuditLog[]>('accountAuditLogs', initialAccountAuditLogs);
-      setAccountAuditLogs(localLogs);
-      setAccountAuditError(null);
+      throw new Error('Không thể tải nhật ký tài khoản từ máy chủ.');
+    } catch (error) {
+      setAccountAuditError(error instanceof Error ? error.message : 'Không thể tải nhật ký tài khoản.');
     } finally {
       setIsAccountAuditLoading(false);
     }
@@ -658,14 +712,8 @@ export default function App() {
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
-    const previousStudent = students.find((student) => student.id === updatedStudent.id);
     const normalizedStudent = { ...updatedStudent, feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts) };
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? normalizedStudent : s));
-    if (previousStudent && previousStudent.classId !== updatedStudent.classId) {
-      setGrades((previousGrades) => previousGrades.map((grade) => (
-        grade.studentId === updatedStudent.id ? { ...grade, classId: updatedStudent.classId } : grade
-      )));
-    }
     addLog('SỬA', 'Học sinh', `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`);
   };
 
@@ -676,17 +724,22 @@ export default function App() {
       alert(`Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`);
       return;
     }
+    if (currentUser?.role !== 'owner' && (grades.some(grade => grade.studentId === id) || attendanceSessions.some(session => session.entries.some(entry => entry.studentId === id)))) { alert('Học viên có lịch sử điểm hoặc điểm danh. Hãy chuyển trạng thái học hoặc liên hệ Chủ trung tâm.'); return; }
     setStudents(prev => prev.filter(s => s.id !== id));
     setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
     if (st) addLog('XÓA', 'Học sinh', `Xóa học sinh ${st.name} (${st.code}) và dữ liệu điểm liên quan khỏi hệ thống`);
   };
 
   const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
+    if (!currentUser || (currentUser.role !== 'owner' && (!currentUser.permissions.student.edit || !currentUser.permissions.tuition.collect))) { alert('Cần quyền sửa học viên và thu học phí để xác nhận nhập học.'); return false; }
     const student = students.find(s => s.id === studentId);
-    if (!student) return;
+    if (!student || student.status === 'active') return false;
     const targetClass = classes.find(c => c.id === classId);
-    const targetProgram = programs.find(p => p.id === student.programId || (targetClass && p.id === targetClass.programId));
-    const tuitionAmount = targetProgram?.tuitionFee || 1500000;
+    if (!targetClass) { alert('Lớp nhập học không tồn tại.'); return false; }
+    if (targetClass.capacity > 0 && students.filter(s => s.classId === classId && s.status === 'active').length >= targetClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return false; }
+    const targetProgram = programs.find(p => p.id === targetClass.programId);
+    if (!targetProgram) { alert('Lớp chưa có chương trình học hợp lệ.'); return false; }
+    const tuitionAmount = targetProgram.tuitionFee;
 
     // 1. Update student
     setStudents(prev => prev.map(s => {
@@ -696,7 +749,7 @@ export default function App() {
           status: 'active' as const,
           classId: classId,
           programId: targetClass?.programId || s.programId,
-          enrollDate: enrollDate || new Date().toISOString().split('T')[0],
+          enrollDate: enrollDate || centerDate(),
         };
       }
       return s;
@@ -711,7 +764,7 @@ export default function App() {
     }));
 
     // 3. Create initial grade record for class
-    setGrades(prev => {
+    if (currentUser.role === 'owner') setGrades(prev => {
       if (prev.some(g => g.studentId === studentId && g.classId === classId)) return prev;
       return [
         ...prev,
@@ -733,23 +786,27 @@ export default function App() {
 
     // 4. Create initial tuition receipt
     const newReceipt: TuitionReceipt = {
-      id: `REC_${Date.now()}_${studentId}`,
-      code: `PT-${new Date().getFullYear()}-${(receipts.length + 1).toString().padStart(4, '0')}`,
+      id: `REC_${crypto.randomUUID()}`,
+      code: nextReceiptCode(receipts),
       studentId,
       classId,
       courseFee: tuitionAmount,
+      monthlyFee: 0,
+      paymentKind: 'course',
+      billingPeriod: `Nhập học ${enrollDate || centerDate()}`,
       discount: 0,
       paidAmount: 0,
       debtAmount: tuitionAmount,
       status: 'unpaid',
-      paymentDate: enrollDate || new Date().toISOString().split('T')[0],
+      paymentDate: enrollDate || centerDate(),
       collectorName: currentUser?.name || 'BeeZone English',
       paymentMethod: 'Chưa xác định',
       notes: `Học phí nhập học khóa ${targetProgram?.name || targetClass?.name || ''}`,
     };
-    setReceipts(prev => [newReceipt, ...prev]);
+    if (tuitionAmount > 0 && !receipts.some(r => r.studentId === studentId && r.classId === classId && r.paymentKind === 'course')) setReceipts(prev => [newReceipt, ...prev]);
 
     addLog('THÊM', 'Tuyển sinh', `Xác nhận nhập học chính thức học viên ${student.name} (${student.code}) vào lớp ${targetClass?.name || classId}`);
+    return true;
   };
 
   const handleReserveStudent = (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => {
@@ -790,6 +847,8 @@ export default function App() {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
     const targetClass = classes.find(c => c.id === targetClassId);
+    if (!targetClass) { alert('Lớp quay lại học không tồn tại.'); return; }
+    if (targetClass.capacity > 0 && students.filter(s => s.id !== studentId && s.classId === targetClassId && s.status === 'active').length >= targetClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return; }
     const reNote = `\n[QUAY LẠI HỌC]: Ngày ${returnDate} tại lớp ${targetClass?.name || targetClassId}. ${note || ''}`;
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
@@ -797,6 +856,7 @@ export default function App() {
           ...s,
           status: 'active' as const,
           classId: targetClassId,
+          programId: targetClass.programId,
           notes: (s.notes || '') + reNote
         };
       }
@@ -815,11 +875,20 @@ export default function App() {
   };
 
   const handleImportStudents = (newStudentsList: Student[]) => {
-    setStudents(prev => [...newStudentsList, ...prev]);
-    addLog('IMPORT', 'Excel', `Import ${newStudentsList.length} học sinh mới từ file Excel`);
+    const existingIds = new Set(students.map(s => s.id));
+    const existingCodes = new Set(students.map(s => s.code.trim().toLowerCase()));
+    const uniqueStudents = newStudentsList.filter(s => {
+      const code = s.code.trim().toLowerCase();
+      if (existingIds.has(s.id) || existingCodes.has(code)) return false;
+      existingIds.add(s.id); existingCodes.add(code); return true;
+    });
+    setStudents(prev => [...uniqueStudents, ...prev]);
+    addLog('IMPORT', 'Excel', `Nhập ${uniqueStudents.length} học sinh mới; bỏ qua ${newStudentsList.length - uniqueStudents.length} bản ghi trùng.`);
   };
 
   const handleImportCenterData = (data: CenterWorkbookData) => {
+    try { parseCenterData({ ...data, settings }, settings); }
+    catch (error) { alert(error instanceof Error ? error.message : 'Dữ liệu nhập không hợp lệ.'); return false; }
     const normalizedReceipts = normaliseReceipts(data.receipts);
     const importedStudents = data.students.map((student) => ({ ...student, feeStatus: feeStatusFromReceipts(student.id, normalizedReceipts) }));
     const importedClasses = reconcileClassStudentIds(data.classes, importedStudents);
@@ -832,6 +901,7 @@ export default function App() {
     setGrades(data.grades);
     setReceipts(normalizedReceipts);
     setBackups([]);
+    setAttendanceSessions([]);
     setHasCenterData(true);
     const importLog: ActivityLog[] = currentUser ? [{
       id: `LOG_IMPORT_${Date.now()}`,
@@ -843,6 +913,7 @@ export default function App() {
       details: `Nhập dữ liệu trung tâm: ${data.classes.length} lớp, ${data.students.length} học sinh, ${data.receipts.length} phiếu thu.`
     }] : [];
     setActivityLogs((previous) => mergeActivityLogs(importLog, previous));
+    return true;
   };
 
   // Teacher CRUD Handlers
@@ -859,7 +930,7 @@ export default function App() {
   const handleDeleteTeacher = (id: string) => {
     const t = teachers.find(item => item.id === id);
     const managedClasses = classes.filter((classroom) => classroom.teacherId === id);
-    if (managedClasses.length > 0) {
+    if (managedClasses.length > 0 || timetableSlots.some(s => s.teacherId === id)) {
       alert(`Không thể xóa giáo viên ${t?.name || ''} vì đang phụ trách ${managedClasses.length} lớp. Hãy phân công giáo viên khác cho các lớp trước.`);
       return;
     }
@@ -875,6 +946,7 @@ export default function App() {
 
   const handleUpdateClass = (c: ClassRoom) => {
     setClasses(prev => prev.map(item => item.id === c.id ? c : item));
+    setStudents(prev => prev.map(student => student.classId === c.id && student.programId !== c.programId ? { ...student, programId: c.programId } : student));
     addLog('SỬA', 'Lớp học', `Cập nhật lớp học ${c.name} (${c.code})`);
   };
 
@@ -898,6 +970,7 @@ export default function App() {
     setClasses(prev => prev.filter(item => item.id !== id));
     setTimetableSlots(prev => prev.filter(slot => slot.classId !== id));
     setGrades(prev => prev.filter((grade) => grade.classId !== id));
+    setAttendanceSessions(prev => prev.filter(session => session.classId !== id));
     if (c) addLog('XÓA', 'Lớp học', `Xóa lớp học ${c.name} (${c.code}) cùng lịch và điểm không còn liên kết`);
   };
 
@@ -915,7 +988,7 @@ export default function App() {
   const handleDeleteRoom = (id: string) => {
     const room = rooms.find((item) => item.id === id);
     const roomClasses = classes.filter((classroom) => classroom.roomId === id);
-    if (roomClasses.length > 0) {
+    if (roomClasses.length > 0 || timetableSlots.some(slot => slot.roomId === id)) {
       alert(`Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${roomClasses.length} lớp. Hãy đổi phòng cho các lớp trước.`);
       return;
     }
@@ -925,45 +998,38 @@ export default function App() {
 
   // Timetable Handlers
   const handleAddSlot = (slot: TimetableSlot) => {
-    setTimetableSlots(prev => {
-      const next = [...prev, slot];
-      setClasses(classrooms => classrooms.map((classroom) => classroom.id === slot.classId ? withClassScheduleSummary(classroom, next) : classroom));
-      return next;
-    });
+    const next = [...timetableSlots, slot];
+    setTimetableSlots(next);
+    setClasses(classrooms => classrooms.map(classroom => classroom.id === slot.classId ? withClassScheduleSummary(classroom, next) : classroom));
     addLog('THÊM', 'Thời khóa biểu', `Thêm ca học mới vào ${slot.dayOfWeek} (${slot.startTime}-${slot.endTime})`);
   };
 
   const handleUpdateSlot = (slot: TimetableSlot) => {
-    setTimetableSlots(prev => {
-      const next = prev.map(s => s.id === slot.id ? slot : s);
-      setClasses(classrooms => classrooms.map((classroom) => classroom.id === slot.classId ? withClassScheduleSummary(classroom, next) : classroom));
-      return next;
-    });
+    const oldClassId = timetableSlots.find(s => s.id === slot.id)?.classId;
+    const next = timetableSlots.map(s => s.id === slot.id ? slot : s);
+    setTimetableSlots(next);
+    setClasses(classrooms => classrooms.map(classroom => classroom.id === slot.classId || classroom.id === oldClassId ? withClassScheduleSummary(classroom, next) : classroom));
     addLog('SỬA', 'Thời khóa biểu', `Cập nhật ca học vào ${slot.dayOfWeek}`);
   };
 
   const handleDeleteSlot = (id: string) => {
-    setTimetableSlots(prev => {
-      const deletedSlot = prev.find((slot) => slot.id === id);
-      const next = prev.filter(s => s.id !== id);
-      if (deletedSlot) setClasses(classrooms => classrooms.map((classroom) => classroom.id === deletedSlot.classId ? withClassScheduleSummary(classroom, next) : classroom));
-      return next;
-    });
+    const deletedSlot = timetableSlots.find(slot => slot.id === id);
+    const next = timetableSlots.filter(s => s.id !== id);
+    setTimetableSlots(next);
+    if (deletedSlot) setClasses(classrooms => classrooms.map(classroom => classroom.id === deletedSlot.classId ? withClassScheduleSummary(classroom, next) : classroom));
     addLog('XÓA', 'Thời khóa biểu', `Xóa ca học khỏi thời khóa biểu`);
   };
 
   const handleReplaceClassSchedule = (classId: string, slots: TimetableSlot[]) => {
-    setTimetableSlots(prev => {
-      const next = [...prev.filter((slot) => slot.classId !== classId), ...slots];
-      setClasses(classrooms => classrooms.map((classroom) => classroom.id === classId ? withClassScheduleSummary(classroom, next) : classroom));
-      return next;
-    });
+    const next = [...timetableSlots.filter(slot => slot.classId !== classId), ...slots];
+    setTimetableSlots(next);
+    setClasses(classrooms => classrooms.map(classroom => classroom.id === classId ? withClassScheduleSummary(classroom, next) : classroom));
   };
 
   // Grade Handler
   const handleUpdateGrade = (updatedGrade: Grade) => {
     setGrades(prev => {
-      const idx = prev.findIndex(g => g.studentId === updatedGrade.studentId);
+      const idx = prev.findIndex(g => g.studentId === updatedGrade.studentId && g.classId === updatedGrade.classId);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = updatedGrade;
@@ -1012,7 +1078,7 @@ export default function App() {
     setReceipts(normalizedReceipts);
     setBackups(data.backups.slice(0, 30));
     setActivityLogs(data.activityLogs);
-    if (Array.isArray(data.attendanceSessions)) setAttendanceSessions(data.attendanceSessions);
+    setAttendanceSessions(data.attendanceSessions || []);
     setHasCenterData(true);
     addLog('RESTORE', 'Sao lưu', `Đã khôi phục dữ liệu từ tệp ${filename}`);
   };
@@ -1044,6 +1110,7 @@ export default function App() {
 
   const handleDeleteProgram = (id: string) => {
     const p = programs.find(item => item.id === id);
+    if (students.some(s => s.programId === id) || classes.some(c => c.programId === id)) { alert('Không thể xóa chương trình đang có học viên hoặc lớp học.'); return; }
     setPrograms(prev => prev.filter(item => item.id !== id));
     if (p) addLog('XÓA', 'Chương trình học', `Xóa chương trình ${p?.name || id}`);
   };
@@ -1057,6 +1124,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    if ((syncStatus !== 'saved' || storageError) && !window.confirm('Có dữ liệu chưa lưu. Hãy chọn Hủy để xuất bản sao lưu, hoặc OK để đăng xuất và bỏ thay đổi chưa lưu.')) return;
     try {
       sessionStorage.removeItem('BEEZONE_DEV_ROLE');
       sessionStorage.removeItem('BEEZONE_ACTIVE_EMAIL');
@@ -1064,14 +1132,12 @@ export default function App() {
       // ignore
     }
     if (supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {
-        console.error(e);
-      }
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
     }
     if (currentUser) {
       removeActiveSession(currentUser.email);
+      try { sessionStorage.removeItem(`PHUC_PHUC_THINH_LOGIN_LOGGED_${currentUser.id}`); } catch { /* optional session storage */ }
     }
     setCurrentUser(null);
     setSession(null);
@@ -1080,6 +1146,7 @@ export default function App() {
   };
 
   const handleDevLogin = (role: 'owner' | 'teacher') => {
+    if (!isLocalPreview) return;
     const account = role === 'teacher' ? DEV_TEACHER_ACCOUNT : DEV_OWNER_ACCOUNT;
     try {
       sessionStorage.setItem('BEEZONE_DEV_ROLE', role);
@@ -1093,6 +1160,7 @@ export default function App() {
   };
 
   const handleAccountLogin = (account: UserAccount) => {
+    if (!isLocalPreview) return;
     try {
       sessionStorage.setItem('BEEZONE_DEV_ROLE', account.role);
       sessionStorage.setItem('BEEZONE_ACTIVE_EMAIL', account.email);
@@ -1112,13 +1180,18 @@ export default function App() {
     );
   }
 
+  if (authStatus === 'error') {
+    return <main className="grid min-h-screen place-items-center bg-slate-100 p-4"><section role="alert" className="max-w-md rounded-2xl bg-white p-6 text-center shadow-xl"><h1 className="text-lg font-bold">Chưa thể tải hệ thống</h1><p className="mt-2 text-sm text-slate-600">{authError}</p><button onClick={() => setAuthRetry(value => value + 1)} className="mt-4 rounded-xl bg-amber-500 px-4 py-2 font-bold">Thử lại</button><button onClick={() => void handleLogout().catch(() => setAuthError('Không thể đăng xuất. Hãy kiểm tra kết nối.'))} className="ml-3 text-sm font-bold">Đăng xuất</button></section></main>;
+  }
+
   if (authStatus === 'blocked') {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-100 p-4">
         <section className="max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-xl">
           <h1 className="font-extrabold text-red-900">Tài khoản chưa được cấp quyền</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">Liên hệ Chủ trung tâm để nhận lời mời hoặc kiểm tra lại trạng thái tài khoản.</p>
-          <button onClick={() => void handleLogout()} className="mt-5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Đăng xuất</button>
+          <button onClick={() => void handleLogout().catch(() => setAuthError('Không thể đăng xuất. Hãy kiểm tra kết nối.'))} className="mt-5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Đăng xuất</button>
+          {authError && <p role="alert" className="mt-2 text-sm text-red-700">{authError}</p>}
         </section>
       </main>
     );
@@ -1131,9 +1204,14 @@ export default function App() {
   const navigateTo = (tab: string) => {
     if (canAccessTab(tab, currentUser)) setActiveTab(tab);
   };
+  const searchResults = searchQuery.trim() ? [
+    ...(canAccessTab('students', currentUser) ? students.filter(s => matchesSearch(searchQuery, s.name, s.code, s.phone, s.parentPhone)).map(s => ({ id: s.id, name: `${s.name} • ${s.code}`, tab: 'students', label: 'Học viên' })) : []),
+    ...(canAccessTab('classes', currentUser) ? classes.filter(c => matchesSearch(searchQuery, c.name, c.code)).map(c => ({ id: c.id, name: `${c.name} • ${c.code}`, tab: 'classes', label: 'Lớp' })) : []),
+    ...(canAccessTab('teachers', currentUser) ? teachers.filter(t => matchesSearch(searchQuery, t.name, t.phone, t.email)).map(t => ({ id: t.id, name: t.name, tab: 'teachers', label: 'Giáo viên' })) : []),
+  ].slice(0, 8) : [];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-900">
+    <div className="min-h-svh bg-slate-100 flex flex-col font-sans antialiased text-slate-900">
       {/* Top Header Navigation */}
       <Header
         currentUser={currentUser}
@@ -1148,7 +1226,12 @@ export default function App() {
         onLogout={() => void handleLogout()}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        syncStatus={isLocalPreview ? 'preview' : syncStatus}
       />
+
+      {isLocalPreview && <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">Bản xem thử • Dữ liệu chỉ lưu trên trình duyệt của máy này.</div>}
+      {searchQuery.trim() && <section aria-label="Kết quả tìm kiếm nhanh" className="border-b border-amber-200 bg-white px-4 py-3"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold text-slate-600">Kết quả tìm kiếm nhanh</p><button onClick={() => setSearchQuery('')} className="rounded-lg px-3 py-1 text-xs font-bold text-slate-500">Xóa tìm kiếm</button></div><div className="mt-2 flex flex-wrap gap-2">{searchResults.length ? searchResults.map(result => <button key={`${result.tab}:${result.id}`} onClick={() => navigateTo(result.tab)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs hover:border-amber-400"><span className="font-bold text-amber-700">{result.label}: </span>{result.name}</button>) : <p className="text-sm text-slate-500">Không tìm thấy kết quả trong dữ liệu bạn được phép xem.</p>}</div></section>}
+      {(syncError || storageError) && <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span className="flex-1">{syncError || storageError}</span>{syncStatus === 'error' && <button onClick={() => syncQueueRef.current?.retry()} className="rounded-lg border border-red-300 px-3 py-1 font-bold">Thử lưu lại</button>}{(currentUser.role === 'owner' || currentUser.permissions.excel.export) && <button onClick={() => setIsBackupModalOpen(true)} className="rounded-lg border border-red-300 px-3 py-1 font-bold">Xuất sao lưu</button>}</div>}
 
       {/* Main Workspace Layout */}
       <div className="flex flex-1 items-start">
@@ -1163,7 +1246,9 @@ export default function App() {
         />
 
         {/* Content View Container */}
-        <main ref={contentViewportRef} className="min-w-0 flex-1 p-3 sm:p-6 transition-all">
+        <main id="main-content" ref={contentViewportRef} className="workspace-content @container min-w-0 flex-1 p-3 sm:p-6 transition-all">
+          <ErrorBoundary key={activeTab}>
+          <Suspense fallback={<div role="status" className="rounded-2xl bg-white p-6 text-sm text-slate-500">Đang tải chức năng…</div>}>
           {activeTab === 'dashboard' && (
             <DashboardView
               students={students}
@@ -1207,6 +1292,7 @@ export default function App() {
               classes={classes}
               permissions={currentUser.permissions}
               isOwner={currentUser.role === 'owner'}
+              searchQuery={searchQuery}
               onAddTeacher={handleAddTeacher}
               onUpdateTeacher={handleUpdateTeacher}
               onDeleteTeacher={handleDeleteTeacher}
@@ -1228,6 +1314,7 @@ export default function App() {
               timetableSlots={timetableSlots}
               permissions={currentUser.permissions}
               isOwner={currentUser.role === 'owner'}
+              searchQuery={searchQuery}
               onAddClass={handleAddClass}
               onUpdateClass={handleUpdateClass}
               onDeleteClass={handleDeleteClass}
@@ -1344,7 +1431,7 @@ export default function App() {
 
           {activeTab === 'excel-import-export' && (
             <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <h3 className="font-bold text-lg text-slate-900 mb-2">Import / Export File ExcelJS</h3>
+              <h3 className="font-bold text-lg text-slate-900 mb-2">Nhập / Xuất Excel</h3>
               <p className="text-xs text-slate-500 mb-4">Quản lý nhập dữ liệu hàng loạt và xuất Workbook nhiều Sheet liên kết công thức</p>
               <button
                 onClick={() => setIsImportExportModalOpen(true)}
@@ -1389,6 +1476,7 @@ export default function App() {
                 programs={programs}
                 timetableSlots={timetableSlots}
                 activityLogs={activityLogs}
+                attendanceSessions={attendanceSessions}
                 onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
                 onBackupCreated={handleBackupCreated}
                 onRestoreBackup={handleRestoreBackup}
@@ -1418,6 +1506,8 @@ export default function App() {
               </button>
             </div>
           )}
+          </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -1429,6 +1519,7 @@ export default function App() {
         onLogout={handleLogout}
         onSwitchRole={handleDevLogin}
         onSwitchAccount={handleAccountLogin}
+        onManageAccounts={() => setIsUserManagementOpen(true)}
       />
 
       <UserManagementModal
@@ -1475,8 +1566,8 @@ export default function App() {
       />
 
       {isBackupModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto">
+        <DialogFrame label="Sao lưu dữ liệu" onClose={() => setIsBackupModalOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsBackupModalOpen(false)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
@@ -1494,10 +1585,16 @@ export default function App() {
                 receipts={receipts}
                 grades={grades}
                 onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
+                programs={programs}
+                timetableSlots={timetableSlots}
+                activityLogs={activityLogs}
+                attendanceSessions={attendanceSessions}
+                onBackupCreated={currentUser.role === 'owner' ? handleBackupCreated : undefined}
+                onRestoreBackup={currentUser.role === 'owner' ? handleRestoreBackup : undefined}
               />
             </Suspense>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       <PwaInstallModal

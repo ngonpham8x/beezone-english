@@ -37,211 +37,52 @@ export function checkDataConsistency(
   programs: CourseProgram[]
 ): ConsistencyIssue[] {
   const issues: ConsistencyIssue[] = [];
-
-  // Tạo map để lookup nhanh
-  const studentMap = new Map(students.map(s => [s.id, s]));
-  const classMap = new Map(classrooms.map(c => [c.id, c]));
-  const programMap = new Map(programs.map(p => [p.id, p]));
-  
-  // Map học viên -> danh sách lớp
-  const studentToClasses = new Map<string, ClassRoom[]>();
-  classrooms.forEach(cls => {
-    cls.studentIds.forEach(studentId => {
-      if (!studentToClasses.has(studentId)) {
-        studentToClasses.set(studentId, []);
-      }
-      studentToClasses.get(studentId)!.push(cls);
-    });
-  });
-
-  // Map học viên -> danh sách khoá học
-  const studentToPrograms = new Map<string, Set<string>>();
-  classrooms.forEach(cls => {
-    cls.studentIds.forEach(studentId => {
-      if (!studentToPrograms.has(studentId)) {
-        studentToPrograms.set(studentId, new Set());
-      }
-      studentToPrograms.get(studentId)!.add(cls.programId);
-    });
-  });
-
-  // 1. Kiểm tra học viên có record học phí nhưng không trong lớp nào
-  const receiptsWithoutClass = new Set<string>();
-  receipts.forEach(receipt => {
-    const student = studentMap.get(receipt.studentId);
-    if (!student) {
-      issues.push({
-        type: 'orphaned_receipt',
-        severity: 'critical',
-        studentId: receipt.studentId,
-        studentCode: '?',
-        studentName: `[Học viên không tồn tại]`,
-        details: `Record học phí ${receipt.code} không có học viên ID: ${receipt.studentId}`,
-        affectedIds: { receiptId: receipt.id }
-      });
-      receiptsWithoutClass.add(receipt.studentId);
-      return;
+  const studentsById = new Map(students.map(student => [student.id, student]));
+  const classesById = new Map(classrooms.map(classroom => [classroom.id, classroom]));
+  const programsById = new Map(programs.map(program => [program.id, program]));
+  const add = (type: ConsistencyIssue['type'], severity: ConsistencyIssue['severity'], studentId: string, details: string, affectedIds: ConsistencyIssue['affectedIds']) => {
+    const student = studentsById.get(studentId);
+    issues.push({ type, severity, studentId, studentCode: student?.code || '?', studentName: student?.name || '[Không tồn tại]', details, affectedIds });
+  };
+  for (const student of students) {
+    const classroom = classesById.get(student.classId);
+    if (student.classId && !classroom) add('student_not_in_class', 'critical', student.id, `Lớp ${student.classId} của học viên không tồn tại.`, { classId: student.classId });
+    else if (classroom && !classroom.studentIds.includes(student.id)) add('student_not_in_class', 'warning', student.id, `Danh sách lớp ${classroom.code} thiếu học viên.`, { classId: classroom.id });
+    if (classroom && (!programsById.has(student.programId) || student.programId !== classroom.programId)) add('student_missing_program', 'warning', student.id, `Chương trình học không khớp lớp ${classroom.code}.`, { classId: classroom.id, programId: classroom.programId });
+  }
+  for (const classroom of classrooms) {
+    for (const studentId of classroom.studentIds) {
+      const student = studentsById.get(studentId);
+      if (!student || student.classId !== classroom.id) add('class_not_enrolled', 'warning', studentId, `Danh sách lớp ${classroom.code} có học viên đã chuyển lớp hoặc không còn tồn tại.`, { classId: classroom.id });
     }
-
-    const enrolledClasses = studentToClasses.get(receipt.studentId);
-    if (!enrolledClasses || enrolledClasses.length === 0) {
-      issues.push({
-        type: 'student_not_in_class',
-        severity: 'critical',
-        studentId: receipt.studentId,
-        studentCode: student.code,
-        studentName: student.name,
-        details: `Có record học phí nhưng không đăng ký lớp nào. Receipt: ${receipt.code}`,
-        affectedIds: { receiptId: receipt.id }
-      });
-    }
-  });
-
-  // 2. Kiểm tra học viên có trong lớp nhưng không có đăng ký khoá học (thiếu programId)
-  students.forEach(student => {
-    const enrolledClasses = studentToClasses.get(student.id);
-    if (enrolledClasses && enrolledClasses.length > 0) {
-      // Kiểm tra programId
-      if (!student.programId) {
-        issues.push({
-          type: 'student_missing_program',
-          severity: 'warning',
-          studentId: student.id,
-          studentCode: student.code,
-          studentName: student.name,
-          details: `Đăng ký ${enrolledClasses.length} lớp nhưng không có programId trong profile`,
-          affectedIds: { classId: enrolledClasses[0].id }
-        });
-      }
-    }
-  });
-
-  // 3. Kiểm tra học viên học 2+ lớp nhưng chỉ có 1 khoá học
-  students.forEach(student => {
-    const enrolledClasses = studentToClasses.get(student.id);
-    if (enrolledClasses && enrolledClasses.length > 1) {
-      const uniquePrograms = new Set(enrolledClasses.map(c => c.programId));
-      
-      // Nếu học nhiều lớp nhưng chỉ 1 khoá -> có thể lỗi
-      if (uniquePrograms.size < enrolledClasses.length) {
-        const programDetails = Array.from(uniquePrograms)
-          .map(pid => programMap.get(pid)?.name || `Program ${pid}`)
-          .join(', ');
-        
-        issues.push({
-          type: 'multiple_class_single_program',
-          severity: 'info',
-          studentId: student.id,
-          studentCode: student.code,
-          studentName: student.name,
-          details: `Học ${enrolledClasses.length} lớp nhưng chỉ 1 khoá: ${programDetails}. Lớp: ${enrolledClasses.map(c => c.code).join(', ')}`,
-          affectedIds: { classId: enrolledClasses[0].id }
-        });
-      }
-    }
-  });
-
-  // 4. Kiểm tra lớp có học viên nhưng lớp đó không tương ứng với studentId
-  classrooms.forEach(classroom => {
-    classroom.studentIds.forEach(studentId => {
-      const student = studentMap.get(studentId);
-      if (!student) {
-        issues.push({
-          type: 'student_not_in_class',
-          severity: 'critical',
-          studentId: studentId,
-          studentCode: '?',
-          studentName: `[Không tồn tại]`,
-          details: `Lớp ${classroom.code} chứa studentId không tồn tại: ${studentId}`,
-          affectedIds: { classId: classroom.id }
-        });
-      } else if (student.classId !== classroom.id && student.classId !== '') {
-        // Nếu student.classId khác với classroom.id, cần cập nhật
-        issues.push({
-          type: 'class_not_enrolled',
-          severity: 'warning',
-          studentId: student.id,
-          studentCode: student.code,
-          studentName: student.name,
-          details: `Student.classId (${student.classId}) khác với lớp thực tế: ${classroom.id}. Lớp: ${classroom.code}`,
-          affectedIds: { classId: classroom.id }
-        });
-      }
-    });
-  });
-
+  }
+  for (const receipt of receipts) {
+    if (!studentsById.has(receipt.studentId) || !classesById.has(receipt.classId)) add('orphaned_receipt', 'critical', receipt.studentId, `Phiếu ${receipt.code} thiếu liên kết học viên hoặc lớp. Cần kiểm tra thủ công để giữ lịch sử tài chính.`, { receiptId: receipt.id, classId: receipt.classId });
+  }
   return issues;
 }
 
-/**
- * Tự động sửa các vấn đề đồng bộ
- */
+/** Repair derived rosters using student.classId; never move students from stale rosters. */
 export function autoFixConsistency(
-  students: Student[],
-  classrooms: ClassRoom[],
-  receipts: TuitionReceipt[],
-  programs: CourseProgram[]
-): {
-  issues: ConsistencyIssue[];
-  fixedStudents: Student[];
-  fixedClassrooms: ClassRoom[];
-  fixedReceipts: TuitionReceipt[];
-  fixedCount: number;
-} {
-  const issues = checkDataConsistency(students, classrooms, receipts, programs);
-  
+  students: Student[], classrooms: ClassRoom[], receipts: TuitionReceipt[], programs: CourseProgram[]
+): { issues: ConsistencyIssue[]; fixedStudents: Student[]; fixedClassrooms: ClassRoom[]; fixedReceipts: TuitionReceipt[]; fixedCount: number } {
   let fixedCount = 0;
-  const fixedStudents = JSON.parse(JSON.stringify(students)) as Student[];
-  const fixedClassrooms = JSON.parse(JSON.stringify(classrooms)) as ClassRoom[];
-  const fixedReceipts = JSON.parse(JSON.stringify(receipts)) as TuitionReceipt[];
-
-  const studentMap = new Map(fixedStudents.map(s => [s.id, s]));
-  const classMap = new Map(fixedClassrooms.map(c => [c.id, c]));
-  const programMap = new Map(programs.map(p => [p.id, p]));
-
-  // Fix 1: Cập nhật programId nếu học viên có trong lớp nhưng thiếu programId
-  issues
-    .filter(i => i.type === 'student_missing_program')
-    .forEach(issue => {
-      const student = studentMap.get(issue.studentId);
-      const classId = issue.affectedIds.classId;
-      const classroom = classId ? classMap.get(classId) : undefined;
-      
-      if (student && classroom && !student.programId) {
-        student.programId = classroom.programId;
-        fixedCount++;
-      }
-    });
-
-  // Fix 2: Cập nhật classId trong student profile nếu khác
-  issues
-    .filter(i => i.type === 'class_not_enrolled')
-    .forEach(issue => {
-      const student = studentMap.get(issue.studentId);
-      const classId = issue.affectedIds.classId;
-      
-      if (student && classId) {
-        student.classId = classId;
-        fixedCount++;
-      }
-    });
-
-  // Fix 3: Xóa các receipt của học viên không tồn tại (nếu cần xóa)
-  // (Lưu ý: chúng ta chỉ đánh dấu, không thực sự xóa)
-  issues
-    .filter(i => i.type === 'orphaned_receipt')
-    .forEach(issue => {
-      // Không tự động xóa để an toàn dữ liệu
-      // Chỉ ghi log
-    });
-
-  return {
-    issues,
-    fixedStudents,
-    fixedClassrooms,
-    fixedReceipts,
-    fixedCount
-  };
+  const classesById = new Map(classrooms.map(classroom => [classroom.id, classroom]));
+  const programIds = new Set(programs.map(program => program.id));
+  const fixedStudents = students.map(student => {
+    const classroom = classesById.get(student.classId);
+    if (classroom && programIds.has(classroom.programId) && student.programId !== classroom.programId) {
+      fixedCount += 1; return { ...student, programId: classroom.programId };
+    }
+    return { ...student };
+  });
+  const fixedClassrooms = classrooms.map(classroom => {
+    const studentIds = fixedStudents.filter(student => student.classId === classroom.id).map(student => student.id);
+    if (JSON.stringify(studentIds) !== JSON.stringify(classroom.studentIds)) fixedCount += 1;
+    return { ...classroom, studentIds };
+  });
+  const fixedReceipts = receipts.map(receipt => ({ ...receipt }));
+  return { issues: checkDataConsistency(fixedStudents, fixedClassrooms, fixedReceipts, programs), fixedStudents, fixedClassrooms, fixedReceipts, fixedCount };
 }
 
 /**

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { DialogFrame } from './DialogFrame';
+import React, { useState, useEffect } from 'react';
 import { CenterSettings } from '../types';
 import { Settings, Save, Mail, Phone, MapPin, Globe, Shield, X, CheckCircle } from 'lucide-react';
 
@@ -17,23 +18,20 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<CenterSettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  useEffect(() => { if (isOpen) { setFormData(settings); setSavedSuccess(false); } }, [isOpen, settings]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateSettings(formData);
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 1000);
+    onUpdateSettings({ ...formData, name: formData.name.trim(), autoEmailReport: false, autoBackup: false });
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
-        <button
+    <DialogFrame label="Cài đặt hệ thống" onClose={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
+        <button aria-label="Đóng"
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
         >
@@ -46,7 +44,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-bold text-slate-900">Cài Đặt Hệ Thống Trung Tâm</h3>
-            <p className="text-xs text-slate-500">Cấu hình thông tin cơ sở, Email SMTP nhận báo cáo & Tự động sao lưu</p>
+            <p className="text-xs text-slate-500">Thông tin trung tâm và địa chỉ nhận báo cáo</p>
           </div>
         </div>
 
@@ -138,11 +136,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
             <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
               <div>
                 <div className="font-bold text-slate-800">Tự động gửi email báo cáo Excel/PDF hằng tuần</div>
-                <div className="text-[10px] text-slate-500">Hệ thống tổng hợp tình hình học sinh & doanh thu gửi tự động</div>
+                <div className="text-[10px] text-slate-500">Chưa kết nối dịch vụ gửi email. Bạn có thể xuất và gửi báo cáo thủ công.</div>
               </div>
               <input
                 type="checkbox"
-                checked={formData.autoEmailReport}
+                checked={false}
+                disabled
                 onChange={(e) => setFormData({ ...formData, autoEmailReport: e.target.checked })}
                 className="w-4 h-4 text-red-700 rounded"
               />
@@ -151,11 +150,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
             <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
               <div>
                 <div className="font-bold text-slate-800">Tự động sao lưu PostgreSQL hàng ngày</div>
-                <div className="text-[10px] text-slate-500">Giữ 30 bản sao lưu gần nhất trong bộ nhớ an toàn</div>
+                <div className="text-[10px] text-slate-500">Chưa thiết lập lịch sao lưu máy chủ. Hãy tải bản JSON tại mục Sao lưu.</div>
               </div>
               <input
                 type="checkbox"
-                checked={formData.autoBackup}
+                checked={false}
+                disabled
                 onChange={(e) => setFormData({ ...formData, autoBackup: e.target.checked })}
                 className="w-4 h-4 text-red-700 rounded"
               />
@@ -179,6 +179,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </DialogFrame>
   );
 };

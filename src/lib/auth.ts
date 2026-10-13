@@ -28,9 +28,6 @@ export const OWNER_PERMISSIONS: StaffPermissions = {
   report: { view: true, revenue: true },
 };
 
-export const DEFAULT_ADMIN_PASSWORD = '11111111';
-export const ADMIN_PASSWORDS_STORAGE_KEY = 'BEEZONE_ADMIN_PASSWORDS';
-
 export const DEV_OWNER_ACCOUNT: UserAccount = {
   id: 'dev-owner-beezone-1',
   name: 'Chủ Trung Tâm BeeZone',
@@ -55,37 +52,6 @@ export const ADMIN_ACCOUNTS: UserAccount[] = [
   DEV_OWNER_ACCOUNT,
   DEV_OWNER_ACCOUNT_2,
 ];
-
-export function getAdminPassword(email: string): string {
-  try {
-    const raw = localStorage.getItem(ADMIN_PASSWORDS_STORAGE_KEY);
-    if (raw) {
-      const map = JSON.parse(raw);
-      if (typeof map[email.toLowerCase()] === 'string' && map[email.toLowerCase()].length > 0) {
-        return map[email.toLowerCase()];
-      }
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  return DEFAULT_ADMIN_PASSWORD;
-}
-
-export function setAdminPassword(email: string, newPassword: string): void {
-  try {
-    const raw = localStorage.getItem(ADMIN_PASSWORDS_STORAGE_KEY);
-    const map = raw ? JSON.parse(raw) : {};
-    map[email.toLowerCase()] = newPassword;
-    localStorage.setItem(ADMIN_PASSWORDS_STORAGE_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-export function verifyAdminPassword(email: string, passwordAttempt: string): boolean {
-  const currentPass = getAdminPassword(email);
-  return currentPass === passwordAttempt;
-}
 
 export function findAdminAccountByEmail(email: string): UserAccount | null {
   const norm = email.trim().toLowerCase();
@@ -124,19 +90,13 @@ export function createMockSessionForAccount(account: UserAccount): Session {
   };
 }
 
-export const DEV_MOCK_SESSION: Session = createMockSessionForAccount(DEV_OWNER_ACCOUNT);
-
-function mergePermissions(candidate: Partial<StaffPermissions> | null): StaffPermissions {
-  return {
-    student: { ...DEFAULT_STAFF_PERMISSIONS.student, ...candidate?.student },
-    teacher: { ...DEFAULT_STAFF_PERMISSIONS.teacher, ...candidate?.teacher },
-    tuition: { ...DEFAULT_STAFF_PERMISSIONS.tuition, ...candidate?.tuition },
-    grade: { ...DEFAULT_STAFF_PERMISSIONS.grade, ...candidate?.grade },
-    excel: { ...DEFAULT_STAFF_PERMISSIONS.excel, ...candidate?.excel },
-    report: { ...DEFAULT_STAFF_PERMISSIONS.report, ...candidate?.report },
-    assignedClassIds: Array.isArray(candidate?.assignedClassIds) ? candidate.assignedClassIds : [],
-    teacherId: typeof candidate?.teacherId === 'string' ? candidate.teacherId : undefined,
-  };
+export function mergePermissions(candidate: Partial<StaffPermissions> | null): StaffPermissions {
+  const result = Object.fromEntries(Object.entries(DEFAULT_STAFF_PERMISSIONS).map(([module, actions]) => [
+    module, Object.fromEntries(Object.keys(actions).map(action => [action, candidate?.[module]?.[action] === true]))
+  ])) as unknown as StaffPermissions;
+  result.assignedClassIds = Array.isArray(candidate?.assignedClassIds) ? candidate.assignedClassIds.filter(id => typeof id === 'string') : [];
+  result.teacherId = typeof candidate?.teacherId === 'string' ? candidate.teacherId : undefined;
+  return result;
 }
 
 export function profileToAccount(profile: ProfileRow, authUser: User): UserAccount {

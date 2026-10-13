@@ -1,3 +1,5 @@
+import { centerDate } from '../lib/dates';
+import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useRef } from 'react';
 import { Teacher, TimetableSlot, ClassRoom, Room } from '../types';
 import { CalendarCheck, Printer, FileSpreadsheet, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -17,7 +19,8 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   rooms
 }) => {
   const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
-  const [selectedDay, setSelectedDay] = useState<string>('all');
+  const todayDay = days[(new Date(`${centerDate()}T12:00:00`).getDay() + 6) % 7];
+  const [selectedDay, setSelectedDay] = useResponsiveView<string>(todayDay, 'all');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -32,7 +35,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
   const handlePrint = () => {
     const prevTitle = document.title;
-    document.title = `BEEZONE_LichGiangDay_${new Date().toISOString().split('T')[0]}`;
+    document.title = `BEEZONE_LichGiangDay_${centerDate()}`;
     document.body.dataset.printing = 'teacher-schedule';
     const pageStyle = document.createElement('style');
     pageStyle.id = 'teacher-schedule-page-style';

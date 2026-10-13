@@ -1,3 +1,5 @@
+import { DialogFrame } from './DialogFrame';
+import { centerDate } from '../lib/dates';
 import React, { useRef, useState } from 'react';
 import {
   SystemBackup,
@@ -12,6 +14,7 @@ import {
   TimetableSlot,
   ActivityLog,
   CenterBackupData,
+  AttendanceSession,
 } from '../types';
 import {
   Database,
@@ -32,16 +35,9 @@ import {
   X,
 } from 'lucide-react';
 import { generateMasterExcelWorkbook } from '../services/excelService';
+import { parseBackupArchive, type BackupArchive } from '../lib/centerData';
 
 const BACKUP_SCHEMA_VERSION = 1;
-
-interface BackupArchive {
-  app: 'BEEZONE' | 'PHUC_PHUC_THINH';
-  schemaVersion: number;
-  exportedAt: string;
-  centerName: string;
-  data: CenterBackupData;
-}
 
 interface BackupManagerProps {
   backups: SystemBackup[];
@@ -55,6 +51,7 @@ interface BackupManagerProps {
   programs?: CourseProgram[];
   timetableSlots?: TimetableSlot[];
   activityLogs?: ActivityLog[];
+  attendanceSessions?: AttendanceSession[];
   onOpenImportExportModal?: () => void;
   onBackupCreated?: (backup: SystemBackup) => void;
   onRestoreBackup?: (data: CenterBackupData, filename: string) => void;
@@ -72,6 +69,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   programs = [],
   timetableSlots = [],
   activityLogs = [],
+  attendanceSessions = [],
   onOpenImportExportModal,
   onBackupCreated,
   onRestoreBackup,
@@ -102,17 +100,6 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     window.URL.revokeObjectURL(url);
   };
 
-  const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-  const parseBackupArchive = (value: unknown): BackupArchive | null => {
-    if (!isRecord(value) || (value.app !== 'BEEZONE' && value.app !== 'PHUC_PHUC_THINH') || value.schemaVersion !== BACKUP_SCHEMA_VERSION || !isRecord(value.data)) return null;
-    const { data } = value;
-    const arrayKeys = ['programs', 'teachers', 'rooms', 'classes', 'students', 'timetableSlots', 'grades', 'receipts', 'backups', 'activityLogs'];
-    if (!isRecord(data.settings) || arrayKeys.some((key) => !Array.isArray(data[key]) || !data[key].every(isRecord))) return null;
-
-    return value as unknown as BackupArchive;
-  };
-
   // 1. Export Entire System Excel Master Report
   const handleExportSystemExcelReport = async () => {
     setIsExportingExcel(true);
@@ -129,7 +116,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
         grades
       });
 
-      const fileName = `BEEZONE_BaoCaoToanHeThong_${new Date().toISOString().split('T')[0]}.xlsm`;
+      const fileName = `BEEZONE_BaoCaoToanHeThong_${centerDate()}.xlsx`;
       downloadBlob(blob, fileName);
       onBackupCreated?.(makeBackupRecord(fileName, blob.size));
 
@@ -146,7 +133,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   const handleExportSystemJson = () => {
     setStatusMessage(null);
     try {
-      const fileName = `BEEZONE_DatabaseBackup_Full_${new Date().toISOString().split('T')[0]}.json`;
+      const fileName = `BEEZONE_DatabaseBackup_Full_${centerDate()}.json`;
       const backupRecord = makeBackupRecord(fileName, 0);
       const systemData: BackupArchive = {
         app: 'BEEZONE',
@@ -165,6 +152,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
           grades,
           backups: [backupRecord, ...backups],
           activityLogs,
+          attendanceSessions,
         },
       };
 
@@ -207,7 +195,8 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     setRestoreError(null);
     setRestoreCandidate(null);
     try {
-      const archive = parseBackupArchive(JSON.parse(await file.text()));
+      if (file.size > 25 * 1024 * 1024) throw new Error('Tệp sao lưu vượt quá giới hạn 25 MB.');
+      const archive = parseBackupArchive(JSON.parse(await file.text()), settings);
       if (!archive) throw new Error('Tệp không đúng định dạng sao lưu đầy đủ của trung tâm BeeZone, hoặc được tạo bởi phiên bản cũ.');
       setRestoreCandidate({ archive, filename: file.name });
     } catch (error) {
@@ -459,8 +448,8 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
       </div>
 
       {restoreCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <section role="dialog" aria-modal="true" aria-labelledby="restore-backup-title" className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl custom-scrollbar">
+        <DialogFrame label="Xác nhận khôi phục dữ liệu" onClose={() => setRestoreCandidate(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <section    className="dialog-panel max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl custom-scrollbar">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-extrabold text-rose-800"><AlertTriangle className="h-3.5 w-3.5" /> THAO TÁC GHI ĐÈ</div>
@@ -476,7 +465,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
               <button type="button" onClick={handleConfirmRestore} className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800">Xác nhận khôi phục</button>
             </div>
           </section>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

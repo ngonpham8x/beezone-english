@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useResponsiveView } from '../hooks/useResponsive';
 import { Grade, Student, ClassRoom, StaffPermissions, Teacher, CourseProgram, CenterSettings, UserAccount } from '../types';
 import { Award, FileText, AlertCircle, BookOpen, Share2, LayoutGrid, Table as TableIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReportCardModal } from './ReportCardModal';
@@ -42,7 +43,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   // Determine classes the teacher/staff is permitted to grade
   const permittedClasses = useMemo(() => {
     if (isOwner) return classes;
-    if (!currentUser) return classes;
+    if (!currentUser) return [];
 
     const assignedIds = currentUser.permissions.assignedClassIds || [];
     const teacherId = currentUser.permissions.teacherId;
@@ -65,9 +66,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
-  const [viewMode, setViewMode] = useState<'table' | 'card'>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
-  );
+  const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -103,8 +102,12 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   };
 
   const handleGradeChange = (studentId: string, field: keyof Grade, value: number) => {
-    const existing = grades.find(g => g.studentId === studentId);
-    if (!existing) return;
+    const student = students.find(s => s.id === studentId);
+    if (!canEdit || !student || !Number.isFinite(value) || !classStudents.some(s => s.id === studentId)) return;
+    const existing = grades.find(g => g.studentId === studentId && g.classId === student.classId) || {
+      id: `GR_${crypto.randomUUID()}`, studentId, classId: student.classId,
+      listening: 0, speaking: 0, reading: 0, writing: 0, midterm: 0, finalExam: 0, attendance: 0, average: 0,
+    };
 
     const updated = {
       ...existing,
@@ -167,7 +170,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
-              onClick={() => setViewMode('table')}
+              aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'table'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -179,7 +182,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('card')}
+              aria-pressed={viewMode === 'card'} onClick={() => setViewMode('card')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'card'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -249,7 +252,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
                 {classStudents.map((st) => {
-                  const grade = grades.find(g => g.studentId === st.id) || {
+                  const grade = grades.find(g => g.studentId === st.id && g.classId === st.classId) || {
                     id: `G_${st.id}`,
                     studentId: st.id,
                     classId: st.classId,
@@ -403,9 +406,9 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         </div>
       ) : (
         /* Mobile Card View */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-3.5">
           {classStudents.map((st) => {
-            const grade = grades.find(g => g.studentId === st.id) || {
+            const grade = grades.find(g => g.studentId === st.id && g.classId === st.classId) || {
               id: `G_${st.id}`,
               studentId: st.id,
               classId: st.classId,
@@ -574,7 +577,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         <ReportCardModal
           student={reportingStudent}
           grade={
-            grades.find(g => g.studentId === reportingStudent.id) || {
+            grades.find(g => g.studentId === reportingStudent.id && g.classId === reportingStudent.classId) || {
               id: `G_${reportingStudent.id}`,
               studentId: reportingStudent.id,
               classId: reportingStudent.classId,
@@ -606,7 +609,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           onClose={() => setSharingStudent(null)}
           student={sharingStudent}
           grade={
-            grades.find(g => g.studentId === sharingStudent.id) || {
+            grades.find(g => g.studentId === sharingStudent.id && g.classId === sharingStudent.classId) || {
               id: `G_${sharingStudent.id}`,
               studentId: sharingStudent.id,
               classId: sharingStudent.classId,

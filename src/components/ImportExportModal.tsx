@@ -1,7 +1,10 @@
+import { DialogFrame } from './DialogFrame';
+import { centerDate } from '../lib/dates';
 import React, { useRef, useState } from 'react';
 import { CenterWorkbookData, generateMasterExcelWorkbook, parseCenterWorkbookFile, parseExcelStudentFile, ImportValidationResult, ImportedStudentRow } from '../services/excelService';
 import { Student, Teacher, ClassRoom, Room, TuitionReceipt, Grade, CenterSettings, StaffPermissions, CourseProgram } from '../types';
 import { FileSpreadsheet, FileUp, FileDown, CheckCircle2, AlertTriangle, Download, Upload, X, RefreshCw } from 'lucide-react';
+import { isLocalPreview } from '../lib/supabase';
 
 interface ImportExportModalProps {
   isOpen: boolean;
@@ -18,7 +21,7 @@ interface ImportExportModalProps {
   isOwner: boolean;
   permissions: StaffPermissions;
   onImportStudents: (newStudents: Student[]) => void;
-  onImportCenterData: (data: CenterWorkbookData) => void;
+  onImportCenterData: (data: CenterWorkbookData) => boolean;
   onExportExcel: (filename: string) => void;
 }
 
@@ -40,7 +43,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   onImportCenterData,
   onExportExcel
 }) => {
-  const canImport = isOwner || permissions.excel.import;
+  const canImport = isOwner || (permissions.excel.import && permissions.student.add);
   const canExport = isOwner || permissions.excel.export;
   const [activeTab, setActiveTab] = useState<'export' | 'import'>(canExport ? 'export' : 'import');
   const [isExporting, setIsExporting] = useState(false);
@@ -71,7 +74,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const filename = `BEEZONE_MasterReport_${new Date().toISOString().split('T')[0]}.xlsm`;
+      const filename = `BEEZONE_MasterReport_${centerDate()}.xlsx`;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -88,6 +91,8 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
 
   const handleSelectedFile = async (file: File) => {
     if (!canImport) return;
+    setCenterImport(null); setValidationResult(null); setIsImportingSuccess(false);
+    if (file.size > 25 * 1024 * 1024) { setValidationResult({ validRows: [], errors: [{ row: 0, field: 'Tệp Excel', message: 'Tệp vượt quá giới hạn 25 MB.' }] }); return; }
     setFileName(file.name);
 
     try {
@@ -147,13 +152,12 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   };
 
   const handleConfirmCenterImport = () => {
-    if (!centerImport || !canSyncCenterData || !isOwner) return;
-    onImportCenterData(centerImport);
-    setIsImportingSuccess(true);
+    if (!centerImport || (!canSyncCenterData && !isLocalPreview) || !isOwner || isImportingSuccess) return;
+    if (onImportCenterData(centerImport)) setIsImportingSuccess(true);
   };
 
   const handleConfirmImport = () => {
-    if (!canImport || !validationResult || validationResult.validRows.length === 0) return;
+    if (!canImport || !validationResult || validationResult.validRows.length === 0 || isImportingSuccess) return;
 
     const fallbackClass = classes.find((item) => item.id === fallbackClassId);
     if (!fallbackClass) return;
@@ -175,7 +179,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         phone: item.phone || '',
         parentName: item.parentName || '',
         parentPhone: item.parentPhone || '',
-        enrollDate: new Date().toISOString().split('T')[0],
+        enrollDate: centerDate(),
         notes: `Nhập từ Excel: ${fileName || 'tệp không rõ tên'}`,
         status: 'active',
         feeStatus: 'unpaid'
@@ -187,9 +191,9 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-h-[90vh] max-w-xl w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
-        <button
+    <DialogFrame label="Nhập và xuất Excel" onClose={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-xl w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
+        <button aria-label="Đóng"
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
         >
@@ -295,7 +299,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                     <div className="font-bold">Đã nhận diện báo cáo chuẩn hoá: {fileName}</div>
                     <div className="mt-1 text-[11px]">{centerImport.classes.length} lớp · {centerImport.students.length} học sinh · {centerImport.receipts.length} phiếu thu</div>
                     <p className="mt-2 text-[11px]">Dữ liệu sẽ thay toàn bộ dữ liệu hiện có của trung tâm và đồng bộ vào Supabase theo quyền tài khoản đã đăng nhập.</p>
-                    {canSyncCenterData && isOwner ? (
+                    {(canSyncCenterData || isLocalPreview) && isOwner ? (
                       <button onClick={handleConfirmCenterImport} className="mt-3 w-full rounded-xl bg-amber-500 hover:bg-amber-600 py-2 font-bold text-slate-950 shadow-xs transition">
                         Xác nhận nhập toàn bộ dữ liệu
                       </button>
@@ -324,6 +328,6 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </DialogFrame>
   );
 };

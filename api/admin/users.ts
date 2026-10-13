@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { parseRequestBody } from '../../server/request';
 
 const STAFF_PERMISSION_SHAPE = {
   student: ['view', 'add', 'edit', 'delete', 'export'],
@@ -93,13 +94,12 @@ function requestIsAllowed(req: any): boolean {
   return configuredOrigins.includes(requestOrigin) || requestOrigin === requestHost;
 }
 
-function underRateLimit(req: any): boolean {
-  const forwardedFor = req.headers?.['x-forwarded-for'];
-  const ip = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : 'unknown';
+function underRateLimit(callerId: string): boolean {
   const now = Date.now();
-  const current = recentRequests.get(ip);
+  for (const [id, entry] of recentRequests) if (entry.resetAt < now) recentRequests.delete(id);
+  const current = recentRequests.get(callerId);
   if (!current || current.resetAt < now) {
-    recentRequests.set(ip, { count: 1, resetAt: now + 15 * 60_000 });
+    recentRequests.set(callerId, { count: 1, resetAt: now + 15 * 60_000 });
     return true;
   }
   if (current.count >= 10) return false;
@@ -108,14 +108,7 @@ function underRateLimit(req: any): boolean {
 }
 
 function getBody(req: any): Record<string, unknown> | null {
-  if (!req.body) return {};
-  if (typeof req.body === 'object') return req.body as Record<string, unknown>;
-  if (typeof req.body !== 'string' || req.body.length > 10_000) return null;
-  try {
-    return JSON.parse(req.body) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  return parseRequestBody(req.body);
 }
 
 function normalizeStaffPermissions(candidate: unknown) {
@@ -188,11 +181,11 @@ export default async function handler(req: any, res: any) {
     return json(res, 405, { error: 'Phương thức không được hỗ trợ.' });
   }
   if (!requestIsAllowed(req)) return json(res, 403, { error: 'Nguồn yêu cầu không được phép.' });
-  if (req.method !== 'GET' && !underRateLimit(req)) return json(res, 429, { error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' });
 
   const authorized = await authorizeOwner(req, res);
   if (!authorized) return;
   const { client, callerId, callerName } = authorized;
+  if (req.method !== 'GET' && !underRateLimit(callerId)) return json(res, 429, { error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' });
 
   if (req.method === 'GET') {
     const { data, error } = await client
@@ -228,6 +221,11 @@ export default async function handler(req: any, res: any) {
 
     // A known Google user can be promoted without an email invitation or password.
     if (existing) {
+      if (existing.id === callerId && role !== 'owner') return json(res, 400, { error: 'Bạn không thể tự hạ quyền Chủ trung tâm.' });
+      if (existing.role === 'owner' && existing.is_active && role !== 'owner') {
+        const { count, error } = await client.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'owner').eq('is_active', true);
+        if (error || (count ?? 0) <= 1) return json(res, 400, { error: 'Không thể hạ quyền Chủ trung tâm cuối cùng.' });
+      }
       const { error: profileUpdateError } = await client.from('profiles').update({
         full_name: fullName,
         role,
@@ -304,21 +302,28 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { error: 'ID tài khoản không hợp lệ.' });
     }
     const permissions = normalizeStaffPermissions(body.permissions);
+    const { data: target, error: targetError } = await client.from('profiles').select('id, full_name, role, permissions').eq('id', userId).maybeSingle();
+    if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
+    if (target.role !== 'staff') return json(res, 400, { error: 'Chủ trung tâm luôn có toàn quyền.' });
     const { error: updatePermsError } = await client
       .from('profiles')
       .update({ permissions })
       .eq('id', userId);
     if (updatePermsError) return json(res, 500, { error: 'Không thể cập nhật quyền.' });
 
-    await writeAccountAudit(client, {
+    const auditRecorded = await writeAccountAudit(client, {
       action: 'ACCOUNT_UPDATED',
       actorId: callerId,
       actorName: callerName,
       targetId: userId,
-      targetName: typeof body.targetName === 'string' ? body.targetName : 'Nhân viên',
+      targetName: target.full_name || 'Nhân viên',
       targetRole: 'staff',
       details: `Cập nhật cấu hình quyền và lớp phân công: ${permissionSummary(permissions)}`,
     });
+    if (!auditRecorded) {
+      await client.from('profiles').update({ permissions: target.permissions }).eq('id', userId);
+      return json(res, 500, { error: 'Không thể ghi nhật ký; thay đổi quyền đã được hoàn tác.' });
+    }
 
     return json(res, 200, { success: true });
   }

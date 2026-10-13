@@ -18,6 +18,10 @@ Nếu một trong hai chủ đã đăng nhập trước khi được thêm vào 
 
 ## 2. Chỉ dùng đăng nhập Google
 
+Trước khi đưa ứng dụng vào sử dụng, chạy thêm `supabase/migrations/006_enforce_business_permissions.sql` sau migration 005. Migration này giữ nguyên dữ liệu, kiểm tra quyền ghi học viên/học phí/điểm/điểm danh ở cơ sở dữ liệu và bảo vệ Chủ trung tâm cuối cùng. Trong lần rà soát repository, migration đã được kiểm thử bằng PostgreSQL cục bộ; chưa được áp dụng lên project Supabase thật.
+
+Mô hình `center_data` hiện lưu chung một tài liệu. Quyền xem theo từng lớp và ẩn tài chính trên giao diện chưa phải cách ly quyền đọc ở cơ sở dữ liệu; xem giới hạn và hướng nâng cấp trong `SECURITY.md` trước khi cấp quyền cho người không được phép đọc toàn bộ dữ liệu trung tâm.
+
 1. Vào **Authentication** → **Providers** → **Email** và tắt provider nếu không cần dùng ngoài hệ thống.
 2. Tắt **Allow new users to sign up** sau khi hoàn thành bước bootstrap ở phần 4 bên dưới.
 3. Vào **Authentication** → **URL Configuration**. Tạm thời có thể để Site URL là `http://localhost:3000`; sau khi Vercel deploy, thay bằng HTTPS domain thật.

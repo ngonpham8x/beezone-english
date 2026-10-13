@@ -1,7 +1,7 @@
+import { centerDate } from '../lib/dates';
 import ExcelJS from 'exceljs';
-import JSZip from 'jszip';
 import { ClassRoom, CourseProgram, Grade, Room, Student, Teacher, TimetableSlot, TuitionReceipt } from '../types';
-import { paymentMethodLabel } from '../lib/tuition';
+import { paymentMethodLabel, getReceiptInstallments } from '../lib/tuition';
 
 export interface ExcelExportData {
   centerName: string;
@@ -165,57 +165,6 @@ const masterStudentPaymentFormulas = (rowNumber: number): ExcelJS.CellValue[] =>
 ];
 const masterStudentClassKeyFormula = (rowNumber: number) => `IF(OR($B${rowNumber}="",$G${rowNumber}=""),"",$B${rowNumber}&"|"&$G${rowNumber})`;
 
-const macroTemplateUrl = '/excel/BeeZoneSyncTemplate.xlsm';
-const macroEnabledMimeType = 'application/vnd.ms-excel.sheet.macroEnabled.12';
-const injectMacroProject = async (workbookBuffer: ExcelJS.Buffer) => {
-  const templateResponse = await fetch(macroTemplateUrl);
-  if (!templateResponse.ok) throw new Error('Không tải được mẫu macro đồng bộ Excel.');
-  const [workbookZip, templateZip] = await Promise.all([
-    JSZip.loadAsync(workbookBuffer),
-    JSZip.loadAsync(await templateResponse.arrayBuffer())
-  ]);
-  const vbaProject = await templateZip.file('xl/vbaProject.bin')?.async('uint8array');
-  const contentTypesFile = workbookZip.file('[Content_Types].xml');
-  const workbookRelationshipsFile = workbookZip.file('xl/_rels/workbook.xml.rels');
-  const workbookFile = workbookZip.file('xl/workbook.xml');
-  if (!vbaProject || !contentTypesFile || !workbookRelationshipsFile || !workbookFile) throw new Error('Mẫu macro Excel không hợp lệ.');
-
-  let contentTypes = await contentTypesFile.async('string');
-  contentTypes = contentTypes.replace(
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml',
-    'application/vnd.ms-excel.sheet.macroEnabled.main+xml'
-  );
-  if (!contentTypes.includes('/xl/vbaProject.bin')) {
-    contentTypes = contentTypes.replace('</Types>', '<Override PartName="/xl/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/></Types>');
-  }
-
-  let workbookRelationships = await workbookRelationshipsFile.async('string');
-  if (!workbookRelationships.includes('/relationships/vbaProject')) {
-    workbookRelationships = workbookRelationships.replace(
-      '</Relationships>',
-      '<Relationship Id="rIdVbaProject" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>'
-    );
-  }
-
-  // vbaProject.bin binds its workbook module to this code name. Excel otherwise
-  // opens the file but cannot resolve ThisWorkbook when a macro accesses sheets.
-  let workbookXml = await workbookFile.async('string');
-  if (!/\bcodeName="ThisWorkbook"/.test(workbookXml)) {
-    if (/<workbookPr\b[^>]*\/>/.test(workbookXml)) {
-      workbookXml = workbookXml.replace(/<workbookPr\b([^>]*)\/>/, '<workbookPr$1 codeName="ThisWorkbook"/>');
-    } else if (/<workbookPr\b[^>]*>/.test(workbookXml)) {
-      workbookXml = workbookXml.replace(/<workbookPr\b([^>]*)>/, '<workbookPr$1 codeName="ThisWorkbook">');
-    } else {
-      workbookXml = workbookXml.replace(/(<workbook\b[^>]*>)/, '$1<workbookPr codeName="ThisWorkbook"/>');
-    }
-  }
-  workbookZip.file('[Content_Types].xml', contentTypes);
-  workbookZip.file('xl/_rels/workbook.xml.rels', workbookRelationships);
-  workbookZip.file('xl/workbook.xml', workbookXml);
-  workbookZip.file('xl/vbaProject.bin', vbaProject);
-  return workbookZip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
-};
-
 export async function generateMasterExcelWorkbook(data: ExcelExportData): Promise<Blob> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = data.centerName;
@@ -226,10 +175,12 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
   // Expand multi-installment receipts so that each installment appears in its respective month.
   const expandedReceipts: TuitionReceipt[] = [];
   data.receipts.forEach((receipt) => {
-    if (Array.isArray(receipt.installments) && receipt.installments.length > 1) {
-      receipt.installments.forEach((inst, idx) => {
+    receipt = { ...receipt, billingPeriod: receipt.billingPeriod || (receipt.paymentKind === 'course' ? `Khóa ${receipt.paymentDate.slice(0, 4)}` : receipt.paymentDate.slice(0, 7)) };
+    const installments = getReceiptInstallments(receipt);
+    if (installments.length > 1) {
+      installments.forEach((inst, idx) => {
         const isFirst = idx === 0;
-        const isLast = idx === receipt.installments!.length - 1;
+        const isLast = idx === installments.length - 1;
         expandedReceipts.push({
           ...receipt,
           id: `${receipt.id}_inst_${idx + 1}`,
@@ -247,7 +198,7 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
         });
       });
     } else {
-      expandedReceipts.push(receipt);
+      expandedReceipts.push(installments.length === 1 ? { ...receipt, paymentDate: installments[0].date || receipt.paymentDate } : receipt);
     }
   });
 
@@ -422,7 +373,7 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
   const tuitionSheet = workbook.addWorksheet('HỌC PHÍ');
   styleTitle(tuitionSheet, 'A1:S2', `${data.centerName.toUpperCase()}\nSỔ THU HỌC PHÍ`);
   applyBackLink(tuitionSheet, 'S');
-  const tuitionHeaders = ['STT', 'Mã phiếu', 'ID hệ thống', 'Mã học sinh', 'Họ và tên', 'Mã lớp', 'Học phí khóa (VNĐ)', 'Học phí tháng (VNĐ)', 'Khoản thu', 'Kỳ học phí', 'Giảm giá (VNĐ)', 'Đã thu (VNĐ)', 'Công nợ (VNĐ)', 'Tình trạng', 'Ngày thu', 'Hình thức', 'Ghi chú', 'Hồ sơ học sinh', 'Lớp chi tiết'];
+  const tuitionHeaders = ['STT', 'Mã phiếu', 'ID hệ thống', 'Mã học sinh', 'Họ và tên', 'Mã lớp', 'Học phí khóa (VNĐ)', 'Học phí tháng (VNĐ)', 'Khoản thu', 'Kỳ học phí', 'Giảm giá (VNĐ)', 'Đã thu (VNĐ)', 'Công nợ (VNĐ)', 'Tình trạng', 'Ngày thu', 'Hình thức', 'Ghi chú', 'Hồ sơ học sinh', 'Lớp chi tiết', 'Người thu'];
   tuitionSheet.getRow(5).values = tuitionHeaders;
   styleHeader(tuitionSheet.getRow(5));
   orderedReceipts.forEach((receipt, index) => {
@@ -443,10 +394,10 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
     row.values = [
       index + 1,
       receipt.code,
-      { formula: systemIdFormula },
+      { formula: systemIdFormula, result: receipt.studentId },
       student?.code || '',
-      { formula: studentNameFormula },
-      { formula: classCodeFormula },
+      { formula: studentNameFormula, result: student?.name || '' },
+      classroom?.code || '',
       receipt.courseFee,
       receipt.monthlyFee || 0,
       receipt.paymentKind === 'monthly' ? 'Học phí tháng' : 'Học phí khóa',
@@ -459,7 +410,8 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
       paymentMethodLabel(receipt.paymentMethod),
       receipt.notes || '',
       studentLink,
-      classLink
+      classLink,
+      receipt.collectorName
     ];
     styleData(row, index);
     [7, 8, 11, 12, 13].forEach((column) => { row.getCell(column).numFmt = moneyFormat; });
@@ -480,9 +432,9 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
   tuitionSheet.getCell(`A${tuitionFooterRow + 1}`).value = 'TỔNG CỘNG đã bao gồm các khoản nhập trực tiếp ở sheet HỌC SINH (cột nền vàng M–R).';
   tuitionSheet.getCell(`A${tuitionFooterRow + 1}`).font = { name: 'Arial', size: 9.5, italic: true, color: { argb: '7C2D12' } };
   tuitionSheet.getCell(`A${tuitionFooterRow + 1}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBEB' } };
-  tuitionSheet.autoFilter = { from: 'A5', to: `S${tuitionFooterRow - 1}` };
+  tuitionSheet.autoFilter = { from: 'A5', to: `T${tuitionFooterRow - 1}` };
   tuitionSheet.views = [{ state: 'frozen', ySplit: 5 }];
-  tuitionSheet.columns = [{ width: 8 }, { width: 18 }, { width: 16 }, { width: 16 }, { width: 28 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 16 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 20 }, { width: 48 }, { width: 18 }, { width: 18 }];
+  tuitionSheet.columns = [{ width: 8 }, { width: 18 }, { width: 16 }, { width: 16 }, { width: 28 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 16 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 20 }, { width: 48 }, { width: 18 }, { width: 18 }, { width: 24 }];
   tuitionSheet.getColumn(3).hidden = true;
 
   const gradesSheet = workbook.addWorksheet('BẢNG ĐIỂM');
@@ -494,10 +446,12 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
   const gradeHeaders = ['STT', 'Mã học sinh', 'Họ và tên', 'Mã lớp', 'Nghe', 'Nói', 'Đọc', 'Viết', 'Giữa kỳ', 'Cuối kỳ', 'Chuyên cần', 'Điểm TB', 'Xếp loại'];
   gradesSheet.getRow(5).values = gradeHeaders;
   styleHeader(gradesSheet.getRow(5));
-  const gradeByStudentId = new Map(data.grades.map((grade) => [grade.studentId, grade]));
-  data.students.forEach((student, index) => {
+  const gradeRows = data.students.flatMap(student => {
+    const records = data.grades.filter(grade => grade.studentId === student.id);
+    return records.length ? records.map(grade => ({ student, grade })) : [{ student, grade: undefined }];
+  });
+  gradeRows.forEach(({ student, grade }, index) => {
     const rowNumber = STUDENT_DATA_START_ROW + index;
-    const grade = gradeByStudentId.get(student.id);
     const row = gradesSheet.getRow(rowNumber);
     const avgFormula = `IF(COUNT(E${rowNumber}:K${rowNumber})=0,"",ROUND((AVERAGE(E${rowNumber}:H${rowNumber})*0.4 + I${rowNumber}*0.2 + J${rowNumber}*0.3 + K${rowNumber}*0.1), 1))`;
     const rankFormula = `IF(L${rowNumber}="","",IF(L${rowNumber}>=8,"Giỏi",IF(L${rowNumber}>=6.5,"Khá",IF(L${rowNumber}>=5,"Trung bình","Cần hỗ trợ"))))`;
@@ -505,7 +459,7 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
       index + 1,
       student.code,
       student.name,
-      classById.get(student.classId)?.code || '',
+      classById.get(grade?.classId || student.classId)?.code || '',
       grade?.listening ?? '',
       grade?.speaking ?? '',
       grade?.reading ?? '',
@@ -518,7 +472,7 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
     ];
     styleData(row, index);
   });
-  const gradesFooterRow = STUDENT_DATA_START_ROW + data.students.length;
+  const gradesFooterRow = STUDENT_DATA_START_ROW + gradeRows.length;
   writeFooter(gradesSheet, gradesFooterRow, gradeHeaders.length, { 12: `IFERROR(ROUND(AVERAGE(L${STUDENT_DATA_START_ROW}:L${gradesFooterRow - 1}),1),0)` });
   gradesSheet.autoFilter = { from: 'A5', to: `M${gradesFooterRow - 1}` };
   gradesSheet.views = [{ state: 'frozen', ySplit: 5 }];
@@ -676,15 +630,15 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
   const guide = workbook.addWorksheet('HƯỚNG DẪN');
   styleTitle(guide, 'A1:H2', `${data.centerName.toUpperCase()}\nHƯỚNG DẪN NHẬP VÀ CÔNG THỨC EXCEL`);
   const guideRows = [
-    ['1. Nhập học sinh', 'Chèn một dòng ngay phía trên “TỔNG CỘNG” ở sheet HỌC SINH, rồi nhập tối thiểu Mã học sinh, Họ và tên, Mã lớp. Macro tự tạo ID, cập nhật lớp, bảng điểm và mọi hàng tổng; không có giới hạn dòng.'],
+    ['1. Hồ sơ học sinh', 'Danh sách nằm ở sheet HỌC SINH. Để thêm hoặc chuyển lớp, thực hiện trong ứng dụng rồi xuất báo cáo mới. Mã học sinh phải duy nhất.'],
     ['2. Thu trực tiếp cùng học sinh', 'Nếu thu ngay khi thêm học sinh, nhập số tiền ở cột “Đã thu nhập trực tiếp”; có thể điền thêm Còn nợ, Khoản thu, Kỳ/Mốc khóa, Ngày thu và Hình thức. Các sheet lớp, TỔNG QUAN và tổng HỌC PHÍ tự cập nhật.'],
-    ['3. Nhập phiếu thu chi tiết', 'Chèn một dòng ngay phía trên “TỔNG CỘNG” ở sheet HỌC PHÍ. Nhập Mã phiếu, Mã học sinh, Mã lớp, khoản thu, kỳ học phí, đã thu và công nợ; macro tự tìm ID/Họ tên và cập nhật học sinh, lớp cùng các tổng. Hai cột Học phí tháng/khóa được giữ lại khi đổi khoản thu để còn đối chiếu lịch sử.'],
-    ['4. Nhập bảng điểm', 'Ở sheet BẢNG ĐIỂM chỉ nhập/sửa 7 cột: Nghe, Nói, Đọc, Viết, Giữa kỳ, Cuối kỳ, Chuyên cần. Không sửa Mã HS, Họ tên, Mã lớp, Điểm TB hoặc Xếp loại; macro tự tạo danh sách, giữ điểm đã nhập và tính ĐTB/Xếp loại.'],
+    ['3. Phiếu thu chi tiết', 'Sheet HỌC PHÍ giữ lớp và ngày thu của từng giao dịch, kể cả học viên đã chuyển lớp. Các đợt đóng tiền được xuất riêng để đối chiếu theo tháng. Không đổi mã phiếu trừ khi đang sửa lỗi có chủ đích.'],
+    ['4. Bảng điểm', 'Sheet BẢNG ĐIỂM giữ điểm theo từng học viên và từng lớp. Bạn có thể sửa các cột kỹ năng, giữa kỳ, cuối kỳ và chuyên cần (0–10). Giữ Mã HS và Mã lớp để nhập lại đúng lịch sử.'],
     ['5. Công thức tổng thu tháng/lớp', "=SUMIFS('HỌC PHÍ'!$L:$L,'HỌC PHÍ'!$F:$F,$A15,'HỌC PHÍ'!$O:$O,\">=\"&D$14,'HỌC PHÍ'!$O:$O,\"<\"&EDATE(D$14,1))+SUMIFS('HỌC SINH'!$M:$M,'HỌC SINH'!$G:$G,$A15,'HỌC SINH'!$Q:$Q,\">=\"&D$14,'HỌC SINH'!$Q:$Q,\"<\"&EDATE(D$14,1))"],
     ['6. Liên kết khi bấm', 'Các ô màu xanh gạch chân và cột “Nguồn công thức” là liên kết: bấm để mở sheet nguồn, tháng/lớp hoặc phiếu thu. Nếu Excel đang bật bảo vệ liên kết, hãy giữ Ctrl rồi bấm.'],
-    ['7. Đồng bộ tự động', 'Đây là file .XLSM. Khi mở file, bấm Enable Macros. Sau khoảng 2 giây kể từ khi thêm/sửa/xóa ở HỌC SINH hoặc HỌC PHÍ, hệ thống tự xây lại sheet Lớp, BẢNG ĐIỂM, công nợ và hàng tổng. Không nhập tay lại học sinh ở sheet lớp.'],
+    ['7. Công thức Excel', 'Đây là báo cáo XLSX không chứa macro. Mở bằng Excel để tính lại công thức. Tệp không tự đồng bộ với ứng dụng; muốn cập nhật dữ liệu, dùng chức năng Nhập Excel và xem kỹ phần xác nhận.'],
     ['8. Đồng bộ về web', 'Khi nhập lại tệp vào website, các khoản “nhập trực tiếp” tại HỌC SINH được tạo thành phiếu thu tự động; các khoản đã có trong HỌC PHÍ vẫn được giữ nguyên. Tệp có mã HS, mã lớp hoặc mã phiếu thu trùng/sai sẽ bị chặn để tránh liên kết nhầm.'],
-    ['9. Không làm đứt liên kết', 'Không xóa hay sửa các cột ẩn ID hệ thống/Khóa tự động. Muốn xóa học sinh hoặc phiếu thu, xóa nguyên dòng dữ liệu và chờ macro chạy; hàng TỔNG CỘNG luôn được đặt lại tự động ở cuối danh sách.']
+    ['9. Sao lưu đầy đủ', 'Báo cáo Excel phục vụ đối chiếu và nhập dữ liệu học vụ/học phí. Để giữ cả cài đặt, lịch học, điểm danh và nhật ký, hãy xuất bản sao lưu JSON từ ứng dụng. Không xóa cột ID hoặc sửa liên kết khi chỉ xem báo cáo.']
   ];
   guideRows.forEach((values, index) => {
     const row = guide.getRow(4 + index);
@@ -695,8 +649,8 @@ export async function generateMasterExcelWorkbook(data: ExcelExportData): Promis
   guide.columns = [{ width: 28 }, { width: 120 }];
   guide.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
 
-  const macroBuffer = await injectMacroProject(await workbook.xlsx.writeBuffer());
-  return new Blob([macroBuffer], { type: macroEnabledMimeType });
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 const normaliseHeader = (value: unknown) => String(value ?? '').replace(/[Đđ]/g, 'd').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('vi-VN').replace(/[^a-z0-9]/g, '');
@@ -807,11 +761,14 @@ const isoDate = (value: unknown) => {
   const text = cellText(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : new Date().toISOString().slice(0, 10);
+  return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : centerDate();
 };
 
 const statusFromLabel = (value: unknown): Student['status'] => {
   const label = cellText(value).toLocaleLowerCase('vi-VN');
+  if (label.includes('tiềm năng') || label.includes('tư vấn') || label === 'lead') return 'lead';
+  if (label.includes('học thử') || label === 'trial') return 'trial';
+  if (label.includes('đã đăng ký') || label.includes('chờ xếp lớp') || label === 'registered') return 'registered';
   if (label.includes('bảo')) return 'reserved';
   if (label.includes('nghỉ')) return 'dropped';
   return 'active';
@@ -985,8 +942,12 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
   const invalidTuitionReferences = tuitionRecords.filter((record) => {
     const suppliedStudentId = cellText(getByAliases(record, ['idhethong', 'systemid']));
     const suppliedStudentCode = cellText(getByAliases(record, ['mahocsinh', 'mahs', 'studentcode']));
-    return Boolean(suppliedStudentId || suppliedStudentCode)
-      && !students.some((student) => student.id === suppliedStudentId || student.code === suppliedStudentCode);
+    const byId = students.find(student => student.id === suppliedStudentId);
+    const byCode = students.find(student => student.code === suppliedStudentCode);
+    const paid = numberValue(getByAliases(record, ['dathuvnd', 'dathu', 'paidamount']));
+    const debt = numberValue(getByAliases(record, ['congnovnd', 'congno', 'debtamount']));
+    return (Boolean(suppliedStudentId || suppliedStudentCode || paid || debt) && !byId && !byCode)
+      || (Boolean(suppliedStudentId && suppliedStudentCode) && byId?.id !== byCode?.id);
   });
   if (invalidTuitionReferences.length > 0) {
     return { errors: [{ row: 0, field: 'HỌC PHÍ', message: `${invalidTuitionReferences.length} phiếu thu không khớp Mã HS / ID hệ thống. Đã dừng nhập để không làm mất hoặc gán nhầm học phí.` }] };
@@ -1027,7 +988,7 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
       id: `RCPT-IMP-${String(index + 1).padStart(3, '0')}`,
       code: cellText(getByAliases(record, ['maphieu', 'receiptcode'])) || `IMP-${index + 1}`,
       studentId,
-      classId: student?.classId || classes.find((classroom) => classroom.code === cellText(getByAliases(record, ['malop', 'classcode'])))?.id || '',
+      classId: classes.find((classroom) => classroom.code === cellText(getByAliases(record, ['malop', 'classcode'])))?.id || student?.classId || '',
       courseFee,
       monthlyFee,
       paymentKind,
@@ -1037,7 +998,7 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
       debtAmount,
       status: receiptStatus,
       paymentDate: isoDate(getByAliases(record, ['ngaythu', 'paymentdate'])),
-      collectorName: '',
+      collectorName: cellText(getByAliases(record, ['nguoithu', 'collectorname'])),
       paymentMethod: normalizedPaymentMethod,
       notes: cellText(getByAliases(record, ['ghichu', 'notes']))
     };
@@ -1053,6 +1014,13 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
     }
     groupedByBaseCode.get(baseCode)!.push(rc);
   });
+
+  const invalidGroups = [...groupedByBaseCode.entries()].filter(([, group]) => group.length > 1 && (
+    new Set(group.map(receipt => `${receipt.studentId}:${receipt.classId}:${receipt.paymentKind}:${receipt.billingPeriod}`)).size > 1
+    || group.some(receipt => !/(?:\/Đ|\/D|-D|-Đ)\d+$/i.test(receipt.code))
+    || new Set(group.map(receipt => receipt.code)).size !== group.length
+  ));
+  if (invalidGroups.length) return { errors: [{ row: 0, field: 'HỌC PHÍ', message: `Mã phiếu trùng hoặc các đợt thu không cùng học viên/lớp/kỳ: ${invalidGroups.map(([code]) => code).join(', ')}. Đã dừng nhập để không cộng nhầm học phí.` }] };
 
   groupedByBaseCode.forEach((group, baseCode) => {
     if (group.length === 1) {
@@ -1131,8 +1099,9 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
     gradeRecords.forEach((record, index) => {
       const studentCode = cellText(getByAliases(record, ['mahocsinh', 'mahs', 'studentcode']));
       const classCode = cellText(getByAliases(record, ['malop', 'classcode']));
-      const student = students.find((item) => item.code === studentCode && (!classCode || classes.find((classroom) => classroom.id === item.classId)?.code === classCode));
-      if (!student) return;
+      const student = students.find(item => item.code === studentCode);
+      const gradeClass = classes.find(classroom => classroom.code === classCode) || classes.find(classroom => classroom.id === student?.classId);
+      if (!student || !gradeClass) return;
 
       const rawScores = [
         getByAliases(record, ['nghe', 'listening']),
@@ -1153,9 +1122,9 @@ export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkboo
       const calculatedAverage = Math.round(((((listening + speaking + reading + writing) / 4) * 0.4) + (midterm * 0.2) + (finalExam * 0.3) + (attendance * 0.1)) * 10) / 10;
       const suppliedAverage = cellText(rawAverage);
       grades.push({
-        id: `GRADE-IMP-${student.id}`,
+        id: `GRADE-IMP-${student.id}-${gradeClass.id}`,
         studentId: student.id,
-        classId: student.classId,
+        classId: gradeClass.id,
         listening,
         speaking,
         reading,

@@ -1,3 +1,4 @@
+import { centerDate } from '../lib/dates';
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle, Info, RefreshCw, Download } from 'lucide-react';
 import {
@@ -36,8 +37,6 @@ export default function DataConsistencyChecker({
   const handleCheck = async () => {
     setIsChecking(true);
     try {
-      // Simulate async check
-      await new Promise(resolve => setTimeout(resolve, 1000));
       const foundIssues = checkDataConsistency(students, classrooms, receipts, programs);
       setIssues(foundIssues);
       setReport(generateConsistencyReport(foundIssues));
@@ -49,7 +48,6 @@ export default function DataConsistencyChecker({
   const handleAutoFix = async () => {
     setIsFixing(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
       const result = autoFixConsistency(students, classrooms, receipts, programs);
       setIssues(result.issues);
       const updatedReport = generateConsistencyReport(result.issues);
@@ -69,7 +67,7 @@ export default function DataConsistencyChecker({
     const reportText = formatConsistencyReport(report);
     const element = document.createElement('a');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(reportText));
-    element.setAttribute('download', `consistency-report-${new Date().toISOString().split('T')[0]}.txt`);
+    element.setAttribute('download', `consistency-report-${centerDate()}.txt`);
     element.style.display = 'none';
     document.body.appendChild(element);
     element.click();
@@ -107,7 +105,7 @@ export default function DataConsistencyChecker({
   return (
     <div className="w-full bg-white rounded-lg shadow-lg">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-lg">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-4 rounded-t-lg">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <RefreshCw className="w-6 h-6" />
           Kiểm Tra & Sửa Tính Nhất Quán Dữ Liệu
@@ -118,9 +116,9 @@ export default function DataConsistencyChecker({
       </div>
 
       {/* Main Content */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Action Buttons */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex flex-wrap gap-3 mb-6">
           <button
             onClick={handleCheck}
             disabled={isChecking}

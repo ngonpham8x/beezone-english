@@ -168,7 +168,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [language] = useState<Language>('vi');
 
   useEffect(() => {
-    localStorage.setItem('ppt_lang', 'vi');
+    try { localStorage.setItem('ppt_lang', 'vi'); } catch { /* Storage may be disabled. */ }
   }, []);
 
   const setLanguage = (_lang: Language) => {

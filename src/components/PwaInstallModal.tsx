@@ -1,3 +1,4 @@
+import { DialogFrame } from './DialogFrame';
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Monitor, Share, PlusSquare, ArrowDownToLine, X, CheckCircle2, ShieldCheck, Sparkles, Check, Apple } from 'lucide-react';
 
@@ -68,11 +69,11 @@ export const PwaInstallModal: React.FC<PwaInstallModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-h-[92vh] max-w-lg w-full overflow-y-auto p-6 shadow-2xl border border-slate-200 relative custom-scrollbar">
+    <DialogFrame label="Cài đặt ứng dụng" onClose={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+      <div className="dialog-panel bg-white rounded-2xl max-h-[92vh] max-w-lg w-full overflow-y-auto p-6 shadow-2xl border border-slate-200 relative custom-scrollbar">
         {/* Top Branding Header */}
-        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/90 -mx-6 -mt-6 p-5 text-white mb-5 relative border-b border-amber-500/30">
-          <button
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/90 -mx-4 min-[480px]:-mx-6 -mt-6 p-5 text-white mb-5 relative border-b border-amber-500/30">
+          <button aria-label="Đóng"
             onClick={onClose}
             className="absolute top-4 right-4 p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
             title="Đóng"
@@ -292,6 +293,6 @@ export const PwaInstallModal: React.FC<PwaInstallModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </DialogFrame>
   );
 };

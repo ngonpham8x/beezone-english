@@ -1,3 +1,4 @@
+import { DialogFrame } from './DialogFrame';
 import React, { useState, useRef, useEffect } from 'react';
 import { Grade, Student, ClassRoom, Teacher, CourseProgram, CenterSettings } from '../types';
 import {
@@ -665,7 +666,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-60 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+    <DialogFrame label="Chia sẻ phiếu báo điểm" onClose={onClose} className="fixed inset-0 z-60 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
       {/* =========================================================================
           OFF-SCREEN DEDICATED CAPTURE ELEMENT
           Guarantees 100% full natural height with zero scroll clipping,
@@ -691,10 +692,10 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       {/* =========================================================================
           MAIN MODAL DIALOG
           ========================================================================= */}
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+      <div className="dialog-panel relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-slate-900 px-5 py-3.5 text-white relative shrink-0">
-          <button
+          <button aria-label="Đóng"
             type="button"
             onClick={onClose}
             className="absolute top-3.5 right-3.5 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition"
@@ -721,7 +722,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center border-b border-slate-200 bg-slate-50 px-4 pt-2.5 gap-2 shrink-0">
+        <div className="flex items-center overflow-x-auto custom-scrollbar border-b border-slate-200 bg-slate-50 px-3 pt-2.5 gap-1 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('image')}
@@ -732,8 +733,8 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
             }`}
           >
             <ImageIcon className={`w-4 h-4 ${activeTab === 'image' ? 'text-amber-600' : 'text-slate-400'}`} />
-            <span>Chia Sẻ Bằng Hình Ảnh</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-100 text-amber-800">
+            <span>Hình ảnh</span>
+            <span className="hidden sm:inline px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-100 text-amber-800">
               Khuyên dùng
             </span>
           </button>
@@ -748,7 +749,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
             }`}
           >
             <MessageCircle className={`w-4 h-4 ${activeTab === 'text' ? 'text-blue-600' : 'text-slate-400'}`} />
-            <span>Tin Nhắn Văn Bản</span>
+            <span>Tin nhắn</span>
           </button>
 
           <button
@@ -761,7 +762,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
             }`}
           >
             <FileText className={`w-4 h-4 ${activeTab === 'files' ? 'text-emerald-600' : 'text-slate-400'}`} />
-            <span>Xuất PDF / Excel</span>
+            <span>PDF / Excel</span>
           </button>
         </div>
 
@@ -974,6 +975,6 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </DialogFrame>
   );
 };

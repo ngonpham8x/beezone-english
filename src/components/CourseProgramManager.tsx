@@ -1,3 +1,4 @@
+import { DialogFrame } from './DialogFrame';
 import React, { useState, useMemo } from 'react';
 import { CourseProgram, ClassRoom, Student } from '../types';
 import {
@@ -69,6 +70,8 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       alert('Vui lòng nhập đầy đủ mã và tên chương trình học');
       return;
     }
+    if (programs.some(program => program.id !== editingProgram?.id && program.code.trim().toLowerCase() === formCode.trim().toLowerCase())) { alert('Mã chương trình đã tồn tại.'); return; }
+    if (!Number.isFinite(formTuitionFee) || formTuitionFee < 0) { alert('Học phí phải là số không âm.'); return; }
 
     if (editingProgram) {
       onUpdateProgram({
@@ -217,7 +220,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       </div>
 
       {/* Programs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-5">
         {filteredPrograms.map(prog => {
           const classCount = classes.filter(c => c.programId === prog.id).length;
           const studentCount = students.filter(s => s.programId === prog.id).length;
@@ -298,14 +301,14 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+        <DialogFrame label="Chương trình học" onClose={() => setIsModalOpen(false)} className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="dialog-panel bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-amber-600" />
                 {editingProgram ? 'Chỉnh Sửa Chương Trình Học' : 'Tạo Chương Trình Đào Tạo Mới'}
               </h3>
-              <button
+              <button aria-label="Đóng"
                 type="button"
                 onClick={() => setIsModalOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
@@ -410,7 +413,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

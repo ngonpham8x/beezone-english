@@ -1,7 +1,10 @@
+import { DialogFrame } from './DialogFrame';
+import { centerDate } from '../lib/dates';
 import React, { useState } from 'react';
 import { Student, Teacher, ClassRoom, TuitionReceipt } from '../types';
 import { BarChart3, Calendar, Download, Printer, DollarSign, Users, BookOpen, X } from 'lucide-react';
 import { debtBreakdown, getReceiptPaymentEntries, ReceiptPaymentEntry } from '../lib/tuition';
+import { localCalendarDate } from '../lib/dates';
 
 interface ReportViewProps {
   students: Student[];
@@ -23,14 +26,13 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
   // Tính doanh thu theo từng đợt thanh toán thực tế (hỗ trợ nhiều đợt đóng cho học phí khóa)
   const paymentEntries = getReceiptPaymentEntries(receipts);
-  const allDates = paymentEntries.map((entry) => entry.date).filter(Boolean).sort();
-  const reportDate = allDates.at(-1) || new Date().toISOString().slice(0, 10);
+  const [reportDate, setReportDate] = useState(centerDate);
   const referenceDate = new Date(`${reportDate}T00:00:00`);
   const weekStart = new Date(referenceDate);
   weekStart.setDate(referenceDate.getDate() - ((referenceDate.getDay() + 6) % 7));
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
-  const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+  const isoDay = localCalendarDate;
 
   const filterPaymentEntry = (entry: ReceiptPaymentEntry) => {
     if (timeFilter === 'day') return entry.date === reportDate;
@@ -53,7 +55,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   const handlePrint = () => {
     const prevTitle = document.title;
     const filterLabel = timeFilter === 'day' ? 'Ngay' : (timeFilter === 'week' ? 'Tuan' : 'Thang');
-    document.title = `BEEZONE_BaoCao_${filterLabel}_${new Date().toISOString().split('T')[0]}`;
+    document.title = `BEEZONE_BaoCao_${filterLabel}_${centerDate()}`;
     const cleanup = () => {
       document.title = prevTitle;
     };
@@ -75,8 +77,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs font-semibold text-slate-600">Ngày báo cáo <input aria-label="Ngày báo cáo" type="date" value={reportDate} onChange={event => { if (event.target.value) setReportDate(event.target.value); }} className="ml-1 rounded-lg border border-slate-300 p-2" /></label>
+          <div className="bg-slate-100 p-1 rounded-xl flex flex-wrap items-center border border-slate-200">
             <button
               onClick={() => setTimeFilter('day')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${timeFilter === 'day' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
@@ -118,7 +121,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
         </div>
 
         {/* 4 Summary Boxes */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 @min-[1000px]:grid-cols-4 gap-3 sm:gap-4 text-xs">
           <button type="button" onClick={() => onNavigateTab('students')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
             <div className="text-slate-500 font-semibold uppercase">Tổng Học Sinh</div>
             <div className="text-xl font-bold text-slate-900 mt-1">{students.length} HS</div>
@@ -128,7 +131,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <button type="button" onClick={() => onNavigateTab('tuition')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
             <div className="text-slate-500 font-semibold uppercase">Tổng Doanh Thu</div>
             <div className="text-xl font-bold text-amber-700 mt-1">{totalRevenue.toLocaleString('vi-VN')} đ</div>
-            <div className="text-[11px] text-slate-500">Theo {timeFilter === 'day' ? 'ngày' : timeFilter === 'week' ? 'tuần' : 'tháng'} có dữ liệu gần nhất</div>
+            <div className="text-[11px] text-slate-500">Theo {timeFilter === 'day' ? 'ngày' : timeFilter === 'week' ? 'tuần' : 'tháng'} đã chọn: {reportDate}</div>
           </button>
 
           <button type="button" onClick={() => onNavigateTab('tuition')} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-left transition hover:border-amber-400 hover:bg-amber-50/40">
@@ -191,8 +194,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
       </div>
 
       {selectedClass && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <DialogFrame label="Chi tiết báo cáo lớp" onClose={() => setSelectedClassId(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="dialog-panel relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
             <button
               type="button"
               onClick={() => setSelectedClassId(null)}
@@ -228,7 +231,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               </table>
             </div>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

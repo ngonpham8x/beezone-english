@@ -1,107 +1,62 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import path from 'node:path';
+import { defineConfig, loadEnv } from 'vite';
+import usersHandler from './api/admin/users';
+import auditHandler from './api/admin/audit-logs';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const browserKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || '';
+  let privilegedKey = browserKey.startsWith('sb_secret_');
+  if (browserKey.split('.').length === 3) {
+    try { privilegedKey ||= JSON.parse(Buffer.from(browserKey.split('.')[1], 'base64url').toString()).role === 'service_role'; } catch { /* The auth client handles malformed publishable keys. */ }
+  }
+  if (privilegedKey) throw new Error('Không được đặt Supabase secret/service-role key vào biến VITE_.');
+  for (const key of ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_URL', 'ALLOWED_ORIGINS']) {
+    if (env[key]) process.env[key] = env[key];
+  }
   return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      {
-        name: 'mock-admin-api-dev',
-        configureServer(server) {
-          server.middlewares.use((req, res, next) => {
-            const url = req.url || '';
-            if (url.startsWith('/api/admin/audit-logs')) {
-              res.setHeader('Content-Type', 'application/json');
-              res.statusCode = 200;
-              res.end(JSON.stringify({
-                logs: [
-                  {
-                    id: 'AUD-001',
-                    occurredAt: '2026-10-01T08:00:00Z',
-                    action: 'ACCOUNT_PROVISIONED',
-                    actorName: 'Hệ thống Quản Trị',
-                    targetName: 'Chủ Trung Tâm (beezone.englishcenter@gmail.com)',
-                    targetRole: 'owner',
-                    details: 'Khởi tạo tài khoản Quản trị trưởng hệ thống BeeZone English.'
-                  },
-                  {
-                    id: 'AUD-002',
-                    occurredAt: '2026-10-01T08:05:00Z',
-                    action: 'ACCOUNT_PROVISIONED',
-                    actorName: 'Chủ Trung Tâm',
-                    targetName: 'Quản Trị Viên (duyngonpham1980@gmail.com)',
-                    targetRole: 'owner',
-                    details: 'Cấp quyền Chủ trung tâm quản trị cơ sở BeeZone.'
-                  },
-                  {
-                    id: 'AUD-003',
-                    occurredAt: '2026-10-02T09:15:00Z',
-                    action: 'ACCOUNT_UPDATED',
-                    actorName: 'Chủ Trung Tâm',
-                    targetName: 'Nhân viên học vụ (thpttranphu.pt@gmail.com)',
-                    targetRole: 'staff',
-                    details: 'Cập nhật phân quyền học viên, học phí, điểm danh và xuất báo cáo.'
-                  }
-                ]
-              }));
-              return;
-            }
-            if (url.startsWith('/api/admin/users')) {
-              res.setHeader('Content-Type', 'application/json');
-              res.statusCode = 200;
-              if (req.method === 'POST') {
-                res.end(JSON.stringify({ success: true, message: 'Thao tác tài khoản thành công.' }));
-              } else {
-                res.end(JSON.stringify({
-                  users: [
-                    {
-                      id: 'USR-DEV-001',
-                      email: 'beezone.englishcenter@gmail.com',
-                      fullName: 'Chủ Trung Tâm',
-                      role: 'owner',
-                      isActive: true,
-                      createdAt: '2026-10-01T08:00:00Z'
-                    },
-                    {
-                      id: 'USR-DEV-002',
-                      email: 'duyngonpham1980@gmail.com',
-                      fullName: 'Quản Trị Viên',
-                      role: 'owner',
-                      isActive: true,
-                      createdAt: '2026-10-01T08:05:00Z'
-                    },
-                    {
-                      id: 'USR-DEV-003',
-                      email: 'thpttranphu.pt@gmail.com',
-                      fullName: 'Nhân viên học vụ',
-                      role: 'staff',
-                      isActive: true,
-                      createdAt: '2026-10-02T09:15:00Z'
-                    }
-                  ]
-                }));
-              }
-              return;
-            }
-            next();
+    plugins: [react(), tailwindcss(), {
+      name: 'protected-admin-api',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          const route = req.url?.split('?')[0];
+          const handler = route === '/api/admin/users' ? usersHandler : route === '/api/admin/audit-logs' ? auditHandler : null;
+          if (!handler) return next();
+          const response = Object.assign(res, {
+            status(code: number) { res.statusCode = code; return response; },
+            json(body: unknown) { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(body)); },
           });
-        }
-      }
-    ],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
+          try {
+            let body = '';
+            for await (const chunk of req) {
+              body += chunk.toString();
+              if (body.length > 10_000) { response.status(413).json({ error: 'Yêu cầu quá lớn.' }); return; }
+            }
+            await handler(Object.assign(req, { body }), response);
+          } catch {
+            if (!res.headersSent) response.status(500).json({ error: 'Không thể xử lý yêu cầu. Vui lòng thử lại.' });
+          }
+        });
       },
-    },
+    }],
+    resolve: { alias: { '@': path.resolve(import.meta.dirname, '.') } },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (/exceljs|jszip|archiver/.test(id)) return 'excel-vendor';
+            if (/recharts|d3-|victory/.test(id)) return 'charts-vendor';
+            if (id.includes('@supabase')) return 'supabase-vendor';
+          },
+        },
+      },
     },
   };
 });

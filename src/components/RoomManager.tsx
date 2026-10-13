@@ -1,3 +1,4 @@
+import { DialogFrame } from './DialogFrame';
 import React, { useState } from 'react';
 import { Room, ClassRoom, StaffPermissions } from '../types';
 import {
@@ -40,7 +41,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
   const handleOpenAdd = () => {
     setEditingRoom({
-      id: `P${100 + rooms.length + 1}`,
+      id: `ROOM_${crypto.randomUUID()}`,
       name: '',
       capacity: 0,
       status: 'available',
@@ -52,6 +53,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRoom || !editingRoom.name.trim()) return;
+    if (!Number.isInteger(editingRoom.capacity) || editingRoom.capacity <= 0) { alert('Sức chứa phòng phải là số nguyên lớn hơn 0.'); return; }
 
     if (rooms.some(r => r.id === editingRoom.id)) {
       onUpdateRoom(editingRoom);
@@ -89,7 +91,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 @min-[580px]:grid-cols-2 @min-[1100px]:grid-cols-4 gap-4 sm:gap-6">
         {rooms.map((room) => {
           const roomClasses = classes.filter(c => c.roomId === room.id);
 
@@ -175,9 +177,12 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
       {/* EDIT / ADD MODAL */}
       {isModalOpen && editingRoom && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Thông tin phòng học" onClose={() => {
+                setIsModalOpen(false);
+                setEditingRoom(null);
+              }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingRoom(null);
@@ -256,7 +261,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

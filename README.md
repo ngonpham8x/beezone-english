@@ -6,10 +6,29 @@
 
 ## Chạy cục bộ
 
-1. Cài Node.js 20 LTS hoặc mới hơn.
-2. Chạy `npm install`.
-3. Sao chép `.env.example` thành `.env.local` rồi nhập cấu hình Supabase.
-4. Chạy `npm run dev`.
+1. Cài Node.js 22.22.2+ hoặc 24.15.0+ (phù hợp yêu cầu của bộ kiểm thử).
+2. Chạy `npm ci` để cài đúng các phiên bản trong `package-lock.json`.
+3. Chạy `npm run dev`. Khi chưa có Supabase, ứng dụng mở **bản xem thử cục bộ**; dữ liệu chỉ lưu trên trình duyệt này.
+4. Để dùng dữ liệu thật, nhập cấu hình Supabase trong `.env.local` theo `.env.example`, chạy các migration theo thứ tự `001`–`006`, rồi khởi động lại server.
+
+## Kiểm tra và build
+
+```sh
+npm run lint
+npm run test
+npm run build
+```
+
+`npm run check` chạy cả ba bước. `npm run clean` dọn thư mục build và hoạt động trên Windows. Bản production không cho dùng tài khoản xem thử; thiếu cấu hình Supabase sẽ hiển thị thông báo chưa cấu hình.
+
+## Dữ liệu và sao lưu
+
+- Dữ liệu thật lưu trong `public.center_data`; thay đổi được lưu tuần tự và kiểm tra phiên bản để tránh ghi đè dữ liệu của người khác. Khi có lỗi hoặc xung đột, xem thông báo và sao lưu trước khi tải lại.
+- Sao lưu **JSON** giữ đầy đủ cài đặt, học viên, lớp, giáo viên, phòng, lịch học, học phí, điểm, điểm danh và nhật ký.
+- Báo cáo Excel mặc định là **XLSX**, có công thức và giữ lịch sử các lớp/đợt đóng tiền; không chạy macro cũ. Có thể nhập báo cáo XLSX/XLSM cũ, nhưng Excel không thay thế sao lưu JSON.
+- Gửi email, sao lưu máy chủ theo lịch và Google Sheets chưa có dịch vụ thực thi được cấu hình. Ứng dụng không báo các chức năng này đang hoạt động.
+
+Chi tiết các lỗi đã sửa, bằng chứng kiểm tra và những phần còn cần xác nhận trước khi dùng thật: [PROJECT_REVIEW.md](PROJECT_REVIEW.md).
 
 ## Đăng nhập và phân quyền
 

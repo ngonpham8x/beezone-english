@@ -1,3 +1,4 @@
+import { DialogFrame } from './DialogFrame';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Grade, Student, ClassRoom, Teacher, CourseProgram, CenterSettings } from '../types';
@@ -120,15 +121,15 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
   ];
 
   const modalContent = (
-    <div data-print-report-card-overlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div data-print-report-card className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-auto print:max-w-none print:w-full print:p-0 print:m-0 print:border-none print:shadow-none">
+    <DialogFrame label="Phiếu báo điểm học viên" onClose={onClose} data-print-report-card-overlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div data-print-report-card className="dialog-panel bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-auto print:max-w-none print:w-full print:p-0 print:m-0 print:border-none print:shadow-none">
         {/* Actions bar (hidden in print) */}
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-200 print:hidden">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
             <Award className="w-4 h-4 text-amber-600" />
             Xem Trước Phiếu Báo Điểm Học Viên
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setIsShareModalOpen(true)}
@@ -136,7 +137,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
               title="Chia sẻ hình ảnh phiếu điểm qua Zalo, Messenger hoặc tải ảnh PNG"
             >
               <Share2 className="w-4 h-4 text-slate-950" />
-              Chia Sẻ Ảnh & Zalo
+              <span>Chia sẻ ảnh</span>
             </button>
             <button
               type="button"
@@ -144,9 +145,9 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
               className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition shadow-sm active:scale-95"
             >
               <Printer className="w-4 h-4 text-amber-400" />
-              In Phiếu Báo Điểm (Print / PDF)
+              <span>In / PDF</span>
             </button>
-            <button
+            <button aria-label="Đóng"
               type="button"
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
@@ -157,7 +158,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
         </div>
 
         {/* Printable Certificate Content */}
-        <div className="border-4 border-double border-amber-500/50 p-6 sm:p-8 print:p-3 rounded-2xl bg-gradient-to-b from-amber-50/30 via-white to-slate-50/40 print:bg-white print:border-2 break-inside-avoid page-break-inside-avoid">
+        <div className="border-4 border-double border-amber-500/50 p-3 sm:p-8 print:p-3 rounded-2xl bg-gradient-to-b from-amber-50/30 via-white to-slate-50/40 print:bg-white print:border-2 break-inside-avoid page-break-inside-avoid">
           {/* Header */}
           <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-4 print:pb-1.5">
             <div className="flex items-center gap-3">
@@ -438,7 +439,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           onPrintPdf={handlePrint}
         />
       )}
-    </div>
+    </DialogFrame>
   );
 
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;

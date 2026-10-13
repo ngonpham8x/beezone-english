@@ -147,7 +147,14 @@ export const getReceiptPaymentEntries = (receipts: TuitionReceipt[]): ReceiptPay
  */
 export const getReceiptInstallments = (receipt: TuitionReceipt): TuitionInstallment[] => {
   if (Array.isArray(receipt.installments) && receipt.installments.length > 0) {
-    return receipt.installments;
+    const installments = [...receipt.installments];
+    const recorded = installments.reduce((sum, entry) => sum + Math.max(entry.amount, 0), 0);
+    if (receipt.paidAmount > recorded) installments.unshift({
+      id: `inst_${receipt.id}_init`, date: receipt.paymentDate,
+      amount: receipt.paidAmount - recorded, paymentMethod: receipt.paymentMethod,
+      collectorName: receipt.collectorName, notes: 'Khoản đã thu trước các đợt ghi nhận',
+    });
+    return installments;
   }
   if (receipt.paidAmount > 0) {
     return [

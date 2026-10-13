@@ -8,7 +8,7 @@ The application now uses Supabase Auth with Google OAuth for identity. The brows
 2. In **Authentication → Providers**, enable Google. Create Google OAuth credentials in Google Cloud and copy the client ID and secret to the Google provider configuration.
 3. In **Authentication → URL configuration**, set Site URL to the final HTTPS Vercel URL and add both the final URL and any preview URL that will be used to the Redirect URLs allow-list.
 4. Disable public sign-ups. Accounts are provisioned only by an active owner through the protected server endpoint and can then sign in with the matching Google email.
-5. Run `001_auth_profiles.sql`, `002_bootstrap_owners.sql`, `003_center_data.sql`, `004_account_audit_logs.sql`, and `005_backfill_owner_account_audit_logs.sql`. Add initial-owner emails directly to the private Supabase allowlist table; do not commit them to GitHub. Future owners are provisioned by an existing owner in the app; no public endpoint can create arbitrary owners. See `SUPABASE_SETUP.md` for the precise Dashboard flow.
+5. Run migrations `001` through `006`, including `006_enforce_business_permissions.sql`. Migration 006 enforces business write permissions in the database and prevents removing the final active owner. Add initial-owner emails directly to the private Supabase allowlist table; do not commit them to GitHub. Future owners are provisioned by an existing owner in the app; no public endpoint can create arbitrary owners. See `SUPABASE_SETUP.md` for the precise Dashboard flow.
 
 ## 2. Vercel environment variables
 
@@ -37,8 +37,12 @@ Use `SUPABASE_SERVICE_ROLE_KEY` only for legacy Supabase projects that do not pr
 
 No internet-facing application can be guaranteed to be “unhackable”. Keep dependencies updated, require a password manager and MFA for owner Google accounts, review Supabase/Vercel audit logs, and rotate the server secret immediately if it is ever exposed.
 
-## Important data limitation
+## Storage and access boundaries
 
-The management modules (students, classes, tuition, backups, etc.) in this imported starter still persist their demonstration state in the browser's `localStorage`. Authentication and account management are real, but **this is not yet suitable for entering real student or financial data**: local browser storage is neither shared between staff nor an adequate protected database.
+Production business data is stored in the RLS-protected `center_data` document. Only the development preview uses local browser storage. Production never falls back to preview accounts, sample datasets or sample audit history after configuration/network errors. Builds reject a Supabase secret or legacy service-role key placed in a `VITE_` variable.
 
-Before operational use, move each business entity to Supabase tables with its own RLS policies and perform writes through authenticated server endpoints. Do not paste real student data into the current demo storage.
+**The shared document still grants every active account database read access to the entire document.** UI permissions hide modules and migration 006 enforces writes, but neither provides column/class-level read isolation. Do not treat hidden finance panels or assigned-class filters as a confidentiality boundary. If teachers/staff must be unable to read other classes, contacts or financial records, split business entities into tables with read RLS, or introduce an authenticated API that filters reads and merges authorized writes. This remains an architectural requirement before using that stricter permission model with real data.
+
+Account management uses compensating rollback if audit insertion fails; Supabase Auth and database audit changes do not share one atomic transaction. Inspect failed account-management operations rather than assuming no external change occurred.
+
+Use JSON backups for complete recovery. Excel exports contain reporting data and formulas; legacy VBA templates remain historical assets and are no longer embedded in newly generated reports. Do not use preview storage for operational data.

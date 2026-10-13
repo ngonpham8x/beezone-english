@@ -1,3 +1,6 @@
+import { DialogFrame } from './DialogFrame';
+import { useResponsiveView } from '../hooks/useResponsive';
+import { centerDate } from '../lib/dates';
 import React, { useState, useMemo, useRef } from 'react';
 import {
   Student,
@@ -45,7 +48,7 @@ interface AdmissionsManagerProps {
   onAddStudent: (student: Student) => void;
   onUpdateStudent: (student: Student) => void;
   onDeleteStudent: (id: string) => void;
-  onEnrollStudent: (studentId: string, classId: string, enrollDate: string) => void;
+  onEnrollStudent: (studentId: string, classId: string, enrollDate: string) => boolean;
 }
 
 export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
@@ -63,9 +66,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProgram, setFilterProgram] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'table' | 'card'>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
-  );
+  const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -85,11 +86,12 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   const [enrollingCandidate, setEnrollingCandidate] = useState<Student | null>(null);
   const [enrollClassId, setEnrollClassId] = useState<string>('');
   const [enrollDate, setEnrollDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    centerDate()
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const canEdit = isOwner || permissions.student.add || permissions.student.edit;
+  const canEdit = isOwner || permissions.student.edit;
+  const canAdd = isOwner || permissions.student.add;
   const canDelete = isOwner || permissions.student.delete;
 
   // Filter admissions candidates: status is lead, trial, registered OR active students who enrolled recently
@@ -139,7 +141,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
       phone: '',
       parentName: '',
       parentPhone: '',
-      enrollDate: new Date().toISOString().split('T')[0],
+      enrollDate: centerDate(),
       notes: '',
       status: 'lead',
       feeStatus: 'unpaid'
@@ -151,13 +153,16 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   const handleSaveCandidate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCandidate || !editingCandidate.name?.trim()) return;
+    const exists = students.some(s => s.id === editingCandidate.id);
+    if (exists ? !canEdit : !canAdd) return;
+    if (students.some(s => s.id !== editingCandidate.id && s.code.trim().toLowerCase() === editingCandidate.code?.trim().toLowerCase())) { alert('Mã học viên đã tồn tại.'); return; }
 
     const studentToSave: Student = {
       id: editingCandidate.id || `TS_${Date.now()}`,
       code: editingCandidate.code || `TS${(students.length + 1).toString().padStart(3, '0')}`,
       name: editingCandidate.name.trim(),
       avatar: editingCandidate.avatar || '',
-      dob: editingCandidate.dob || '2016-01-01',
+      dob: editingCandidate.dob || '',
       gender: editingCandidate.gender || 'Chưa xác định',
       school: editingCandidate.school || '',
       gradeLevel: editingCandidate.gradeLevel || '',
@@ -168,7 +173,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
       phone: editingCandidate.phone || '',
       parentName: editingCandidate.parentName || '',
       parentPhone: editingCandidate.parentPhone || '',
-      enrollDate: editingCandidate.enrollDate || new Date().toISOString().split('T')[0],
+      enrollDate: editingCandidate.enrollDate || centerDate(),
       notes: editingCandidate.notes || '',
       status: (editingCandidate.status as StudentStatus) || 'lead',
       feeStatus: editingCandidate.feeStatus || 'unpaid'
@@ -193,15 +198,17 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
     // Suggest matching class from candidate's interested program
     const matchingClasses = classes.filter(c => c.programId === candidate.programId);
     setEnrollClassId(matchingClasses[0]?.id || classes[0]?.id || '');
-    setEnrollDate(new Date().toISOString().split('T')[0]);
+    setEnrollDate(centerDate());
   };
 
   // Confirm official enrollment
   const handleConfirmEnroll = (e: React.FormEvent) => {
     e.preventDefault();
     if (!enrollingCandidate || !enrollClassId) return;
+    const classroom = classes.find(c => c.id === enrollClassId);
+    if (!classroom || (classroom.capacity > 0 && students.filter(s => s.classId === enrollClassId && s.status === 'active').length >= classroom.capacity)) { setStatusMessage('Lớp không còn chỗ. Vui lòng chọn lớp khác.'); return; }
 
-    onEnrollStudent(enrollingCandidate.id, enrollClassId, enrollDate);
+    if (!onEnrollStudent(enrollingCandidate.id, enrollClassId, enrollDate)) return;
     const targetClass = classes.find(c => c.id === enrollClassId);
 
     setStatusMessage(`🎉 Chúc mừng! Đã chuyển ${enrollingCandidate.name} vào lớp chính thức ${targetClass?.name || enrollClassId}!`);
@@ -286,7 +293,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
           </p>
         </div>
 
-        {canEdit && (
+        {canAdd && (
           <button
             onClick={handleOpenAddNew}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2 active:scale-95"
@@ -394,7 +401,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
         <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
           <button
             type="button"
-            onClick={() => setViewMode('table')}
+            aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               viewMode === 'table'
                 ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -406,7 +413,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setViewMode('card')}
+            aria-pressed={viewMode === 'card'} onClick={() => setViewMode('card')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               viewMode === 'card'
                 ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -630,7 +637,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
               Không tìm thấy hồ sơ tuyển sinh nào phù hợp.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-3.5">
               {admissionsList.map((candidate, idx) => {
                 const program = programs.find(p => p.id === candidate.programId);
                 const currentClass = classes.find(c => c.id === candidate.classId);
@@ -785,9 +792,12 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
 
       {/* MODAL 1: TIẾP NHẬN / SỬA HỌC VIÊN MỚI */}
       {isAddEditOpen && editingCandidate && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[92vh] max-w-xl w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Hồ sơ tuyển sinh" onClose={() => {
+                setIsAddEditOpen(false);
+                setEditingCandidate(null);
+              }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[92vh] max-w-xl w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => {
                 setIsAddEditOpen(false);
                 setEditingCandidate(null);
@@ -980,14 +990,14 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* MODAL 2: XÁC NHẬN NHẬP HỌC CHÍNH THỨC */}
       {enrollingCandidate && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative">
-            <button
+        <DialogFrame label="Xác nhận ghi danh" onClose={() => setEnrollingCandidate(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="dialog-panel bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button aria-label="Đóng"
               onClick={() => setEnrollingCandidate(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -1103,7 +1113,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

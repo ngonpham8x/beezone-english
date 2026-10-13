@@ -1,3 +1,5 @@
+import { DialogFrame } from './DialogFrame';
+import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useRef } from 'react';
 import { TimetableSlot, ClassRoom, Teacher, Room } from '../types';
 import {
@@ -47,7 +49,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   onUpdateSlot,
   onDeleteSlot
 }) => {
-  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+  const [viewMode, setViewMode] = useResponsiveView('day', 'week');
   const [selectedDay, setSelectedDay] = useState<string>('Thứ 2');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -169,11 +171,11 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Mode switch */}
           <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
             <button
-              onClick={() => setViewMode('week')}
+              aria-pressed={viewMode === 'week'} onClick={() => setViewMode('week')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 viewMode === 'week' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-600'
               }`}
@@ -181,7 +183,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
               Xem Theo Tuần
             </button>
             <button
-              onClick={() => setViewMode('day')}
+              aria-pressed={viewMode === 'day'} onClick={() => setViewMode('day')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 viewMode === 'day' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-600'
               }`}
@@ -206,7 +208,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
       <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 max-w-full">
           <button
-            onClick={() => setViewMode('week')}
+            aria-pressed={viewMode === 'week'} onClick={() => setViewMode('week')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
               viewMode === 'week'
                 ? 'bg-slate-900 text-white shadow-xs'
@@ -355,9 +357,13 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
       {/* ADD SLOT MODAL WITH CONFLICT CHECKER */}
       {isModalOpen && editingSlot && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Ca học" onClose={() => {
+                setIsModalOpen(false);
+                setEditingSlot(null);
+                setConflictError(null);
+              }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-md w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingSlot(null);
@@ -478,7 +484,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

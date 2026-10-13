@@ -1,3 +1,6 @@
+import { DialogFrame } from './DialogFrame';
+import { matchesSearch } from '../lib/search';
+import { findScheduleConflict } from '../lib/schedule';
 import React, { useEffect, useState } from 'react';
 import { ClassRoom, Teacher, Room, CourseProgram, Student, StaffPermissions, TimetableSlot, TuitionReceipt } from '../types';
 import { useLanguage } from '../context/LanguageContext';
@@ -28,6 +31,7 @@ interface ClassManagerProps {
   timetableSlots: TimetableSlot[];
   permissions: StaffPermissions;
   isOwner: boolean;
+  searchQuery?: string;
   onAddClass: (c: ClassRoom) => void;
   onUpdateClass: (c: ClassRoom) => void;
   onDeleteClass: (id: string) => void;
@@ -69,6 +73,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   timetableSlots,
   permissions,
   isOwner,
+  searchQuery = '',
   onAddClass,
   onUpdateClass,
   onDeleteClass,
@@ -100,7 +105,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   const handleOpenAdd = () => {
     setEditingClass({
-      id: `CLASS${(classes.length + 1).toString().padStart(2, '0')}`,
+      id: `CLASS_${crypto.randomUUID()}`,
       code: `LOP-0${classes.length + 1}`,
       name: '',
       programId: '',
@@ -142,6 +147,12 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClass || !editingClass.name.trim()) return;
+    if (!editingClass.code.trim() || classes.some(c => c.id !== editingClass.id && c.code.trim().toLowerCase() === editingClass.code.trim().toLowerCase())) { setScheduleError('Mã lớp không được bỏ trống hoặc trùng với lớp khác.'); return; }
+    if (!Number.isInteger(editingClass.capacity) || editingClass.capacity < 0) { setScheduleError('Sĩ số tối đa phải là số nguyên không âm.'); return; }
+    const room = rooms.find(r => r.id === editingClass.roomId);
+    if (room?.status === 'maintenance') { setScheduleError('Phòng đang bảo trì. Hãy chọn phòng khác.'); return; }
+    if (room && room.capacity > 0 && editingClass.capacity > room.capacity) { setScheduleError('Sĩ số tối đa của lớp vượt sức chứa phòng.'); return; }
+    if (editingClass.capacity > 0 && students.filter(s => s.classId === editingClass.id && s.status === 'active').length > editingClass.capacity) { setScheduleError('Sĩ số tối đa thấp hơn số học viên đang học.'); return; }
     const normalisedEntries = scheduleEntries.map((entry) => ({
       ...entry,
       startTime: normaliseTime(entry.startTime),
@@ -152,6 +163,10 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       return;
     }
     const validEntries = normalisedEntries as Array<ScheduleDraft & { startTime: string; endTime: string }>;
+    for (const entry of validEntries) {
+      const conflict = findScheduleConflict(timetableSlots.filter(slot => slot.classId !== editingClass.id), { ...entry, id: 'draft', classId: editingClass.id, teacherId: editingClass.teacherId, roomId: editingClass.roomId });
+      if (conflict) { setScheduleError(`Trùng giáo viên hoặc phòng với lớp ${classes.find(c => c.id === conflict.classId)?.name || conflict.classId} vào ${entry.dayOfWeek}.`); return; }
+    }
 
     const programName = programInput.trim();
     const matchingProgram = programs.find((program) => (
@@ -207,11 +222,6 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   const handleClassCodeChange = (code: string) => {
     if (!editingClass) return;
-    const existingClass = classes.find((classroom) => classroom.code.trim().toLocaleUpperCase('vi-VN') === code.trim().toLocaleUpperCase('vi-VN'));
-    if (existingClass && existingClass.id !== editingClass.id) {
-      handleOpenEdit(existingClass);
-      return;
-    }
     setEditingClass({ ...editingClass, code });
   };
 
@@ -307,8 +317,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       </div>
 
       {/* Class Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {classes.map((cls) => {
+      <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-4 sm:gap-6">
+        {classes.filter(cls => matchesSearch(searchQuery, cls.name, cls.code)).map((cls) => {
           const teacher = teachers.find(t => t.id === cls.teacherId);
           const room = rooms.find(r => r.id === cls.roomId);
           const program = programs.find(p => p.id === cls.programId);
@@ -421,9 +431,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
       {/* VIEW CLASS ROSTER MODAL */}
       {viewingClassStudents && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-xl border border-slate-200 relative max-h-[85vh] overflow-y-auto">
-            <button
+        <DialogFrame label="Học viên trong lớp" onClose={() => setViewingClassStudents(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-w-xl w-full p-6 shadow-xl border border-slate-200 relative max-h-[85vh] overflow-y-auto">
+            <button aria-label="Đóng"
               onClick={() => setViewingClassStudents(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -485,14 +495,21 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* EDIT / ADD CLASS MODAL */}
       {isModalOpen && editingClass && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Thông tin lớp học" onClose={() => {
+                setIsModalOpen(false);
+                setEditingClass(null);
+                setScheduleEntries([]);
+                setScheduleError(null);
+                setProgramInput('');
+                setIsQuickRoomOpen(false);
+              }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingClass(null);
@@ -600,7 +617,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
               {isQuickRoomOpen && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                   <div className="mb-2 text-xs font-bold text-blue-900">Tạo phòng học mới</div>
-                  <div className="grid grid-cols-[1fr_100px_auto] gap-2">
+                  <div className="grid grid-cols-1 min-[480px]:grid-cols-[minmax(0,1fr)_100px_auto] gap-2">
                     <input type="text" value={newRoomName} onChange={(event) => setNewRoomName(event.target.value)} placeholder="Tên phòng, ví dụ P02" className="min-w-0 rounded-lg border border-blue-200 bg-white px-2 py-1.5" />
                     <input type="number" min="0" value={newRoomCapacity} onChange={(event) => setNewRoomCapacity(Number(event.target.value))} placeholder="Sức chứa" className="min-w-0 rounded-lg border border-blue-200 bg-white px-2 py-1.5" />
                     <button type="button" onClick={handleCreateRoom} className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white hover:bg-blue-800">Thêm</button>
@@ -636,8 +653,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-amber-900"><CalendarDays className="h-4 w-4" /> Ca học theo từng buổi</div>
                   <div className="space-y-2">
                     {sortSchedule(scheduleEntries).map((entry) => (
-                      <div key={entry.dayOfWeek} className="grid grid-cols-[minmax(0,1fr)_5rem_5rem] items-center gap-2">
-                        <span className="font-semibold text-slate-700">{entry.dayOfWeek}</span>
+                      <div key={entry.dayOfWeek} className="grid grid-cols-2 min-[480px]:grid-cols-[minmax(0,1fr)_5rem_5rem] items-center gap-2">
+                        <span className="col-span-2 min-[480px]:col-span-1 font-semibold text-slate-700">{entry.dayOfWeek}</span>
                         <label className="relative">
                           <span className="sr-only">Giờ bắt đầu {entry.dayOfWeek}</span>
                           <input
@@ -695,7 +712,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

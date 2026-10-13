@@ -1,3 +1,4 @@
+import { DialogFrame } from './DialogFrame';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, ChevronRight, ReceiptText, X } from 'lucide-react';
 import { ClassRoom, CourseProgram, Room, Student, Teacher, TuitionReceipt } from '../types';
@@ -207,12 +208,9 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+    <DialogFrame label={title} onClose={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
       <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="relative flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="dialog-panel relative flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
@@ -453,6 +451,6 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
           </button>
         </footer>
       </section>
-    </div>
+    </DialogFrame>
   );
 };

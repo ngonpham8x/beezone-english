@@ -1,3 +1,7 @@
+import { DialogFrame } from './DialogFrame';
+import { useResponsiveView } from '../hooks/useResponsive';
+import { matchesSearch as matchesSearchText } from '../lib/search';
+import { centerDate } from '../lib/dates';
 import React, { useState, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../lib/tuition';
@@ -121,9 +125,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [filterStatus, setFilterStatus] = useState<string>('all');
   // On phones, cards are readable without horizontal scrolling; desktops keep
   // the denser table as the default.
-  const [viewMode, setViewMode] = useState<'table' | 'card'>(() => (
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
-  ));
+  const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -141,26 +143,26 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
   // Reservation Modal state
   const [reservingStudent, setReservingStudent] = useState<Student | null>(null);
-  const [reserveStartDate, setReserveStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reserveStartDate, setReserveStartDate] = useState<string>(centerDate());
   const [reserveEndDate, setReserveEndDate] = useState<string>('');
   const [reserveReason, setReserveReason] = useState<string>('Bận lịch học tại trường chính khóa');
   const [reserveNote, setReserveNote] = useState<string>('');
 
   // Drop Modal state
   const [droppingStudent, setDroppingStudent] = useState<Student | null>(null);
-  const [dropDate, setDropDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dropDate, setDropDate] = useState<string>(centerDate());
   const [dropReason, setDropReason] = useState<string>('Chuyển nơi ở / trường học');
   const [dropNote, setDropNote] = useState<string>('');
 
   // Re-enroll Modal state
   const [reEnrollingStudent, setReEnrollingStudent] = useState<Student | null>(null);
   const [reEnrollClassId, setReEnrollClassId] = useState<string>('');
-  const [reEnrollDate, setReEnrollDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reEnrollDate, setReEnrollDate] = useState<string>(centerDate());
   const [reEnrollNote, setReEnrollNote] = useState<string>('');
 
   const handleOpenReserve = (st: Student) => {
     setReservingStudent(st);
-    setReserveStartDate(new Date().toISOString().split('T')[0]);
+    setReserveStartDate(centerDate());
     setReserveEndDate('');
     setReserveReason('Bận lịch học tại trường chính khóa');
     setReserveNote('');
@@ -168,7 +170,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
   const handleOpenDrop = (st: Student) => {
     setDroppingStudent(st);
-    setDropDate(new Date().toISOString().split('T')[0]);
+    setDropDate(centerDate());
     setDropReason('Chuyển nơi ở / trường học');
     setDropNote('');
   };
@@ -176,7 +178,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const handleOpenReEnroll = (st: Student) => {
     setReEnrollingStudent(st);
     setReEnrollClassId(st.classId || classes[0]?.id || '');
-    setReEnrollDate(new Date().toISOString().split('T')[0]);
+    setReEnrollDate(centerDate());
     setReEnrollNote('');
   };
 
@@ -240,11 +242,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   // Filtered list
   const filteredStudents = students.filter(s => {
     const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.phone.includes(searchQuery) ||
-      s.parentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.parentPhone.includes(searchQuery);
+      matchesSearchText(searchQuery, s.name, s.code, s.phone, s.parentName, s.parentPhone, classes.find(c => c.id === s.classId)?.name, classes.find(c => c.id === s.classId)?.code);
 
     const matchesProgram = filterProgram === 'all' || s.programId === filterProgram;
     const matchesClass = filterClass === 'all' || s.classId === filterClass;
@@ -272,7 +270,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       phone: '',
       parentName: '',
       parentPhone: '',
-      enrollDate: new Date().toISOString().split('T')[0],
+      enrollDate: centerDate(),
       notes: '',
       status: 'active',
       feeStatus: 'unpaid'
@@ -311,6 +309,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       alert(`Không tìm thấy lớp “${classInput}”. Hãy tạo lớp tại Quản lý lớp học trước, rồi chọn hoặc nhập đúng mã/tên lớp để dữ liệu không bị đứt liên kết.`);
       return;
     }
+    if (editingStudent.status === 'active' && !selectedClass) { alert('Học viên đang học cần được xếp lớp.'); return; }
+    if (selectedClass && selectedClass.capacity > 0 && editingStudent.status === 'active' && students.filter(s => s.id !== editingStudent.id && s.classId === selectedClass.id && s.status === 'active').length >= selectedClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return; }
 
     let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '' };
     if (programEntryMode === 'manual') {
@@ -333,6 +333,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         tuitionFee: 0,
         description: 'Tạo thủ công tại hồ sơ học viên.'
       };
+      if (!existingProgram && !isOwner) { alert('Chỉ Chủ trung tâm được tạo chương trình học mới.'); return; }
       if (!existingProgram) onCreateProgram(program);
       studentToSave = { ...studentToSave, programId: program.id };
     }
@@ -507,7 +508,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
-              onClick={() => setViewMode('table')}
+              aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'table'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -518,7 +519,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               <span>Dạng Bảng</span>
             </button>
             <button
-              onClick={() => setViewMode('card')}
+              aria-pressed={viewMode === 'card'} onClick={() => setViewMode('card')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'card'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -729,7 +730,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         </div>
       ) : (
         /* Mobile Card Grid View */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-4">
           {filteredStudents.length === 0 ? (
             <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400">
               {t('student.no_matching')}
@@ -893,9 +894,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
       {/* RICH VIEW STUDENT DETAIL MODAL */}
       {viewingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
-            <button
+        <DialogFrame label="Hồ sơ học viên" onClose={() => setViewingStudent(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => setViewingStudent(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg z-10"
             >
@@ -997,7 +998,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     <div className="text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
                       Ma trận thời khóa biểu hàng tuần của {viewingStudent.name}:
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-7 gap-1.5 text-center">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-center">
                       {daysOfWeek.map((day) => {
                         const daySlots = classSlots.filter((slot) => slot.dayOfWeek === day);
                         const isStudyDay = daySlots.length > 0 || (classSlots.length === 0 && activeDays.includes(day));
@@ -1110,14 +1111,17 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* ADD / EDIT STUDENT MODAL */}
       {isModalOpen && editingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-slate-200 relative max-h-[90vh] overflow-y-auto">
-            <button
+        <DialogFrame label="Thông tin học viên" onClose={() => {
+                setIsModalOpen(false);
+                setEditingStudent(null);
+              }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-slate-200 relative max-h-[90vh] overflow-y-auto">
+            <button aria-label="Đóng"
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingStudent(null);
@@ -1395,14 +1399,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* MODAL BẢO LƯU HỌC TẬP */}
       {reservingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
-            <button
+        <DialogFrame label="Bảo lưu học viên" onClose={() => setReservingStudent(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="dialog-panel bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button aria-label="Đóng"
               onClick={() => setReservingStudent(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -1492,14 +1496,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* MODAL NGHỈ HỌC NGANG */}
       {droppingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
-            <button
+        <DialogFrame label="Nghỉ học" onClose={() => setDroppingStudent(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="dialog-panel bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button aria-label="Đóng"
               onClick={() => setDroppingStudent(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -1578,14 +1582,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* MODAL HỌC VIÊN QUAY LẠI HỌC TIẾP */}
       {reEnrollingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
-            <button
+        <DialogFrame label="Đăng ký học lại" onClose={() => setReEnrollingStudent(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="dialog-panel bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button aria-label="Đóng"
               onClick={() => setReEnrollingStudent(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
             >
@@ -1665,7 +1669,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

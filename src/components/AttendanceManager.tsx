@@ -1,3 +1,5 @@
+import { centerDate } from '../lib/dates';
+import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useMemo } from 'react';
 import {
   AttendanceSession,
@@ -52,7 +54,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   // Determine classes the current teacher/staff is permitted to access
   const permittedClasses = useMemo(() => {
     if (isOwner) return classes;
-    if (!currentUser) return classes;
+    if (!currentUser) return [];
 
     const assignedIds = currentUser.permissions.assignedClassIds || [];
     const teacherId = currentUser.permissions.teacherId;
@@ -68,18 +70,17 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       return false;
     });
   }, [classes, isOwner, currentUser, teachers]);
+  const canSave = isOwner || Boolean(currentUser?.permissions.student.edit || currentUser?.permissions.teacher.edit);
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => permittedClasses[0]?.id || '');
   const [sessionDate, setSessionDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    centerDate()
   );
   const [lessonTopic, setLessonTopic] = useState<string>('');
   const [generalNotes, setGeneralNotes] = useState<string>('');
   const [showTopicNote, setShowTopicNote] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'card' : 'table'
-  );
+  const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   const tableScrollRef = React.useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -93,14 +94,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
   // Sync selected class if permitted classes changes
   React.useEffect(() => {
-    if (permittedClasses.length > 0 && !permittedClasses.some(c => c.id === selectedClassId)) {
-      setSelectedClassId(permittedClasses[0].id);
+    if (!permittedClasses.some(c => c.id === selectedClassId)) {
+      setSelectedClassId(permittedClasses[0]?.id || '');
     }
   }, [permittedClasses, selectedClassId]);
 
   const selectedClass = useMemo(
-    () => classes.find(c => c.id === selectedClassId),
-    [classes, selectedClassId]
+    () => permittedClasses.find(c => c.id === selectedClassId),
+    [permittedClasses, selectedClassId]
   );
 
   // Existing session for this class on this date if any
@@ -118,6 +119,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     if (!selectedClassId) return [];
     const recordedIds = existingSession ? existingSession.entries.map(e => e.studentId) : [];
     return students.filter(s => {
+      if (recordedIds.includes(s.id)) return true;
       if (s.classId !== selectedClassId) return false;
       if (s.status === 'active') return true;
       if (recordedIds.includes(s.id)) return true;
@@ -209,7 +211,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   };
 
   const handleSave = () => {
-    if (!selectedClassId) return;
+    if (!canSave || !selectedClass || !sessionDate) return;
 
     const sessionData: AttendanceSession = {
       id: existingSession ? existingSession.id : `ATT_${Date.now()}`,
@@ -218,12 +220,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       lessonTopic: lessonTopic.trim() || 'Buổi học theo thời khóa biểu',
       teacherId: selectedClass?.teacherId,
       generalNotes: generalNotes.trim(),
-      entries: classStudents.map(st => ({
+      entries: [...(existingSession?.entries || []).filter(entry => !classStudents.some(st => st.id === entry.studentId)), ...classStudents.map(st => ({
         studentId: st.id,
         status: entries[st.id]?.status || 'present',
         homeworkCompleted: entries[st.id]?.homeworkCompleted ?? true,
         note: entries[st.id]?.note || ''
-      }))
+      }))]
     };
 
     onSaveSession(sessionData);
@@ -420,7 +422,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
-              onClick={() => setViewMode('card')}
+              aria-pressed={viewMode === 'card'} onClick={() => setViewMode('card')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'card'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -432,7 +434,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('table')}
+              aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'table'
                   ? 'bg-white text-slate-900 shadow-2xs border border-slate-200'
@@ -474,6 +476,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           <button
             type="button"
             onClick={handleSave}
+            disabled={!canSave || !selectedClass}
             className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm active:scale-95 cursor-pointer"
           >
             <Save className="w-4 h-4 shrink-0" />
@@ -492,7 +495,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               Lớp này hiện chưa có học viên nào.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-3">
               {classStudents.map((st, index) => {
                 const entry = entries[st.id] || {
                   status: 'present',

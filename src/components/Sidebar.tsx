@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { DRAWER_QUERY, useMediaQuery } from '../hooks/useResponsive';
+import { useOverlay } from '../hooks/useOverlay';
 import { UserAccount } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -48,6 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { language, setLanguage, t } = useLanguage();
   const isOwner = currentUser.role === 'owner';
   const perms = currentUser.permissions;
+  const isDrawer = useMediaQuery(DRAWER_QUERY);
+  const sidebarRef = useRef<HTMLElement>(null);
+  useOverlay(sidebarRef, isDrawer && !collapsed, () => setCollapsed(true));
 
   const menuGroups = [
     {
@@ -96,21 +101,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && (
         <div
           onClick={() => setCollapsed(true)}
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 md:hidden animate-fade-in"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 lg:hidden animate-fade-in"
           aria-hidden="true"
         />
       )}
 
       <aside
-        className={`bg-white text-slate-800 transition-all duration-300 border-r border-slate-200/90 shadow-2xs custom-scrollbar ${
+        ref={sidebarRef}
+        role={isDrawer && !collapsed ? 'dialog' : undefined}
+        aria-modal={isDrawer && !collapsed ? true : undefined}
+        tabIndex={-1}
+        id="primary-navigation"
+        aria-label="Điều hướng chính"
+        className={`app-sidebar bg-white text-slate-800 transition-all duration-300 border-r border-slate-200/90 shadow-2xs custom-scrollbar ${
           collapsed
-            ? 'hidden md:block md:w-16 md:sticky md:top-[52px] md:self-start md:h-[calc(100vh-52px)] md:overflow-y-auto md:z-20'
-            : 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] h-full overflow-y-auto shadow-2xl md:shadow-none md:static md:sticky md:top-[52px] md:self-start md:h-[calc(100vh-52px)] md:w-64 md:z-20'
+            ? 'hidden lg:block lg:w-16 lg:sticky lg:self-start lg:overflow-y-auto lg:z-20'
+            : 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] h-dvh overflow-y-auto shadow-2xl lg:shadow-none lg:static lg:sticky lg:self-start lg:w-64 lg:z-20'
         }`}
       >
         <div className="px-2.5 py-3">
           {/* Mobile Header Bar inside Sidebar when open */}
-          <div className="flex md:hidden items-center justify-between pb-3 mb-3 border-b border-slate-100">
+          <div className="flex lg:hidden items-center justify-between pb-3 mb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-slate-900 uppercase tracking-tight">Danh mục quản lý</span>
               <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">BeeZone</span>
@@ -119,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => setCollapsed(true)}
               title="Thu gọn menu"
               aria-label="Thu gọn menu"
-              className="p-1.5 rounded-xl text-slate-600 hover:text-amber-800 hover:bg-amber-100/70 border border-slate-200 bg-white shadow-xs transition active:scale-95 flex items-center justify-center"
+              className="min-w-11 p-1.5 rounded-xl text-slate-600 hover:text-amber-800 hover:bg-amber-100/70 border border-slate-200 bg-white shadow-xs transition active:scale-95 flex items-center justify-center"
             >
               <ChevronLeft className="w-5 h-5 text-amber-700" />
             </button>
@@ -150,7 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           key={item.id}
                           onClick={() => {
                             setActiveTab(item.id);
-                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                            if (isDrawer) {
                               setCollapsed(true);
                             }
                           }}
@@ -160,6 +171,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               : 'text-slate-700 hover:text-slate-950 hover:bg-amber-50/80 font-bold'
                           }`}
                           title={collapsed ? item.label : undefined}
+                          aria-label={item.label}
+                          aria-current={isActive ? 'page' : undefined}
                         >
                           <Icon className={`w-4 h-4 flex-shrink-0 transition-transform ${isActive ? 'text-slate-950 scale-105' : item.iconColor}`} />
                           {!collapsed && <span className="truncate">{item.label}</span>}

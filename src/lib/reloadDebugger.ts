@@ -161,7 +161,7 @@ export function useEffectDebug(
     return () => {
       const duration = (performance.now() - start).toFixed(2);
       console.log(`⏱️ [${label || 'useEffect'}] cleanup called (ran for ${duration}ms)`);
-      cleanup?.();
+      if (typeof cleanup === 'function') cleanup();
     };
   }, deps);
 }

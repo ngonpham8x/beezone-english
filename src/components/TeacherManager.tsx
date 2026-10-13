@@ -1,3 +1,5 @@
+import { DialogFrame } from './DialogFrame';
+import { matchesSearch } from '../lib/search';
 import React, { useState } from 'react';
 import { Teacher, ClassRoom, StaffPermissions } from '../types';
 import { useLanguage } from '../context/LanguageContext';
@@ -27,6 +29,7 @@ interface TeacherManagerProps {
   classes: ClassRoom[];
   permissions: StaffPermissions;
   isOwner: boolean;
+  searchQuery?: string;
   onAddTeacher: (t: Teacher) => void;
   onUpdateTeacher: (t: Teacher) => void;
   onDeleteTeacher: (id: string) => void;
@@ -38,6 +41,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   classes,
   permissions,
   isOwner,
+  searchQuery = '',
   onAddTeacher,
   onUpdateTeacher,
   onDeleteTeacher,
@@ -53,7 +57,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
   const handleOpenAdd = () => {
     setEditingTeacher({
-      id: `GV${(teachers.length + 1).toString().padStart(3, '0')}`,
+      id: `TEACHER_${crypto.randomUUID()}`,
       name: '',
       phone: '',
       email: '',
@@ -106,8 +110,8 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       </div>
 
       {/* Teacher Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {teachers.map((teacher) => {
+      <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-4 sm:gap-6">
+        {teachers.filter(teacher => matchesSearch(searchQuery, teacher.name, teacher.phone, teacher.email)).map((teacher) => {
           const teacherClasses = classes.filter(c => c.teacherId === teacher.id);
 
           return (
@@ -215,9 +219,9 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
       {/* TEACHER DETAIL MODAL */}
       {viewingTeacherDetails && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Hồ sơ giáo viên" onClose={() => setViewingTeacherDetails(null)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => setViewingTeacherDetails(null)}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg z-10"
             >
@@ -330,14 +334,17 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </DialogFrame>
       )}
 
       {/* EDIT / ADD TEACHER MODAL */}
       {isModalOpen && editingTeacher && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
-            <button
+        <DialogFrame label="Thông tin giáo viên" onClose={() => {
+                setIsModalOpen(false);
+                setEditingTeacher(null);
+              }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+            <button aria-label="Đóng"
               onClick={() => {
                 setIsModalOpen(false);
                 setEditingTeacher(null);
@@ -467,7 +474,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   );

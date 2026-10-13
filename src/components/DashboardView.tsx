@@ -126,14 +126,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
                 ? showDebt
                 : false;
     const content = (
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col-reverse items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</p>
-          <p className="mt-1 text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{canOpen ? value : '—'}</p>
+          <p className="mt-1 break-words text-lg sm:text-xl font-black text-slate-900 tracking-tight">{canOpen ? value : '—'}</p>
           {canOpen && subtitle && <p className="mt-1 text-[11px] font-semibold text-slate-500 truncate">{subtitle}</p>}
         </div>
-        <span className={`grid h-12 w-12 place-items-center rounded-2xl ${color} shadow-2xs shrink-0 transition-transform group-hover:scale-105`}>
-          <Icon className="h-6 w-6" />
+        <span className={`grid h-9 w-9 place-items-center rounded-xl ${color} shadow-2xs shrink-0 transition-transform group-hover:scale-105`}>
+          <Icon className="h-5 w-5" />
         </span>
       </div>
     );
@@ -246,7 +246,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
       </section>
 
       {/* Primary Metric Cards */}
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 @min-[700px]:grid-cols-3 @min-[1100px]:grid-cols-5">
         <Card label="Tổng học sinh" value={students.length} icon={Users} color="bg-amber-100 text-amber-700" detail="students" subtitle={`${activeStudents.length} đang theo học`} />
         <Card label="Giáo viên" value={teachers.length} icon={GraduationCap} color="bg-blue-100 text-blue-600" detail="teachers" subtitle="Đội ngũ giảng dạy" />
         <Card label="Lớp học" value={classes.length} icon={Building2} color="bg-amber-100 text-amber-600" detail="classes" subtitle="Lớp đang mở" />
@@ -259,7 +259,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
       </section>
 
       {/* Student Status & Debt Breakdown Cards */}
-      <section className={`grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 ${showDebt ? 'xl:grid-cols-6' : ''}`}>
+      <section className={`grid grid-cols-2 gap-3 sm:gap-4 @min-[700px]:grid-cols-3 @min-[1100px]:grid-cols-4 ${showDebt ? '@min-[1400px]:grid-cols-6' : ''}`}>
         <Card label="Đang học" value={activeStudents.length} icon={UserCheck} color="bg-emerald-100 text-emerald-600" detail="active" subtitle="Chuyên cần đầy đủ" />
         <Card label="Bảo lưu" value={reservedStudents.length} icon={UserMinus} color="bg-amber-100 text-amber-600" detail="reserved" subtitle="Tạm dừng học" />
         <Card label="Học sinh nợ phí" value={showDebt ? debtStudents.length : '—'} icon={AlertTriangle} color="bg-orange-100 text-orange-600" detail="debt" subtitle="Cần theo dõi" />
@@ -320,7 +320,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
           <h2 className="text-sm font-bold text-slate-900">Học sinh theo chương trình</h2>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-col items-center gap-3">
             <div className="h-36 w-36 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -330,7 +330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="w-full min-w-0 flex-1 space-y-2">
               {programData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
@@ -363,7 +363,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
 
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
           <h2 className="text-sm font-bold text-slate-900">Tình trạng học phí</h2>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-col items-center gap-3">
             <div className="h-36 w-36 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -373,7 +373,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="w-full min-w-0 flex-1 space-y-2">
               {tuitionStatusData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between gap-2 text-xs">
                   <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
