@@ -34,11 +34,11 @@
 
 - TypeScript: `npm run lint`; build gồm kiểm tra kiểu trước khi bundle.
 - **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 63 test và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
-- **82 test / 9 tệp đã qua**, trong đó điều hướng cả 18 phân hệ và 19 test responsive bổ sung. Test trong `tests/`: dữ liệu/sao lưu, tiền và ngày, xác thực, phiên làm mới, xung đột/lỗi lưu, API trả HTML, Excel xuất–nhập, quyền DB, điều hướng, menu/dialog/focus và thay đổi viewport. Xem [UI_REVIEW.md](UI_REVIEW.md) để biết phạm vi kiểm tra đa thiết bị.
+- **88 test / 10 tệp đã qua**, trong đó điều hướng cả 18 phân hệ, 19 test responsive và 6 test cuộn ngang/cuối tuần. Test trong `tests/`: dữ liệu/sao lưu, tiền và ngày, xác thực, phiên làm mới, xung đột/lỗi lưu, API trả HTML, Excel xuất–nhập, quyền DB, điều hướng, menu/dialog/focus, thay đổi viewport và các điều khiển cuộn bảng. Xem [UI_REVIEW.md](UI_REVIEW.md) để biết phạm vi kiểm tra đa thiết bị.
 - Các migration 001–006 được thực thi trên PostgreSQL cục bộ (PGlite). Kiểm tra RLS tài khoản khóa, quyền ghi, lớp được phân công, dữ liệu không hợp lệ, chủ cuối cùng và cập nhật snapshot cũ.
 - Kiểm tra HTTP development: API chưa cấu hình trả lỗi JSON đúng, không trả danh sách giả hoặc báo thành công giả.
 - `npm audit`: **0 lỗ hổng**, kiểm tra cả dependency phát triển theo lockfile.
-- Build chia bundle chính từ khoảng 2.305 KB xuống khoảng 359 KB sau khi tách phân hệ và bổ sung xử lý responsive/dialog. ExcelJS vẫn có chunk lớn tải riêng khi dùng Excel; đây còn là giới hạn thư viện.
+- Build chia bundle chính từ khoảng 2.305 KB xuống khoảng 362 KB sau khi tách phân hệ và bổ sung xử lý responsive/dialog/cuộn ngang. ExcelJS vẫn có chunk lớn tải riêng khi dùng Excel; đây còn là giới hạn thư viện.
 
 ## Phần còn phải xác nhận trước khi vận hành
 

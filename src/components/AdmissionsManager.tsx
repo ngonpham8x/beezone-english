@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { useResponsiveView } from '../hooks/useResponsive';
 import { centerDate } from '../lib/dates';
@@ -459,7 +460,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
       {viewMode === 'table' ? (
         /* Admissions Candidate Table */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Tuyển sinh" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[1100px] text-left text-xs text-slate-700 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
                 <tr>
@@ -626,7 +627,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
                 )}
               </tbody>
             </table>
-          </div>
+          </HorizontalScroll>
         </div>
       ) : (
         /* Responsive Card View (Mobile & Compact View) */

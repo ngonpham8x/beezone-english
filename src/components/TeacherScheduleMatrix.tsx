@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { centerDate } from '../lib/dates';
 import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useRef } from 'react';
@@ -25,9 +26,8 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
   const scrollTable = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const amount = 350;
-      scrollContainerRef.current.scrollBy({
-        left: direction === 'left' ? -amount : amount,
+      scrollContainerRef.current.scrollTo({
+        left: direction === 'left' ? 0 : Math.max(0, scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth),
         behavior: 'smooth'
       });
     }
@@ -78,7 +78,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
       {/* Day Selector Bar & Scroll Shortcuts */}
       <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5 print:hidden">
-        <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 max-w-full">
+        <div className="flex flex-wrap items-center gap-1.5 max-w-full">
           <button
             onClick={() => setSelectedDay('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
@@ -148,7 +148,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
           <span className="text-xs text-amber-200/80 italic">Cập nhật: 2026</span>
         </div>
 
-        <div ref={scrollContainerRef} className="teacher-print-table-wrap overflow-x-auto custom-scrollbar">
+        <HorizontalScroll label="Lịch giáo viên" ref={scrollContainerRef} className="teacher-print-table-wrap overflow-x-auto custom-scrollbar">
           <table className={`teacher-print-table w-full text-xs text-left border-collapse border border-slate-300 ${selectedDay === 'all' ? 'min-w-[1100px]' : 'min-w-full'}`}>
             <thead>
               <tr className="bg-amber-400 text-slate-950 uppercase text-[11px] font-black border-b border-amber-500">
@@ -210,7 +210,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
               ))}
             </tbody>
           </table>
-        </div>
+        </HorizontalScroll>
       </div>
     </div>
   );

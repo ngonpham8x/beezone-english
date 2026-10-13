@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { useResponsiveView } from '../hooks/useResponsive';
 import { matchesSearch as matchesSearchText } from '../lib/search';
@@ -537,7 +538,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       {viewMode === 'table' ? (
         /* Student Table View */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Học viên" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[1080px] text-left text-xs text-slate-600 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
@@ -726,7 +727,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 )}
               </tbody>
             </table>
-          </div>
+          </HorizontalScroll>
         </div>
       ) : (
         /* Mobile Card Grid View */

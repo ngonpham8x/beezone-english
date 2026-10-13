@@ -34,7 +34,19 @@
 
 `tests/responsive.test.tsx` kiểm tra 11 viewport, xoay/đổi kích thước, lựa chọn dạng thẻ/bảng, màn hình điểm số thực, dialog trong StrictMode, dialog lồng nhau, viewport thu nhỏ khi mở bàn phím, truy cập phân quyền trên điện thoại và hủy xóa phiếu thu bằng Esc. Các kiểm tra phân hệ, xác thực và nghiệp vụ cũ được chạy lại bằng `npm run check`.
 
-Kết quả: TypeScript qua; **82 test / 9 tệp qua** (19 test responsive mới); Vite production build qua; kiểm tra bundle production không chứa xác thực xem thử qua. ExcelJS vẫn có cảnh báo kích thước chunk lớn như đợt rà soát trước.
+Kết quả mới nhất: TypeScript qua; **88 test / 10 tệp qua** (19 test responsive và 6 test cuộn ngang); Vite production build qua; kiểm tra bundle production không chứa xác thực xem thử qua. ExcelJS vẫn có cảnh báo kích thước chunk lớn như đợt rà soát trước.
+
+## Bổ sung: lịch cuối tuần và thanh cuộn ngang
+
+Theo ảnh người dùng cung cấp, bảng lịch có tổng chiều rộng cột lớn hơn vùng nội dung; thanh cuộn ở cuối bảng dài và nút cuối tuần chỉ dịch thêm 350 px.
+
+- Bảng thời khóa biểu theo tuần dùng bố cục cột cố định, chiều rộng tối thiểu 980 px và cột giờ 128 px. Các cột ngày chia đều phần còn lại để có thể hiện cả tuần trên vùng nội dung của laptop thông thường; màn hình hẹp vẫn cuộn ngang.
+- “Thứ 7 & CN” đi thẳng tới vị trí cuối cùng (`scrollWidth - clientWidth`); “Đầu tuần” quay về đầu bảng. Áp dụng cả lịch giáo viên. Các nút chọn ngày xuống dòng thay vì giấu cuối tuần.
+- Thanh cuộn ngang đặt cao 20 px, bỏ chế độ `thin`. Với Chromium/WebKit, đặt lại màu chuẩn về `auto` để quy tắc thanh cuộn 20 px có hiệu lực; thuộc tính màu/chiều rộng chuẩn có thể ghi đè kiểu WebKit. Tham khảo [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::-webkit-scrollbar).
+- 14 vùng bảng có thêm thanh kéo phía trên khi bị tràn ngang, tay kéo 30×28 px và nút 44×44 px. Không cần xuống cuối bảng để xem cột bên phải. Thanh trên đồng bộ với cuộn gốc, nút cuộn hiện có và thay đổi kích thước màn hình; hỗ trợ Home/End khi focus vùng bảng. Điều khiển phụ được ẩn khi in.
+- Sáu test bổ sung kiểm tra kéo thanh trên, đồng bộ cuộn, đổi kích thước, phím Home/End không ảnh hưởng ô nhập, hiện đủ bảy tiêu đề ngày và nhảy đúng tới cuối tuần ở hai trang lịch.
+
+Kiểm tra mới dùng kích thước vùng cuộn giả lập trong jsdom; chưa xác nhận ảnh kết quả trên Cốc Cốc/Chrome thật vì trình duyệt chưa kết nối.
 
 ## Giới hạn cần xác nhận trực quan
 

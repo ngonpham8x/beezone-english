@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
 import React, { useRef, useState } from 'react';
@@ -388,7 +389,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
           <span className="text-[10px] text-amber-400 font-medium">Chỉ hiển thị bản xuất đã ghi nhận</span>
         </div>
 
-        <div className="overflow-x-auto">
+        <HorizontalScroll label="Lịch sử sao lưu" className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
             <thead className="bg-slate-100 text-slate-600 uppercase text-[11px] font-bold border-b border-slate-200">
               <tr>
@@ -444,7 +445,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
               )}
             </tbody>
           </table>
-        </div>
+        </HorizontalScroll>
       </div>
 
       {restoreCandidate && (

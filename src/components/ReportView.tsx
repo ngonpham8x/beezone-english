@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
 import React, { useState } from 'react';
@@ -150,7 +151,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
         {/* Classes Table */}
         <div>
           <h3 className="font-bold text-slate-900 text-sm mb-3">Chi Tiết Tình Hình Lớp Học & Học Phí:</h3>
-          <div className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Báo cáo lớp" className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[640px] text-left text-xs border border-slate-200">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[10px] font-bold">
                 <tr>
@@ -189,7 +190,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 })}
               </tbody>
             </table>
-          </div>
+          </HorizontalScroll>
         </div>
       </div>
 
@@ -217,7 +218,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               <div className="rounded-xl bg-violet-50 p-3"><p className="text-violet-700">Nợ khóa</p><b className="mt-1 block text-violet-800">{selectedClassDebt.course.toLocaleString('vi-VN')} đ</b></div>
             </div>
 
-            <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+            <HorizontalScroll label="Học phí theo học viên" className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Nợ tháng</th><th className="px-3 py-2.5 text-right">Nợ khóa</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
@@ -229,7 +230,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                   })}
                 </tbody>
               </table>
-            </div>
+            </HorizontalScroll>
           </div>
         </DialogFrame>
       )}

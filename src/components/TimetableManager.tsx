@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { useResponsiveView } from '../hooks/useResponsive';
 import React, { useState, useRef } from 'react';
@@ -60,9 +61,8 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
   const scrollTable = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const amount = 350;
-      scrollContainerRef.current.scrollBy({
-        left: direction === 'left' ? -amount : amount,
+      scrollContainerRef.current.scrollTo({
+        left: direction === 'left' ? 0 : Math.max(0, scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth),
         behavior: 'smooth'
       });
     }
@@ -206,7 +206,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
       {/* Day Selector & Quick Navigation Bar */}
       <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 max-w-full">
+        <div className="flex flex-wrap items-center gap-1.5 max-w-full">
           <button
             aria-pressed={viewMode === 'week'} onClick={() => setViewMode('week')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
@@ -223,6 +223,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
             return (
               <button
                 key={day}
+                aria-pressed={isSelected}
                 onClick={() => {
                   setSelectedDay(day);
                   setViewMode('day');
@@ -271,15 +272,15 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
       {/* TIMETABLE GRID TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div ref={scrollContainerRef} className="overflow-x-auto custom-scrollbar">
-          <table className={`w-full text-left border-collapse text-xs ${viewMode === 'week' ? 'min-w-[1100px]' : 'min-w-full'}`}>
+        <HorizontalScroll label="Thời khóa biểu" ref={scrollContainerRef} className="overflow-x-auto custom-scrollbar">
+          <table className={`w-full table-fixed text-left border-collapse text-xs ${viewMode === 'week' ? 'min-w-[980px]' : 'min-w-[280px]'}`}>
             <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
               <tr>
-                <th className="py-3 px-3.5 border-b border-slate-700 w-36 min-w-[125px] sticky left-0 z-30 bg-slate-800 shadow-xs text-center">
+                <th className="py-3 px-2 border-b border-slate-700 w-32 sticky left-0 z-20 bg-slate-800 shadow-xs text-center">
                   Ca Học / Giờ
                 </th>
                 {(viewMode === 'week' ? daysOfWeek : [selectedDay]).map((day) => (
-                  <th key={day} className="py-3 px-3 border-b border-slate-700 text-center min-w-[150px] sm:min-w-[165px]">
+                  <th key={day} className="py-3 px-2 border-b border-slate-700 text-center">
                     {day}
                   </th>
                 ))}
@@ -291,7 +292,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
                 return (
                   <tr key={timeRange} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-3 bg-slate-100/95 font-bold text-red-900 border-r border-slate-200 sticky left-0 z-20 shadow-xs whitespace-nowrap">
+                    <td className="py-3.5 px-2 bg-slate-100/95 font-bold text-red-900 border-r border-slate-200 sticky left-0 z-10 shadow-xs">
                       <div className="flex items-center gap-1.5 justify-center">
                         <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                         <span className="font-mono text-[11px]">{timeRange}</span>
@@ -304,7 +305,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                       );
 
                       return (
-                        <td key={day} className="p-2 border-r border-slate-100 align-top h-28 min-w-[150px] sm:min-w-[165px]">
+                        <td key={day} className="p-1.5 border-r border-slate-100 align-top h-28">
                           {matchedSlots.length === 0 ? (
                             <div className="h-full border border-dashed border-slate-200 rounded-xl flex items-center justify-center text-[10px] text-slate-300">
                               Trống ca
@@ -352,7 +353,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
               })}
             </tbody>
           </table>
-        </div>
+        </HorizontalScroll>
       </div>
 
       {/* ADD SLOT MODAL WITH CONFLICT CHECKER */}

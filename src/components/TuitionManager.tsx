@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import { DialogFrame } from './DialogFrame';
 import { centerDate } from '../lib/dates';
 import React, { useMemo, useState, useRef } from 'react';
@@ -609,7 +610,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           </div>
         </div>
 
-        <div ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
+        <HorizontalScroll label="Học phí" ref={tableScrollRef} className="overflow-x-auto custom-scrollbar">
           <table className="w-full min-w-[1050px] text-left text-xs text-slate-700 border-collapse">
             <thead className="bg-slate-100 text-slate-600 uppercase text-[11px] font-bold border-b border-slate-200">
               <tr>
@@ -744,7 +745,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               {!filteredReceipts.length && <tr><td colSpan={11} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Không tìm thấy phiếu thu phù hợp với bộ lọc hiện tại.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </HorizontalScroll>
       </div>
 
       {/* COLLECT TUITION MODAL */}

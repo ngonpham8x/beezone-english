@@ -1,3 +1,4 @@
+import { HorizontalScroll } from './HorizontalScroll';
 import React, { useState } from 'react';
 import { AccountAuditLog, ActivityLog } from '../types';
 import { History, Search, Filter, ShieldCheck, RefreshCw } from 'lucide-react';
@@ -131,7 +132,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
         ) : filteredAccountLogs.length === 0 ? (
           <p className="p-5 text-center text-xs text-slate-500">Chưa có thay đổi tài khoản nào được ghi nhận.</p>
         ) : (
-          <div className="overflow-x-auto custom-scrollbar">
+          <HorizontalScroll label="Nhật ký tài khoản" className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[760px] text-left text-xs text-slate-700">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500">
                 <tr>
@@ -154,13 +155,13 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
                 ))}
               </tbody>
             </table>
-          </div>
+          </HorizontalScroll>
         )}
       </section>
 
       {/* Logs Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
+        <HorizontalScroll label="Nhật ký hệ thống" className="overflow-x-auto custom-scrollbar">
           <table className="w-full min-w-[760px] text-left text-xs text-slate-700">
             <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
               <tr>
@@ -196,7 +197,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
               ))}
             </tbody>
           </table>
-        </div>
+        </HorizontalScroll>
       </div>
     </div>
   );
