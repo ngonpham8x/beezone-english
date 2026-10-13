@@ -570,8 +570,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           <span className="text-xs text-slate-500 font-medium">Bấm vào một dòng để xem hoặc in phiếu PDF</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full min-w-[1000px] text-left text-xs text-slate-700">
             <thead className="bg-slate-100 text-slate-600 uppercase text-[11px] font-bold border-b border-slate-200">
               <tr>
                 <th className="py-3 px-3.5 whitespace-nowrap">Mã Phiếu Thu</th>

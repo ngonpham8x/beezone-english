@@ -500,8 +500,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       {viewMode === 'table' ? (
         /* Student Table View */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full min-w-[960px] text-left text-xs text-slate-600">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4">{t('student.table_code')}</th>

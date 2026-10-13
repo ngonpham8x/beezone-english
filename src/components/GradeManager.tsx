@@ -147,23 +147,33 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         </div>
       )}
 
+      {/* Subheader info & Horizontal scroll hint */}
+      <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+        <span>
+          Đang hiển thị: <strong className="text-slate-800 font-bold">{classStudents.length}</strong> học viên
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full font-semibold shadow-2xs">
+          ↔️ Hỗ trợ cuộn ngang bảng điểm (Zoom 70-80% / Màn hình nhỏ)
+        </span>
+      </div>
+
       {/* Gradebook Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full min-w-[1100px] text-left text-xs text-slate-700">
             <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold">
               <tr>
-                <th className="py-3 px-4">Mã HS</th>
-                <th className="py-3 px-4">Họ Và Tên</th>
-                <th className="py-3 px-3 text-center bg-slate-900/40">Nghe (Listening)</th>
-                <th className="py-3 px-3 text-center bg-slate-900/40">Nói (Speaking)</th>
-                <th className="py-3 px-3 text-center bg-slate-900/40">Đọc (Reading)</th>
-                <th className="py-3 px-3 text-center bg-slate-900/40">Viết (Writing)</th>
-                <th className="py-3 px-3 text-center">Giữa Kỳ</th>
-                <th className="py-3 px-3 text-center">Cuối Kỳ</th>
-                <th className="py-3 px-3 text-center">Chuyên Cần</th>
-                <th className="py-3 px-4 text-center bg-amber-600 text-slate-950 font-extrabold">ĐTB</th>
-                <th className="py-3 px-3 text-center">Hành Động</th>
+                <th className="py-3.5 px-3 w-28 min-w-[112px] max-w-[112px] sticky left-0 bg-slate-800 z-20 whitespace-nowrap">Mã HS</th>
+                <th className="py-3.5 px-4 min-w-[170px] sticky left-28 bg-slate-800 z-20 border-r border-slate-700 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.3)] whitespace-nowrap">Họ Và Tên</th>
+                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Nghe (Listening)</th>
+                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Nói (Speaking)</th>
+                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Đọc (Reading)</th>
+                <th className="py-3.5 px-3 text-center bg-slate-900/40 min-w-[90px]">Viết (Writing)</th>
+                <th className="py-3.5 px-3 text-center min-w-[90px]">Giữa Kỳ</th>
+                <th className="py-3.5 px-3 text-center min-w-[90px]">Cuối Kỳ</th>
+                <th className="py-3.5 px-3 text-center min-w-[90px]">Chuyên Cần</th>
+                <th className="py-3.5 px-4 text-center bg-amber-600 text-slate-950 font-extrabold min-w-[80px]">ĐTB</th>
+                <th className="py-3.5 px-3 text-center min-w-[160px]">Hành Động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 font-medium">
@@ -183,9 +193,9 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                 };
 
                 return (
-                  <tr key={st.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-bold font-mono text-slate-900">{st.code}</td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{st.name}</td>
+                  <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="py-3 px-3 w-28 min-w-[112px] max-w-[112px] font-bold font-mono text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">{st.code}</td>
+                    <td className="py-3 px-4 min-w-[170px] font-bold text-slate-900 sticky left-28 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] whitespace-nowrap">{st.name}</td>
 
                     {/* Listening */}
                     <td className="p-2 text-center bg-slate-50/50">
