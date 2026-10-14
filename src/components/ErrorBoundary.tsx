@@ -1,9 +1,10 @@
+import { reportError } from '../lib/diagnostics';
 import React from 'react';
 
 export class ErrorBoundary extends React.Component<React.PropsWithChildren, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(error: Error) { console.error('Lỗi giao diện BeeZone:', error); }
+  componentDidCatch(error: Error) { reportError('ui.render', error); }
   render() {
     if (this.state.failed) return (
       <main className="grid min-h-screen place-items-center bg-slate-100 p-4">

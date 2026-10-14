@@ -4,6 +4,7 @@ import path from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import usersHandler from './api/admin/users';
 import auditHandler from './api/admin/audit-logs';
+import { MAX_ADMIN_BODY_BYTES } from './server/request';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -29,12 +30,15 @@ export default defineConfig(({ mode }) => {
             json(body: unknown) { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(body)); },
           });
           try {
-            let body = '';
+            const chunks: Buffer[] = [];
+            let bytes = 0;
             for await (const chunk of req) {
-              body += chunk.toString();
-              if (body.length > 10_000) { response.status(413).json({ error: 'Yêu cầu quá lớn.' }); return; }
+              const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+              bytes += buffer.length;
+              if (bytes > MAX_ADMIN_BODY_BYTES) { response.status(413).json({ error: 'Yêu cầu quá lớn.' }); return; }
+              chunks.push(buffer);
             }
-            await handler(Object.assign(req, { body }), response);
+            await handler(Object.assign(req, { body: Buffer.concat(chunks).toString('utf8') }), response);
           } catch {
             if (!res.headersSent) response.status(500).json({ error: 'Không thể xử lý yêu cầu. Vui lòng thử lại.' });
           }
@@ -46,6 +50,7 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    esbuild: { drop: mode === 'production' ? ['debugger'] : [] },
     build: {
       rollupOptions: {
         output: {

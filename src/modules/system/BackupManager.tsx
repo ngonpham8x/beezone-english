@@ -1,3 +1,4 @@
+import { reportError } from '../../lib/diagnostics';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -128,7 +129,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
 
       setStatusMessage(`Đã xuất báo cáo toàn bộ hệ thống Excel (${fileName}) thành công!`);
     } catch (err) {
-      console.error(err);
+      reportError('backup.file', err);
       setStatusMessage('Có lỗi xảy ra khi tạo báo cáo Excel toàn hệ thống.');
     } finally {
       setIsExportingExcel(false);
@@ -181,7 +182,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
 
       setStatusMessage(`Đã tải xuống toàn bộ CSDL dữ liệu hệ thống JSON (${fileName}) thành công!`);
     } catch (err) {
-      console.error(err);
+      reportError('backup.file', err);
       setStatusMessage('Không thể đóng gói CSDL JSON.');
     }
   };

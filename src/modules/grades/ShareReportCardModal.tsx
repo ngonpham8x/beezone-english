@@ -1,3 +1,4 @@
+import { reportError } from '../../lib/diagnostics';
 import ExcelJS from 'exceljs';
 import { toBlob, toPng } from 'html-to-image';
 import {
@@ -234,7 +235,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       a.click();
       showToast('✅ Đã tải ảnh phiếu điểm đầy đủ thành công!');
     } catch (err) {
-      console.error(err);
+      reportError('grade.share', err);
       showToast('Lỗi khi tải ảnh phiếu điểm. Vui lòng thử lại!');
     } finally {
       setIsGeneratingImage(false);
@@ -263,7 +264,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
         showToast('Đã tự động tải ảnh về máy để bạn gửi Zalo.');
       }
     } catch (err) {
-      console.error(err);
+      reportError('grade.share', err);
       await handleDownloadImage();
     } finally {
       setIsGeneratingImage(false);
@@ -294,7 +295,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
         window.open(zaloUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
-      console.error(err);
+      reportError('grade.share', err);
       await handleCopyImage();
     } finally {
       setIsGeneratingImage(false);
@@ -401,7 +402,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       URL.revokeObjectURL(url);
       showToast('Đã xuất file Excel phiếu điểm thành công!');
     } catch (err) {
-      console.error(err);
+      reportError('grade.share', err);
       showToast('Có lỗi khi tạo file Excel.');
     }
   };

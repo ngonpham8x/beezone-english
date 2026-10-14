@@ -20,6 +20,7 @@ beforeAll(async () => {
 }, 60_000);
 beforeEach(async () => {
   await db.exec('reset role');
+  await db.exec('delete from public.request_quotas');
   await db.query("select set_config('request.jwt.claim.sub',$1,false), set_config('request.jwt.claim.role','authenticated',false)", [owner]);
   await db.exec('delete from public.center_data');
   await db.query("insert into public.center_data(id,payload) values ('primary',$1::jsonb)", [JSON.stringify(base)]);

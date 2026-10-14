@@ -1,0 +1,20 @@
+{
+  "name": "BeeZone admin API rate limit",
+  "description": "Limit admin API requests before serverless execution.",
+  "active": true,
+  "conditionGroup": [
+    { "conditions": [{ "type": "path", "op": "pre", "value": "/api/admin/" }] }
+  ],
+  "action": {
+    "mitigate": {
+      "action": "rate_limit",
+      "rateLimit": {
+        "algo": "fixed_window",
+        "keys": ["ip"],
+        "limit": 60,
+        "window": 60,
+        "action": "rate_limit"
+      }
+    }
+  }
+}

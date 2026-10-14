@@ -24,3 +24,11 @@ Domain chính đã được kiểm tra lại: HTTP 200, vẫn dùng CSS cũ `ind
 Sau khi hoàn tất, kiểm tra `center_data_guard_permissions`, `profiles_guard_final_owner`, `center_data_guard_operations` và `center_data_guard_billing`; redeploy để nạp secret key mới; kiểm tra API, rồi chuyển domain chính sang bản mới. Kiểm tra Site URL/Redirect URLs của Supabase có `https://beezone-english.vercel.app` trước khi thử đăng nhập Google. Hướng dẫn chức năng: [SMALL_CENTER_GUIDE.md](SMALL_CENTER_GUIDE.md).
 
 Các tệp môi trường, dữ liệu Excel riêng tư và thư mục `.vercel` được loại khỏi upload bằng `.vercelignore`. Không có secret key hoặc dữ liệu học viên trong tài liệu này.
+
+## Cập nhật bảo mật — 14/10/2026
+
+WAF tùy chỉnh trước đó chưa được cấu hình. Đã tạo và publish **BeeZone admin API rate limit**, bật firewall và đọc lại config active: đường dẫn bắt đầu `/api/admin/`, 60 yêu cầu/60 giây/IP, fixed window, vượt ngưỡng trả 429. Không có draft của người khác khi thực hiện, không bật challenge toàn trang, không chạy thử tải trên production. Quy tắc đang có hiệu lực độc lập với việc deploy mã ứng dụng.
+
+Mã mới có module bảo vệ API dùng chung, quota SQL dùng chung máy chủ, giới hạn ghi trực tiếp, kiểm tra byte UTF-8, CSP script chặt hơn và log debug đã giảm thông tin trên production. **318 test / 22 tệp**, TypeScript/build production qua; audit dependency không báo lỗ hổng đã biết. Định nghĩa WAF: [ops/admin-api-rate-limit.json](ops/admin-api-rate-limit.json).
+
+Đã kiểm tra lại tên biến Production: chưa có `SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY`. Migration [009_request_quotas.sql](supabase/migrations/009_request_quotas.sql) mới được kiểm thử cục bộ, chưa áp dụng trên Supabase thật. Cần thử staging, áp dụng sau các migration 001–008 còn thiếu, rồi mới triển khai API mới; thiếu RPC sẽ trả 503 và chặn thao tác quản trị. Agent không chạy migration production, không triển khai thủ công mã mới hoặc chuyển domain trong lượt này. Hướng dẫn triển khai/bảo mật: [SECURITY.md](SECURITY.md).

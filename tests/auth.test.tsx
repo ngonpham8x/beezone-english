@@ -8,6 +8,7 @@ import { initialSettings, initialStudents } from '../src/mock/initialData';
 const state = vi.hoisted(() => ({
   listener: null as null | ((event: string, session: any) => void),
   payload: {} as any, centerError: false, profileActive: true,
+  writeError: null as null | { code: string },
   profileReads: 0, centerReads: 0, writes: [] as any[],
 }));
 vi.mock('../src/lib/supabase', () => {
@@ -25,7 +26,7 @@ vi.mock('../src/lib/supabase', () => {
         update: (value: any) => { update = value; return builder; }, insert: (value: any) => { update = value; return builder; },
         async maybeSingle() {
           if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: 'owner', is_active: true, avatar_url: null, permissions: null } : null, error: null }; }
-          if (update) { state.writes.push(structuredClone(update.payload)); return { data: { updated_at: `revision-${state.writes.length}` }, error: null }; }
+          if (update) { if (state.writeError) return { data: null, error: state.writeError }; state.writes.push(structuredClone(update.payload)); return { data: { updated_at: `revision-${state.writes.length}` }, error: null }; }
           state.centerReads++;
           return { data: { payload: structuredClone(state.payload), updated_at: 'initial-revision' }, error: state.centerError ? { message: 'offline' } : null };
         },
@@ -42,6 +43,7 @@ beforeEach(() => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   state.payload = { settings: initialSettings, students: [{ ...initialStudents[0], name: 'Cloud student' }] };
   state.centerError = false; state.profileActive = true; state.profileReads = 0; state.centerReads = 0; state.writes = [];
+  state.writeError = null;
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -71,4 +73,13 @@ it('revokes the visible workspace when the refreshed profile is locked', async (
   act(() => state.listener?.('SIGNED_IN', { access_token: 'test', user: { id: 'test-owner', email: 'owner@example.test', user_metadata: {} } }));
   await screen.findByText('Tài khoản chưa được cấp quyền');
   expect(screen.queryByRole('button', { name: 'Open students' })).toBeNull();
+});
+it('keeps local edits and pauses saving when the database quota is exceeded', async () => {
+  state.writeError = { code: 'PT429' };
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit student' }));
+  await screen.findByText(/Đã đạt giới hạn lưu dữ liệu/);
+  expect(screen.getByText('Edited locally')).toBeTruthy();
+  expect(state.writes).toEqual([]); expect(state.centerReads).toBe(1);
 });

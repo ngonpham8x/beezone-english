@@ -1,3 +1,4 @@
+import { reportError } from '../../lib/diagnostics';
 import { useEffect, useState } from 'react';
 import { isLocalPreview } from '../../lib/supabase';
 
@@ -23,7 +24,7 @@ export function saveStored<T>(key: string, value: T, onError: (message: string) 
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));
   } catch (error) {
-    console.error(error);
+    reportError('preview.storage', error);
     onError('Không thể lưu trên trình duyệt. Hãy xuất bản sao lưu trước khi đóng trang.');
   }
 }

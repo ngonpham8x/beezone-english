@@ -268,6 +268,10 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
               .single();
         if (result.error?.code === '23505' || (!result.error && !result.data))
           throw new SyncConflictError();
+        if (result.error?.code === 'PT429')
+          throw new Error('Đã đạt giới hạn lưu dữ liệu. Chờ khoảng một phút rồi thử lại; thay đổi đang nhập vẫn được giữ nguyên.');
+        if (result.error?.code === 'PT413')
+          throw new Error('Dữ liệu vượt giới hạn 32 MB. Hãy sao lưu thay đổi đang nhập và liên hệ quản trị.');
         if (result.error)
           throw new Error(
             'Không thể lưu dữ liệu lên máy chủ. Kiểm tra kết nối và quyền truy cập rồi thử lại.',

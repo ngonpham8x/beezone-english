@@ -43,6 +43,6 @@ Trang Tổng quan hiển thị lớp hôm nay, lớp chưa điểm danh, khoản
 
 - Sao lưu JSON giữ đầy đủ các trường mới, lịch sử đăng ký và lịch nghỉ/học bù. Bản sao lưu cũ vẫn khôi phục được; các danh sách mới bắt đầu rỗng.
 - Excel là báo cáo. Khi đã có lịch sử đăng ký, lịch điều chỉnh hoặc giá buổi đã ghi nhận, hệ thống chặn thay toàn bộ dữ liệu bằng Excel để tránh mất lịch sử; vẫn nhập thêm học viên được. Dùng JSON để khôi phục toàn bộ.
-- Chạy migration **006 → 007 → 008** trên Supabase trước khi đưa bản này lên domain chính. 008 bảo vệ giá buổi đã lưu, tham chiếu phiếu và khoản thu, chặn tính phí trùng, kiểm tra quyền ghi và công nợ suy ra từ điểm danh. Các migration không thay dữ liệu hiện có.
+- Chạy migration **006 → 007 → 008 → 009** trên Supabase trước khi đưa bản mới lên domain chính, sau khi đã thử trong staging. 008 bảo vệ giá buổi đã lưu, tham chiếu phiếu và khoản thu, chặn tính phí trùng, kiểm tra quyền ghi và công nợ suy ra từ điểm danh. 009 bổ sung quota chống spam API và ghi dữ liệu trực tiếp. Các migration không thay lịch sử hiện có.
 - Vercel Production vẫn cần `SUPABASE_SECRET_KEY` cho API quản lý tài khoản. Khóa này không được đặt trong `VITE_`, GitHub hoặc chat.
 - Quyền đọc chi tiết vẫn cần hoàn thiện theo `SECURITY.md`; các phần mới không thay đổi giới hạn kiến trúc của tài liệu dữ liệu chung.

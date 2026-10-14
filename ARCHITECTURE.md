@@ -24,6 +24,8 @@
 | `src/services/excel` | Đọc ô, từng bước nhập, công thức và từng sheet xuất |
 | `api`, `server`, `supabase/migrations` | API có xác thực và quy tắc dữ liệu trên máy chủ |
 
+API quản trị đi qua `server/admin.ts` để dùng chung kiểm tra yêu cầu, xác thực, quyền và quota. `server/request.ts` kiểm tra header/payload, `server/rateLimit.ts` giữ bộ đếm burst có giới hạn bộ nhớ. Quota dùng chung giữa máy chủ và chống ghi dữ liệu trực tiếp nằm trong migration `009_request_quotas.sql`; chỉ triển khai API cần RPC sau khi migration đã được thử và áp dụng. Cấu hình WAF nằm ở Vercel, định nghĩa quy tắc tại `ops/admin-api-rate-limit.json`; chỉ thêm tệp này vào Git không tự bật firewall.
+
 ## Hướng phụ thuộc
 
 ```mermaid

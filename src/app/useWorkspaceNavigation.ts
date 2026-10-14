@@ -1,3 +1,4 @@
+import { reportError } from '../lib/diagnostics';
 import { useEffect, useRef, useState } from 'react';
 import { DRAWER_QUERY, useMediaQuery } from '../hooks/useResponsive';
 import type { TaskDestination } from '../modules/dashboard/TodayTasks';
@@ -64,7 +65,7 @@ export function useWorkspaceNavigation(currentUser: UserAccount | null) {
         `${url.pathname}${url.search}${url.hash}`,
       );
     } catch (error) {
-      console.warn('Không thể lưu trang đang mở:', error);
+      reportError('navigation.persist', error);
     }
   }, [activeTab]);
 

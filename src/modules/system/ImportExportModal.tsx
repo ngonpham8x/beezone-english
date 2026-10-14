@@ -1,3 +1,4 @@
+import { reportError } from '../../lib/diagnostics';
 import { CheckCircle2, Download, FileDown, FileSpreadsheet, FileUp, Upload, X } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
@@ -103,7 +104,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       window.URL.revokeObjectURL(url);
       onExportExcel(filename);
     } catch (err) {
-      console.error(err);
+      reportError('excel.file', err);
       alert('Có lỗi xảy ra khi tạo file Excel');
     } finally {
       setIsExporting(false);
@@ -155,7 +156,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       });
       setCenterImport(null);
     } catch (error) {
-      console.error(error);
+      reportError('excel.file', error);
       setValidationResult({ validRows: [], errors: [{ row: 0, field: 'Tệp Excel', message: 'Không thể đọc tệp. Vui lòng dùng tệp .xlsx hoặc .xlsm hợp lệ.' }] });
     }
   };

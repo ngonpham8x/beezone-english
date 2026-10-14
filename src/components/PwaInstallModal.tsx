@@ -1,3 +1,4 @@
+import { reportError } from '../lib/diagnostics';
 import { DialogFrame } from './DialogFrame';
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Monitor, Share, PlusSquare, ArrowDownToLine, X, CheckCircle2, ShieldCheck, Sparkles, Check, Apple } from 'lucide-react';
@@ -58,7 +59,7 @@ export const PwaInstallModal: React.FC<PwaInstallModalProps> = ({
           setIsInstalled(true);
         }
       } catch (err) {
-        console.error('Install prompt error:', err);
+        reportError('pwa.install', err);
       } finally {
         setInternalPrompt(null);
         onPromptHandled?.();

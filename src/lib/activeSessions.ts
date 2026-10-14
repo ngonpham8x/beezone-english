@@ -1,3 +1,4 @@
+import { reportError } from './diagnostics';
 import { UserAccount, UserRole } from '../types';
 
 export interface ActiveSession {
@@ -67,7 +68,7 @@ export function registerActiveSession(user: UserAccount): void {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   } catch (e) {
-    console.error('Failed to register active session:', e);
+    reportError('session.storage', e);
   }
 }
 
@@ -80,7 +81,7 @@ export function removeActiveSession(emailOrId: string): void {
     );
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   } catch (e) {
-    console.error('Failed to remove active session:', e);
+    reportError('session.storage', e);
   }
 }
 

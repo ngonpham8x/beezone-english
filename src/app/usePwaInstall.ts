@@ -1,3 +1,4 @@
+import { reportError } from '../lib/diagnostics';
 import { useEffect, useState } from 'react';
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
@@ -38,7 +39,7 @@ export function usePwaInstall() {
           setDeferredPrompt(null);
         }
       } catch (err) {
-        console.error('PWA install error:', err);
+        reportError('pwa.install', err);
         setIsPwaModalOpen(true);
       }
       return;
