@@ -1,4 +1,21 @@
-# Trạng thái triển khai Vercel — 13/10/2026
+# Trạng thái triển khai Vercel — 14/10/2026
+
+## Bản mới nhất
+
+Đã đẩy mã và cấu hình upload lên GitHub `main`, bản nguồn deployment là `64f202b` (gồm sửa trang trắng `673d903` và bảo mật `154e5df`). GitHub Actions của bản nguồn đã qua: https://github.com/ngonpham8x/beezone-english/actions/runs/38510722731. Bộ kiểm tra hiện có 318 test / 22 tệp; không thay mã ứng dụng trong lần deploy này.
+
+Đã deploy Vercel với môi trường Production và `--skip-domain`; build TypeScript/Vite và kiểm tra bundle/CSP thành công, deployment **READY**:
+
+- Deployment mới: https://beezone-english-gp650w0qt-ngonpham8x.vercel.app
+- Trang quản lý: https://vercel.com/ngonpham8x/beezone-english/2GaRTE5VY6dcCFLrpEDmAAfvFX2b
+- Alias mặc định: https://beezone-english-ngonpham8x.vercel.app
+- Deployment ID: `dpl_2GaRTE5VY6dcCFLrpEDmAAfvFX2b`.
+
+Đã xác minh qua Vercel CLI có quyền truy cập deployment được bảo vệ: trang Tuyển sinh trả 200, main JS `index-DcHpxBLc.js`, CSS `index-mytMBd8j.css` và các vendor JS trả 200. API không xác thực trả 401 JSON; yêu cầu kiểm tra cấu hình trả 503 “Dịch vụ quản trị chưa sẵn sàng.” Production vẫn chưa có secret Supabase máy chủ. Hai mẫu Excel macro cũ không được mã ứng dụng dùng đã được loại khỏi source upload bằng `.vercelignore`; xác nhận không phục vụ file macro ở deployment mới. Không upload `.env`, dữ liệu Excel riêng hoặc secret.
+
+Bản mới và alias mặc định có bảo vệ bằng tài khoản Vercel. Domain người dùng `https://beezone-english.vercel.app` chưa chuyển: đã đọc lại HTML, vẫn dùng main JS `index-CgEysNMR.js` và CSS `index-D6DviX8x.css` cũ. Cần cấu hình `SUPABASE_SECRET_KEY`/khóa legacy trong Dashboard, áp dụng các migration 006–009 còn thiếu và kiểm tra API/đồng bộ trước khi đưa bản mới vào sử dụng trên domain chính. Agent chưa chạy migration Supabase production; đã yêu cầu người dùng hoàn tất phần Dashboard. Chưa kiểm thử đăng nhập Google thật hoặc xác nhận hình ảnh giao diện của deployment mới.
+
+## Lịch sử triển khai trước
 
 Bản mã ứng dụng `1b3269e09921bc21bc4ef80f33f7ffd795e352fa` đã build và deploy thành công với trạng thái **Ready**, gồm học phí theo buổi gắn với điểm danh, đơn giá lịch sử, chọn buổi để thu, thu từng phần, công nợ/báo cáo và sao lưu. Các phần đợt học, hạn học phí, lịch nghỉ/học bù và việc cần làm hôm nay vẫn được giữ:
 
