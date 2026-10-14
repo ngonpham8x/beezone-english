@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useRef, useState } from 'react';
 import { registerActiveSession, removeActiveSession } from '../../lib/activeSessions';
+import { completedAuthUrl } from '../../lib/appUrl';
 import {
   createMockSessionForAccount,
   DEV_OWNER_ACCOUNT,
@@ -118,6 +119,11 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         setAuthStatus('signed-out');
         return;
       }
+
+      // SDK initialization has completed; remove a leftover consumed callback code.
+      const cleanUrl = completedAuthUrl(window.location.href);
+      if (cleanUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`)
+        window.history.replaceState(window.history.state, '', cleanUrl);
 
       if (resolvingUserId === nextSession.user.id) return;
       resolvingUserId = nextSession.user.id;

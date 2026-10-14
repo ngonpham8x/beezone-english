@@ -90,7 +90,6 @@ export function WorkspaceScreens({
     attendanceSessions,
     enrollments,
     scheduleChanges,
-    accountAuditLogs,
     billingReceipts,
   } = store;
   const {
@@ -141,7 +140,7 @@ export function WorkspaceScreens({
     setTaskRequest,
   } = navigation;
   const { setIsImportExportModalOpen, setIsSettingsModalOpen } = dialogs;
-  const { accountAuditError, isAccountAuditLoading, loadAccountAuditLogs } = audit;
+  const { accountAuditError, isAccountAuditLoading, loadAccountAuditLogs, visibleActivityLogs, visibleAccountLogs } = audit;
   switch (activeTab) {
     case 'dashboard':
       return (
@@ -418,8 +417,8 @@ export function WorkspaceScreens({
     case 'activity-logs':
       return (
         <ActivityLogView
-          logs={activityLogs}
-          accountLogs={accountAuditLogs}
+          logs={visibleActivityLogs}
+          accountLogs={visibleAccountLogs}
           isAccountAuditLoading={isAccountAuditLoading}
           accountAuditError={accountAuditError}
           onRefreshAccountLogs={() => void loadAccountAuditLogs()}

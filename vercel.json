@@ -3,6 +3,22 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "beezone-english-ngonpham.vercel.app" }],
+      "missing": [{ "type": "query", "key": "code" }, { "type": "query", "key": "error" }],
+      "destination": "https://beezone-english.vercel.app/",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "beezone-english-git-main-ngonpham.vercel.app" }],
+      "missing": [{ "type": "query", "key": "code" }, { "type": "query", "key": "error" }],
+      "destination": "https://beezone-english.vercel.app/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }

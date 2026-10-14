@@ -20,14 +20,6 @@ const accountActionLabels: Record<AccountAuditLog['action'], string> = {
   ACCOUNT_UNLOCKED: 'Mở khóa',
 };
 
-const normalizeAccountName = (value: string) => value
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .trim()
-  .toLowerCase();
-
-const isHiddenAccount = (name: string) => normalizeAccountName(name) === 'duy ngon pham';
-
 export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
   logs,
   accountLogs,
@@ -51,7 +43,6 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
   });
 
   const filteredAccountLogs = accountLogs.filter((log) => {
-    if (isHiddenAccount(log.targetName)) return false;
     const term = search.toLowerCase();
     return !term || [log.actorName, log.targetName, log.details, accountActionLabels[log.action]]
       .some((value) => value.toLowerCase().includes(term));
@@ -173,13 +164,13 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {filteredLogs.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-xs font-medium text-slate-500">Chưa có thao tác dữ liệu nào được ghi nhận. Hãy thêm, sửa, xóa hoặc nhập/xuất dữ liệu để tạo lịch sử.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-xs font-medium text-slate-500">{isAccountAuditLoading ? 'Đang tải nhật ký hệ thống…' : accountAuditError ? 'Nhật ký tạm thời chưa tải được. Bấm Làm mới để thử lại.' : 'Chưa có thao tác dữ liệu nào được ghi nhận. Hãy thêm, sửa, xóa hoặc nhập/xuất dữ liệu để tạo lịch sử.'}</td></tr>
               ) : filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                   <td className="py-3 px-4 font-mono text-slate-500">{log.timestamp}</td>
                   <td className="py-3 px-4">
-                    <div className="font-bold text-slate-900">{isHiddenAccount(log.userName) ? 'Tài khoản hệ thống' : log.userName}</div>
-                    <div className="text-[10px] text-slate-500">{maskEmail(log.userEmail)}</div>
+                    <div className="font-bold text-slate-900">{log.userName}</div>
+                    {log.userEmail && <div className="text-[10px] text-slate-500">{maskEmail(log.userEmail)}</div>}
                   </td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${

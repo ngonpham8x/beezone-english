@@ -88,6 +88,10 @@ Thông báo vắng cho phụ huynh nằm trong `modules/attendance/ParentContact
 
 Privacy của tài khoản nằm trong profile máy chủ (`is_private`, migration 010), không lấy từ metadata người dùng, email hardcode hay localStorage. `profileToAccount` chỉ ánh xạ cờ này sang hiển thị; nó không đổi quyền. API tài khoản vẫn qua `adminApi`/quota và bỏ danh tính tài khoản riêng khỏi danh sách, trả các ID chỉ để lọc phiên cục bộ đã lưu trước đây. Profile cũ thiếu cờ mặc định hiển thị như cũ. Script `create-private-owner-setup.mjs` chỉ sinh SQL riêng vào `.vercel` từ stdin; không commit email hoặc tự chạy SQL production. Ghi nhận quyền qua allowlist có audit; không xóa lịch sử để ẩn tài khoản.
 
+Nhật ký production dùng bản hiển thị do `/api/admin/audit-logs` tạo từ profile máy chủ qua `lib/auditPrivacy.ts`: bỏ các dòng cấp quyền nhắm vào tài khoản riêng, thay danh tính người thực hiện riêng bằng tên hệ thống và loại email khỏi nội dung trả về. `useAccountAudit` chỉ hiển thị bản này, chặn kết quả phiên cũ và không dùng nhật ký thô làm dự phòng khi API lỗi. Nhật ký gốc trong database, state đồng bộ và sao lưu vẫn được giữ nguyên; bản hiển thị không được ghi ngược vào dữ liệu trung tâm. Nút Làm mới tải lại nhật ký đã lưu trên máy chủ.
+
+Địa chỉ chính là `https://beezone-english.vercel.app`. Hai alias theo team được chuyển hướng ở trang gốc bằng `vercel.json`; callback có mã OAuth được ứng dụng xử lý riêng qua `lib/appUrl.ts` trước khi tạo Supabase client. Mã PKCE/phiên trình duyệt thuộc một origin, nên callback cũ trên alias được bỏ mã rồi chuyển sang trang đăng nhập của domain chính, không chuyển token hoặc verifier giữa các domain. Localhost và deployment xem thử không bị chuyển hướng. Sau khi SDK trả về phiên hợp lệ, dọn tham số OAuth còn sót mà giữ `?tab=`, tham số giao diện và anchor thường.
+
 | Thay đổi | Nơi sửa chính | Phần liên quan cần kiểm tra |
 | --- | --- | --- |
 | Tiếp nhận, ghi danh, chuyển lớp, bảo lưu | `modules/admissions`, `modules/students/actions.ts`, `lib/operations` | Roster lớp, lịch sử đăng ký, điểm/phiếu thu lớp cũ; `module-actions`, `operations`, `data` |

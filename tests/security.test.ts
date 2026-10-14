@@ -17,6 +17,9 @@ const state = vi.hoisted(() => ({
   members: [] as any[],
   target: null as any,
   auditError: false,
+  auditRows: [] as any[],
+  center: null as any,
+  profileListError: false,
 }));
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (...args: any[]) => {
@@ -44,7 +47,9 @@ vi.mock('@supabase/supabase-js', () => ({
             return { data: state.profile, error: null };
           if (table === 'profiles' && column === 'id') return { data: state.target, error: null };
           if (column === 'email') return { data: state.existing, error: null };
-          if (table === 'profiles') return { data: state.members, error: null };
+          if (table === 'profiles') return { data: state.members, error: state.profileListError ? { message: 'private profile failure' } : null };
+          if (table === 'account_audit_logs') return { data: state.auditRows, error: null };
+          if (table === 'center_data') return { data: state.center, error: null };
           return { data: [], error: null };
         };
         const builder: any = {
@@ -135,6 +140,9 @@ beforeEach(() => {
   state.members = [];
   state.target = null;
   state.auditError = false;
+  state.auditRows = [];
+  state.center = null;
+  state.profileListError = false;
   state.auth.mockResolvedValue({ data: { user: { id: callerId } }, error: null });
   state.rpc.mockResolvedValue({ data: [{ allowed: true, retry_after: 0 }], error: null });
   state.createUser.mockResolvedValue({
@@ -211,6 +219,32 @@ describe('request boundary', () => {
 });
 
 describe('authorization and durable quotas', () => {
+  it('redacts private actors and excludes their account entries before returning logs, without writing history', async () => {
+    state.members = [{ id: 'private-id', email: 'private@example.test', full_name: 'Private Person', is_private: true }];
+    const base = { id: 'account-log', occurred_at: '2026-10-14T08:00:00Z', action: 'ACCOUNT_UPDATED', actor_id: 'private-id', actor_name: 'Private Person', target_id: 'visible-id', target_name: 'Visible Person', target_role: 'staff', details: 'Changed by private@example.test' };
+    state.auditRows = [base, { ...base, id: 'hidden', target_id: 'private-id', target_name: 'Private Person' }];
+    state.center = { payload: { activityLogs: [{ id: 'business-log', timestamp: '2026-10-14', userEmail: 'PRIVATE@example.test', userName: 'Old Google Name', action: 'SỬA', module: 'Học viên', details: 'Private Person updated a record' }] } };
+    const stored = structuredClone({ audit: state.auditRows, center: state.center });
+    const res = await call('audit-logs');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.logs).toHaveLength(1);
+    expect(res.body.logs[0]).toMatchObject({ actorName: 'Quản trị hệ thống', targetName: 'Visible Person' });
+    expect(res.body.activityLogs[0]).toMatchObject({ userName: 'Quản trị hệ thống', userEmail: '', action: 'SỬA' });
+    expect(JSON.stringify(res.body).toLowerCase()).not.toContain('private@example.test');
+    expect(JSON.stringify(res.body)).not.toContain('Private Person');
+    expect(JSON.stringify(res.body)).not.toContain('Old Google Name');
+    expect({ audit: state.auditRows, center: state.center }).toEqual(stored);
+    expect(state.writes).not.toHaveBeenCalled();
+    expect(state.rpc).toHaveBeenCalled();
+  });
+  it('returns no logs when private-account visibility cannot be checked', async () => {
+    state.profileListError = true;
+    const res = await call('audit-logs');
+    expect(res.statusCode).toBe(500);
+    expect(res.body.logs).toBeUndefined();
+    expect(res.body.activityLogs).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain('private profile failure');
+  });
   it('omits private identities from account responses but retains IDs for filtering cached session rows', async () => {
     state.members = [
       { id: 'private-id', email: 'private@example.test', full_name: 'Private Person', is_private: true },

@@ -65,6 +65,14 @@ it('shows the signed-in Google identity only inside the private owner account di
   expect(document.activeElement).toBe(accountButton);
 });
 
+it('removes a completed OAuth code while retaining the current page query and anchor', async () => {
+  window.history.replaceState(null, '', '/?code=example-consumed-code&tab=dashboard&view=compact#today');
+  render(<App />);
+  await screen.findByRole('button', { name: 'Open students' });
+  expect(window.location.search).toBe('?tab=dashboard&view=compact');
+  expect(window.location.hash).toBe('#today');
+});
+
 it('does not reload business data or erase unsaved edits when the same session refreshes', async () => {
   render(<StrictMode><App /></StrictMode>);
   fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));

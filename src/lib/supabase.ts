@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import { canonicalAppUrl } from './appUrl';
+
+const canonicalUrl = import.meta.env.PROD && typeof window !== 'undefined'
+  ? canonicalAppUrl(window.location.href) : null;
+if (canonicalUrl) window.location.replace(canonicalUrl);
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabasePublishableKey =
@@ -27,7 +32,7 @@ export async function isGoogleSignInEnabled(): Promise<boolean> {
 }
 
 // Do not add a service-role/secret key here. This bundle is delivered to browsers.
-export const supabase = isSupabaseConfigured
+export const supabase = isSupabaseConfigured && !canonicalUrl
   ? createClient(supabaseUrl, supabasePublishableKey, {
       auth: {
         flowType: 'pkce',
