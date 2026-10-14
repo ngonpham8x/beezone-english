@@ -1,5 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js';
 import type { StaffPermissions, UserAccount, UserRole } from '../types';
+import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy';
 
 export interface ProfileRow {
   id: string;
@@ -7,6 +8,7 @@ export interface ProfileRow {
   avatar_url: string | null;
   role: UserRole;
   is_active: boolean;
+  is_private?: boolean;
   permissions: Partial<StaffPermissions> | null;
 }
 
@@ -105,11 +107,12 @@ export function profileToAccount(profile: ProfileRow, authUser: User): UserAccou
 
   return {
     id: profile.id,
-    name: profile.full_name || fallbackName,
+    name: profile.is_private === true ? PRIVATE_ACCOUNT_LABEL : profile.full_name || fallbackName,
     email: authUser.email || '',
-    avatar: profile.avatar_url || fallbackAvatar,
+    avatar: profile.is_private === true ? '' : profile.avatar_url || fallbackAvatar,
     role: profile.role,
     active: profile.is_active,
+    isPrivate: profile.is_private === true,
     permissions: profile.role === 'owner' ? OWNER_PERMISSIONS : mergePermissions(profile.permissions),
   };
 }

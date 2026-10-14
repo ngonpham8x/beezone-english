@@ -130,7 +130,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, full_name, avatar_url, role, is_active, permissions')
+          .select('*')
           .eq('id', nextSession.user.id)
           .maybeSingle();
 

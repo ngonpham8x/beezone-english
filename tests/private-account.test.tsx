@@ -1,0 +1,178 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { DEV_OWNER_ACCOUNT, profileToAccount } from '../src/lib/auth';
+import { getActiveSessions, registerActiveSession } from '../src/lib/activeSessions';
+import { PRIVATE_ACCOUNT_LABEL } from '../src/lib/accountPrivacy';
+import { AuthScreen } from '../src/modules/auth/AuthScreen';
+import { LoginModal } from '../src/modules/auth/LoginModal';
+import { UserManagementModal } from '../src/modules/auth/UserManagementModal';
+
+const auth = vi.hoisted(() => ({ enabled: vi.fn(), signIn: vi.fn() }));
+vi.mock('../src/lib/supabase', () => ({
+  isLocalPreview: false,
+  isSupabaseConfigured: true,
+  isGoogleSignInEnabled: auth.enabled,
+  supabase: { auth: { signInWithOAuth: auth.signIn } },
+}));
+const privateOwner = {
+  ...DEV_OWNER_ACCOUNT,
+  id: 'private-owner-test',
+  name: PRIVATE_ACCOUNT_LABEL,
+  email: 'private@example.test',
+  avatar: '',
+  isPrivate: true,
+};
+beforeEach(() => {
+  localStorage.clear();
+  vi.clearAllMocks();
+  auth.enabled.mockResolvedValue(true);
+  auth.signIn.mockResolvedValue({ error: null });
+});
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+it('uses only the trusted profile flag for identity privacy and never grants a role from user metadata', () => {
+  const profile = {
+    id: privateOwner.id,
+    full_name: 'Private Person',
+    avatar_url: 'https://example.test/private.png',
+    role: 'owner' as const,
+    is_active: true,
+    permissions: null,
+    is_private: true,
+  };
+  const user = {
+    id: privateOwner.id,
+    email: privateOwner.email,
+    user_metadata: { full_name: 'Private Person', is_private: true, role: 'owner' },
+  } as any;
+  expect(profileToAccount(profile, user)).toMatchObject({
+    name: PRIVATE_ACCOUNT_LABEL,
+    email: privateOwner.email,
+    avatar: '',
+    isPrivate: true,
+    role: 'owner',
+  });
+  expect(
+    profileToAccount({ ...profile, role: 'staff', is_active: false, is_private: undefined }, user),
+  ).toMatchObject({ isPrivate: false, role: 'staff', active: false });
+});
+
+it('removes only the private account from the local session list', () => {
+  registerActiveSession({ ...privateOwner, isPrivate: false });
+  registerActiveSession({ ...DEV_OWNER_ACCOUNT, email: 'visible@example.test' });
+  registerActiveSession(privateOwner);
+  expect(getActiveSessions().map((session) => session.id)).toEqual([DEV_OWNER_ACCOUNT.id]);
+  render(<LoginModal isOpen currentUser={privateOwner} onClose={vi.fn()} onLogout={vi.fn()} />);
+  expect(screen.queryByText(privateOwner.email)).toBeNull();
+  expect(screen.getByText(PRIVATE_ACCOUNT_LABEL)).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+});
+
+it('hides server-designated accounts from cached sessions without repeatedly requesting the member list', async () => {
+  registerActiveSession({ ...privateOwner, isPrivate: false });
+  const fetcher = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({
+          users: [
+            {
+              id: 'visible',
+              email: 'visible@example.test',
+              full_name: 'Visible Account',
+              role: 'staff',
+              is_active: true,
+            },
+          ],
+          hiddenAccountIds: [privateOwner.id],
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  render(
+    <UserManagementModal isOpen onClose={vi.fn()} accessToken="test" currentUser={privateOwner} />,
+  );
+  await screen.findByText('Visible Account');
+  await waitFor(() => expect(screen.queryByText(privateOwner.email)).toBeNull());
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText(PRIVATE_ACCOUNT_LABEL)).toBeNull();
+  expect(screen.getByText('visible@example.test')).toBeTruthy();
+});
+
+it('ignores an old member response after closing and reopening the account dialog', async () => {
+  let finishOld!: (response: Response) => void;
+  const oldRequest = new Promise<Response>((resolve) => {
+    finishOld = resolve;
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockReturnValueOnce(oldRequest)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            users: [{ id: 'visible', full_name: 'Visible Account', email: 'visible@example.test' }],
+            hiddenAccountIds: [privateOwner.id],
+          }),
+          { headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+  );
+  const props = { onClose: vi.fn(), accessToken: 'test', currentUser: DEV_OWNER_ACCOUNT };
+  const view = render(<UserManagementModal {...props} isOpen />);
+  view.rerender(<UserManagementModal {...props} isOpen={false} />);
+  view.rerender(<UserManagementModal {...props} isOpen />);
+  await screen.findByText('Visible Account');
+  await act(async () => {
+    finishOld(
+      new Response(
+        JSON.stringify({
+          users: [
+            { id: privateOwner.id, full_name: 'Old private identity', email: privateOwner.email },
+          ],
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    await oldRequest;
+  });
+  expect(screen.queryByText('Old private identity')).toBeNull();
+  expect(screen.queryByText(privateOwner.email)).toBeNull();
+  expect(screen.getByText('Visible Account')).toBeTruthy();
+});
+
+it('reports a disabled Google provider in the app and permits retry after it is enabled', async () => {
+  auth.enabled.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  render(<AuthScreen />);
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('Google chưa được bật');
+  expect(auth.signIn).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
+  await waitFor(() =>
+    expect(auth.signIn).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    }),
+  );
+  expect(screen.queryByText(privateOwner.email)).toBeNull();
+});
+
+it('allows another attempt after the public provider check fails', async () => {
+  auth.enabled.mockRejectedValueOnce(new Error('private connection details'));
+  render(<AuthScreen />);
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'Không thể kết nối Google. Kiểm tra kết nối và thử lại.',
+  );
+  expect(
+    (screen.getByRole('button', { name: 'Đăng nhập với Google' }) as HTMLButtonElement).disabled,
+  ).toBe(false);
+  expect(auth.signIn).not.toHaveBeenCalled();
+});

@@ -18,6 +18,7 @@ export interface UserAccount {
   avatar: string;
   role: UserRole;
   active: boolean;
+  isPrivate?: boolean;
   permissions: StaffPermissions;
 }
 

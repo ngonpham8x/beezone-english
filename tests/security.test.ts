@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   reads: vi.fn(),
   profile: {} as any,
   existing: null as any,
+  members: [] as any[],
+  target: null as any,
   auditError: false,
 }));
 vi.mock('@supabase/supabase-js', () => ({
@@ -40,7 +42,9 @@ vi.mock('@supabase/supabase-js', () => ({
             };
           if (table === 'profiles' && column === 'id' && lookup === callerId)
             return { data: state.profile, error: null };
+          if (table === 'profiles' && column === 'id') return { data: state.target, error: null };
           if (column === 'email') return { data: state.existing, error: null };
+          if (table === 'profiles') return { data: state.members, error: null };
           return { data: [], error: null };
         };
         const builder: any = {
@@ -128,6 +132,8 @@ beforeEach(() => {
   vi.stubEnv('SUPABASE_SECRET_KEY', 'server-only-test-key');
   state.profile = { id: callerId, full_name: 'Test Owner', role: 'owner', is_active: true };
   state.existing = null;
+  state.members = [];
+  state.target = null;
   state.auditError = false;
   state.auth.mockResolvedValue({ data: { user: { id: callerId } }, error: null });
   state.rpc.mockResolvedValue({ data: [{ allowed: true, retry_after: 0 }], error: null });
@@ -205,6 +211,33 @@ describe('request boundary', () => {
 });
 
 describe('authorization and durable quotas', () => {
+  it('omits private identities from account responses but retains IDs for filtering cached session rows', async () => {
+    state.members = [
+      { id: 'private-id', email: 'private@example.test', full_name: 'Private Person', is_private: true },
+      { id: 'visible-id', email: 'visible@example.test', full_name: 'Visible Person', role: 'staff', is_active: true },
+    ];
+    const res = await call();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users).toHaveLength(1);
+    expect(res.body.hiddenAccountIds).toEqual(['private-id']);
+    expect(JSON.stringify(res.body)).not.toContain('private@example.test');
+    expect(JSON.stringify(res.body)).not.toContain('Private Person');
+    expect(state.rpc).toHaveBeenCalled();
+  });
+  it('does not modify a private owner through an account name guessed from outside the list', async () => {
+    state.existing = { id: 'private-id', is_private: true, role: 'owner', is_active: true };
+    const res = await call('users', request('POST', { body: { email: 'private@example.test', fullName: 'Changed Name', role: 'staff' } }));
+    expect(res.statusCode).toBe(404);
+    expect(state.writes).not.toHaveBeenCalled();
+    expect(state.createUser).not.toHaveBeenCalled();
+  });
+  it('preserves the actor ID and audit event when the acting owner has display privacy enabled', async () => {
+    state.profile = { ...state.profile, full_name: 'Private Person', is_private: true };
+    const res = await call('users', request('POST', { body: { email: 'visible@example.test', fullName: 'Visible Person', role: 'staff' } }));
+    expect(res.statusCode).toBe(201);
+    const log = state.writes.mock.calls.find(call => call[0] === 'account_audit_logs')![1];
+    expect(log).toMatchObject({ actor_id: callerId, actor_name: 'Quản trị hệ thống', action: 'ACCOUNT_PROVISIONED' });
+  });
   it.each(['users', 'audit-logs'])('blocks inactive owners and staff at %s', async (route) => {
     state.profile = { ...state.profile, is_active: false };
     expect((await call(route)).statusCode).toBe(403);

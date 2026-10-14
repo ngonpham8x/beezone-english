@@ -1,7 +1,7 @@
 import { LoaderCircle, MapPin, Phone, ShieldCheck } from 'lucide-react';
 import React, { useState } from 'react';
 import { Logo } from '../../components/Logo';
-import { isLocalPreview, supabase } from '../../lib/supabase';
+import { isGoogleSignInEnabled, isLocalPreview, supabase } from '../../lib/supabase';
 import type { UserAccount } from '../../types';
 
 interface AuthScreenProps {
@@ -17,6 +17,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
     setError(null);
     setIsSubmitting(true);
     try {
+      if (!await isGoogleSignInEnabled()) {
+        setError('Đăng nhập Google chưa được bật. Vui lòng liên hệ quản trị viên để hoàn tất cấu hình.');
+        setIsSubmitting(false);
+        return;
+      }
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google', options: { redirectTo: window.location.origin },
       });

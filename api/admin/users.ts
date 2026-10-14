@@ -129,10 +129,13 @@ export default adminApi(
     if (req.method === 'GET') {
       const { data, error } = await client
         .from('profiles')
-        .select('id, email, full_name, avatar_url, role, is_active, permissions')
+        .select('*')
         .order('created_at', { ascending: false });
       if (error || !data) return json(res, 500, { error: 'Không thể tải danh sách tài khoản.' });
-      return json(res, 200, { users: data });
+      return json(res, 200, {
+        users: data.filter(user => user.is_private !== true).map(({ id, email, full_name, avatar_url, role, is_active, permissions }) => ({ id, email, full_name, avatar_url, role, is_active, permissions })),
+        hiddenAccountIds: data.filter(user => user.is_private === true).map(user => user.id),
+      });
     }
 
     if (req.method === 'POST') {
@@ -158,10 +161,11 @@ export default adminApi(
         role === 'owner' ? OWNER_PERMISSIONS : normalizeStaffPermissions(body.permissions);
       const { data: existing, error: existingError } = await client
         .from('profiles')
-        .select('id, email, full_name, role, is_active, permissions')
+        .select('*')
         .eq('email', email)
         .maybeSingle();
       if (existingError) return json(res, 500, { error: 'Không thể kiểm tra tài khoản.' });
+      if (existing?.is_private === true) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
       // A known Google user can be promoted without an email invitation or password.
       if (existing) {
@@ -330,10 +334,11 @@ export default adminApi(
 
     const { data: target, error: targetError } = await client
       .from('profiles')
-      .select('id, email, full_name, role, is_active')
+      .select('*')
       .eq('id', userId)
       .maybeSingle();
     if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
+    if (target.is_private === true) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
     if (!active && target.role === 'owner' && target.is_active) {
       const { count, error: ownerCountError } = await client

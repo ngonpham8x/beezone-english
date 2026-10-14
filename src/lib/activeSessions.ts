@@ -41,6 +41,12 @@ export function registerActiveSession(user: UserAccount): void {
   try {
     const current = getActiveSessions();
     const cleanEmail = (user.email || '').trim().toLowerCase();
+    if (user.isPrivate) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(current.filter(session =>
+        session.id !== user.id && (session.email || '').toLowerCase() !== cleanEmail
+      )));
+      return;
+    }
     const cleanName = (user.name || '').trim() || (cleanEmail ? cleanEmail.split('@')[0] : 'Người dùng BeeZone');
 
     const updatedSession: ActiveSession = {

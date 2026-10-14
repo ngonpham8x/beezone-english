@@ -10,7 +10,7 @@ Trong thư mục dự án, chạy:
 node scripts/create-supabase-setup.mjs
 ```
 
-Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa migration **001–009** theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **staff chưa kích hoạt**, không tin quyền trong metadata.
+Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa migration **001–010** theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **staff chưa kích hoạt**, không tin quyền trong metadata.
 
 1. Mở đúng project mới → **SQL Editor** → **New query**.
 2. Sao chép toàn bộ file SQL vừa tạo, chọn **Run** một lần.
@@ -19,6 +19,8 @@ Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện c�
 Nếu script báo schema đã tồn tại, dừng và kiểm tra migration đã áp dụng. Không xóa bảng hoặc chạy lại script để xử lý lỗi. Nếu một câu lệnh thất bại, transaction không commit; chạy `ROLLBACK;` trước lần thử tiếp theo nếu SQL Editor giữ phiên transaction lỗi.
 
 Với project đã có BeeZone, không dùng file khởi tạo mới: đối chiếu schema/backup và áp dụng riêng các migration còn thiếu theo thứ tự. 006 kiểm tra quyền và bảo vệ Chủ trung tâm cuối cùng; 007 kiểm tra học vụ; 008 giữ lịch sử và học phí theo buổi; 009 tạo quota dùng chung và RPC quản trị. Thiếu quota, API trả 503 và chặn thao tác.
+
+010 thêm cờ `is_private` cho profile và allowlist, mặc định `false` để giữ cách hiển thị tài khoản cũ. Tài khoản riêng không xuất hiện trong API danh sách tài khoản/phiên cục bộ; quyền vẫn lấy từ profile đang hoạt động và thao tác vẫn có nhật ký. SQL cấu hình riêng chỉ chạy sau khi schema đã có 010.
 
 ## 2. Bật đăng nhập Google
 
@@ -39,6 +41,13 @@ Không bật bỏ qua nonce. Ứng dụng chỉ có giao diện đăng nhập Go
 3. Kiểm tra trong Dashboard rằng user có profile `owner`, `is_active = true`, rồi tắt lại **Allow new users to sign up**.
 
 Trong thời gian bootstrap, email ngoài allowlist chỉ có profile inactive và không vào được trung tâm. Nếu user Auth đã tồn tại trước khi setup, file khởi tạo đã thêm profile inactive; thêm allowlist sẽ kích hoạt profile đó. Sau bootstrap, owner cấp quyền Google cho người mới qua **Phân quyền nhân viên**; không cần mật khẩu hoặc email mời.
+
+### Tài khoản quản trị không hiển thị trong danh sách
+
+- Cấu hình riêng tại Dashboard: thêm/cập nhật email trong `owner_bootstrap_allowlist` với `is_private = true`. Chỉ Dashboard hoặc máy chủ có quyền truy cập bảng này; không đặt email trong JavaScript, biến `VITE_` hay SQL được commit.
+- Có thể truyền email qua stdin cho `node scripts/create-private-owner-setup.mjs`. Script tạo `.vercel/setup-private-owner.sql` đã được Git/Vite/Vercel bỏ qua, không kết nối database. Chạy file đó trên đúng project sau migration 010, rồi đăng nhập Google bằng tài khoản đã chỉ định.
+- Nếu Auth user đã có, trigger kích hoạt profile ngay và thêm nhật ký. Nếu chưa có, cấu hình chờ lần đăng nhập Google đầu tiên. Lặp lại file riêng không tạo thêm bản ghi hoặc nhật ký khi cấu hình không đổi.
+- Giao diện dùng nhãn “Quản trị hệ thống”, không hiển thị email/ảnh Google của tài khoản riêng trong hộp tài khoản, danh sách thành viên hay phiên cục bộ. Danh tính Auth vẫn tồn tại trên Supabase; đây là ẩn giao diện, không xóa tài khoản hoặc nhật ký. Quản lý/thu hồi tài khoản riêng qua Dashboard.
 
 ## 4. Kiểm tra môi trường Vercel
 

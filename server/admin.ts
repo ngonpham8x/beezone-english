@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { PRIVATE_ACCOUNT_LABEL } from '../src/lib/accountPrivacy.js';
 import { admitAdminRequest, rateLimited } from './rateLimit.js';
 import {
   getBearerToken,
@@ -45,7 +46,7 @@ async function authorizeOwner(req: ApiRequest, res: any) {
   }
   const { data: profile, error: profileError } = await client
     .from('profiles')
-    .select('id, full_name, role, is_active')
+    .select('*')
     .eq('id', data.user.id)
     .maybeSingle();
   if (profileError) {
@@ -56,7 +57,7 @@ async function authorizeOwner(req: ApiRequest, res: any) {
     json(res, 403, { error: 'Chỉ Chủ trung tâm đang hoạt động được phép truy cập.' });
     return null;
   }
-  return { client, callerId: data.user.id, callerName: profile.full_name || 'Chủ trung tâm' };
+  return { client, callerId: data.user.id, callerName: profile.is_private === true ? PRIVATE_ACCOUNT_LABEL : profile.full_name || 'Chủ trung tâm' };
 }
 
 type AuthorizedOwner = NonNullable<Awaited<ReturnType<typeof authorizeOwner>>>;

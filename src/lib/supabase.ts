@@ -12,6 +12,20 @@ export const isSupabaseConfigured = Boolean(validUrl && supabasePublishableKey &
 // Preview identities must never be available in a deployed build.
 export const isLocalPreview = import.meta.env.DEV && !isSupabaseConfigured;
 
+/** Public Auth settings prevent redirecting users to a raw disabled-provider error. */
+export async function isGoogleSignInEnabled(): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/settings`, {
+    headers: { apikey: supabasePublishableKey },
+    signal: AbortSignal.timeout(8_000),
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('Auth settings unavailable');
+  const settings = await response.json();
+  if (typeof settings?.external?.google !== 'boolean') throw new Error('Invalid Auth settings');
+  return settings.external.google;
+}
+
 // Do not add a service-role/secret key here. This bundle is delivered to browsers.
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabasePublishableKey, {

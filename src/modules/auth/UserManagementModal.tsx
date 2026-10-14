@@ -1,5 +1,5 @@
 import { LoaderCircle, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
-import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ActiveSession, getActiveSessions } from '../../lib/activeSessions';
 import { readApiJson } from '../../lib/http';
@@ -73,6 +73,8 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
 
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, accessToken, currentUser, classes = [], teachers = [], onAccountChanged }) => {
   const [members, setMembers] = useState<ManagedUser[]>([]);
+  const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>([]);
+  const [accountVisibilityReady, setAccountVisibilityReady] = useState(false);
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -82,10 +84,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const memberRequest = useRef(0);
+  const dialogOpen = useRef(isOpen);
+  dialogOpen.current = isOpen;
 
   const refreshActiveSessions = useCallback(() => {
-    const sessions = getActiveSessions();
-    if (currentUser && (currentUser.email || currentUser.name)) {
+    const sessions = getActiveSessions().filter(session =>
+      !hiddenAccountIds.includes(session.id) && !(currentUser?.isPrivate &&
+        (session.id === currentUser.id || (session.email || '').toLowerCase() === currentUser.email.toLowerCase()))
+    );
+    if (currentUser && !currentUser.isPrivate && (currentUser.email || currentUser.name)) {
       const exists = sessions.some(
         (s) =>
           (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
@@ -104,11 +112,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       }
     }
     setActiveSessions(sessions);
-  }, [currentUser]);
+  }, [currentUser, hiddenAccountIds]);
 
   const loadMembers = useCallback(async () => {
     if (!accessToken) return;
-    if (isLocalPreview) { setMembers([]); setError('Bản xem thử chưa kết nối quản lý tài khoản. Cấp quyền Google cần cấu hình Supabase và máy chủ.'); return; }
+    const requestId = ++memberRequest.current;
+    if (isLocalPreview) { setMembers([]); setAccountVisibilityReady(true); setError('Bản xem thử chưa kết nối quản lý tài khoản. Cấp quyền Google cần cấu hình Supabase và máy chủ.'); return; }
+    setAccountVisibilityReady(false);
     setIsLoading(true);
     setError(null);
     try {
@@ -116,25 +126,31 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
       });
-      const payload = await readApiJson<{ users: ManagedUser[] }>(response, 'Không thể tải danh sách tài khoản.');
+      const payload = await readApiJson<{ users: ManagedUser[]; hiddenAccountIds?: string[] }>(response, 'Không thể tải danh sách tài khoản.');
+      if (requestId !== memberRequest.current || !dialogOpen.current) return;
       if (!Array.isArray(payload.users)) throw new Error('Danh sách tài khoản không đúng định dạng.');
       setMembers(payload.users);
+      setHiddenAccountIds(Array.isArray(payload.hiddenAccountIds) ? payload.hiddenAccountIds.filter(id => typeof id === 'string') : []);
+      setAccountVisibilityReady(true);
     } catch (error) {
+      if (requestId !== memberRequest.current || !dialogOpen.current) return;
       setMembers([]);
       setError(error instanceof Error ? error.message : 'Không thể tải danh sách tài khoản.');
     } finally {
-      setIsLoading(false);
+      if (requestId === memberRequest.current && dialogOpen.current) setIsLoading(false);
     }
   }, [accessToken]);
 
   useEffect(() => {
     if (isOpen) {
       void loadMembers();
-      refreshActiveSessions();
-    }
-  }, [isOpen, loadMembers, refreshActiveSessions]);
+    } else { memberRequest.current++; setAccountVisibilityReady(false); }
+  }, [isOpen, loadMembers]);
+  useEffect(() => { if (isOpen) refreshActiveSessions(); }, [isOpen, refreshActiveSessions]);
 
   if (!isOpen) return null;
+  const displayedMembers = accountVisibilityReady ? members : [];
+  const displayedSessions = accountVisibilityReady ? activeSessions.filter(session => !hiddenAccountIds.includes(session.id)) : [];
 
   const togglePermission = (module: keyof StaffPermissions, action: string) => {
     setStaffPermissions((current) => ({
@@ -298,8 +314,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
         <div className="mt-6 flex items-center justify-between gap-3"><h3 className="text-sm font-bold">Tài khoản đã được cấp quyền</h3><button disabled={isLoading || isLocalPreview} onClick={() => void loadMembers()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold">{isLoading ? 'Đang tải…' : 'Làm mới'}</button></div>
         <div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200">
-          {!isLoading && members.length === 0 && <p className="p-4 text-sm text-slate-500">Chưa có danh sách tài khoản.</p>}
-          {members.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+          {!isLoading && displayedMembers.length === 0 && <p className="p-4 text-sm text-slate-500">Chưa có danh sách tài khoản.</p>}
+          {displayedMembers.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
             <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{member.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
             <div className="flex gap-2"><button disabled={isSubmitting} onClick={() => { setFullName(member.full_name); setEmail(member.email || ''); setRole(member.role || 'staff'); setStaffPermissions({ ...createEmptyPermissions(), ...member.permissions }); }} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800">Sửa quyền</button><button disabled={isSubmitting || member.id === currentUser?.id} onClick={() => void setAccountActive(member)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">{member.is_active ? 'Khóa' : 'Mở khóa'}</button></div>
           </div>)}
@@ -309,26 +325,26 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           <div>
             <h3 className="font-bold text-slate-900 text-sm">Phiên ghi nhận trên trình duyệt này</h3>
             <p className="text-[11px] text-slate-500">
-              {activeSessions.length > 0
-                ? `${activeSessions.length} phiên được ghi nhận cục bộ; không phản ánh trạng thái trực tuyến trên các máy khác.`
+              {displayedSessions.length > 0
+                ? `${displayedSessions.length} phiên được ghi nhận cục bộ; không phản ánh trạng thái trực tuyến trên các máy khác.`
                 : 'Chưa có tài khoản nào đăng nhập'}
             </p>
           </div>
-          {activeSessions.length > 0 && (
+          {displayedSessions.length > 0 && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {activeSessions.length} phiên cục bộ
+              {displayedSessions.length} phiên cục bộ
             </span>
           )}
         </div>
 
         <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
-          {activeSessions.length === 0 ? (
+          {displayedSessions.length === 0 ? (
             <div className="p-5 text-center text-xs text-slate-400">
               Chưa có tài khoản nào đăng nhập vào hệ thống.
             </div>
           ) : (
-            activeSessions.map((sessionUser) => {
+            displayedSessions.map((sessionUser) => {
               const isCurrent = Boolean(
                 currentUser &&
                 ((sessionUser.email && currentUser.email && sessionUser.email.toLowerCase() === currentUser.email.toLowerCase()) ||
