@@ -1,6 +1,7 @@
 import { History, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import React, { useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { maskEmail } from '../../lib/privacy';
 import { AccountAuditLog, ActivityLog } from '../../types';
 
@@ -91,23 +92,19 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
             />
           </div>
 
-          <select
-            aria-label="Lọc hành động nhật ký"
+          <ResponsiveSelect
+            label="Lọc hành động nhật ký"
             value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            className="filter-control"
-          >
-            <option value="all">Tất cả hành động</option>
-            <option value="ĐĂNG NHẬP">Đăng nhập</option>
-            <option value="THÊM">Thêm mới</option>
-            <option value="SỬA">Sửa dữ liệu</option>
-            <option value="XÓA">Xóa dữ liệu</option>
-            <option value="EXPORT">Export Excel</option>
-            <option value="IMPORT">Import Excel</option>
-            <option value="BACKUP">Backup</option>
-            <option value="RESTORE">Khôi phục</option>
-            <option value="ĐỒNG BỘ">Đồng bộ</option>
-          </select>
+            onChange={setActionFilter}
+            options={[
+              { value: 'all', label: 'Tất cả hành động' },
+              { value: 'ĐĂNG NHẬP', label: 'Đăng nhập' }, { value: 'THÊM', label: 'Thêm mới' },
+              { value: 'SỬA', label: 'Sửa dữ liệu' }, { value: 'XÓA', label: 'Xóa dữ liệu' },
+              { value: 'EXPORT', label: 'Export Excel' }, { value: 'IMPORT', label: 'Import Excel' },
+              { value: 'BACKUP', label: 'Backup' }, { value: 'RESTORE', label: 'Khôi phục' },
+              { value: 'ĐỒNG BỘ', label: 'Đồng bộ' },
+            ]}
+          />
         </div>
       </div>
 

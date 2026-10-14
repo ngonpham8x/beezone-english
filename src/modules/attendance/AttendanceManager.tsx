@@ -283,16 +283,13 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               icon={BookOpen} disabled={permittedClasses.length === 0} placeholder="Chưa có lớp được phân quyền"
               options={permittedClasses.map(c => ({ value: c.id, label: c.name }))} />
 
-            <div className="relative min-w-0">
-              <Calendar aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                aria-label="Ngày điểm danh"
-                type="date"
-                value={sessionDate}
-                onChange={e => setSessionDate(e.target.value)}
-                className="filter-control filter-control--search"
-              />
-            </div>
+            <input
+              aria-label="Ngày điểm danh"
+              type="date"
+              value={sessionDate}
+              onChange={e => setSessionDate(e.target.value)}
+              className="filter-control filter-control--date"
+            />
           </div>
         </div>
 

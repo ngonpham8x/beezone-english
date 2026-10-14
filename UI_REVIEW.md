@@ -145,3 +145,18 @@ Browser vẫn trả `apps: [], browsers: []`; lấy tab localhost bằng `iab` t
 `tests/responsive-select.test.tsx` bổ sung 5 trường hợp: chọn tên dài bằng End/Enter và trả focus; Esc hủy lựa chọn chưa chốt, giải phóng khóa cuộn; chọn bằng chuột/cảm ứng đúng ID; ô không có lớp được phép giữ trạng thái disabled và thông báo. Test Tuyển sinh/Học viên chọn qua popup thực trong jsdom, rồi kiểm tra dữ liệu lọc và đổi dạng xem. Geometry giả trong test chỉ giữ anchor trên viewport mô phỏng để kiểm tra tương tác; không phải kiểm tra pixel.
 
 Kết quả mới nhất: **264 test / 20 tệp**, TypeScript và production build đều qua. Bộ chọn được tải theo các module dùng nó (chunk khoảng 93 KB, gzip 32 KB); bundle khởi động vẫn khoảng 364 KB. Localhost phục vụ component, module Tuyển sinh và CSS mới với HTTP 200. Browser của công cụ vẫn trả danh sách kết nối trống, nên chưa có ảnh dựng thực tế xác nhận sau sửa.
+
+## Ghép các bộ lọc trên màn hình hẹp — 14/10/2026
+
+Ảnh phản hồi Điểm danh cho thấy ô lớp và ngày bị xếp thành hai hàng. CSS trước đây chỉ ghép chúng khi vùng nội dung rộng từ 450 px; nay hai ô luôn cùng hàng, dùng cột co giãn cho lớp và cột giới hạn 152 px cho ngày. Bỏ icon lịch trang trí trùng với nút lịch native, giảm khoảng đệm ô ngày và bỏ icon lớp khi vùng nội dung rất hẹp. Giữ vùng điều khiển cao 44 px và nhãn truy cập.
+
+Rà các nhóm lọc trong menu và cập nhật thêm:
+
+- Nhật ký: tìm kiếm/hành động cùng một hàng; bộ chọn hành động dùng `ResponsiveSelect` để popup và nhãn dài nằm trong viewport.
+- Học phí: tìm kiếm toàn hàng, năm bộ chọn chia cặp từ màn hình hẹp; ô cuối chiếm hàng còn lại. Khi đủ rộng chuyển về ba cột hoặc một hàng. Bốn bộ chọn còn lại dùng chung dropdown có giới hạn viewport.
+- Báo cáo: ngày và nút in cùng hàng, ba kỳ báo cáo cùng hàng tiếp theo. Thứ tự DOM/bàn phím khớp thứ tự hiển thị; desktop dùng nhóm điều khiển linh hoạt.
+- Tuyển sinh và Học viên đã ghép bộ chọn theo cặp; giữ cách xếp này. Điểm số có một ô chọn lớp; Chương trình có một ô tìm kiếm. Các nhóm lịch/ngày và thao tác khác tiếp tục xuống hàng khi cần.
+
+Ba kiểm thử tương tác mới xác minh ngày điểm danh không mất khi chọn lớp bằng bàn phím, lưu đúng roster; kết hợp/xóa toàn bộ bộ lọc học phí không ghi sửa phiếu; tìm nhật ký giữ nguyên khi đổi hành động. Kiểm thử điều hướng/responsive hiện có tiếp tục bao phủ 18 mục menu và các viewport 320–1366 px. jsdom không đo kích thước CSS thật; công cụ browser tại lần rà này trả danh sách kết nối trống, nên không ghi nhận kiểm tra hình ảnh trực tiếp trên thiết bị thật.
+
+Kết quả: `npm run check` qua, **324 test / 23 tệp**, TypeScript và production build thành công; bundle/CSP đạt kiểm tra. Localhost trả 200 cho trang Điểm danh, CSS và module Điểm danh. Chỉ thay giao diện/bộ lọc; không chạy migration hoặc đổi định dạng dữ liệu.

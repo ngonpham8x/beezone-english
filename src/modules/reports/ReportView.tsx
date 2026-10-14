@@ -78,9 +78,15 @@ export const ReportView: React.FC<ReportViewProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs font-semibold text-slate-600">Ngày báo cáo <input aria-label="Ngày báo cáo" type="date" value={reportDate} onChange={event => { if (event.target.value) setReportDate(event.target.value); }} className="ml-1 rounded-lg border border-slate-300 p-2" /></label>
-          <div className="bg-slate-100 p-1 rounded-xl flex flex-wrap items-center border border-slate-200">
+        <div className="report-controls">
+          <label className="min-w-0"><span className="sr-only">Ngày báo cáo</span><input aria-label="Ngày báo cáo" type="date" value={reportDate} onChange={event => { if (event.target.value) setReportDate(event.target.value); }} className="filter-control filter-control--date" /></label>
+          <button
+            onClick={handlePrint}
+            className="report-print px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-2xs"
+          >
+            <Printer className="w-4 h-4 text-amber-400" /> In Báo Cáo
+          </button>
+          <div className="report-periods bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               aria-pressed={timeFilter === 'day'}
               onClick={() => setTimeFilter('day')}
@@ -103,13 +109,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
               Hằng Tháng
             </button>
           </div>
-
-          <button
-            onClick={handlePrint}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-2xs"
-          >
-            <Printer className="w-4 h-4 text-amber-400" /> In Báo Cáo
-          </button>
         </div>
       </div>
 

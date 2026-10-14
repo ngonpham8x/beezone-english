@@ -489,18 +489,19 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
             { value: 'all', label: 'Tất cả lớp' },
             ...classes.map(classroom => ({ value: classroom.id, label: classroom.name })),
           ]} />
-          <select aria-label="Lọc khoản thu" value={filterPaymentKind} onChange={(event) => setFilterPaymentKind(event.target.value as 'all' | 'monthly' | 'course' | 'session')} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
-            <option value="all">Tất cả khoản thu</option><option value="monthly">Học phí tháng</option><option value="course">Học phí khóa</option><option value="session">Học phí buổi</option>
-          </select>
-          <select aria-label="Lọc tình trạng phiếu thu" value={filterReceiptStatus} onChange={(event) => setFilterReceiptStatus(event.target.value as 'all' | 'paid' | 'debt')} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
-            <option value="all">Tất cả tình trạng</option><option value="paid">Đã đóng đủ</option><option value="debt">Còn nợ / đóng thiếu</option>
-          </select>
-          <select aria-label="Lọc tháng thu" value={filterMonth} onChange={(event) => setFilterMonth(event.target.value)} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
-            <option value="all">Tất cả tháng thu</option>{receiptMonths.map((month) => <option key={month} value={month}>Tháng {month.slice(5)}/{month.slice(0, 4)}</option>)}
-          </select>
-          <select aria-label="Lọc hình thức thanh toán" value={filterPaymentMethod} onChange={(event) => setFilterPaymentMethod(event.target.value)} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
-            <option value="all">Tất cả hình thức</option><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Thẻ">Thẻ</option><option value="TM/CK">TM/CK</option>
-          </select>
+          <ResponsiveSelect label="Lọc khoản thu" value={filterPaymentKind} onChange={value => setFilterPaymentKind(value as typeof filterPaymentKind)} options={[
+            { value: 'all', label: 'Tất cả khoản thu' }, { value: 'monthly', label: 'Học phí tháng' },
+            { value: 'course', label: 'Học phí khóa' }, { value: 'session', label: 'Học phí buổi' },
+          ]} />
+          <ResponsiveSelect label="Lọc tình trạng phiếu thu" value={filterReceiptStatus} onChange={value => setFilterReceiptStatus(value as typeof filterReceiptStatus)} options={[
+            { value: 'all', label: 'Tất cả tình trạng' }, { value: 'paid', label: 'Đã đóng đủ' }, { value: 'debt', label: 'Còn nợ / đóng thiếu' },
+          ]} />
+          <ResponsiveSelect label="Lọc tháng thu" value={filterMonth} onChange={setFilterMonth} options={[
+            { value: 'all', label: 'Tất cả tháng thu' }, ...receiptMonths.map(month => ({ value: month, label: `Tháng ${month.slice(5)}/${month.slice(0, 4)}` })),
+          ]} />
+          <ResponsiveSelect label="Lọc hình thức thanh toán" value={filterPaymentMethod} onChange={setFilterPaymentMethod} options={[
+            { value: 'all', label: 'Tất cả hình thức' }, ...['Tiền mặt', 'Chuyển khoản', 'Thẻ', 'TM/CK'].map(method => ({ value: method, label: method })),
+          ]} />
         </div>
       </section>
 
