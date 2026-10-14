@@ -1,5 +1,5 @@
 import type { AccountAuditLog, ActivityLog } from '../types';
-import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy';
+import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy.js';
 
 interface AuditProfile {
   id: string;
