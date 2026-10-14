@@ -78,22 +78,24 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+        <div className="log-filters">
+          <div className="relative min-w-0">
+            <Search className="pointer-events-none w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
+              aria-label="Tìm nhật ký hệ thống"
               type="text"
               placeholder="Tìm kiếm nhật ký..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
+              className="filter-control filter-control--search"
             />
           </div>
 
           <select
+            aria-label="Lọc hành động nhật ký"
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-700"
+            className="filter-control"
           >
             <option value="all">Tất cả hành động</option>
             <option value="ĐĂNG NHẬP">Đăng nhập</option>

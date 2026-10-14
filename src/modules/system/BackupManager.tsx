@@ -220,7 +220,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/80 text-white p-6 rounded-2xl shadow-md border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="page-heading bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/80 text-white border border-amber-500/30">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold mb-2 border border-amber-400/30">
             <Sparkles className="w-3.5 h-3.5" /> AN TOÀN DỮ LIỆU CƠ SỞ DỮ LIỆU
@@ -257,7 +257,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="entity-grid">
           {/* Option 1: Master Excel Report */}
           <div className="p-4 bg-gradient-to-br from-emerald-50 via-white to-slate-50 rounded-xl border border-emerald-200 flex flex-col justify-between space-y-3 hover:shadow-sm transition-all">
             <div>
@@ -362,7 +362,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
       )}
 
       {/* Settings Info Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+      <div className="entity-grid entity-grid--rooms text-xs">
         <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
           <div className="font-bold text-slate-900 flex items-center gap-1.5 mb-1">
             <Shield className="w-4 h-4 text-emerald-600" /> Sao Lưu Thủ Công
@@ -389,7 +389,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
 
       {/* Backup History Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 bg-slate-800 text-slate-200 font-bold text-xs uppercase flex items-center justify-between">
+        <div className="p-3 bg-slate-800 text-slate-200 font-bold text-xs uppercase flex flex-wrap items-center justify-between gap-2">
           <span>Lịch Sử 30 Bản Sao Lưu Gần Nhất ({backups.length})</span>
           <span className="text-[10px] text-amber-400 font-medium">Chỉ hiển thị bản xuất đã ghi nhận</span>
         </div>

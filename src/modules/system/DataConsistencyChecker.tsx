@@ -1,5 +1,6 @@
 import { AlertCircle, AlertTriangle, CheckCircle, Download, Info, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { StatCard } from '../../components/StatCard';
 import { centerDate } from '../../lib/dates';
 import {
   autoFixConsistency,
@@ -106,11 +107,11 @@ export default function DataConsistencyChecker({
     <div className="w-full bg-white rounded-lg shadow-lg">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 sm:px-6 py-4 rounded-t-lg">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <RefreshCw className="w-6 h-6" />
+        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <RefreshCw className="w-5 h-5 shrink-0" />
           Kiểm Tra & Sửa Tính Nhất Quán Dữ Liệu
         </h2>
-        <p className="text-blue-100 text-sm mt-1">
+        <p className="text-blue-100 text-xs mt-1">
           Phát hiện và tự động sửa các liên kết bị dứt giữa học viên, lớp học, và học phí
         </p>
       </div>
@@ -152,34 +153,20 @@ export default function DataConsistencyChecker({
 
         {/* Summary Cards */}
         {report && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <p className="text-gray-600 text-sm font-medium">Tổng Vấn Đề</p>
-              <p className="text-3xl font-bold text-gray-800">{report.totalIssues}</p>
-            </div>
-
-            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-              <p className="text-red-600 text-sm font-medium">🔴 Nghiêm Trọng</p>
-              <p className="text-3xl font-bold text-red-600">{report.criticalIssues}</p>
-            </div>
-
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-              <p className="text-yellow-600 text-sm font-medium">🟡 Cảnh Báo</p>
-              <p className="text-3xl font-bold text-yellow-600">{report.warnings}</p>
-            </div>
-
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <p className="text-green-600 text-sm font-medium">✅ Đã Sửa</p>
-              <p className="text-3xl font-bold text-green-600">{report.fixedCount}</p>
-            </div>
+          <div className="stats-grid mb-4">
+            <StatCard label="Tổng vấn đề" value={report.totalIssues} />
+            <StatCard label="Nghiêm trọng" value={report.criticalIssues} tone="rose" />
+            <StatCard label="Cảnh báo" value={report.warnings} tone="amber" />
+            <StatCard label="Đã sửa" value={report.fixedCount} tone="emerald" />
           </div>
         )}
 
         {/* Tabs */}
         {issues.length > 0 && (
           <>
-            <div className="flex gap-4 border-b border-gray-200 mb-4">
+            <div className="flex flex-wrap gap-2 border-b border-gray-200 mb-4 text-xs">
               <button
+                aria-pressed={activeTab === 'overview'}
                 onClick={() => setActiveTab('overview')}
                 className={`px-4 py-2 font-medium transition ${
                   activeTab === 'overview'
@@ -190,6 +177,7 @@ export default function DataConsistencyChecker({
                 📊 Tóm Tắt
               </button>
               <button
+                aria-pressed={activeTab === 'issues'}
                 onClick={() => setActiveTab('issues')}
                 className={`px-4 py-2 font-medium transition ${
                   activeTab === 'issues'
@@ -200,6 +188,7 @@ export default function DataConsistencyChecker({
                 📋 Chi Tiết ({issues.length})
               </button>
               <button
+                aria-pressed={activeTab === 'report'}
                 onClick={() => setActiveTab('report')}
                 className={`px-4 py-2 font-medium transition ${
                   activeTab === 'report'

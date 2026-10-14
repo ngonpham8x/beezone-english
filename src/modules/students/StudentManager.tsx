@@ -6,7 +6,6 @@ import {
   Edit,
   Eye,
   FileSpreadsheet,
-  Filter,
   LayoutGrid,
   PauseCircle,
   Phone,
@@ -374,17 +373,15 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       </div>
 
       {/* Filters & View Mode Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <Filter className="w-4 h-4 text-amber-600" /> {t('student.filters')}
-          </div>
-
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label={t('student.filters')} className="student-filters">
           {/* Program Filter */}
           <select
+            aria-label="Lọc chương trình học viên"
+            title={programs.find(p => p.id === filterProgram)?.name || t('student.all_programs')}
             value={filterProgram}
             onChange={(e) => setFilterProgram(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+            className="filter-control"
           >
             <option value="all">{t('student.all_programs')}</option>
             {programs.map(p => (
@@ -394,9 +391,11 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
           {/* Class Filter */}
           <select
+            aria-label="Lọc lớp học viên"
+            title={classes.find(c => c.id === filterClass)?.name || t('student.all_classes')}
             value={filterClass}
             onChange={(e) => setFilterClass(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+            className="filter-control"
           >
             <option value="all">{t('student.all_classes')}</option>
             {classes.map(c => (
@@ -406,9 +405,10 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
           {/* Status Filter */}
           <select
+            aria-label="Lọc trạng thái học viên"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+            className="filter-control"
           >
             <option value="all">{t('student.all_statuses')}</option>
             <option value="active">{t('actions.active')}</option>

@@ -266,9 +266,9 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     <div className="space-y-4 sm:space-y-6">
       {/* Header Bar */}
       <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 sm:space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-          <div>
-            <h2 className="text-base sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-72">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <CalendarCheck className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 shrink-0" />
               Điểm Danh & Nhận Xét Buổi Học
             </h2>
@@ -277,13 +277,15 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3 py-1.5 flex-1 sm:flex-initial min-w-[150px]">
+          <div className="attendance-filters">
+            <div className="flex min-w-0 items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3">
               <BookOpen className="w-4 h-4 text-slate-500 shrink-0" />
               <select
+                aria-label="Lớp điểm danh"
+                title={selectedClass?.name}
                 value={selectedClassId}
                 onChange={e => setSelectedClassId(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-hidden w-full cursor-pointer"
+                className="h-11 min-w-0 truncate bg-transparent text-xs font-bold text-slate-800 w-full cursor-pointer"
                 disabled={permittedClasses.length === 0}
               >
                 {permittedClasses.length === 0 ? (
@@ -298,13 +300,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3 py-1.5 flex-1 sm:flex-initial min-w-[130px]">
+            <div className="flex min-w-0 items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3">
               <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
               <input
+                aria-label="Ngày điểm danh"
                 type="date"
                 value={sessionDate}
                 onChange={e => setSessionDate(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-hidden w-full cursor-pointer"
+                className="h-11 min-w-0 bg-transparent text-xs font-bold text-slate-800 w-full cursor-pointer"
               />
             </div>
           </div>
@@ -418,7 +421,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       {/* Actions & View Switcher Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
         {/* Left: Quick actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={handleMarkAllPresent}

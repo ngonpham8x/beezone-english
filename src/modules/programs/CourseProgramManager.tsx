@@ -165,11 +165,12 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-2">
           {['all', 'Cambridge', 'IELTS', 'TOEIC', 'Cấp 1', 'Cấp 2', 'Khác'].map(cat => (
             <button
               key={cat}
               type="button"
+              aria-pressed={filterCategory === cat}
               onClick={() => setFilterCategory(cat)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                 filterCategory === cat
@@ -183,11 +184,12 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
         </div>
 
         <input
+          aria-label="Tìm chương trình học"
           type="text"
           placeholder="Tìm tên hoặc mã khóa..."
           value={searchKeyword}
           onChange={e => setSearchKeyword(e.target.value)}
-          className="text-xs px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-600 focus:outline-hidden"
+          className="filter-control program-search"
         />
       </div>
 

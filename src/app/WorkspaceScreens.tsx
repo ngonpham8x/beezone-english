@@ -353,7 +353,7 @@ export function WorkspaceScreens({
       );
     case 'excel-import-export':
       return (
-        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
           <h3 className="font-bold text-lg text-slate-900 mb-2">Nhập / Xuất Excel</h3>
           <p className="text-xs text-slate-500 mb-4">
             Quản lý nhập dữ liệu hàng loạt và xuất Workbook nhiều Sheet liên kết công thức
@@ -424,7 +424,7 @@ export function WorkspaceScreens({
       );
     case 'settings':
       return (
-        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
+        <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
           <h3 className="font-bold text-lg text-slate-900 mb-2">Cài Đặt Hệ Thống</h3>
           <p className="text-xs text-slate-500 mb-4">
             Thông tin trung tâm & cấu hình gửi email tự động

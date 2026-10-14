@@ -121,9 +121,9 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
             >
               <div className="p-5">
                 <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3">
-                    <TeacherAvatar teacher={teacher} className="h-14 w-14 text-sm shadow-xs" />
-                    <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <TeacherAvatar teacher={teacher} className="h-14 w-14 shrink-0 text-sm shadow-xs" />
+                    <div className="min-w-0">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                         {teacher.id}
                       </span>
@@ -135,13 +135,14 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                   </div>
 
                   {canEdit && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
+                        aria-label={`Sửa giáo viên ${teacher.name}`}
                         onClick={() => {
                           setEditingTeacher(teacher);
                           setIsModalOpen(true);
                         }}
-                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                        className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
                         title="Sửa"
                       >
                         <Edit className="w-4 h-4" />
@@ -149,12 +150,13 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
                       {canDelete && (
                         <button
+                          aria-label={`Xóa giáo viên ${teacher.name}`}
                           onClick={() => {
                             if (confirm(`Xóa giáo viên ${teacher.name}?`)) {
                               onDeleteTeacher(teacher.id);
                             }
                           }}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                          className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                           title="Xóa"
                         >
                           <Trash2 className="w-4 h-4" />

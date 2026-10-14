@@ -33,7 +33,7 @@
 ## Kiểm tra
 
 - TypeScript: `npm run lint`; build gồm kiểm tra kiểu trước khi bundle.
-- **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 200 test / 18 tệp và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
+- **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 259 test / 19 tệp và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
 - Lượt kiểm tra giao diện đầu tiên có **88 test / 10 tệp**, trong đó điều hướng cả 18 phân hệ, 19 test responsive và 6 test cuộn ngang/cuối tuần. Test trong `tests/`: dữ liệu/sao lưu, tiền và ngày, xác thực, phiên làm mới, xung đột/lỗi lưu, API trả HTML, Excel xuất–nhập, quyền DB, điều hướng, menu/dialog/focus, thay đổi viewport và các điều khiển cuộn bảng. Xem [UI_REVIEW.md](UI_REVIEW.md) để biết phạm vi kiểm tra đa thiết bị.
 - Các migration 001–006 được thực thi trên PostgreSQL cục bộ (PGlite). Kiểm tra RLS tài khoản khóa, quyền ghi, lớp được phân công, dữ liệu không hợp lệ, chủ cuối cùng và cập nhật snapshot cũ.
 - Kiểm tra HTTP development: API chưa cấu hình trả lỗi JSON đúng, không trả danh sách giả hoặc báo thành công giả.

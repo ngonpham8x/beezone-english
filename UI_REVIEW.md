@@ -99,3 +99,34 @@ Công cụ trình duyệt trả về danh sách kết nối trống (`apps: [], 
 `tests/admissions-filters.test.tsx` kiểm tra kết hợp bộ lọc ở 320/480/820/1366 px, giữ lựa chọn khi đổi dạng bảng/thẻ, thứ tự focus và tên chương trình dài. Có 5 trường hợp mới; jsdom kiểm tra hành vi, không đo pixel. Browser của phiên công cụ vẫn không cung cấp tab sau khi người dùng chia sẻ/chọn Browser, nên chưa xác nhận ảnh dựng sau sửa trực tiếp.
 
 `npm run check` qua toàn bộ: **200 test / 18 tệp**, TypeScript và build production. Localhost phục vụ module bộ lọc mới và CSS grid với HTTP 200. Giữ nguyên dữ liệu và nghiệp vụ tuyển sinh.
+
+## Rà toàn bộ menu — 14/10/2026
+
+Đã rà mã giao diện của 18 mục menu, các thành phần dùng chung và biểu mẫu liên quan. Phát hiện thêm các bộ chọn giãn theo tên dài, nhóm nút chưa xuống hàng, phần Sao lưu chia cột theo viewport thay vì vùng nội dung và nút mở chi tiết Báo cáo chỉ có thao tác click trên dòng bảng. Các sửa đổi dưới đây áp dụng trên localhost; chưa xác nhận bố cục pixel bằng Browser thật.
+
+| Mục menu | Nội dung rà hoặc chỉnh |
+| --- | --- |
+| Tổng quan | Giữ thứ tự chào mừng/công việc, thống kê gọn và biểu đồ theo vùng nội dung; chạy lại test điều hướng/công việc |
+| Điểm danh buổi học | Chặn tên lớp dài làm giãn công cụ; lớp/ngày có nhãn truy cập, điều khiển cao 44 px; nhóm thao tác xuống hàng khi thiếu chỗ |
+| Tuyển sinh & Ghi danh | Giữ tìm kiếm phía trên, hai bộ chọn cùng hàng trên màn hình hẹp; chạy lại test lọc và đổi bảng/thẻ |
+| Chương trình học | Ô tìm kiếm rộng toàn hàng khi hẹp, gọn khi đủ chỗ; nhóm loại chương trình xuống hàng và thông báo trạng thái đang chọn |
+| Học viên | Bộ lọc chương trình/lớp/trạng thái dùng grid có giới hạn chiều rộng; tên dài thu gọn và có tooltip; giữ lựa chọn khi đổi bảng/thẻ |
+| Giáo viên | Tên/avatar có giới hạn co giãn; nút sửa/xóa có tên đầy đủ và vùng bấm 44×44 px trên điện thoại/cảm ứng |
+| Lớp học & Điểm danh | Tên lớp và nút thao tác không giãn vượt thẻ; bổ sung tên truy cập và vùng bấm của sửa/xóa |
+| Phòng học | Thẻ tên phòng co giãn; nút sửa/xóa dễ chạm hơn; giữ trạng thái và liên kết lớp |
+| Thời khóa biểu | Giữ xem ngày trên màn hình hẹp, lịch tuần đủ bảy ngày và nút nhảy cuối tuần; chạy lại test điều hướng/cuộn |
+| Lịch giáo viên | Giữ xem ngày/tuần, nút nhảy cuối tuần và vùng bảng cuộn riêng; chạy lại test điều hướng/cuộn |
+| Điểm số | Ô chọn lớp có chiều rộng giới hạn và tên truy cập; bộ chuyển bảng/thẻ cùng số học viên có thể xuống hàng |
+| Học phí | Các bộ chọn luôn nằm trong cột, bổ sung nhãn truy cập cho tìm kiếm và năm bộ lọc; giữ luồng thu theo buổi/khóa/tháng |
+| Báo cáo | Tiêu đề thống nhất, giảm khoảng đệm trên màn hình hẹp; có nút mở chi tiết lớp bằng bàn phím; bảng chi tiết có chiều rộng dễ đọc và vùng cuộn |
+| Excel | Trang mở công cụ gọn hơn; giữ dialog nhập/xuất, chọn tệp và xác nhận dữ liệu |
+| Kiểm tra dữ liệu | Tiêu đề và thống kê gọn; các nút đổi nội dung tự xuống hàng và thông báo trạng thái chọn |
+| Sao lưu | Tiêu đề gọn; thẻ xuất/thông tin chia cột theo vùng nội dung; tiêu đề lịch sử có thể xuống hàng |
+| Cài đặt | Trang mở biểu mẫu gọn hơn; giữ dialog theo viewport và làm mới form khi mở lại |
+| Nhật ký hệ thống | Tìm kiếm/bộ lọc có nhãn và grid giới hạn chiều rộng; icon tìm kiếm không che chữ hoặc chặn click |
+
+`tests/navigation.test.tsx` kiểm tra **18 mục × 6 chiều rộng 320/390/480/820/1024/1366 px = 108 trường hợp**, gồm điều hướng, tải màn hình, menu drawer và lỗi runtime. `tests/menu-controls.test.tsx` bổ sung 4 trường hợp lọc Học viên với tên chương trình/lớp dài, giữ lựa chọn khi đổi dạng xem và focus; 1 trường hợp mở chi tiết Báo cáo bằng nút native, đóng bằng Esc và trả focus. Đây là kiểm tra hành vi trong jsdom, không phải đo tràn ngang hoặc ảnh trên thiết bị thật.
+
+Kết quả: **259 test / 19 tệp**, TypeScript và production build đều qua. Localhost trả HTTP 200, phục vụ CSS mới cho các bộ lọc và vùng bấm. Giữ nguyên URL, schema, dữ liệu, quyền và nghiệp vụ.
+
+Browser vẫn trả `apps: [], browsers: []`; lấy tab localhost bằng `iab` trả `Browser is not available: iab`. Vì vậy chưa thể kết luận mọi mục đã đẹp ở mọi thiết bị, mức zoom và bàn phím ảo. Các kết quả trực quan còn cần được xác nhận khi công cụ nhận được tab chia sẻ.

@@ -91,7 +91,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
             >
               <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
+                  <div className="min-w-0">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                       {room.id}
                     </span>
@@ -99,14 +99,14 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                   </div>
 
                   {canEdit && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
                         aria-label={`Sửa phòng ${room.name}`}
                         onClick={() => {
                           setEditingRoom(room);
                           setIsModalOpen(true);
                         }}
-                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                        className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -115,7 +115,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                         onClick={() => {
                           if (confirm(`Xóa phòng ${room.name}?`)) onDeleteRoom(room.id);
                         }}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                        className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

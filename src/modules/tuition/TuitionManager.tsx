@@ -480,23 +480,24 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         </div>
         <div className="tuition-filters">
           <label className="tuition-filter-search relative">
+            <span className="sr-only">Tìm phiếu thu</span>
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input value={receiptQuery} onChange={(event) => setReceiptQuery(event.target.value)} placeholder="Mã phiếu, mã/tên học sinh, kỳ thu..." className="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-xs outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
           </label>
-          <select value={filterClassId} onChange={(event) => setFilterClassId(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+          <select aria-label="Lọc lớp trên phiếu thu" title={classes.find(c => c.id === filterClassId)?.name || 'Tất cả lớp'} value={filterClassId} onChange={(event) => setFilterClassId(event.target.value)} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả lớp</option>
             {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
           </select>
-          <select value={filterPaymentKind} onChange={(event) => setFilterPaymentKind(event.target.value as 'all' | 'monthly' | 'course' | 'session')} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+          <select aria-label="Lọc khoản thu" value={filterPaymentKind} onChange={(event) => setFilterPaymentKind(event.target.value as 'all' | 'monthly' | 'course' | 'session')} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả khoản thu</option><option value="monthly">Học phí tháng</option><option value="course">Học phí khóa</option><option value="session">Học phí buổi</option>
           </select>
-          <select value={filterReceiptStatus} onChange={(event) => setFilterReceiptStatus(event.target.value as 'all' | 'paid' | 'debt')} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+          <select aria-label="Lọc tình trạng phiếu thu" value={filterReceiptStatus} onChange={(event) => setFilterReceiptStatus(event.target.value as 'all' | 'paid' | 'debt')} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả tình trạng</option><option value="paid">Đã đóng đủ</option><option value="debt">Còn nợ / đóng thiếu</option>
           </select>
-          <select value={filterMonth} onChange={(event) => setFilterMonth(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+          <select aria-label="Lọc tháng thu" value={filterMonth} onChange={(event) => setFilterMonth(event.target.value)} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả tháng thu</option>{receiptMonths.map((month) => <option key={month} value={month}>Tháng {month.slice(5)}/{month.slice(0, 4)}</option>)}
           </select>
-          <select value={filterPaymentMethod} onChange={(event) => setFilterPaymentMethod(event.target.value)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
+          <select aria-label="Lọc hình thức thanh toán" value={filterPaymentMethod} onChange={(event) => setFilterPaymentMethod(event.target.value)} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả hình thức</option><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option><option value="Thẻ">Thẻ</option><option value="TM/CK">TM/CK</option>
           </select>
         </div>

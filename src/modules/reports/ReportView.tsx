@@ -67,7 +67,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs print:hidden">
+      <div className="page-heading bg-white border border-slate-200 print:hidden">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-amber-600" />
@@ -82,18 +82,21 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <label className="text-xs font-semibold text-slate-600">Ngày báo cáo <input aria-label="Ngày báo cáo" type="date" value={reportDate} onChange={event => { if (event.target.value) setReportDate(event.target.value); }} className="ml-1 rounded-lg border border-slate-300 p-2" /></label>
           <div className="bg-slate-100 p-1 rounded-xl flex flex-wrap items-center border border-slate-200">
             <button
+              aria-pressed={timeFilter === 'day'}
               onClick={() => setTimeFilter('day')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${timeFilter === 'day' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Hằng Ngày
             </button>
             <button
+              aria-pressed={timeFilter === 'week'}
               onClick={() => setTimeFilter('week')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${timeFilter === 'week' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Hằng Tuần
             </button>
             <button
+              aria-pressed={timeFilter === 'month'}
               onClick={() => setTimeFilter('month')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${timeFilter === 'month' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
             >
@@ -111,7 +114,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
       </div>
 
       {/* Report Paper */}
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+      <div className="bg-white p-3 sm:p-5 print:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-6">
         <div className="text-center border-b border-slate-200 pb-4">
           <h1 className="font-extrabold text-xl text-slate-900 uppercase tracking-wider">TRUNG TÂM NGOẠI NGỮ BEEZONE</h1>
           <p className="text-xs text-slate-500">Địa chỉ: 111 Ngô Quyền, Long Hải, Long Hoa, Tây Ninh · SĐT: 0847563679</p>
@@ -159,7 +162,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                       title="Bấm để xem chi tiết lớp, học viên và học phí"
                     >
                       <td className="p-2.5 font-bold text-slate-400">{idx + 1}</td>
-                      <td className="p-2.5 font-bold font-mono text-slate-900">{cls.code}</td>
+                      <td className="p-2.5 font-bold font-mono text-slate-900"><button type="button" aria-label={`Xem chi tiết lớp ${cls.name}`} onClick={event => { event.stopPropagation(); setSelectedClassId(cls.id); }} className="rounded-md text-amber-800 underline decoration-amber-200 underline-offset-4 hover:text-amber-950">{cls.code}</button></td>
                       <td className="p-2.5 font-bold text-slate-900">{cls.name}</td>
                       <td className="p-2.5">{classStudents.length} / {cls.capacity > 0 ? cls.capacity : 'Chưa cập nhật'} HS</td>
                       <td className="p-2.5 font-bold text-emerald-700">{paid.toLocaleString('vi-VN')} đ</td>
@@ -200,10 +203,10 @@ export const ReportView: React.FC<ReportViewProps> = ({
             </div>
 
             <HorizontalScroll label="Học phí theo học viên" className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[640px] text-left text-xs">
                 <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Nợ tháng</th><th className="px-3 py-2.5 text-right">Nợ khóa</th><th className="px-3 py-2.5 text-right">Nợ buổi</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                  {selectedClassStudents.length === 0 ? <tr><td colSpan={5} className="px-3 py-7 text-center text-slate-500">Chưa có học viên trong lớp.</td></tr> : selectedClassStudents.map((student) => {
+                  {selectedClassStudents.length === 0 ? <tr><td colSpan={6} className="px-3 py-7 text-center text-slate-500">Chưa có học viên trong lớp.</td></tr> : selectedClassStudents.map((student) => {
                     const studentReceipts = selectedClassReceipts.filter((receipt) => receipt.studentId === student.id);
                     const studentDebt = debtBreakdown(studentReceipts);
                     const studentPaid = periodPaymentEntries.filter((entry) => entry.studentId === student.id).reduce((sum, entry) => sum + entry.amount, 0);

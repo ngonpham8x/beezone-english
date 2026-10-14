@@ -322,7 +322,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
             >
               <div className="p-5">
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div>
+                  <div className="min-w-0">
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-amber-50 text-amber-900 border border-amber-200/60">
                       {cls.code}
                     </span>
@@ -331,23 +331,25 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   </div>
 
                   {canEdit && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
+                        aria-label={`Sửa lớp ${cls.name}`}
                         onClick={() => {
                           handleOpenEdit(cls);
                         }}
-                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                        className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
                         title="Sửa"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
+                        aria-label={`Xóa lớp ${cls.name}`}
                         onClick={() => {
                           if (confirm(`Xóa lớp ${cls.name}?`)) {
                             onDeleteClass(cls.id);
                           }
                         }}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                        className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                         title="Xóa"
                       >
                         <Trash2 className="w-4 h-4" />

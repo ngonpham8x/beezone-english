@@ -100,7 +100,9 @@ afterAll(() => {
 
 // This checks navigation, rendering and drawer behavior, not pixel layout.
 it.each(
-  [390, 820, 1366].flatMap((width) => Array.from({ length: 18 }, (_, index) => [width, index])),
+  [320, 390, 480, 820, 1024, 1366].flatMap((width) =>
+    Array.from({ length: 18 }, (_, index) => [width, index]),
+  ),
 )('opens management page at %spx, tab #%s without a runtime failure', async (width, index) => {
   resize(width);
   const openMenu = screen.queryByRole('button', { name: 'Mở menu điều hướng' });
