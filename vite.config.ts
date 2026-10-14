@@ -48,6 +48,8 @@ export default defineConfig(({ mode }) => {
     }],
     resolve: { alias: { '@': path.resolve(import.meta.dirname, '.') } },
     server: {
+      // Keep Vite's default private-file exclusions and protect deployment metadata.
+      fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/.vercel/**'] },
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },

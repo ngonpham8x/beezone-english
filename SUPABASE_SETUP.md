@@ -1,82 +1,67 @@
-# Thiết lập Supabase Dashboard
+# Thiết lập Supabase cho BeeZone
 
-Thực hiện trực tiếp trong project Supabase của trung tâm. Không đưa secret key, SMTP password hoặc email quản trị viên vào GitHub, file `.env`, hoặc chat.
+Project đang dùng: [deiohgeljdlxtecbeosu](https://supabase.com/dashboard/project/deiohgeljdlxtecbeosu). Domain chính: https://beezone-english.vercel.app. Không đưa khóa, Google Client Secret, email quản trị hoặc dữ liệu trung tâm vào GitHub.
 
-## 1. Tạo cấu trúc bảo mật và thêm owner riêng tư
+## 1. Khởi tạo database mới
 
-1. Vào **SQL Editor** → **New query**.
-2. Mở file `supabase/migrations/001_auth_profiles.sql` trong repository, sao chép toàn bộ nội dung vào SQL Editor, rồi chọn **Run**.
-3. Tạo query mới, chạy tiếp toàn bộ `supabase/migrations/002_bootstrap_owners.sql`.
-4. Tạo query mới, chạy tiếp toàn bộ `supabase/migrations/003_center_data.sql`. Migration này tạo kho dữ liệu trung tâm có RLS; tuyệt đối không dán danh sách học sinh/học phí vào SQL Editor hay GitHub.
-5. Tạo query mới, chạy tiếp toàn bộ `supabase/migrations/004_account_audit_logs.sql`. Migration này tạo nhật ký tài khoản chỉ Chủ trung tâm xem được.
-6. Tạo query mới, chạy tiếp toàn bộ `supabase/migrations/005_backfill_owner_account_audit_logs.sql` để khởi tạo lịch sử cho các Chủ trung tâm hiện có mà không hiển thị email.
-7. Vào **Table Editor** → schema `public` → bảng `owner_bootstrap_allowlist` → **Insert**.
-8. Thêm một dòng cho mỗi trong hai email Chủ trung tâm đã trao đổi, chỉ điền cột `email`; không cần điền `created_at`.
-9. Không chia sẻ ảnh màn hình hoặc export của bảng này. Bảng đã bật RLS và browser không có quyền đọc nó.
+Trong thư mục dự án, chạy:
 
-Nếu một trong hai chủ đã đăng nhập trước khi được thêm vào allowlist, trigger của migration sẽ tự chuyển profile tương ứng thành `owner` và kích hoạt tài khoản ngay khi bạn lưu dòng đó.
+```sh
+node scripts/create-supabase-setup.mjs
+```
 
-## 2. Chỉ dùng đăng nhập Google
+Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa migration **001–009** theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **staff chưa kích hoạt**, không tin quyền trong metadata.
 
-Với bản bảo mật mới, sau migration 001–008 cần chạy [009_request_quotas.sql](supabase/migrations/009_request_quotas.sql) trong staging, thử quyền/quota/lưu dữ liệu rồi áp dụng lên project sử dụng trước khi redeploy API. 009 tạo bảng quota riêng, giới hạn API quản trị và ghi trực tiếp, không sửa lịch sử học viên/học phí. Kiểm tra thêm trigger `center_data_00_request_guard` và RPC `consume_admin_request_quota`; RPC chỉ cấp cho service role. Thiếu migration này, API mới trả 503 thay vì bỏ qua chống spam. Agent chưa áp dụng migration production. Xem [SECURITY.md](SECURITY.md).
+1. Mở đúng project mới → **SQL Editor** → **New query**.
+2. Sao chép toàn bộ file SQL vừa tạo, chọn **Run** một lần.
+3. Kết quả cuối phải có năm bảng bật RLS: `profiles`, `owner_bootstrap_allowlist`, `center_data`, `account_audit_logs`, `request_quotas`.
 
-Trước khi đưa ứng dụng vào sử dụng, chạy thêm `supabase/migrations/006_enforce_business_permissions.sql` sau migration 005, rồi `supabase/migrations/007_small_center_operations.sql`, rồi `supabase/migrations/008_session_tuition.sql`. Migration 006 kiểm tra quyền ghi và bảo vệ Chủ trung tâm cuối cùng. Migration 007 kiểm tra ngày/số buổi, lịch sử đăng ký, hạn học phí và quyền đổi lịch. Migration 008 giữ giá lịch sử, kiểm tra nguồn điểm danh/phiếu thu, ngăn một buổi bị thu hai lần và cộng buổi chưa lập phiếu vào công nợ. Client cũ bị chặn nếu bỏ các trường mới. Các migration giữ nguyên dữ liệu và được kiểm thử bằng PostgreSQL cục bộ; chưa được agent áp dụng lên project Supabase thật. Kiểm tra đủ trigger `center_data_guard_permissions`, `profiles_guard_final_owner`, `center_data_guard_operations`, `center_data_guard_billing` trước khi chuyển domain.
+Nếu script báo schema đã tồn tại, dừng và kiểm tra migration đã áp dụng. Không xóa bảng hoặc chạy lại script để xử lý lỗi. Nếu một câu lệnh thất bại, transaction không commit; chạy `ROLLBACK;` trước lần thử tiếp theo nếu SQL Editor giữ phiên transaction lỗi.
 
-Mô hình `center_data` hiện lưu chung một tài liệu. Quyền xem theo từng lớp và ẩn tài chính trên giao diện chưa phải cách ly quyền đọc ở cơ sở dữ liệu; xem giới hạn và hướng nâng cấp trong `SECURITY.md` trước khi cấp quyền cho người không được phép đọc toàn bộ dữ liệu trung tâm.
+Với project đã có BeeZone, không dùng file khởi tạo mới: đối chiếu schema/backup và áp dụng riêng các migration còn thiếu theo thứ tự. 006 kiểm tra quyền và bảo vệ Chủ trung tâm cuối cùng; 007 kiểm tra học vụ; 008 giữ lịch sử và học phí theo buổi; 009 tạo quota dùng chung và RPC quản trị. Thiếu quota, API trả 503 và chặn thao tác.
 
-1. Vào **Authentication** → **Providers** → **Email** và tắt provider nếu không cần dùng ngoài hệ thống.
-2. Tắt **Allow new users to sign up** sau khi hoàn thành bước bootstrap ở phần 4 bên dưới.
-3. Vào **Authentication** → **URL Configuration**. Tạm thời có thể để Site URL là `http://localhost:3000`; sau khi Vercel deploy, thay bằng HTTPS domain thật.
+## 2. Bật đăng nhập Google
 
-Hệ thống chỉ hiển thị đăng nhập Google; không dùng màn hình đăng nhập email/mật khẩu.
+Thiết lập theo [hướng dẫn Google OAuth của Supabase](https://supabase.com/docs/guides/auth/social-login/auth-google):
 
-## 3. Thiết lập Google OAuth
+1. Trong Google Cloud → **Google Auth Platform**, thiết lập Branding/Audience và scope `openid`, email, profile. Nếu ứng dụng ở chế độ Testing, thêm các tài khoản sẽ đăng nhập vào Test users.
+2. Tạo/chọn OAuth client loại **Web application**. Authorized JavaScript origin: `https://beezone-english.vercel.app`.
+3. Authorized redirect URI: `https://deiohgeljdlxtecbeosu.supabase.co/auth/v1/callback`. Kiểm tra khớp callback URL hiển thị trong Google provider của project mới.
+4. Supabase → **Authentication** → **Sign In / Providers** → **Google**: bật provider, nhập Client ID/Client Secret riêng tại Dashboard và lưu. Không gửi Client Secret trong chat.
+5. **Authentication** → **URL Configuration**: Site URL và Redirect URL là `https://beezone-english.vercel.app`. Với phát triển local, thêm riêng `http://localhost:3000` vào Redirect URLs; ứng dụng chuyển về `window.location.origin`.
 
-1. Trong Google Cloud Console, tạo/chọn project → **Google Auth Platform**.
-2. Hoàn thành **Branding**, **Audience** và **Data Access**. Các scope cần có là `openid`, email và profile.
-3. Tạo **OAuth client ID** loại **Web application**.
-4. Ở **Authorized JavaScript origins**, thêm `http://localhost:3000` và sau đó thêm Vercel HTTPS domain.
-5. Ở **Authorized redirect URIs**, dùng chính callback URL hiển thị trong trang Google provider của Supabase (không dùng URL ứng dụng Vercel ở ô này).
-6. Quay lại Supabase → **Authentication** → **Providers** → **Google**, bật provider và dán Client ID/Client Secret từ Google Cloud → Save.
+Không bật bỏ qua nonce. Ứng dụng chỉ có giao diện đăng nhập Google; provider email/password không cần cho luồng này.
 
-## 4. Bootstrap hai Chủ trung tâm
+## 3. Kích hoạt Chủ trung tâm
 
-Để hai tài khoản Google đầu tiên được tạo một cách có kiểm soát:
+1. **Table Editor** → `public.owner_bootstrap_allowlist` → **Insert**: điền email Google Chủ trung tâm bằng chữ thường. Chọn tài khoản do trung tâm quản lý; không đưa email này vào file SQL trong Git.
+2. Bật tạm **Allow new users to sign up**, đăng nhập lần đầu trên domain chính bằng email đã thêm.
+3. Kiểm tra trong Dashboard rằng user có profile `owner`, `is_active = true`, rồi tắt lại **Allow new users to sign up**.
 
-1. Sau khi allowlist ở phần 1 đã có đủ hai dòng, bật tạm **Allow new users to sign up**.
-2. Mở ứng dụng local hoặc Vercel preview, đăng nhập Google một lần bằng từng email Chủ trung tâm đã được allowlist.
-3. Vào **Authentication** → **Users** để kiểm tra đã có đúng hai user cần thiết.
-4. Tắt lại **Allow new users to sign up**.
+Trong thời gian bootstrap, email ngoài allowlist chỉ có profile inactive và không vào được trung tâm. Nếu user Auth đã tồn tại trước khi setup, file khởi tạo đã thêm profile inactive; thêm allowlist sẽ kích hoạt profile đó. Sau bootstrap, owner cấp quyền Google cho người mới qua **Phân quyền nhân viên**; không cần mật khẩu hoặc email mời.
 
-Trong thời gian bootstrap, bất kỳ email không nằm trong allowlist vẫn chỉ tạo profile `staff` **inactive** và không thể vào ứng dụng. Sau khi tắt signup, Chủ trung tâm hiện có cấp quyền Google cho user mới tại màn hình **Quản lý tài khoản**.
+## 4. Kiểm tra môi trường Vercel
 
-## 5. Lấy khóa và cấu hình Vercel
+Trong [Production Environment Variables](https://vercel.com/ngonpham/beezone-english/settings/environment-variables), ứng dụng cần:
 
-1. Vào **Project Settings** → **API**.
-2. Sao chép Project URL và publishable key để dùng làm `VITE_SUPABASE_URL` và `VITE_SUPABASE_PUBLISHABLE_KEY` trên Vercel.
-3. Sao chép secret key (hoặc legacy service-role key) chỉ để dùng làm `SUPABASE_SECRET_KEY` trên Vercel. Không bao giờ dùng tiền tố `VITE_` cho key này.
-4. Sau khi Vercel tạo domain, cập nhật Site URL, Redirect URLs và `APP_URL` bằng domain HTTPS đó.
+| Biến | Nội dung |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Project URL của Supabase mới |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Publishable key hoặc anon key, quyền client |
+| `SUPABASE_URL` | Cùng Project URL, cho máy chủ |
+| `SUPABASE_SECRET_KEY` | Secret key chỉ cho máy chủ; có thể dùng `SUPABASE_SERVICE_ROLE_KEY` legacy |
+| `APP_URL` | `https://beezone-english.vercel.app` |
 
-## 6. Cấp quyền Google trong ứng dụng
+Các biến này đã được cấu hình trong đợt deploy 14/10/2026. Integration có `NEXT_PUBLIC_` chưa đủ cho Vite; khóa máy chủ không bao giờ có tiền tố `VITE_`. Nếu đổi biến Vercel, redeploy để nạp giá trị mới. Không cần redeploy chỉ vì vừa chạy SQL hoặc bật provider trong Supabase.
 
-1. Đăng nhập bằng tài khoản Chủ trung tâm.
-2. Chọn **Phân quyền nhân viên** → nhập họ tên và email → chọn cấp bậc.
-3. Với nhân viên, tick đúng các quyền cần thiết. Với Chủ trung tâm, hệ thống cấp toàn quyền.
-4. Chọn **Cấp quyền Google**. Người được cấp chỉ cần đăng nhập Google bằng đúng email; không nhận email mời và không cần đặt mật khẩu.
-5. Mở **Nhật ký hệ thống** để kiểm tra lịch sử cấp quyền, chỉnh sửa quyền, khóa hoặc mở khóa tài khoản. Nhật ký không hiển thị email.
+## 5. Kiểm tra trước khi nhập dữ liệu thật
 
-## 7. Nhập dữ liệu Excel riêng tư
+- Owner đăng nhập được, mở được phân quyền và nhật ký tài khoản; người chưa cấp quyền không vào ứng dụng.
+- Cấp một tài khoản staff thử, xác minh API từ chối quản trị và database từ chối ghi ngoài quyền.
+- Lưu một thay đổi kiểm tra, tải lại và thử xung đột từ hai phiên; không tự ghi đè dữ liệu.
+- Với học phí theo buổi, có mặt/đi trễ mới tính tiền; buổi đã lập phiếu giữ nguyên đơn giá lịch sử và không bị thu hai lần.
+- Khôi phục JSON/nhập Excel riêng trong ứng dụng sau khi xem bản kiểm tra; không đưa file riêng lên Git. Tạo sao lưu trước khi nhập hoặc đổi dữ liệu đang sử dụng.
 
-1. Đăng nhập bằng tài khoản Chủ trung tâm.
-2. Vào **Excel Import / Export** → tab **Nhập**.
-3. Chọn file `PhucPhucThinh_BaoCaoToanHeThong_2026-08-10_DaChuanHoa.xlsx` được cung cấp riêng, không commit file này lên GitHub.
-4. Khi ứng dụng hiện số lớp, học sinh và phiếu thu, chọn **Xác nhận nhập toàn bộ dữ liệu**.
-5. Chờ thông báo thành công. Dữ liệu sẽ lưu ở `public.center_data` trong Supabase, chỉ người dùng đã được kích hoạt mới đọc/ghi được theo RLS.
+`center_data` lưu chung một tài liệu: user active có thể đọc toàn bộ tài liệu theo RLS. Ẩn tài chính/lọc lớp ở giao diện chưa cách ly quyền đọc database. Đọc [SECURITY.md](SECURITY.md) trước khi cấp tài khoản cho người không được phép đọc toàn bộ dữ liệu trung tâm.
 
-## 8. Kiểm tra cuối
-
-1. Đăng nhập Google bằng một owner và kiểm tra có nút quản lý tài khoản.
-2. Cấp quyền Google cho một email thử nghiệm role `staff`; người đó đăng nhập Google bằng đúng email mà không cần đặt mật khẩu.
-3. Xác nhận staff không mở được phần quản lý tài khoản.
-4. Đăng xuất, thử một email chưa được cấp quyền; ứng dụng phải hiển thị trạng thái chưa được cấp quyền.
-5. Mở Excel Import / Export và xác nhận báo cáo tổng quan có tổng thu theo tháng/từng lớp; thêm một dòng ở sheet `HỌC PHÍ` của file xuất để kiểm tra công thức tự cộng.
+Trạng thái deployment và các phần chưa hoàn tất: [DEPLOYMENT_STATUS.md](DEPLOYMENT_STATUS.md).
