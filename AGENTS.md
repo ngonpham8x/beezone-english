@@ -4,6 +4,7 @@
 
 - Giữ `App.tsx` là nơi ghép ứng dụng; đặt giao diện và thao tác nghiệp vụ trong module tương ứng.
 - Không import `App`, `WorkspaceScreens` hoặc component React vào `actions.ts` và các quy tắc thuần. Không tạo vòng phụ thuộc giữa module.
+- Quyền và dữ liệu máy chủ nằm trong `api`/`server`; không import handler máy chủ vào mã trình duyệt. Máy chủ không dùng Supabase client lưu phiên trình duyệt hoặc các thao tác ghi state của giao diện. Chia sẻ type bằng `import type`, chia sẻ quy tắc qua `lib`/model.
 - Sử dụng `useCenterStore` cho dữ liệu trung tâm dùng chung. Dữ liệu nhập phải được kiểm tra trước khi thay state.
 - Giữ nguyên khóa trình duyệt, URL và định dạng sao lưu; nếu đổi schema, hỗ trợ dữ liệu cũ và cập nhật validation/migration cùng lúc.
 - Không làm mất lịch sử học viên, đăng ký, thu tiền, điểm danh và đơn giá buổi. Phân quyền giao diện phải có kiểm tra tương ứng ở máy chủ.

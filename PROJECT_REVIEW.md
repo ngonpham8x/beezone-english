@@ -33,7 +33,7 @@
 ## Kiểm tra
 
 - TypeScript: `npm run lint`; build gồm kiểm tra kiểu trước khi bundle.
-- **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 264 test / 20 tệp và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
+- **`npm run check` đã qua toàn bộ ở lượt cuối**: kiểm tra kiểu, 274 test / 20 tệp và production build. TypeScript chỉ quét mã nguồn/config/test, bỏ qua `dist`; build tự kiểm tra bundle không chứa mã xác thực xem thử.
 - Lượt kiểm tra giao diện đầu tiên có **88 test / 10 tệp**, trong đó điều hướng cả 18 phân hệ, 19 test responsive và 6 test cuộn ngang/cuối tuần. Test trong `tests/`: dữ liệu/sao lưu, tiền và ngày, xác thực, phiên làm mới, xung đột/lỗi lưu, API trả HTML, Excel xuất–nhập, quyền DB, điều hướng, menu/dialog/focus, thay đổi viewport và các điều khiển cuộn bảng. Xem [UI_REVIEW.md](UI_REVIEW.md) để biết phạm vi kiểm tra đa thiết bị.
 - Các migration 001–006 được thực thi trên PostgreSQL cục bộ (PGlite). Kiểm tra RLS tài khoản khóa, quyền ghi, lớp được phân công, dữ liệu không hợp lệ, chủ cuối cùng và cập nhật snapshot cũ.
 - Kiểm tra HTTP development: API chưa cấu hình trả lỗi JSON đúng, không trả danh sách giả hoặc báo thành công giả.
@@ -74,3 +74,15 @@ Tải cloud, nhập Excel và khôi phục JSON dùng chung chuẩn hóa quan h�
 Kiểm tra mới nhất: **195 test / 17 tệp**, TypeScript và build production qua. Bổ sung kiểm tra vòng phụ thuộc và hướng phụ thuộc module; kiểm thử thao tác với store gồm chuyển lớp, đổi giáo viên, công nợ buổi chưa thu, chống lập phiếu hai lần/sửa đơn giá đã thu, khôi phục JSON cũ, chặn nhập thay thế mất lịch sử, quyền thu tiền và lỗi lưu trình duyệt. GitHub Actions chạy cùng bộ kiểm tra khi push/PR. Hướng dẫn bổ sung chức năng: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Nhật ký và công cụ kiểm tra dữ liệu được tải khi mở mục tương ứng. Bundle chính sau refactor khoảng **364 KB** (trước đó 381 KB); thư viện Excel khoảng 940 KB vẫn tải riêng khi cần. Dev server ở `localhost:3000` trả HTTP 200 cho trang và các module Học viên/Học phí sau khi đổi cấu trúc.
+
+## Rà lại ranh giới module — 14/10/2026
+
+Đã kiểm tra 15 thư mục module, 10 nhóm `actions.ts`, điểm ghép `App`/`createCenterActions`, store/đồng bộ, quy tắc dùng chung, dịch vụ Excel và API máy chủ. Dữ liệu trung tâm tiếp tục do `useCenterStore` sở hữu; các module thao tác trên những phần state được khai báo qua `Context`. Tuyển sinh dùng các thao tác ghi danh/học viên chung để giữ cùng lịch sử; các màn hình chỉ đọc không cần có thêm một bản `actions.ts`.
+
+Phát hiện bộ kiểm tra kiến trúc cũ chưa theo alias và phụ thuộc gián tiếp, đồng thời bỏ sót import React trực tiếp trong tệp `.ts`. Helper debug `src/lib/reloadDebugger.ts` chứa hook React và các thao tác chặn reload cũ; không có import hoặc nơi gọi trong dự án. Đã bỏ tệp không dùng này và nâng kiểm tra kiến trúc để không đưa UI/hook vào lớp quy tắc ở các lần cập nhật sau.
+
+Kiểm tra mới quét cả frontend và API/server, theo resolver TypeScript, bỏ qua type-only imports/re-exports, theo lazy import và `require` dạng literal. Có 13 ca kiến trúc: 5 kiểm tra dự án thực và 8 ca giả lập lỗi/đường dẫn/type để chứng minh guard bắt được lỗi. Không phát hiện vòng phụ thuộc runtime hoặc vi phạm ranh giới trong mã còn lại.
+
+Đã rà lại luồng tải dữ liệu có `parseCenterData`, import/khôi phục có validation tại luồng nhập, refresh phiên không thay bản đang sửa và lưu cloud có đối chiếu `updated_at`. Test luồng liên module giữ điểm/phiếu thu cũ khi chuyển lớp, giữ đơn giá buổi đã lập phiếu, tránh thu trùng, đọc sao lưu cũ và kiểm tra quyền. Toàn bộ **274 test / 20 tệp**, TypeScript và production build qua.
+
+Hướng dẫn cập nhật có bảng nơi sửa–phần ảnh hưởng–nhóm test trong [ARCHITECTURE.md](ARCHITECTURE.md). Một số form Học viên, Tuyển sinh, Học phí và phiếu điểm vẫn lớn; đã ở đúng module, nên khi thêm luồng mới cần tách form/hook theo trách nhiệm. Việc chia module và kiểm thử giúp phát hiện lỗi lan sang phần khác, không bảo đảm mọi chức năng bổ sung tương lai sẽ không có lỗi. Lượt này không đổi schema, khóa lưu trình duyệt, URL, định dạng sao lưu hoặc chạy migration production.

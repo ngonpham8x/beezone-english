@@ -68,8 +68,26 @@ Các mũi tên thể hiện phụ thuộc sử dụng; tham chiếu type đượ
 
 ## Kiểm tra tự động
 
-`npm run check` kiểm tra TypeScript, toàn bộ test và bản production. `tests/architecture.test.ts` chặn vòng phụ thuộc lúc chạy và việc nghiệp vụ/dịch vụ phụ thuộc ngược vào giao diện. `tests/module-actions.test.tsx` kiểm tra kết nối state với nghiệp vụ, lịch sử tài chính, quyền và lưu/khôi phục. Các test đăng nhập, đồng bộ, Excel, database và giao diện tiếp tục kiểm tra hành vi cũ.
+`npm run check` kiểm tra TypeScript, toàn bộ test và bản production. `tests/architecture.test.ts` quét `src`, `api`, `server` theo cách TypeScript giải quyết đường dẫn trong `tsconfig.json`. Bộ kiểm tra theo cả import tương đối, alias, re-export, lazy import và `require` có tên module dạng literal; bỏ qua tham chiếu chỉ dùng cho type. Nó chặn vòng phụ thuộc và phụ thuộc ngược từ nghiệp vụ/dịch vụ vào giao diện, kể cả qua helper trung gian hoặc import React trong tệp `.ts`.
+
+Kiểm tra ranh giới máy chủ chặn API/server dùng workflow ghi state, UI hoặc Supabase client lưu phiên trình duyệt. Mã trình duyệt không được import handler `api`/`server` hoặc module dùng tiền tố `node:`. Đặt quy tắc có thể dùng ở hai phía trong `lib`/model; API vẫn phải tự xác thực và kiểm tra quyền. Các import có đường dẫn tính toán hoặc mã sinh tự động cần được rà riêng.
+
+`tests/module-actions.test.tsx` kiểm tra kết nối state với nghiệp vụ, lịch sử tài chính, quyền và lưu/khôi phục. Các test đăng nhập, đồng bộ, Excel, database và giao diện tiếp tục kiểm tra hành vi cũ. Các ca giả lập phụ thuộc sai trong test kiến trúc chứng minh bộ kiểm tra phát hiện được lỗi, thay vì chỉ kiểm tra dự án hiện tại đang qua.
 
 GitHub Actions ở `.github/workflows/check.yml` chạy cùng lệnh khi push `main` hoặc mở PR. Có thể đặt job `check` làm điều kiện bắt buộc trong quy tắc nhánh GitHub; lần refactor này không thay đổi quy tắc nhánh của tài khoản.
 
 Một số màn hình nhập liệu vẫn lớn vì chứa nhiều trường và luồng xử lý. Chúng đã nằm trong module riêng; hồ sơ xem chi tiết, bản in phiếu thu, phí buổi và lịch điều chỉnh có component riêng. Khi bổ sung một luồng lớn, tách component/hook theo trách nhiệm và giữ kiểm thử hành vi thay vì chia file chỉ để giảm số dòng.
+
+## Chọn nơi sửa và kiểm tra phần liên quan
+
+| Thay đổi | Nơi sửa chính | Phần liên quan cần kiểm tra |
+| --- | --- | --- |
+| Tiếp nhận, ghi danh, chuyển lớp, bảo lưu | `modules/admissions`, `modules/students/actions.ts`, `lib/operations` | Roster lớp, lịch sử đăng ký, điểm/phiếu thu lớp cũ; `module-actions`, `operations`, `data` |
+| Lớp, giáo viên, phòng và lịch | Các module tương ứng, `lib/schedule`, `lib/operations`, `center/model` | Trùng giáo viên/phòng/giờ, phân công, sĩ số, lịch nghỉ/học bù; `operations`, `module-actions`, `database` |
+| Thu tiền và phí theo buổi | `modules/tuition`, `modules/attendance`, `lib/tuition`, `lib/sessionBilling` | Có mặt/đi trễ, buổi vắng, đơn giá đã chốt, thu nhiều đợt, công nợ, báo cáo/Excel; các test `session-billing`, `excel`, `module-actions` |
+| Điểm số | `modules/grades`, validation payload, sheet/nhập điểm Excel | Điểm theo học viên–lớp, lịch sử khi chuyển lớp, quyền nhập điểm; `ui`, `excel`, `database`, `module-actions` |
+| Trường dữ liệu hoặc định dạng nhập/sao lưu | `types`, `lib/centerData`, `center/model`, `services/excel`, schema máy chủ | Mặc định cho dữ liệu cũ, validation trước khi thay state, giữ lịch sử; `data`, `excel`, `database`, `module-actions` |
+| Đăng nhập, phân quyền, đồng bộ | `modules/center/useCenterConnection`, `lib/auth`, `lib/syncQueue`, API/SQL | Refresh không nạp đè bản đang sửa, CAS, phiên cũ, quyền máy chủ; `auth`, `sync`, `database`, `production` |
+| Giao diện hoặc mục menu mới | Module UI, `components`/`hooks`, `app/navigation`, `WorkspaceScreens` | Quyền menu/URL, responsive, popup mở và dialog, chuột/cảm ứng/bàn phím; `navigation`, `responsive`, các test UI liên quan |
+
+Tên trong cột cuối là nhóm test để tìm nhanh trong `tests`; trước commit vẫn chạy toàn bộ `npm run check`. Với thay đổi UI, thử cả tên dữ liệu dài, danh sách chọn đang mở, modal và bàn phím ảo trên viewport hẹp. Test jsdom không xác nhận được bố cục pixel của trình duyệt thật.

@@ -2,117 +2,130 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import {
+  buildDependencyGraph,
+  findBoundaryViolations,
+  findRuntimeCycles,
+} from './helpers/architecture';
 
-const root = path.resolve('src');
+const root = path.resolve('.');
 const files = (directory: string): string[] =>
   fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const file = path.join(directory, entry.name);
     return entry.isDirectory() ? files(file) : /\.tsx?$/.test(file) ? [file] : [];
   });
-const sourceFiles = files(root);
-const sourceSet = new Set(sourceFiles);
-const relative = (file: string) => path.relative(root, file).replaceAll('\\', '/');
-const graph = new Map<string, string[]>();
-
-for (const file of sourceFiles) {
-  const dependencies: string[] = [];
-  const source = ts.createSourceFile(
-    file,
+const sourceFiles = ['src', 'api', 'server'].flatMap((directory) =>
+  files(path.join(root, directory)),
+);
+const sources = new Map(
+  sourceFiles.map((file) => [
+    path.relative(root, file).replaceAll('\\', '/'),
     fs.readFileSync(file, 'utf8'),
-    ts.ScriptTarget.Latest,
-    true,
-  );
-  const add = (specifier: string) => {
-    if (!specifier.startsWith('.')) return;
-    const target = path.resolve(path.dirname(file), specifier);
-    const resolved = [target, `${target}.ts`, `${target}.tsx`, path.join(target, 'index.ts')].find(
-      (candidate) => sourceSet.has(candidate),
-    );
-    if (resolved) dependencies.push(resolved);
-  };
-  const visit = (node: ts.Node) => {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      const clause = node.importClause;
-      const bindings = clause?.namedBindings;
-      const onlyTypes =
-        clause?.isTypeOnly ||
-        (!clause?.name &&
-          bindings &&
-          ts.isNamedImports(bindings) &&
-          bindings.elements.every((element) => element.isTypeOnly));
-      if (!onlyTypes) add(node.moduleSpecifier.text);
-    }
-    if (
-      ts.isExportDeclaration(node) &&
-      !node.isTypeOnly &&
-      node.moduleSpecifier &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    )
-      add(node.moduleSpecifier.text);
-    if (
-      ts.isCallExpression(node) &&
-      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      ts.isStringLiteral(node.arguments[0])
-    )
-      add(node.arguments[0].text);
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
-  graph.set(file, dependencies);
-}
+  ]),
+);
+const config = ts.readConfigFile(path.join(root, 'tsconfig.json'), ts.sys.readFile);
+const options = ts.parseJsonConfigFileContent(config.config, ts.sys, root).options;
+const graph = buildDependencyGraph(root, sources, options);
 
 describe('module boundaries', () => {
-  it('has no runtime dependency cycles, including lazy screens', () => {
-    const visited = new Set<string>();
-    const stack: string[] = [];
-    const cycles: string[] = [];
-    const visit = (file: string) => {
-      const index = stack.indexOf(file);
-      if (index >= 0) {
-        cycles.push([...stack.slice(index), file].map(relative).join(' → '));
-        return;
-      }
-      if (visited.has(file)) return;
-      stack.push(file);
-      graph.get(file)?.forEach(visit);
-      stack.pop();
-      visited.add(file);
-    };
-    sourceFiles.forEach(visit);
-    expect(cycles).toEqual([]);
+  it('has no runtime cycles across client, lazy screens and server modules', () => {
+    expect(findRuntimeCycles(graph)).toEqual([]);
+  });
+  it('keeps domain commands independent of UI and the composition root, including indirect imports', () => {
+    expect(findBoundaryViolations(graph, 'commands')).toEqual([]);
+  });
+  it('keeps rules and Excel services independent of React and feature commands', () => {
+    expect(findBoundaryViolations(graph, 'rules')).toEqual([]);
+  });
+  it('keeps server code independent of browser UI and store workflows', () => {
+    expect(findBoundaryViolations(graph, 'server')).toEqual([]);
+  });
+  it('keeps browser code independent of server handlers and Node-only modules', () => {
+    expect(findBoundaryViolations(graph, 'client')).toEqual([]);
+  });
+});
+
+const fixtureGraph = (entries: Record<string, string>) =>
+  buildDependencyGraph(root, new Map(Object.entries(entries)), {
+    ...options,
+    baseUrl: root,
+    paths: { '@/*': ['./*'] },
   });
 
-  it('keeps feature commands independent of screens, the shell and the composition root', () => {
-    const violations: string[] = [];
-    for (const [file, dependencies] of graph) {
-      if (!/^modules\/[^/]+\/actions\.ts$/.test(relative(file))) continue;
-      for (const dependency of dependencies) {
-        const target = relative(dependency);
-        if (
-          target.endsWith('.tsx') ||
-          target.startsWith('app/') ||
-          target === 'modules/center/createCenterActions.ts'
-        )
-          violations.push(`${relative(file)} → ${target}`);
-      }
-    }
-    expect(violations).toEqual([]);
+describe('architecture guard regressions', () => {
+  it('detects a cycle through an alias, lazy import and re-export', () => {
+    const fixture = fixtureGraph({
+      'src/modules/students/actions.ts': "export { load } from '@/src/lib/bridge';",
+      'src/lib/bridge.ts': "export const load = () => import('../modules/students/actions');",
+    });
+    expect(findRuntimeCycles(fixture)).toHaveLength(1);
   });
-
-  it('keeps pure shared rules and Excel services independent of the React application', () => {
-    const violations: string[] = [];
-    for (const [file, dependencies] of graph) {
-      if (
-        !relative(file).startsWith('lib/') &&
-        !relative(file).startsWith('services/') &&
-        relative(file) !== 'modules/center/model.ts'
-      )
-        continue;
-      for (const dependency of dependencies) {
-        if (relative(dependency).endsWith('.tsx') || relative(dependency).startsWith('app/'))
-          violations.push(`${relative(file)} → ${relative(dependency)}`);
-      }
-    }
-    expect(violations).toEqual([]);
+  it('detects indirect command-to-UI dependencies through a shared helper', () => {
+    const fixture = fixtureGraph({
+      'src/modules/students/actions.ts':
+        "import { load } from '../../lib/bridge'; export const run = load;",
+      'src/lib/bridge.ts': "export { load } from '../hooks/useUi';",
+      'src/hooks/useUi.ts': "import { useState } from 'react'; export const load = useState;",
+    });
+    expect(findBoundaryViolations(fixture, 'commands')).toEqual([
+      'src/modules/students/actions.ts → src/lib/bridge.ts → src/hooks/useUi.ts',
+    ]);
+  });
+  it('detects React runtime imports in ordinary .ts rules files', () => {
+    const fixture = fixtureGraph({
+      'src/lib/fees.ts': "import { useState } from 'react'; export const fee = useState;",
+    });
+    expect(findBoundaryViolations(fixture, 'rules')).toEqual(['src/lib/fees.ts → react']);
+  });
+  it('ignores type-only imports and re-exports when checking boundaries and cycles', () => {
+    const fixture = fixtureGraph({
+      'src/lib/data.ts':
+        "import type { Props } from '../components/View'; export { type Value } from '../components/View'; export type { Props };",
+      'src/components/View.tsx':
+        "import type { Props } from '../lib/data'; export interface Value {} export type { Props };",
+    });
+    expect(findRuntimeCycles(fixture)).toEqual([]);
+    expect(findBoundaryViolations(fixture, 'rules')).toEqual([]);
+  });
+  it('blocks server-to-client action imports through the project alias', () => {
+    const fixture = fixtureGraph({
+      'api/admin/data.ts':
+        "import { save } from '@/src/modules/students/actions'; export default save;",
+      'src/modules/students/actions.ts': 'export function save() {}',
+    });
+    expect(findBoundaryViolations(fixture, 'server')).toEqual([
+      'api/admin/data.ts → src/modules/students/actions.ts',
+    ]);
+  });
+  it('follows CommonJS requires instead of missing a command-to-UI dependency', () => {
+    const fixture = fixtureGraph({
+      'src/modules/tuition/actions.ts':
+        "const view = require('../../components/View'); export { view };",
+      'src/components/View.tsx': 'export const View = () => null;',
+    });
+    expect(findBoundaryViolations(fixture, 'commands')).toEqual([
+      'src/modules/tuition/actions.ts → src/components/View.tsx',
+    ]);
+  });
+  it('blocks browser code from importing a server handler or Node-only code', () => {
+    const fixture = fixtureGraph({
+      'src/modules/auth/api.ts':
+        "import handler from '../../../api/admin/users'; import fs from 'node:fs'; export { handler, fs };",
+      'api/admin/users.ts': 'export default function handler() {}',
+    });
+    expect(findBoundaryViolations(fixture, 'client')).toEqual([
+      'src/modules/auth/api.ts → api/admin/users.ts',
+      'src/modules/auth/api.ts → node:fs',
+    ]);
+  });
+  it('blocks a server handler from using the browser Supabase session client', () => {
+    const fixture = fixtureGraph({
+      'api/admin/users.ts':
+        "import { supabase } from '../../src/lib/supabase'; export { supabase };",
+      'src/lib/supabase.ts': 'export const supabase = null;',
+    });
+    expect(findBoundaryViolations(fixture, 'server')).toEqual([
+      'api/admin/users.ts → src/lib/supabase.ts',
+    ]);
   });
 });
