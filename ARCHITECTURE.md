@@ -26,6 +26,8 @@
 
 API quản trị đi qua `server/admin.ts` để dùng chung kiểm tra yêu cầu, xác thực, quyền và quota. `server/request.ts` kiểm tra header/payload, `server/rateLimit.ts` giữ bộ đếm burst có giới hạn bộ nhớ. Quota dùng chung giữa máy chủ và chống ghi dữ liệu trực tiếp nằm trong migration `009_request_quotas.sql`; chỉ triển khai API cần RPC sau khi migration đã được thử và áp dụng. Cấu hình WAF nằm ở Vercel, định nghĩa quy tắc tại `ops/admin-api-rate-limit.json`; chỉ thêm tệp này vào Git không tự bật firewall.
 
+Máy chủ Vite phát triển nạp API qua `server.ssrLoadModule` khi có yêu cầu. Không import handler/helper API trực tiếp vào `vite.config.ts`: các thay đổi API có thể gây nhiều lần khởi động lại và tranh cổng, để HTML trả 200 nhưng JavaScript trả 504. Khi kiểm tra localhost, kiểm tra cả `/@vite/client`, module JavaScript và API ngoài HTML. Production tiếp tục chạy handler Vercel riêng.
+
 ## Hướng phụ thuộc
 
 ```mermaid

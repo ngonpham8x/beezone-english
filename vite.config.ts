@@ -2,9 +2,6 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
-import usersHandler from './api/admin/users';
-import auditHandler from './api/admin/audit-logs';
-import { MAX_ADMIN_BODY_BYTES } from './server/request';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -23,13 +20,17 @@ export default defineConfig(({ mode }) => {
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
           const route = req.url?.split('?')[0];
-          const handler = route === '/api/admin/users' ? usersHandler : route === '/api/admin/audit-logs' ? auditHandler : null;
-          if (!handler) return next();
+          const modulePath = route === '/api/admin/users' ? '/api/admin/users.ts' : route === '/api/admin/audit-logs' ? '/api/admin/audit-logs.ts' : null;
+          if (!modulePath) return next();
           const response = Object.assign(res, {
             status(code: number) { res.statusCode = code; return response; },
             json(body: unknown) { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(body)); },
           });
           try {
+            // Load API modules through Vite's SSR cache. Editing API helpers now
+            // invalidates their module graph without restarting the whole dev server.
+            const { default: handler } = await server.ssrLoadModule(modulePath);
+            const { MAX_ADMIN_BODY_BYTES } = await server.ssrLoadModule('/server/request.ts');
             const chunks: Buffer[] = [];
             let bytes = 0;
             for await (const chunk of req) {

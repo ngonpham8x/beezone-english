@@ -96,3 +96,9 @@ Migration `009_request_quotas.sql` tạo bộ đếm riêng được bảo vệ,
 Đã xuất bản trực tiếp quy tắc WAF cho API quản trị trên Vercel: 60 yêu cầu/phút/IP, vượt ngưỡng 429; đọc lại cấu hình active xác nhận enabled. Không tạo tải thử trên production. Mã CSP đã bỏ script inline, build kiểm tra HTML tương thích, bỏ debugger và log ứng dụng production chỉ ghi mã sự kiện. CI kiểm tra dependency khi push/PR và mỗi tuần. `npm audit`: 0 lỗ hổng đã biết. **318 test / 22 tệp**, TypeScript và production build qua.
 
 Production vẫn thiếu secret Supabase máy chủ theo kiểm tra tên biến Vercel ngày 14/10. Agent chưa áp dụng migration 009 hoặc các migration còn thiếu vào Supabase thật, chưa triển khai thủ công bản API mới hoặc chuyển domain. Quyền đọc dữ liệu trực tiếp vẫn cấp toàn bộ `center_data` cho tài khoản đang hoạt động; chưa có cách ly đọc theo lớp/tài chính. Đây là vấn đề cần giải quyết nếu nhân viên/giáo viên chỉ được xem một phần dữ liệu. Chi tiết phạm vi, ngưỡng và triển khai tại [SECURITY.md](SECURITY.md).
+
+## Trang trắng localhost — 14/10/2026
+
+Người dùng báo trang Tuyển sinh trắng. Kiểm tra HTTP thấy HTML trả 200 nhưng `/@vite/client`, `/src/main.tsx`, `/src/App.tsx` và module khác trả 504. Log Vite cho thấy nhiều lần khởi động lại đồng thời khi API/helper được sửa, sau đó báo cổng 3000 đã được dùng; tiến trình vẫn phục vụ HTML nhưng không còn tải được JavaScript.
+
+Đã nạp API/helper bằng `server.ssrLoadModule` trong middleware phát triển, thay cho import vào cấu hình Vite. Thay đổi API được xử lý trong cache/graph SSR, tránh yêu cầu khởi động lại toàn bộ máy chủ. Đã dừng đúng tiến trình Vite của dự án và chạy lại ở cổng 3000. Trang Tuyển sinh và 133 module phụ thuộc trả 200; API chưa xác thực trả 401 JSON. Khi phát sinh thay đổi metadata helper, main/App vẫn trả 200 và API vẫn trả 401. Không xóa cache dữ liệu, localStorage hoặc lịch sử; không đổi cách chạy API trên Vercel. Người dùng tải lại trang và xác nhận đã hiển thị.
