@@ -7,6 +7,7 @@ import * as initial from '../src/mock/initialData';
 import type { AttendanceSession, TuitionReceipt } from '../src/types';
 import { parseCenterData } from '../src/lib/centerData';
 import { withUnbilledSessionReceipts } from '../src/lib/sessionBilling';
+import { appendParentContact } from '../src/modules/attendance/parentContact';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('Excel export/import', () => {
@@ -14,6 +15,7 @@ describe('Excel export/import', () => {
     const classroom = {...initial.initialClasses[0],billingMode:'session' as const,sessionRate:200000,sessionAbsencePolicy:'attended' as const,sessionBillingStartDate:'2020-01-01'};
     const student = {...initial.initialStudents[0],classId:classroom.id};
     const sessions:AttendanceSession[] = ['2020-01-02','2020-01-03','2020-01-04'].map((date,index)=>({id:`a${index}`,classId:classroom.id,date,lessonTopic:'Speaking',generalNotes:'Test note',billing:{unitPrice:150000,absencePolicy:'attended'},entries:[{studentId:student.id,status:index===2?'excused':'late',homeworkCompleted:true,note:'Homework checked'}]}));
+    sessions[2].entries[0].note = appendParentContact('Homework checked', 'Zalo', 'Parent confirmed', 'Test teacher', new Date('2020-01-04T12:00:00Z'));
     const receipt:TuitionReceipt={id:'r',code:'PT-2020-0001',studentId:student.id,classId:classroom.id,paymentKind:'session',courseFee:0,monthlyFee:0,sessionFee:150000,sessionLines:[{attendanceSessionId:'a0',date:'2020-01-02',unitPrice:150000}],paidAmount:60000,debtAmount:80000,discount:10000,paymentDate:'2020-01-10',collectorName:'Owner',paymentMethod:'Tiền mặt',status:'partial',installments:[{id:'i1',date:'2020-01-05',amount:40000},{id:'i2',date:'2020-01-10',amount:20000}]};
     const blob=await generateMasterExcelWorkbook({centerName:'Test',programs:initial.initialPrograms,students:[student],classes:[classroom],teachers:initial.initialTeachers,rooms:initial.initialRooms,grades:[],receipts:[receipt],attendanceSessions:sessions});
     const book=new ExcelJS.Workbook(); await book.xlsx.load(await blob.arrayBuffer());
@@ -24,6 +26,7 @@ describe('Excel export/import', () => {
     expect(result.errors).toEqual([]);expect(result.data!.receipts).toHaveLength(1);
     expect(result.data!.receipts[0]).toMatchObject({paymentKind:'session',sessionFee:150000,paidAmount:60000,debtAmount:80000,discount:10000,sessionLines:receipt.sessionLines});
     expect(result.data!.attendanceSessions!.map(a=>a.entries[0].status)).toEqual(['late','late','excused']);
+    expect(result.data!.attendanceSessions![2].entries[0].note).toBe(sessions[2].entries[0].note);
     expect(result.data!.classes[0]).toMatchObject({billingMode:'session',sessionRate:200000,sessionAbsencePolicy:'attended',sessionBillingStartDate:'2020-01-01'});
     const parsed=parseCenterData({...result.data,settings:initial.initialSettings},initial.initialSettings);
     expect(withUnbilledSessionReceipts(parsed.receipts,parsed.attendanceSessions).reduce((sum,r)=>sum+r.debtAmount,0)).toBe(230000);

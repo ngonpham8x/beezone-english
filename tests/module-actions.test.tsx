@@ -5,6 +5,7 @@ import { NAVIGATION_GROUPS, canAccessTab, getNavigationGroups } from '../src/app
 import { DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT } from '../src/lib/auth';
 import { parseCenterData } from '../src/lib/centerData';
 import { centerDate } from '../src/lib/dates';
+import { splitAttendanceNote } from '../src/modules/attendance/parentContact';
 import * as initial from '../src/mock/initialData';
 import { createCenterActions } from '../src/modules/center/createCenterActions';
 import { normalizeCenterData, reconcileStudentFees } from '../src/modules/center/model';
@@ -62,6 +63,43 @@ afterEach(() => {
 });
 
 describe('domain command integration', () => {
+  it('records a parent contact only for saved absences and preserves it through edits and JSON backup', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const student = data.students[0];
+    data.attendanceSessions = [{ id: 'absent-lesson', classId: student.classId, date: centerDate(), lessonTopic: 'Speaking', billing: { unitPrice: 100000, absencePolicy: 'attended' }, entries: [{ studentId: student.id, status: 'absent', note: 'Ôn bài' }] }];
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const receipts = result.current.store.receipts;
+    act(() => expect(result.current.actions.handleRecordParentContact({ sessionId: 'absent-lesson', studentId: student.id, channel: 'Zalo', details: 'Đã báo phụ huynh' })).toBeNull());
+    const recorded = result.current.store.attendanceSessions[0];
+    expect(splitAttendanceNote(recorded.entries[0].note).history[0]).toMatchObject({ channel: 'Zalo', author: DEV_OWNER_ACCOUNT.name, details: 'Đã báo phụ huynh' });
+    expect(recorded.billing).toEqual(data.attendanceSessions[0].billing);
+    expect(result.current.store.receipts).toBe(receipts);
+    act(() => expect(result.current.actions.handleSaveAttendanceSession({ ...recorded, entries: [{ studentId: student.id, status: 'present', note: 'Đã học bù' }] })).toBe(true));
+    expect(splitAttendanceNote(result.current.store.attendanceSessions[0].entries[0].note).history).toEqual(splitAttendanceNote(recorded.entries[0].note).history);
+    const parsed = parseCenterData(JSON.parse(JSON.stringify({ ...data, attendanceSessions: result.current.store.attendanceSessions })), data.settings);
+    expect(parsed.attendanceSessions![0].entries[0].note).toBe(result.current.store.attendanceSessions[0].entries[0].note);
+    act(() => expect(result.current.actions.handleRecordParentContact({ sessionId: recorded.id, studentId: student.id, channel: 'Zalo', details: '' })).toMatch(/không còn/));
+  });
+
+  it('rejects parent contact outside assigned classes, for inactive users, future lessons and invalid inputs', () => {
+    const data = dataset();
+    const student = data.students[0];
+    data.attendanceSessions = [{ id: 'absence', classId: student.classId, date: centerDate(), lessonTopic: 'Test', entries: [{ studentId: student.id, status: 'absent' }] }];
+    const { result, rerender } = renderHook(({ user }) => useTestCenter(user), { initialProps: { user: DEV_OWNER_ACCOUNT } });
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const request = { sessionId: 'absence', studentId: student.id, channel: 'Zalo' as const, details: '' };
+    const sessions = result.current.store.attendanceSessions;
+    rerender({ user: { ...limitedStaff, permissions: { ...limitedStaff.permissions, teacherId: '', assignedClassIds: [] } } });
+    act(() => expect(result.current.actions.handleRecordParentContact(request)).toMatch(/không có quyền/));
+    rerender({ user: { ...DEV_OWNER_ACCOUNT, active: false } });
+    act(() => expect(result.current.actions.handleRecordParentContact(request)).toMatch(/không có quyền/));
+    rerender({ user: DEV_OWNER_ACCOUNT });
+    act(() => expect(result.current.actions.handleRecordParentContact({ ...request, details: 'x'.repeat(501) })).toMatch(/chưa hợp lệ/));
+    expect(result.current.store.attendanceSessions).toBe(sessions);
+    act(() => result.current.store.setAttendanceSessions([{ ...sessions[0], date: '2099-01-01' }]));
+    act(() => expect(result.current.actions.handleRecordParentContact(request)).toMatch(/đã diễn ra/));
+  });
   it('transfers a student while preserving past grades and receipts and reconciling both rosters', () => {
     const { result } = renderHook(() => useTestCenter());
     const student = result.current.store.students[0];

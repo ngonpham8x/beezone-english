@@ -20,12 +20,15 @@ import React, { useMemo, useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useResponsiveView } from '../../hooks/useResponsive';
-import { centerDate } from '../../lib/dates';
+import { centerDate, isCalendarDate } from '../../lib/dates';
 import { lessonsOn } from '../../lib/operations';
 import { snapshotForSession } from '../../lib/sessionBilling';
 import type { ClassEnrollment, ScheduleChange, TimetableSlot } from '../../types';
 import { AttendanceSession, AttendanceStatus, ClassRoom, Student, Teacher } from '../../types';
 import type { TaskDestination } from '../dashboard/TodayTasks';
+import { ParentContactButton, ParentContactDialog } from './ParentContactDialog';
+import { canContactParent, retainContactHistory, splitAttendanceNote } from './parentContact';
+import type { ParentContactRequest } from './parentContact';
 
 import { UserAccount } from '../../types';
 const EMPTY_ENROLLMENTS: ClassEnrollment[] = [];
@@ -41,6 +44,8 @@ interface AttendanceManagerProps {
   teachers: Teacher[];
   attendanceSessions: AttendanceSession[];
   onSaveSession: (session: AttendanceSession) => boolean | void;
+  onRecordParentContact?: (request: ParentContactRequest) => string | null;
+  centerName?: string;
   isOwner: boolean;
   currentUser?: UserAccount;
 }
@@ -51,6 +56,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   teachers,
   attendanceSessions,
   onSaveSession,
+  onRecordParentContact,
+  centerName = 'BeeZone',
   isOwner,
   currentUser,
   timetableSlots, scheduleChanges = [], enrollments = EMPTY_ENROLLMENTS, request, onRequestHandled
@@ -86,6 +93,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [applyOldSessionBilling, setApplyOldSessionBilling] = useState(false);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
+  const [contactStudentId, setContactStudentId] = useState<string | null>(null);
+  React.useEffect(() => setContactStudentId(null), [selectedClassId, sessionDate]);
 
   // Sync selected class if permitted classes changes
   React.useEffect(() => {
@@ -200,10 +209,31 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       ...prev,
       [studentId]: {
         ...prev[studentId],
-        note
+        note: retainContactHistory(note, prev[studentId]?.note)
       }
     }));
   };
+
+  const hasUnsavedChanges = !existingSession || applyOldSessionBilling ||
+    (lessonTopic.trim() || 'Buổi học theo thời khóa biểu') !== (existingSession.lessonTopic || 'Buổi học theo thời khóa biểu') ||
+    generalNotes.trim() !== (existingSession.generalNotes || '').trim() ||
+    classStudents.some(student => {
+      const draft = entries[student.id];
+      const saved = existingSession.entries.find(entry => entry.studentId === student.id);
+      return !draft || !saved || draft.status !== saved.status || draft.homeworkCompleted !== (saved.homeworkCompleted ?? true) || draft.note !== (saved.note || '');
+    });
+  const contactReason = !canContactParent(currentUser, selectedClass) ? 'Bạn không có quyền ghi nhận liên hệ cho lớp này.' :
+    !isCalendarDate(sessionDate) || sessionDate > centerDate() ? 'Chỉ báo vắng cho buổi học đã diễn ra.' :
+    hasUnsavedChanges ? 'Lưu điểm danh trước khi báo phụ huynh.' : '';
+  const contactReady = !contactReason;
+  const contactStudent = classStudents.find(student => student.id === contactStudentId);
+  const parentContactButton = (student: Student) => onRecordParentContact && <ParentContactButton
+    studentName={student.name} absent={entries[student.id]?.status === 'absent'}
+    note={existingSession?.entries.find(entry => entry.studentId === student.id)?.note}
+    ready={contactReady && existingSession?.entries.find(entry => entry.studentId === student.id)?.status === 'absent'}
+    reason={contactReason || 'Lưu điểm danh trước khi báo phụ huynh.'}
+    onOpen={() => setContactStudentId(student.id)}
+  />;
 
   const handleMarkAllPresent = () => {
     const updated: typeof entries = {};
@@ -573,7 +603,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       <input
                         type="text"
                         placeholder="Nhập nhận xét buổi học..."
-                        value={entry.note}
+                        value={splitAttendanceNote(entry.note).text}
                         onChange={e => handleNoteChange(st.id, e.target.value)}
                         className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
                       />
@@ -583,7 +613,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                             key={qn}
                             type="button"
                             onClick={() => {
-                              const newNote = entry.note ? `${entry.note}, ${qn}` : qn;
+                              const note = splitAttendanceNote(entry.note).text;
+                              const newNote = note ? `${note}, ${qn}` : qn;
                               handleNoteChange(st.id, newNote);
                             }}
                             className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-900 rounded-md font-medium transition cursor-pointer border border-slate-200/60"
@@ -593,6 +624,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                         ))}
                       </div>
                     </div>
+                    {parentContactButton(st)}
                   </div>
                 );
               })}
@@ -719,10 +751,11 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                           <input
                             type="text"
                             placeholder="VD: Phát biểu tốt, cần chú ý phát âm..."
-                            value={entry.note}
+                            value={splitAttendanceNote(entry.note).text}
                             onChange={e => handleNoteChange(st.id, e.target.value)}
                             className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
                           />
+                          {parentContactButton(st)}
                         </td>
                       </tr>
                     );
@@ -733,6 +766,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           </HorizontalScroll>
         </div>
       )}
+
+      {contactStudent && existingSession && onRecordParentContact && <ParentContactDialog
+        key={`${existingSession.id}-${contactStudent.id}`}
+        student={contactStudent} session={existingSession} className={selectedClass?.name || ''} centerName={centerName}
+        canRecord={contactReady && existingSession.entries.find(entry => entry.studentId === contactStudent.id)?.status === 'absent'}
+        unavailableReason={contactReason || 'Học viên không còn được ghi nhận vắng trong buổi này.'}
+        onRecord={onRecordParentContact} onClose={() => setContactStudentId(null)}
+      />}
 
       {/* History of Previous Sessions for This Class */}
       {classHistory.length > 0 && (

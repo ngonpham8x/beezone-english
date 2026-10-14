@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { beforeAll, beforeEach, afterAll, describe, expect, it } from 'vitest';
+import { appendParentContact } from '../src/modules/attendance/parentContact';
 
 let db: PGlite;
 const owner = '00000000-0000-4000-8000-000000000001';
@@ -165,6 +166,25 @@ describe('database migrations and permission enforcement', () => {
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [staff]);
     await db.exec('set role authenticated');
     expect((await db.query('select * from public.center_data')).rows).toHaveLength(0);
+  });
+  it('enforces class-scoped attendance permission for parent contact notes on the server', async () => {
+    const classes = [{ id: 'a', teacherId: 't', studentIds: ['s'] }, { id: 'b', teacherId: 'other', studentIds: ['s2'] }];
+    const payload = { ...base, classes, students: [{ id: 's', classId: 'a', feeStatus: 'unpaid' }, { id: 's2', classId: 'b', feeStatus: 'unpaid' }], attendanceSessions: [
+      { id: 'att-a', classId: 'a', date: '2020-01-02', entries: [{ studentId: 's', status: 'absent', note: '' }] },
+      { id: 'att-b', classId: 'b', date: '2020-01-02', entries: [{ studentId: 's2', status: 'absent', note: '' }] },
+    ] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({ teacher: { edit: true }, teacherId: 't' });
+    const allowed = structuredClone(payload);
+    allowed.attendanceSessions[0].entries[0].note = appendParentContact('', 'Zalo', 'Parent contacted', 'Test teacher', new Date('2020-01-02T12:00:00Z'));
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(allowed)]);
+    const forbidden = structuredClone(allowed);
+    forbidden.attendanceSessions[1].entries[0].note = allowed.attendanceSessions[0].entries[0].note;
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(forbidden)])).rejects.toThrow(/Attendance permission/);
+    await db.exec('reset role');
+    await asStaff({ teacher: { view: true }, assignedClassIds: ['a'] });
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)])).rejects.toThrow(/Attendance permission/);
+    expect((await db.query<{ payload: typeof allowed }>('select payload from public.center_data')).rows[0].payload.attendanceSessions[0].entries[0].note).toBe(allowed.attendanceSessions[0].entries[0].note);
   });
   it('prevents demoting or deleting the final active owner', async () => {
     await expect(db.query("update public.profiles set role='staff' where id=$1", [owner])).rejects.toThrow(/final owner/);

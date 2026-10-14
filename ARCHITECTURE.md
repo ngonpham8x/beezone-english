@@ -82,6 +82,8 @@ GitHub Actions ở `.github/workflows/check.yml` chạy cùng lệnh khi push `m
 
 Một số màn hình nhập liệu vẫn lớn vì chứa nhiều trường và luồng xử lý. Chúng đã nằm trong module riêng; hồ sơ xem chi tiết, bản in phiếu thu, phí buổi và lịch điều chỉnh có component riêng. Khi bổ sung một luồng lớn, tách component/hook theo trách nhiệm và giữ kiểm thử hành vi thay vì chia file chỉ để giảm số dòng.
 
+Thông báo vắng cho phụ huynh nằm trong `modules/attendance/ParentContactDialog.tsx`; mẫu tin, số điện thoại và quy tắc giữ lịch sử nằm trong `parentContact.ts`, thao tác ghi nhận ở `actions.ts`. Nhân viên lưu điểm danh trước khi soạn tin/gọi và tự xác nhận đã liên hệ; sao chép hoặc mở cuộc gọi không đánh dấu đã gửi. Lần liên hệ được lưu thành dòng có thời gian theo giờ Việt Nam, kênh và người ghi nhận trong `AttendanceStudentEntry.note`, tương thích JSON/Excel cũ và dùng quyền sửa điểm danh theo lớp trên SQL hiện có. Đây là ghi nhận thủ công, không phải xác nhận giao tin của Zalo. Sửa nhận xét, đổi trạng thái điểm danh và lưu lại phải giữ các dòng lịch sử này; không thêm trường schema hay migration cho luồng này.
+
 ## Chọn nơi sửa và kiểm tra phần liên quan
 
 | Thay đổi | Nơi sửa chính | Phần liên quan cần kiểm tra |
