@@ -47,7 +47,7 @@ Trong thời gian bootstrap, email ngoài allowlist chỉ có profile inactive v
 - Cấu hình riêng tại Dashboard: thêm/cập nhật email trong `owner_bootstrap_allowlist` với `is_private = true`. Chỉ Dashboard hoặc máy chủ có quyền truy cập bảng này; không đặt email trong JavaScript, biến `VITE_` hay SQL được commit.
 - Có thể truyền email qua stdin cho `node scripts/create-private-owner-setup.mjs`. Script tạo `.vercel/setup-private-owner.sql` đã được Git/Vite/Vercel bỏ qua, không kết nối database. Chạy file đó trên đúng project sau migration 010, rồi đăng nhập Google bằng tài khoản đã chỉ định.
 - Nếu Auth user đã có, trigger kích hoạt profile ngay và thêm nhật ký. Nếu chưa có, cấu hình chờ lần đăng nhập Google đầu tiên. Lặp lại file riêng không tạo thêm bản ghi hoặc nhật ký khi cấu hình không đổi.
-- Giao diện dùng nhãn “Quản trị hệ thống”, không hiển thị email/ảnh Google của tài khoản riêng trong hộp tài khoản, danh sách thành viên hay phiên cục bộ. Danh tính Auth vẫn tồn tại trên Supabase; đây là ẩn giao diện, không xóa tài khoản hoặc nhật ký. Quản lý/thu hồi tài khoản riêng qua Dashboard.
+- Giao diện chung dùng nhãn “Quản trị hệ thống”; tài khoản riêng không xuất hiện trong danh sách thành viên/phiên cục bộ. Khi mở hộp **Tài khoản**, chính người đăng nhập nhìn thấy tên và email Google của mình để nhận biết đúng phiên; chỉ đọc danh tính khi ID phiên khớp ID profile hiện tại. Danh tính này không thay đổi vai trò, quyền hoặc nhãn trong nhật ký. Danh tính Auth vẫn tồn tại trên Supabase; đây là ẩn giao diện, không xóa tài khoản hoặc nhật ký. Quản lý/thu hồi tài khoản riêng qua Dashboard.
 
 ## 4. Kiểm tra môi trường Vercel
 

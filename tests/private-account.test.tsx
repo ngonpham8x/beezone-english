@@ -68,10 +68,20 @@ it('removes only the private account from the local session list', () => {
   registerActiveSession({ ...DEV_OWNER_ACCOUNT, email: 'visible@example.test' });
   registerActiveSession(privateOwner);
   expect(getActiveSessions().map((session) => session.id)).toEqual([DEV_OWNER_ACCOUNT.id]);
-  render(<LoginModal isOpen currentUser={privateOwner} onClose={vi.fn()} onLogout={vi.fn()} />);
-  expect(screen.queryByText(privateOwner.email)).toBeNull();
-  expect(screen.getByText(PRIVATE_ACCOUNT_LABEL)).toBeTruthy();
+  const onClose = vi.fn();
+  render(<LoginModal isOpen currentUser={privateOwner} authenticatedUser={{ id: privateOwner.id, email: privateOwner.email, user_metadata: { full_name: 'Private Person' } }} onClose={onClose} onLogout={vi.fn()} />);
+  expect(screen.getByText(privateOwner.email)).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Private Person' })).toBeTruthy();
+  expect(screen.queryByText(PRIVATE_ACCOUNT_LABEL)).toBeNull();
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('does not show another session identity when the session and profile IDs differ', () => {
+  render(<LoginModal isOpen currentUser={privateOwner} authenticatedUser={{ id: 'another-account', email: 'other@example.test', user_metadata: { full_name: 'Another Person' } }} onClose={vi.fn()} onLogout={vi.fn()} />);
+  expect(screen.queryByText('Another Person')).toBeNull();
+  expect(screen.queryByText('other@example.test')).toBeNull();
+  expect(screen.getByText(privateOwner.email)).toBeTruthy();
 });
 
 it('hides server-designated accounts from cached sessions without repeatedly requesting the member list', async () => {

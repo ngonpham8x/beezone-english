@@ -84,6 +84,7 @@ export function WorkspaceDialogs({
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         currentUser={currentUser}
+        authenticatedUser={session?.user}
         onLogout={handleLogout}
         onSwitchRole={handleDevLogin}
         onSwitchAccount={handleAccountLogin}
