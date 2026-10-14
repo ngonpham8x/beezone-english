@@ -49,7 +49,7 @@ export function AdmissionsFilters({
 
       <label className="relative min-w-0">
         <span className="sr-only">Lọc theo giai đoạn</span>
-        <Filter aria-hidden="true" className={iconClassName} />
+        <Filter aria-hidden="true" className={`${iconClassName} admissions-select-icon`} />
         <select
           value={status}
           onChange={(event) => onStatusChange(event.target.value)}
@@ -61,12 +61,12 @@ export function AdmissionsFilters({
           <option value="registered">Đã đăng ký (Chờ lớp)</option>
           <option value="active">Đã nhập học chính thức</option>
         </select>
-        <ChevronDown aria-hidden="true" className={arrowClassName} />
+        <ChevronDown aria-hidden="true" className={`${arrowClassName} admissions-select-arrow`} />
       </label>
 
       <label className="relative min-w-0">
         <span className="sr-only">Lọc theo chương trình</span>
-        <BookOpen aria-hidden="true" className={iconClassName} />
+        <BookOpen aria-hidden="true" className={`${iconClassName} admissions-select-icon`} />
         <select
           value={programId}
           title={programTitle}
@@ -80,7 +80,7 @@ export function AdmissionsFilters({
             </option>
           ))}
         </select>
-        <ChevronDown aria-hidden="true" className={arrowClassName} />
+        <ChevronDown aria-hidden="true" className={`${arrowClassName} admissions-select-arrow`} />
       </label>
     </section>
   );

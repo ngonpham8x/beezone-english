@@ -91,8 +91,8 @@ Công cụ trình duyệt trả về danh sách kết nối trống (`apps: [], 
 
 Ảnh phản hồi cho thấy ô chương trình giãn theo tên lựa chọn dài, vượt khung bộ lọc và làm trang cuộn ngang. Đã tách `AdmissionsFilters` trong module Tuyển sinh và thay nhóm flex có chiều rộng nội tại bằng grid với `minmax(0, ...)`; các wrapper và control có `min-width: 0`, control rộng 100% khung.
 
-- Vùng nội dung dưới 560 px: tìm kiếm, giai đoạn và chương trình xếp dọc, cùng chiều rộng/cao 44 px.
-- Từ 560 px: tìm kiếm chiếm một hàng; hai bộ chọn nằm ở hàng tiếp theo.
+- Vùng nội dung dưới 850 px: tìm kiếm chiếm hàng trên; giai đoạn và chương trình luôn nằm cạnh nhau ở hàng dưới, kể cả tab chia sẻ hẹp và điện thoại. Các ô giữ chiều cao 44 px.
+- Dưới 560 px: bỏ icon đầu hai bộ chọn và giảm khoảng đệm để dành chỗ cho tên lựa chọn. Giữ chữ 16 px trên màn hình nhỏ và thu gọn tên dài trong giới hạn ô.
 - Từ 850 px: ba ô cùng một hàng. Bố cục theo vùng nội dung còn lại, gồm trường hợp tab nằm cạnh chat hoặc menu đang mở.
 - Tên chương trình dài được thu gọn trong ô đóng; danh sách lựa chọn và tooltip giữ tên đầy đủ. Icon không nhận click; control native giữ thao tác bàn phím và có nhãn đọc rõ ràng.
 
