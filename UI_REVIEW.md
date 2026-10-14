@@ -130,3 +130,18 @@ Công cụ trình duyệt trả về danh sách kết nối trống (`apps: [], 
 Kết quả: **259 test / 19 tệp**, TypeScript và production build đều qua. Localhost trả HTTP 200, phục vụ CSS mới cho các bộ lọc và vùng bấm. Giữ nguyên URL, schema, dữ liệu, quyền và nghiệp vụ.
 
 Browser vẫn trả `apps: [], browsers: []`; lấy tab localhost bằng `iab` trả `Browser is not available: iab`. Vì vậy chưa thể kết luận mọi mục đã đẹp ở mọi thiết bị, mức zoom và bàn phím ảo. Các kết quả trực quan còn cần được xác nhận khi công cụ nhận được tab chia sẻ.
+
+## Dropdown mở vượt mép tab — 14/10/2026
+
+Ảnh phản hồi tiếp theo cho thấy phần danh sách native của trình duyệt rộng theo tên chương trình, vượt mép tab dù ô chọn đóng đã nằm trong grid. Lượt sửa trước chỉ giới hạn ô đóng; chưa xử lý popup mở.
+
+Đã thêm `components/ResponsiveSelect.tsx` và áp dụng cho 8 bộ lọc: giai đoạn/chương trình Tuyển sinh; chương trình/lớp/trạng thái Học viên; lớp Điểm danh, Điểm số và Học phí. Giữ các giá trị ID, thứ tự lựa chọn, callback và giới hạn lớp theo quyền hiện có.
+
+- Danh sách có chiều rộng tối đa theo viewport và phần không gian còn lại, tránh va chạm mép tab với khoảng đệm 8 px. Danh sách ưu tiên rộng 320 px hoặc bằng ô chọn nếu ô rộng hơn, có thể co hẹp hơn 320 px.
+- Tên dài xuống dòng trong danh sách. Ô đóng vẫn thu gọn tên và có tooltip. Hai bộ chọn Tuyển sinh tiếp tục nằm cùng một hàng.
+- Chiều cao tối đa 320 px hoặc không gian còn lại; danh sách cuộn dọc và đổi phía khi thiếu chỗ. Có chỉ báo lựa chọn, highlight và nút hỗ trợ cuộn.
+- Radix Select quản lý chuột/cảm ứng, điều hướng bàn phím, Enter, Esc và focus. Component dùng props có kiểm soát; không thay schema hoặc dữ liệu trung tâm. Thư viện được khóa phiên bản `2.4.1`; các phiên bản thư viện đã có trong lockfile không đổi.
+
+`tests/responsive-select.test.tsx` bổ sung 5 trường hợp: chọn tên dài bằng End/Enter và trả focus; Esc hủy lựa chọn chưa chốt, giải phóng khóa cuộn; chọn bằng chuột/cảm ứng đúng ID; ô không có lớp được phép giữ trạng thái disabled và thông báo. Test Tuyển sinh/Học viên chọn qua popup thực trong jsdom, rồi kiểm tra dữ liệu lọc và đổi dạng xem. Geometry giả trong test chỉ giữ anchor trên viewport mô phỏng để kiểm tra tương tác; không phải kiểm tra pixel.
+
+Kết quả mới nhất: **264 test / 20 tệp**, TypeScript và production build đều qua. Bộ chọn được tải theo các module dùng nó (chunk khoảng 93 KB, gzip 32 KB); bundle khởi động vẫn khoảng 364 KB. Localhost phục vụ component, module Tuyển sinh và CSS mới với HTTP 200. Browser của công cụ vẫn trả danh sách kết nối trống, nên chưa có ảnh dựng thực tế xác nhận sau sửa.

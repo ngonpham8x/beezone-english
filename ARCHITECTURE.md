@@ -49,6 +49,7 @@ Các mũi tên thể hiện phụ thuộc sử dụng; tham chiếu type đượ
 
 - `useCenterStore` sở hữu dữ liệu dùng chung và lưu bản xem thử. Không tạo một bản học viên/phiếu thu thứ hai trong module khác. State riêng của form, bộ lọc và dialog có thể nằm trong màn hình.
 - Danh sách menu nằm ở `app/navigation.ts`. Sidebar và URL cùng dùng `canAccessTab`; quyền hiển thị không thay thế quyền API/SQL.
+- Bộ lọc có tên chương trình/lớp dài dùng `components/ResponsiveSelect.tsx`. Component nhận giá trị và callback từ module, không giữ bản dữ liệu nghiệp vụ riêng. Dropdown dùng Radix Select để quản lý focus, bàn phím và vị trí; CSS giới hạn chiều rộng/chiều cao theo viewport, cho tên lựa chọn xuống dòng. Khi thêm bộ chọn tương tự, tái sử dụng component và kiểm tra cả trạng thái mở.
 - Dữ liệu tải từ Supabase và dữ liệu nhập phải đi qua `parseCenterData` trước khi thay trạng thái. `normalizeCenterData` dùng chung cho tải dữ liệu, nhập Excel và khôi phục JSON. Hàm này sửa liên kết phát sinh và trạng thái phí, không xóa lịch sử giao dịch.
 - `applyData` thay toàn bộ bộ dữ liệu đã kiểm tra; dùng thao tác từng module cho thay đổi một hồ sơ. `clearData` chỉ xóa dữ liệu trong bộ nhớ khi kết thúc phiên. Không xóa dữ liệu trình duyệt khi đổi phiên bản schema.
 - `student.classId` và `class.teacherId` là tham chiếu gốc. `class.studentIds`, `teacher.assignedClassIds` và `student.feeStatus` được suy ra lại; tránh ghi trạng thái mâu thuẫn.

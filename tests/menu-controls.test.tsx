@@ -7,6 +7,7 @@ import { OWNER_PERMISSIONS } from '../src/lib/auth';
 import * as initial from '../src/mock/initialData';
 import { ReportView } from '../src/modules/reports/ReportView';
 import { StudentManager } from '../src/modules/students/StudentManager';
+import { chooseOption } from './helpers/select';
 
 let viewportWidth = 320;
 beforeEach(() => {
@@ -52,7 +53,7 @@ const students = initial.initialStudents.slice(0, 2).map((student, index) => ({
 // jsdom checks filtering, focus and view switching; it does not measure pixel overflow.
 it.each([320, 480, 820, 1366])(
   'keeps the student filters usable with long names at %spx',
-  (width) => {
+  async (width) => {
     viewportWidth = width;
     render(
       <LanguageProvider>
@@ -81,18 +82,20 @@ it.each([320, 480, 820, 1366])(
       control.focus();
       expect(document.activeElement).toBe(control);
     }
-    fireEvent.change(program, { target: { value: programs[0].id } });
-    fireEvent.change(classroom, { target: { value: classes[0].id } });
-    fireEvent.change(status, { target: { value: 'active' } });
+    await chooseOption(program, programs[0].name);
+    await chooseOption(classroom, classes[0].name);
+    status.focus();
+    fireEvent.keyDown(status, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: /Đang học/i }));
     expect(program.getAttribute('title')).toBe(longName);
     expect(classroom.getAttribute('title')).toBe(classes[0].name);
     for (const view of ['Dạng Bảng', 'Dạng Thẻ']) {
       fireEvent.click(screen.getByRole('button', { name: view }));
       expect(screen.getByText('Học viên kiểm tra')).toBeTruthy();
       expect(screen.queryByText('Học viên khác')).toBeNull();
-      expect((program as HTMLSelectElement).value).toBe(programs[0].id);
-      expect((classroom as HTMLSelectElement).value).toBe(classes[0].id);
-      expect((status as HTMLSelectElement).value).toBe('active');
+      expect(program.textContent).toBe(programs[0].name);
+      expect(classroom.textContent).toBe(classes[0].name);
+      expect(status.textContent).toMatch(/Đang học/i);
     }
   },
 );

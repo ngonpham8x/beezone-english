@@ -20,6 +20,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
@@ -484,10 +485,10 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input value={receiptQuery} onChange={(event) => setReceiptQuery(event.target.value)} placeholder="Mã phiếu, mã/tên học sinh, kỳ thu..." className="w-full rounded-xl border border-slate-300 py-2 pl-9 pr-3 text-xs outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
           </label>
-          <select aria-label="Lọc lớp trên phiếu thu" title={classes.find(c => c.id === filterClassId)?.name || 'Tất cả lớp'} value={filterClassId} onChange={(event) => setFilterClassId(event.target.value)} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
-            <option value="all">Tất cả lớp</option>
-            {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}
-          </select>
+          <ResponsiveSelect label="Lọc lớp trên phiếu thu" value={filterClassId} onChange={setFilterClassId} options={[
+            { value: 'all', label: 'Tất cả lớp' },
+            ...classes.map(classroom => ({ value: classroom.id, label: classroom.name })),
+          ]} />
           <select aria-label="Lọc khoản thu" value={filterPaymentKind} onChange={(event) => setFilterPaymentKind(event.target.value as 'all' | 'monthly' | 'course' | 'session')} className="w-full min-w-0 truncate rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">
             <option value="all">Tất cả khoản thu</option><option value="monthly">Học phí tháng</option><option value="course">Học phí khóa</option><option value="session">Học phí buổi</option>
           </select>

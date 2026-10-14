@@ -1,4 +1,5 @@
-import { BookOpen, ChevronDown, Filter, Search } from 'lucide-react';
+import { BookOpen, Filter, Search } from 'lucide-react';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import type { CourseProgram } from '../../types';
 
 interface AdmissionsFiltersProps {
@@ -15,8 +16,6 @@ const controlClassName =
   'block h-11 w-full min-w-0 max-w-full rounded-xl border border-slate-300 pl-9 pr-9 text-sm text-slate-700 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200';
 const iconClassName =
   'pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400';
-const arrowClassName =
-  'pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500';
 
 export function AdmissionsFilters({
   search,
@@ -27,9 +26,6 @@ export function AdmissionsFilters({
   onStatusChange,
   onProgramChange,
 }: AdmissionsFiltersProps) {
-  const programTitle =
-    programs.find((program) => program.id === programId)?.name || 'Tất cả chương trình';
-
   return (
     <section
       aria-label="Bộ lọc tuyển sinh"
@@ -47,41 +43,31 @@ export function AdmissionsFilters({
         />
       </label>
 
-      <label className="relative min-w-0">
-        <span className="sr-only">Lọc theo giai đoạn</span>
-        <Filter aria-hidden="true" className={`${iconClassName} admissions-select-icon`} />
-        <select
-          value={status}
-          onChange={(event) => onStatusChange(event.target.value)}
-          className={`${controlClassName} appearance-none truncate bg-slate-50 font-semibold`}
-        >
-          <option value="all">Tất cả giai đoạn</option>
-          <option value="lead">Tiềm năng / Tư vấn</option>
-          <option value="trial">Đang học thử</option>
-          <option value="registered">Đã đăng ký (Chờ lớp)</option>
-          <option value="active">Đã nhập học chính thức</option>
-        </select>
-        <ChevronDown aria-hidden="true" className={`${arrowClassName} admissions-select-arrow`} />
-      </label>
-
-      <label className="relative min-w-0">
-        <span className="sr-only">Lọc theo chương trình</span>
-        <BookOpen aria-hidden="true" className={`${iconClassName} admissions-select-icon`} />
-        <select
-          value={programId}
-          title={programTitle}
-          onChange={(event) => onProgramChange(event.target.value)}
-          className={`${controlClassName} appearance-none truncate bg-slate-50 font-semibold`}
-        >
-          <option value="all">Tất cả chương trình</option>
-          {programs.map((program) => (
-            <option key={program.id} value={program.id}>
-              {program.name}
-            </option>
-          ))}
-        </select>
-        <ChevronDown aria-hidden="true" className={`${arrowClassName} admissions-select-arrow`} />
-      </label>
+      <ResponsiveSelect
+        label="Lọc theo giai đoạn"
+        value={status}
+        onChange={onStatusChange}
+        icon={Filter}
+        className="admissions-select"
+        options={[
+          { value: 'all', label: 'Tất cả giai đoạn' },
+          { value: 'lead', label: 'Tiềm năng / Tư vấn' },
+          { value: 'trial', label: 'Đang học thử' },
+          { value: 'registered', label: 'Đã đăng ký (Chờ lớp)' },
+          { value: 'active', label: 'Đã nhập học chính thức' },
+        ]}
+      />
+      <ResponsiveSelect
+        label="Lọc theo chương trình"
+        value={programId}
+        onChange={onProgramChange}
+        icon={BookOpen}
+        className="admissions-select"
+        options={[
+          { value: 'all', label: 'Tất cả chương trình' },
+          ...programs.map((program) => ({ value: program.id, label: program.name })),
+        ]}
+      />
     </section>
   );
 }

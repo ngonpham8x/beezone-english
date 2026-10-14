@@ -5,6 +5,7 @@ import { OWNER_PERMISSIONS } from '../src/lib/auth';
 import * as initial from '../src/mock/initialData';
 import { AdmissionsManager } from '../src/modules/admissions/AdmissionsManager';
 import type { CourseProgram, Student } from '../src/types';
+import { chooseOption } from './helpers/select';
 
 const longProgramName =
   'Chương trình Cambridge dành cho học viên tiểu học và luyện thi chứng chỉ quốc tế';
@@ -74,17 +75,17 @@ afterEach(() => {
 // jsdom cannot verify pixel overflow; the grid uses bounded tracks and controls.
 it.each([320, 480, 820, 1366])(
   'combines filters and retains them when switching views at %s px',
-  (width) => {
+  async (width) => {
     renderAdmissions(width);
     const search = screen.getByRole('searchbox', { name: 'Tìm học viên tuyển sinh' });
     const stage = screen.getByRole('combobox', { name: 'Lọc theo giai đoạn' });
     const program = screen.getByRole('combobox', { name: 'Lọc theo chương trình' });
-    fireEvent.change(stage, { target: { value: 'lead' } });
+    await chooseOption(stage, 'Tiềm năng / Tư vấn');
     expect(screen.getByText('Trần An')).toBeTruthy();
     expect(screen.queryByText('Lê Bình')).toBeNull();
     expect(screen.queryByText('Nguyễn Chi')).toBeNull();
-    fireEvent.change(stage, { target: { value: 'all' } });
-    fireEvent.change(program, { target: { value: 'long' } });
+    await chooseOption(stage, 'Tất cả giai đoạn');
+    await chooseOption(program, longProgramName);
     expect(screen.getByText('Nguyễn Chi')).toBeTruthy();
     expect(screen.queryByText('Lê Bình')).toBeNull();
     fireEvent.change(search, { target: { value: 'Trần' } });
@@ -92,29 +93,25 @@ it.each([320, 480, 820, 1366])(
     fireEvent.click(screen.getByRole('button', { name: 'Dạng Bảng' }));
     fireEvent.click(screen.getByRole('button', { name: 'Dạng Thẻ Mobile' }));
     expect((search as HTMLInputElement).value).toBe('Trần');
-    expect((program as HTMLSelectElement).value).toBe('long');
+    expect(program.textContent).toBe(longProgramName);
     expect(screen.getByText('Trần An')).toBeTruthy();
     expect(screen.queryByText('Lê Bình')).toBeNull();
   },
 );
 
-it('keeps controls in keyboard order and exposes the complete selected program name', () => {
+it('keeps controls in keyboard order and exposes the complete selected program name', async () => {
   renderAdmissions(480);
   const filters = screen.getByRole('region', { name: 'Bộ lọc tuyển sinh' });
-  const controls = [...filters.querySelectorAll('input,select')];
-  expect(controls.map((control) => control.getAttribute('type') || control.tagName)).toEqual([
-    'search',
-    'SELECT',
-    'SELECT',
-  ]);
+  const controls = [...filters.querySelectorAll('input[type="search"],button[role="combobox"]')];
+  expect(
+    controls.map((control) => control.getAttribute('role') || control.getAttribute('type')),
+  ).toEqual(['search', 'combobox', 'combobox']);
   controls.forEach((control) => {
     (control as HTMLElement).focus();
     expect(document.activeElement).toBe(control);
   });
-  fireEvent.change(controls[2], { target: { value: 'long' } });
+  await chooseOption(controls[2] as HTMLElement, longProgramName);
   expect(controls[2].getAttribute('title')).toBe(longProgramName);
-  expect(
-    (screen.getByRole('option', { name: longProgramName }) as HTMLOptionElement).selected,
-  ).toBe(true);
+  expect(controls[2].textContent).toBe(longProgramName);
   expect(document.activeElement).toBe(controls[2]);
 });

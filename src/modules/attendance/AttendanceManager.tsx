@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
 import { lessonsOn } from '../../lib/operations';
@@ -278,36 +279,18 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           </div>
 
           <div className="attendance-filters">
-            <div className="flex min-w-0 items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3">
-              <BookOpen className="w-4 h-4 text-slate-500 shrink-0" />
-              <select
-                aria-label="Lớp điểm danh"
-                title={selectedClass?.name}
-                value={selectedClassId}
-                onChange={e => setSelectedClassId(e.target.value)}
-                className="h-11 min-w-0 truncate bg-transparent text-xs font-bold text-slate-800 w-full cursor-pointer"
-                disabled={permittedClasses.length === 0}
-              >
-                {permittedClasses.length === 0 ? (
-                  <option value="">Chưa có lớp được phân quyền</option>
-                ) : (
-                  permittedClasses.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name.replace(/\s*\([^)]*\)/g, '').trim()}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
+            <ResponsiveSelect label="Lớp điểm danh" value={selectedClassId} onChange={setSelectedClassId}
+              icon={BookOpen} disabled={permittedClasses.length === 0} placeholder="Chưa có lớp được phân quyền"
+              options={permittedClasses.map(c => ({ value: c.id, label: c.name }))} />
 
-            <div className="flex min-w-0 items-center gap-2 bg-slate-50 border border-slate-300 rounded-xl px-2.5 sm:px-3">
-              <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+            <div className="relative min-w-0">
+              <Calendar aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
                 aria-label="Ngày điểm danh"
                 type="date"
                 value={sessionDate}
                 onChange={e => setSessionDate(e.target.value)}
-                className="h-11 min-w-0 bg-transparent text-xs font-bold text-slate-800 w-full cursor-pointer"
+                className="filter-control filter-control--search"
               />
             </div>
           </div>

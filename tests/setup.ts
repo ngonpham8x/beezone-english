@@ -8,4 +8,13 @@ if (typeof window !== 'undefined') {
   window.scrollTo = vi.fn();
   Element.prototype.scrollTo = vi.fn();
   Element.prototype.scrollBy = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
+  Element.prototype.hasPointerCapture = vi.fn(() => false);
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
 }

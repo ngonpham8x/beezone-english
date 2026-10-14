@@ -1,6 +1,7 @@
 import { AlertCircle, Award, FileText, LayoutGrid, Share2, Table as TableIcon } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import {
   CenterSettings,
@@ -131,24 +132,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         </div>
 
         <div className="class-picker">
-          <select
-            aria-label="Lớp xem điểm"
-            title={permittedClasses.find(c => c.id === selectedClassId)?.name || 'Tất cả lớp học'}
-            value={selectedClassId}
-            onChange={(e) => setSelectedClassId(e.target.value)}
-            disabled={permittedClasses.length === 0}
-            className="filter-control"
-          >
-            {isOwner && <option value="all">Tất cả lớp học</option>}
-            {!isOwner && permittedClasses.length > 1 && <option value="all">Tất cả lớp được phân công</option>}
-            {permittedClasses.length === 0 ? (
-              <option value="">Chưa có lớp được phân quyền</option>
-            ) : (
-              permittedClasses.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))
-            )}
-          </select>
+          <ResponsiveSelect label="Lớp xem điểm" value={selectedClassId} onChange={setSelectedClassId}
+            disabled={permittedClasses.length === 0} placeholder="Chưa có lớp được phân quyền" options={[
+              ...(isOwner ? [{ value: 'all', label: 'Tất cả lớp học' }] : permittedClasses.length > 1 ? [{ value: 'all', label: 'Tất cả lớp được phân công' }] : []),
+              ...permittedClasses.map(c => ({ value: c.id, label: c.name })),
+            ]} />
         </div>
       </div>
 

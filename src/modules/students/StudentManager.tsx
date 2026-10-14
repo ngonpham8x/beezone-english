@@ -23,6 +23,7 @@ import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
@@ -376,45 +377,24 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div role="group" aria-label={t('student.filters')} className="student-filters">
           {/* Program Filter */}
-          <select
-            aria-label="Lọc chương trình học viên"
-            title={programs.find(p => p.id === filterProgram)?.name || t('student.all_programs')}
-            value={filterProgram}
-            onChange={(e) => setFilterProgram(e.target.value)}
-            className="filter-control"
-          >
-            <option value="all">{t('student.all_programs')}</option>
-            {programs.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <ResponsiveSelect label="Lọc chương trình học viên" value={filterProgram} onChange={setFilterProgram} options={[
+            { value: 'all', label: t('student.all_programs') },
+            ...programs.map(p => ({ value: p.id, label: p.name })),
+          ]} />
 
           {/* Class Filter */}
-          <select
-            aria-label="Lọc lớp học viên"
-            title={classes.find(c => c.id === filterClass)?.name || t('student.all_classes')}
-            value={filterClass}
-            onChange={(e) => setFilterClass(e.target.value)}
-            className="filter-control"
-          >
-            <option value="all">{t('student.all_classes')}</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <ResponsiveSelect label="Lọc lớp học viên" value={filterClass} onChange={setFilterClass} options={[
+            { value: 'all', label: t('student.all_classes') },
+            ...classes.map(c => ({ value: c.id, label: c.name })),
+          ]} />
 
           {/* Status Filter */}
-          <select
-            aria-label="Lọc trạng thái học viên"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="filter-control"
-          >
-            <option value="all">{t('student.all_statuses')}</option>
-            <option value="active">{t('actions.active')}</option>
-            <option value="reserved">{t('actions.reserved')}</option>
-            <option value="dropped">{t('actions.dropped')}</option>
-          </select>
+          <ResponsiveSelect label="Lọc trạng thái học viên" value={filterStatus} onChange={setFilterStatus} options={[
+            { value: 'all', label: t('student.all_statuses') },
+            { value: 'active', label: t('actions.active') },
+            { value: 'reserved', label: t('actions.reserved') },
+            { value: 'dropped', label: t('actions.dropped') },
+          ]} />
         </div>
 
         {/* View Mode Switcher & Scroll Controls */}

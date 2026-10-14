@@ -13,6 +13,7 @@
     "check": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {
+    "@radix-ui/react-select": "2.4.1",
     "@supabase/supabase-js": "^2.112.3",
     "exceljs": "^4.4.0",
     "html-to-image": "^1.11.13",
