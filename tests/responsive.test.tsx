@@ -89,6 +89,25 @@ it('reflows the default view on rotation and retains an explicit user choice', (
   expect(hook.result.current[0]).toBe('card');
 });
 
+it('returns keyboard focus to the mobile search button when search closes and retains the query', () => {
+  viewport(390, 844);
+  render(<LanguageProvider><Shell /></LanguageProvider>);
+  const trigger = screen.getByRole('button', { name: 'Mở tìm kiếm' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const input = screen.getByRole('textbox', { name: 'Tìm học viên, lớp học hoặc giáo viên' });
+  fireEvent.change(input, { target: { value: 'Bee 1' } });
+  fireEvent.keyDown(input, { key: 'Escape' });
+  expect(screen.queryByRole('textbox', { name: 'Tìm học viên, lớp học hoặc giáo viên' })).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.click(trigger);
+  expect((screen.getByRole('textbox', { name: 'Tìm học viên, lớp học hoặc giáo viên' }) as HTMLInputElement).value).toBe('Bee 1');
+  const close = screen.getAllByRole('button', { name: 'Ẩn tìm kiếm' }).at(-1)!;
+  close.focus();
+  fireEvent.click(close);
+  expect(document.activeElement).toBe(trigger);
+});
+
 it('switches the actual grade screen on resize without losing the chosen view', () => {
   viewport(390, 844);
   render(<GradeManager grades={initial.initialGrades} students={initial.initialStudents} classes={initial.initialClasses} teachers={initial.initialTeachers} programs={initial.initialPrograms} settings={initial.initialSettings} permissions={OWNER_PERMISSIONS} currentUser={DEV_OWNER_ACCOUNT} isOwner onUpdateGrade={vi.fn()} />);

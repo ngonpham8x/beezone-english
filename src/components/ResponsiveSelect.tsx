@@ -1,6 +1,7 @@
 import * as Select from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
-import type { ElementType } from 'react';
+import { useContext, type ElementType } from 'react';
+import { DialogPortalContext } from './DialogFrame';
 
 interface ResponsiveSelectProps {
   label: string;
@@ -25,6 +26,7 @@ export function ResponsiveSelect({
   icon: Icon,
   className = '',
 }: ResponsiveSelectProps) {
+  const portalContainer = useContext(DialogPortalContext);
   const selectedLabel = options.find((option) => option.value === value)?.label || placeholder;
   return (
     <div className={`responsive-select ${className}`}>
@@ -47,7 +49,7 @@ export function ResponsiveSelect({
             <ChevronDown aria-hidden="true" className="select-menu-arrow" />
           </Select.Icon>
         </Select.Trigger>
-        <Select.Portal>
+        <Select.Portal container={portalContainer}>
           <Select.Content
             aria-label={label}
             position="popper"

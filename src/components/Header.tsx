@@ -52,8 +52,13 @@ export const Header: React.FC<HeaderProps> = ({
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const isDrawer = useMediaQuery(DRAWER_QUERY);
   const headerRef = useRef<HTMLElement>(null);
+  const mobileSearchToggleRef = useRef<HTMLButtonElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const closeMobileSearch = () => {
+    setShowMobileSearch(false);
+    mobileSearchToggleRef.current?.focus();
+  };
   useEffect(() => {
     const oldHeight = document.documentElement.style.getPropertyValue('--app-header-height');
     const update = () => {
@@ -144,6 +149,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           <button
+            ref={mobileSearchToggleRef}
             type="button"
             onClick={() => setShowMobileSearch((shown) => !shown)}
             className="min-w-11 p-2 text-slate-600 hover:bg-slate-100 hover:text-amber-700 rounded-xl transition-colors lg:hidden"
@@ -202,7 +208,7 @@ export const Header: React.FC<HeaderProps> = ({
             <input
               ref={mobileSearchRef}
               aria-label="Tìm học viên, lớp học hoặc giáo viên"
-              onKeyDown={event => { if (event.key === 'Escape') setShowMobileSearch(false); }}
+              onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing) closeMobileSearch(); }}
               autoFocus
               type="text"
               placeholder={t('search_placeholder')}
@@ -212,7 +218,7 @@ export const Header: React.FC<HeaderProps> = ({
             />
             <button
               type="button"
-              onClick={() => setShowMobileSearch(false)}
+              onClick={closeMobileSearch}
               className="absolute right-0 top-0 min-w-11 h-full rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
               title="Ẩn tìm kiếm"
               aria-label="Ẩn tìm kiếm"

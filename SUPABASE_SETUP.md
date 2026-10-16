@@ -34,6 +34,10 @@ Thiết lập theo [hướng dẫn Google OAuth của Supabase](https://supabase
 
 Không bật bỏ qua nonce. Ứng dụng chỉ có giao diện đăng nhập Google; provider email/password không cần cho luồng này.
 
+Nút đăng nhập gửi `prompt=select_account` để Google hiện bước chọn tài khoản khi bắt đầu OAuth. Phiên BeeZone còn hợp lệ vẫn được khôi phục khi mở lại trang; muốn chọn tài khoản khác, đăng xuất BeeZone rồi bấm đăng nhập Google. Google quyết định khi nào cần nhập lại mật khẩu hoặc xác minh hai bước theo trạng thái và chính sách bảo mật của tài khoản.
+
+Nếu Supabase vẫn chuyển `localhost` về Site URL trên Vercel, có thể đặt `VITE_LOCAL_AUTH_ORIGIN="http://127.0.0.1:3000"` trong `.env.local` rồi chạy lại Vite. Màn hình chưa đăng nhập sẽ chuyển sang địa chỉ loopback đã cấu hình trước khi bắt đầu OAuth; Google và Supabase quay về cùng origin để đổi mã PKCE. Biến chỉ có tác dụng khi chạy chế độ development, chỉ chấp nhận HTTP trên loopback cùng cổng và không chuyển phiên/verifier giữa các origin. Workspace đang đăng nhập không bị tự điều hướng. Đường dẫn và `?tab=` được giữ, còn tham số callback cũ được bỏ khi đổi origin. Khi đã cấu hình đúng Redirect URLs cho `localhost`, có thể bỏ biến này để đăng nhập trực tiếp tại `localhost`.
+
 ## 3. Kích hoạt Chủ trung tâm
 
 1. **Table Editor** → `public.owner_bootstrap_allowlist` → **Insert**: điền email Google Chủ trung tâm bằng chữ thường. Chọn tài khoản do trung tâm quản lý; không đưa email này vào file SQL trong Git.

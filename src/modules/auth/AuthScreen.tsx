@@ -1,6 +1,7 @@
 import { LoaderCircle, MapPin, Phone, ShieldCheck } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Logo } from '../../components/Logo';
+import { localAuthAppUrl } from '../../lib/appUrl';
 import { isGoogleSignInEnabled, isLocalPreview, supabase } from '../../lib/supabase';
 import type { UserAccount } from '../../types';
 
@@ -12,8 +13,19 @@ interface AuthScreenProps {
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const localEntryUrl = supabase && import.meta.env.DEV
+    ? localAuthAppUrl(window.location.href, import.meta.env.VITE_LOCAL_AUTH_ORIGIN, import.meta.env.MODE)
+    : null;
+  // Only the signed-out screen moves origins. An active workspace keeps its edits/session.
+  useEffect(() => {
+    if (localEntryUrl) window.location.replace(localEntryUrl);
+  }, [localEntryUrl]);
   const handleGoogleLogin = async () => {
     if (!supabase || isSubmitting) return;
+    if (localEntryUrl) {
+      window.location.replace(localEntryUrl);
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
     try {
@@ -23,7 +35,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
         return;
       }
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'google', options: { redirectTo: window.location.origin },
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: { prompt: 'select_account' },
+        },
       });
       if (oauthError) throw oauthError;
     } catch {
@@ -43,8 +59,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
         </div>
         {supabase ? (
           <>
-            <button onClick={() => void handleGoogleLogin()} disabled={isSubmitting} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
-              {isSubmitting && <LoaderCircle className="h-4 w-4 animate-spin" />}Đăng nhập với Google
+            <button onClick={() => void handleGoogleLogin()} disabled={isSubmitting || !!localEntryUrl} aria-busy={isSubmitting || !!localEntryUrl} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
+              {(isSubmitting || localEntryUrl) && <LoaderCircle className="h-4 w-4 animate-spin" />}{localEntryUrl ? 'Đang mở đăng nhập trên máy này…' : isSubmitting ? 'Đang mở Google…' : 'Đăng nhập với Google'}
             </button>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">Dùng tài khoản Google đã được Chủ trung tâm cấp quyền.</p>
           </>

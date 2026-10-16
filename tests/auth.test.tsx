@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   listener: null as null | ((event: string, session: any) => void),
   payload: {} as any, centerError: false, profileActive: true,
   profilePrivate: false,
+  profileError: false,
+  sessionRequest: null as null | (() => Promise<any>),
   writeError: null as null | { code: string },
   profileReads: 0, centerReads: 0, writes: [] as any[],
 }));
@@ -16,7 +18,7 @@ vi.mock('../src/lib/supabase', () => {
   const session = { access_token: 'test-token', user: { id: 'test-owner', email: 'owner@example.test', user_metadata: { full_name: 'Google Account Name' } } };
   return { isSupabaseConfigured: true, isLocalPreview: false, supabase: {
     auth: {
-      getSession: async () => ({ data: { session }, error: null }),
+      getSession: async () => state.sessionRequest ? state.sessionRequest() : ({ data: { session }, error: null }),
       onAuthStateChange: (listener: any) => { state.listener = listener; return { data: { subscription: { unsubscribe: () => { if (state.listener === listener) state.listener = null; } } } }; },
       signOut: async () => ({ error: null }),
     },
@@ -26,7 +28,7 @@ vi.mock('../src/lib/supabase', () => {
         select: () => builder, eq: () => builder,
         update: (value: any) => { update = value; return builder; }, insert: (value: any) => { update = value; return builder; },
         async maybeSingle() {
-          if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: 'owner', is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: null } : null, error: null }; }
+          if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: 'owner', is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: null } : null, error: state.profileError ? { message: 'offline' } : null }; }
           if (update) { if (state.writeError) return { data: null, error: state.writeError }; state.writes.push(structuredClone(update.payload)); return { data: { updated_at: `revision-${state.writes.length}` }, error: null }; }
           state.centerReads++;
           return { data: { payload: structuredClone(state.payload), updated_at: 'initial-revision' }, error: state.centerError ? { message: 'offline' } : null };
@@ -46,6 +48,8 @@ beforeEach(() => {
   state.centerError = false; state.profileActive = true; state.profileReads = 0; state.centerReads = 0; state.writes = [];
   state.writeError = null;
   state.profilePrivate = false;
+  state.profileError = false;
+  state.sessionRequest = null;
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -91,6 +95,36 @@ it('shows a data-load error and retries without opening demonstration data', asy
   state.centerError = false;
   fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
   expect(await screen.findByRole('button', { name: 'Open students' })).toBeTruthy();
+});
+it('retains unsaved edits when retrying a failed profile refresh and resumes saving without reloading the cloud payload', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit student' }));
+  state.profileError = true;
+  act(() => state.listener?.('TOKEN_REFRESHED', {
+    access_token: 'refreshed', user: { id: 'test-owner', email: 'owner@example.test', user_metadata: {} },
+  }));
+  await screen.findByText('Chưa thể tải hệ thống');
+  expect(state.writes).toEqual([]);
+  state.profileError = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+  expect(await screen.findByText('Edited locally')).toBeTruthy();
+  expect(state.centerReads).toBe(1);
+  await waitFor(() => expect(state.writes.some(payload => payload.students[0].name === 'Edited locally')).toBe(true), { timeout: 3000 });
+});
+
+it('ignores a stale initial session rejection after an auth event has opened the workspace', async () => {
+  let failInitial!: (error: Error) => void;
+  state.sessionRequest = () => new Promise((_, reject) => { failInitial = reject; });
+  render(<App />);
+  act(() => state.listener?.('SIGNED_IN', {
+    access_token: 'current', user: { id: 'test-owner', email: 'owner@example.test', user_metadata: {} },
+  }));
+  await screen.findByRole('button', { name: 'Open students' });
+  await act(async () => { failInitial(new Error('old network request failed')); });
+  expect(screen.getByRole('button', { name: 'Open students' })).toBeTruthy();
+  expect(screen.queryByText('Chưa thể tải hệ thống')).toBeNull();
+  expect(state.centerReads).toBe(1);
 });
 it('revokes the visible workspace when the refreshed profile is locked', async () => {
   render(<App />);

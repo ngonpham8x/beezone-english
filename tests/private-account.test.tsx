@@ -34,6 +34,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 it('uses only the trusted profile flag for identity privacy and never grants a role from user metadata', () => {
@@ -168,7 +169,7 @@ it('reports a disabled Google provider in the app and permits retry after it is 
   await waitFor(() =>
     expect(auth.signIn).toHaveBeenCalledWith({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.origin, queryParams: { prompt: 'select_account' } },
     }),
   );
   expect(screen.queryByText(privateOwner.email)).toBeNull();
@@ -185,4 +186,52 @@ it('allows another attempt after the public provider check fails', async () => {
     (screen.getByRole('button', { name: 'Đăng nhập với Google' }) as HTMLButtonElement).disabled,
   ).toBe(false);
   expect(auth.signIn).not.toHaveBeenCalled();
+});
+
+it('ignores a local origin preference in a production build and starts OAuth on the current origin', async () => {
+  vi.stubEnv('DEV', false);
+  vi.stubEnv('MODE', 'development');
+  vi.stubEnv('VITE_LOCAL_AUTH_ORIGIN', 'http://127.0.0.1:3000');
+  render(<AuthScreen />);
+  const button = screen.getByRole('button', { name: 'Đăng nhập với Google' });
+  expect((button as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(button);
+  await waitFor(() => expect(auth.signIn).toHaveBeenCalledWith({
+    provider: 'google',
+    options: { redirectTo: window.location.origin, queryParams: { prompt: 'select_account' } },
+  }));
+});
+
+it('announces a pending Google request and prevents duplicate sign-in attempts', async () => {
+  let finishCheck!: (enabled: boolean) => void;
+  auth.enabled.mockReturnValueOnce(new Promise<boolean>((resolve) => { finishCheck = resolve; }));
+  render(<AuthScreen />);
+  const button = screen.getByRole('button', { name: 'Đăng nhập với Google' });
+  fireEvent.click(button);
+  expect(button.textContent).toContain('Đang mở Google');
+  expect(button.getAttribute('aria-busy')).toBe('true');
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(button);
+  expect(auth.enabled).toHaveBeenCalledTimes(1);
+  expect(auth.signIn).not.toHaveBeenCalled();
+  await act(async () => { finishCheck(true); });
+  await waitFor(() => expect(auth.signIn).toHaveBeenCalledOnce());
+  expect(auth.signIn).toHaveBeenCalledWith({
+    provider: 'google',
+    options: { redirectTo: window.location.origin, queryParams: { prompt: 'select_account' } },
+  });
+});
+
+it('restores the login button after OAuth fails without exposing private error details', async () => {
+  auth.signIn.mockResolvedValueOnce({ error: new Error('private provider details') });
+  render(<AuthScreen />);
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'Không thể kết nối Google. Kiểm tra kết nối và thử lại.',
+  );
+  const button = screen.getByRole('button', { name: 'Đăng nhập với Google' });
+  expect((button as HTMLButtonElement).disabled).toBe(false);
+  expect(button.getAttribute('aria-busy')).toBe('false');
+  fireEvent.click(button);
+  await waitFor(() => expect(auth.signIn).toHaveBeenCalledTimes(2));
 });

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ResponsiveSelect } from '../src/components/ResponsiveSelect';
+import { DialogFrame } from '../src/components/DialogFrame';
 
 const longName = 'Tiếng Anh Tiểu Học (Bee 3 & Bee 4 - Family and Friends)';
 const options = [
@@ -128,4 +129,42 @@ it('keeps an unavailable class selector disabled', () => {
   fireEvent.click(trigger);
   expect(screen.queryByRole('listbox')).toBeNull();
   expect(change).not.toHaveBeenCalled();
+});
+
+it('keeps a dialog open while selecting or dismissing its nested menu with the keyboard', async () => {
+  const close = vi.fn();
+  const change = vi.fn();
+  function DialogHarness() {
+    const [open, setOpen] = useState(true);
+    return open && (
+      <DialogFrame label="Liên hệ phụ huynh" onClose={() => { close(); setOpen(false); }}>
+        <Harness onChange={change} />
+        <button>Ghi nhận liên hệ</button>
+      </DialogFrame>
+    );
+  }
+  render(<DialogHarness />);
+  const trigger = screen.getByRole('combobox', { name: 'Chương trình' });
+  trigger.focus();
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+  const list = await screen.findByRole('listbox');
+  fireEvent.keyDown(list, { key: 'End' });
+  const last = screen.getByRole('option', { name: longName });
+  await waitFor(() => expect(document.activeElement).toBe(last));
+  fireEvent.keyDown(last, { key: 'Enter' });
+  await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+  expect(trigger.textContent).toBe(longName);
+  expect(change).toHaveBeenCalledExactlyOnceWith('bee');
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+  await screen.findByRole('listbox');
+  fireEvent.keyDown(document, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+  expect(close).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(trigger);
+  expect(document.body.style.overflow).toBe('hidden');
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(close).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.body.style.overflow).toBe('');
 });

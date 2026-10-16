@@ -34,6 +34,7 @@ function resize(width: number) {
 beforeAll(async () => {
   // Compile lazy modules before measuring navigation. Cold Vite transforms on
   // Windows are independent of the application's loading/interaction logic.
+  // Keep cold compilation separate from the 10-second navigation assertions below.
   await Promise.all([
     import('../src/modules/dashboard/DashboardView'),
     import('../src/modules/students/StudentManager'),
@@ -91,7 +92,7 @@ beforeAll(async () => {
     .getAllByRole('button')
     .map((button) => button.getAttribute('aria-label')!);
   expect(labels).toHaveLength(18);
-}, 60_000);
+}, 120_000);
 afterAll(() => {
   cleanup();
   vi.restoreAllMocks();

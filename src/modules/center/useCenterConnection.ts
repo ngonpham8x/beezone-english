@@ -85,6 +85,8 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
   const [syncError, setSyncError] = useState<string | null>(null);
   const cloudRevisionRef = useRef<string | null>(null);
   const savedPayloadRef = useRef('');
+  // Keep hydration across a connection retry so a profile/network error cannot reload over edits.
+  const hydratedUserIdRef = useRef<string | null>(null);
   const syncQueueRef = useRef<ReturnType<typeof createSyncQueue<CenterDataPayload>> | null>(null);
 
   useEffect(() => {
@@ -97,7 +99,6 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     if (!supabase) return;
 
     let isMounted = true;
-    let hydratedUserId: string | null = null;
     let resolvingUserId: string | null = null;
     let resolutionId = 0;
     let authEventObserved = false;
@@ -109,7 +110,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
 
       if (!nextSession) {
         resolutionId += 1;
-        hydratedUserId = null;
+        hydratedUserIdRef.current = null;
         resolvingUserId = null;
         syncQueueRef.current?.stop();
         setCurrentUser(null);
@@ -129,7 +130,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       resolvingUserId = nextSession.user.id;
       const runId = ++resolutionId;
       const isCurrent = () => isMounted && runId === resolutionId;
-      const alreadyHydrated = hydratedUserId === nextSession.user.id;
+      const alreadyHydrated = hydratedUserIdRef.current === nextSession.user.id;
 
       if (!alreadyHydrated) setAuthStatus('loading');
       setAuthError(null);
@@ -144,7 +145,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         if (error)
           throw new Error('Không thể kiểm tra quyền tài khoản. Kiểm tra kết nối và thử lại.');
         if (!data || !data.is_active || !['owner', 'staff'].includes(data.role)) {
-          hydratedUserId = null;
+          hydratedUserIdRef.current = null;
           syncQueueRef.current?.stop();
           setCurrentUser(null);
           setCanSyncCenterData(false);
@@ -157,6 +158,8 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         setCurrentUser(account);
         // Refresh the profile on auth events without replacing unsaved business data.
         if (alreadyHydrated) {
+          setIsCenterDataHydrated(true);
+          setCanSyncCenterData(true);
           setAuthStatus('ready');
           return;
         }
@@ -203,12 +206,12 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         } catch {
           // Session storage can be unavailable in restricted browser contexts.
         }
-        hydratedUserId = nextSession.user.id;
+        hydratedUserIdRef.current = nextSession.user.id;
         setIsCenterDataHydrated(true);
         setAuthStatus('ready');
       } catch (error) {
         if (!isCurrent()) return;
-        hydratedUserId = null;
+        if (!alreadyHydrated) hydratedUserIdRef.current = null;
         syncQueueRef.current?.stop();
         setCanSyncCenterData(false);
         setIsCenterDataHydrated(false);
@@ -231,7 +234,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         void resolveSession(data.session);
       })
       .catch(() => {
-        if (isMounted) {
+        if (isMounted && !authEventObserved) {
           setAuthError('Không thể kết nối hệ thống đăng nhập.');
           setAuthStatus('error');
         }

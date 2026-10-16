@@ -30,6 +30,41 @@ export function canonicalAppUrl(href: string): string | null {
   return destination.href;
 }
 
+/** Start local OAuth on its configured origin; never move a PKCE verifier or session. */
+export function localAuthAppUrl(
+  href: string,
+  preferredOrigin: string | undefined,
+  mode: string,
+): string | null {
+  if (mode !== 'development' || !preferredOrigin) return null;
+  try {
+    const current = new URL(href);
+    const preferred = new URL(preferredOrigin);
+    const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
+    if (
+      current.protocol !== 'http:' ||
+      preferred.protocol !== 'http:' ||
+      !loopback.has(current.hostname) ||
+      !loopback.has(preferred.hostname) ||
+      current.port !== preferred.port ||
+      current.username ||
+      current.password ||
+      preferred.username ||
+      preferred.password ||
+      preferred.pathname !== '/' ||
+      preferred.search ||
+      preferred.hash ||
+      current.origin === preferred.origin
+    )
+      return null;
+    const destination = stripAuthParameters(current);
+    destination.hostname = preferred.hostname;
+    return destination.href;
+  } catch {
+    return null;
+  }
+}
+
 /** Call only after Supabase has finished reading the callback and returned a valid session. */
 export function completedAuthUrl(href: string): string {
   const url = stripAuthParameters(new URL(href));

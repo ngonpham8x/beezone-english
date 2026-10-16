@@ -550,7 +550,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
                             {candidate.gender}
                           </span>
                         </div>
-                        <h4 className="font-extrabold text-slate-900 text-base mt-1 truncate">
+                        <h4 className="break-words font-extrabold text-slate-900 text-base mt-1">
                           {candidate.name}
                         </h4>
                         {candidate.gradeLevel && (

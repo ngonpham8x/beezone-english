@@ -36,7 +36,7 @@ export function useOverlay(ref: RefObject<HTMLElement | null>, active: boolean, 
     if (!root.contains(document.activeElement)) root.focus({ preventScroll: true });
     const topmost = () => overlays.at(-1) === root;
     const keydown = (event: KeyboardEvent) => {
-      if (!topmost()) return;
+      if (!topmost() || event.defaultPrevented) return;
       if (event.key === 'Escape' && !event.isComposing && closeRef.current) {
         event.preventDefault(); event.stopPropagation(); closeRef.current();
       }

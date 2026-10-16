@@ -1,3 +1,35 @@
+# Rà soát BeeZone — 16/10/2026
+
+Phạm vi gồm mã nguồn, ranh giới module, xác thực và đồng bộ, học phí theo buổi, kiểm thử nghiệp vụ/giao diện, dependency và kiểm tra HTTP local/Vercel. Không thay đổi database production, quyền tài khoản hoặc lịch sử dữ liệu trong lần rà soát này.
+
+## Lỗi đã tái hiện và sửa
+
+1. **Mất thay đổi chưa lưu sau lỗi kiểm tra quyền.** Khi refresh token gặp lỗi mạng lúc đọc profile, bấm Thử lại trước đây có thể tải payload cũ từ máy chủ đè lên bản đang sửa. `useCenterConnection` hiện giữ dấu vết dữ liệu đã tải theo tài khoản qua lần thử lại, kiểm tra lại profile trước khi tiếp tục và nối lại hàng đợi với revision CAS đang có. Hồ sơ bị khóa vẫn bị chặn; lần tải đầu thất bại vẫn tải lại từ máy chủ.
+2. **Phản hồi đăng nhập cũ ghi đè phiên đang hoạt động.** `getSession` ban đầu có thể bị reject sau khi một sự kiện Auth mới đã mở workspace. Nhánh bắt lỗi hiện bỏ qua kết quả cũ giống nhánh thành công.
+
+Hai tình huống đều làm kiểm thử mới thất bại trên mã cũ. Kiểm thử xác nhận sửa đúng lỗi, tiếp tục lưu bản sửa, không đọc lại payload khi refresh cùng tài khoản, và vẫn chặn profile bị khóa.
+
+Các sửa đăng nhập local trước đó được giữ: chuyển sang loopback đã cấu hình trước OAuth, dùng PKCE cùng origin và yêu cầu Google hiện bước chọn tài khoản khi bấm đăng nhập. Workspace đang hoạt động không tự đổi địa chỉ.
+
+## Kết quả kiểm tra trực tiếp
+
+- Lượt `npm run check` cuối đã qua: TypeScript, **382 kiểm thử / 29 tệp**, production build và kiểm tra bundle/CSP. Trong đó có **108 tình huống mở 18 mục menu** ở 320, 390, 480, 820, 1024 và 1366 px, cùng các kiểm thử responsive/bàn phím khác. Lượt đầu bị timeout bước biên dịch module của nhóm điều hướng; tăng ngân sách riêng bước chuẩn bị từ 60 lên 120 giây, giữ nguyên giới hạn 10 giây cho từng kiểm tra điều hướng và chạy lại toàn bộ thành công.
+- `npm audit`: 0 lỗ hổng đã biết tại thời điểm kiểm tra.
+- Local: HTML, Vite client và module chính trả 200; API quản trị chưa xác thực trả 401. Các request module ban đầu từng timeout; lần kiểm tra lại sau đó tải được, nên cần giữ kiểm tra cả JavaScript/API thay vì chỉ HTML khi chẩn đoán trang trắng.
+- File giả không chứa dữ liệu riêng trong `.env.*` và `.vercel` đều bị Vite chặn 403 qua đường dẫn thường và `/@fs`. Các file giả được xóa sau kiểm tra.
+- Domain Vercel chính trả 200, có CSP chặn script inline và header chống nhúng trang. Hai API quản trị trả 401 khi không có token. Đây là kiểm tra bản production hiện có, không phải xác nhận các thay đổi local đã được deploy.
+- Supabase public Auth settings trả 200, Google provider bật. Các truy vấn không yêu cầu bản ghi (`limit=0`) xác nhận `profiles` và `center_data` trả 200; `account_audit_logs` từ chối người chưa đăng nhập bằng 401. Không đọc hồ sơ hoặc dữ liệu trung tâm riêng để kiểm tra.
+
+## Giới hạn cần giữ rõ
+
+- Kiểm thử responsive/bàn phím dùng jsdom không xác nhận bố cục pixel trên thiết bị thật. Chưa có công cụ trình duyệt kết nối để kiểm tra trực quan từng mục menu hoặc hoàn tất đăng nhập Google bằng tài khoản của người dùng.
+- `center_data` vẫn là tài liệu chung mà các tài khoản đang hoạt động có thể đọc. Phân quyền menu và kiểm tra ghi không cách ly quyền đọc theo lớp hoặc học phí. Cần tách bảng với read RLS hoặc bổ sung API đọc có lọc trước khi cấp tài khoản cho người không được phép đọc toàn bộ dữ liệu. Xem `SECURITY.md`.
+- Kết quả HTTP/kiểm thử không xác nhận cấu hình WAF, MFA, quota thực tế hoặc khả năng chống mọi bot/DDoS. Không chạy thử tải production và không tự chạy migration.
+
+Đọc `ARCHITECTURE.md` trước khi bổ sung module; giữ nguyên khóa lưu trình duyệt, URL `?tab=`, định dạng sao lưu, lịch sử học phí và CAS.
+
+---
+
 # Rà soát BeeZone English — 13/10/2026
 
 Đợt rà soát tập trung vào lỗi có thể mất dữ liệu, sai học phí/lịch sử, quyền truy cập, lỗi giao diện khi chuyển phân hệ và khả năng build trên Windows. Thay đổi được thực hiện trong repository; chưa triển khai lên Vercel hoặc thay đổi Supabase thật.

@@ -1,5 +1,7 @@
 # Trạng thái triển khai — 14/10/2026
 
+Đây là ghi nhận lịch sử tại thời điểm triển khai ngày 14/10. Xem [kết quả rà soát ngày 16/10/2026](PROJECT_REVIEW.md) cho kiểm tra mới hơn: Google hiện đã bật và các bảng chính đã phản hồi. Không dùng danh sách phần còn thiếu bên dưới để chạy lại file khởi tạo trên database đang có dữ liệu.
+
 ## Vercel đang sử dụng
 
 Đã deploy và chuyển domain chính sang project người dùng cung cấp: [ngonpham/beezone-english](https://vercel.com/ngonpham/beezone-english). Project nối GitHub [ngonpham8x/beezone-english](https://github.com/ngonpham8x/beezone-english), nhánh `main`. Scope `ngonpham8x` trong các ghi nhận cũ không phải project đang sử dụng.
