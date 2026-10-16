@@ -143,3 +143,11 @@ it('keeps local edits and pauses saving when the database quota is exceeded', as
   expect(screen.getByText('Edited locally')).toBeTruthy();
   expect(state.writes).toEqual([]); expect(state.centerReads).toBe(1);
 });
+
+it('displays OAuth error descriptions returned in the URL on the login screen', async () => {
+  window.history.replaceState(null, '', '/?error=access_denied&error_description=Signups+not+allowed+for+this+instance');
+  state.sessionRequest = async () => ({ data: { session: null }, error: null });
+  render(<App />);
+  expect(await screen.findByText('Signups not allowed for this instance')).toBeTruthy();
+});
+

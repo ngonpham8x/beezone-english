@@ -11,7 +11,22 @@ interface AuthScreenProps {
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(
+        window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash,
+      );
+      const desc = searchParams.get('error_description') || hashParams.get('error_description');
+      const err = searchParams.get('error') || hashParams.get('error');
+      if (desc) return decodeURIComponent(desc.replace(/\+/g, ' '));
+      if (err) return `Lỗi đăng nhập: ${err}`;
+    } catch {
+      // ignore
+    }
+    return null;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const localEntryUrl = supabase && import.meta.env.DEV
     ? localAuthAppUrl(window.location.href, import.meta.env.VITE_LOCAL_AUTH_ORIGIN, import.meta.env.MODE)
