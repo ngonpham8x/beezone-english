@@ -162,6 +162,38 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     } as StaffPermissions));
   };
 
+  const selectAllPermissions = () => {
+    setStaffPermissions((current) => {
+      const next: any = {};
+      for (const group of permissionGroups) {
+        for (const opt of group.options) {
+          if (!next[opt.module]) next[opt.module] = {};
+          next[opt.module][opt.action] = true;
+        }
+      }
+      return {
+        ...next,
+        assignedClassIds: current.assignedClassIds,
+        teacherId: current.teacherId,
+      } as StaffPermissions;
+    });
+  };
+
+  const clearAllPermissions = () => {
+    setStaffPermissions((current) => ({
+      ...createEmptyPermissions(),
+      assignedClassIds: current.assignedClassIds,
+      teacherId: current.teacherId,
+    }));
+  };
+
+  const selectAllClasses = () => {
+    setStaffPermissions((current) => ({
+      ...current,
+      assignedClassIds: classes.map((c) => c.id),
+    }));
+  };
+
   const grantGoogleAccess = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isLocalPreview || isSubmitting) return;
@@ -265,8 +297,26 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           </label>
           {role === 'staff' && (
             <fieldset className="sm:col-span-2 rounded-xl border border-amber-200 bg-white p-3">
-              <legend className="px-1 text-xs font-extrabold text-slate-900">Quyền cho nhân viên</legend>
-              <p className="mb-3 text-[11px] leading-4 text-slate-500">Chỉ tick các quyền cần thiết. Mặc định nhân viên không có quyền nào; quyền doanh thu và công nợ nên cấp riêng.</p>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <legend className="px-1 text-xs font-extrabold text-slate-900">Quyền cho nhân viên</legend>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllPermissions}
+                    className="rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    ✓ Chọn tất cả quyền
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAllPermissions}
+                    className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    Bỏ chọn hết
+                  </button>
+                </div>
+              </div>
+              <p className="mb-3 text-[11px] leading-4 text-slate-500">Chỉ tick các quyền cần thiết hoặc bấm "Chọn tất cả quyền". Quyền doanh thu và công nợ nên cấp riêng nếu cần bảo mật.</p>
               <div className="grid gap-3 md:grid-cols-3">
                 {permissionGroups.map((group) => (
                   <div key={group.title} className="rounded-lg bg-slate-50 p-2.5">
@@ -287,9 +337,20 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
                 {/* Phân công lớp phụ trách cho giáo viên/nhân viên */}
                 <div className="md:col-span-3 rounded-lg bg-amber-50/70 border border-amber-200/80 p-3 mt-1">
-                  <p className="mb-1 text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
-                    Phân công lớp phụ trách (Chỉ được Điểm danh & Chấm điểm các lớp này)
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <p className="text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
+                      Phân công lớp phụ trách (Chỉ được Điểm danh & Chấm điểm các lớp này)
+                    </p>
+                    {classes.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={selectAllClasses}
+                        className="rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-950 px-2.5 py-0.5 text-[10px] font-bold transition-colors cursor-pointer"
+                      >
+                        ✓ Chọn tất cả lớp
+                      </button>
+                    )}
+                  </div>
                   <p className="mb-2 text-[10px] text-slate-500">Giáo viên/Nhân viên chỉ có thể thấy và thao tác trên những lớp được tick chọn bên dưới:</p>
                   {classes.length === 0 ? (
                     <p className="text-[11px] text-slate-400 italic">Chưa có dữ liệu lớp học trong hệ thống.</p>
