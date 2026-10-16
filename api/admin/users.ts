@@ -124,7 +124,7 @@ function normalizeStaffPermissions(candidate: unknown) {
 }
 
 export default adminApi(
-  ['GET', 'POST', 'PATCH'],
+  ['GET', 'POST', 'PATCH', 'DELETE'],
   async (req, res, { client, callerId, callerName }, body) => {
     if (req.method === 'GET') {
       const { data, error } = await client
@@ -226,6 +226,7 @@ export default adminApi(
       // This creates no password and sends no email. Supabase links Google later.
       const { data: provisionedUser, error: provisionError } = await client.auth.admin.createUser({
         email,
+        email_confirm: true,
         user_metadata: { full_name: fullName },
       });
       if (provisionError || !provisionedUser.user) {
@@ -278,6 +279,72 @@ export default adminApi(
     }
 
     const userId = typeof body.userId === 'string' ? body.userId : '';
+
+    if (req.method === 'DELETE' || body.action === 'delete') {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+        return json(res, 400, { error: 'ID tài khoản không hợp lệ.' });
+      }
+      if (userId === callerId) {
+        return json(res, 400, { error: 'Bạn không thể tự xóa tài khoản của mình.' });
+      }
+
+      const { data: target, error: targetError } = await client
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
+      if (target.is_private === true) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+
+      if (target.role === 'owner' && target.is_active) {
+        const { count, error: ownerCountError } = await client
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'owner')
+          .eq('is_active', true);
+        if (ownerCountError || (count ?? 0) <= 1) {
+          return json(res, 400, { error: 'Không thể xóa Chủ trung tâm cuối cùng đang hoạt động.' });
+        }
+      }
+
+      const targetName = target.full_name || target.email || 'Tài khoản BeeZone';
+      const auditRecorded = await writeAccountAudit(client, {
+        action: 'ACCOUNT_UPDATED',
+        actorId: callerId,
+        actorName: callerName,
+        targetId: target.id,
+        targetName,
+        targetRole: target.role,
+        details: `Xóa vĩnh viễn tài khoản: ${targetName} (${target.email || target.id}).`,
+      });
+      if (!auditRecorded) {
+        return json(res, 500, { error: 'Không thể ghi nhật ký; thao tác xóa chưa được thực hiện.' });
+      }
+
+      const { error: profileDeleteError } = await client
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+      if (profileDeleteError) {
+        return json(res, 500, { error: 'Không thể xóa hồ sơ tài khoản.' });
+      }
+
+      try {
+        await client.auth.admin.deleteUser(userId);
+      } catch {
+        // Tiếp tục nếu tài khoản auth đã bị xóa trước đó
+      }
+
+      if (target.email) {
+        try {
+          await client.from('owner_bootstrap_allowlist').delete().eq('email', target.email.toLowerCase());
+        } catch {
+          // Bỏ qua nếu email không có trong danh sách khởi tạo
+        }
+      }
+
+      return json(res, 200, { success: true });
+    }
 
     if (body.action === 'updatePermissions') {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {

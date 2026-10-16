@@ -1,7 +1,7 @@
 import { LoaderCircle, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
 import React, { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
-import { ActiveSession, getActiveSessions } from '../../lib/activeSessions';
+import { ActiveSession, getActiveSessions, removeActiveSession } from '../../lib/activeSessions';
 import { readApiJson } from '../../lib/http';
 import { isLocalPreview } from '../../lib/supabase';
 import { ClassRoom, StaffPermissions, Teacher, UserAccount, UserRole } from '../../types';
@@ -204,6 +204,41 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     finally { setIsSubmitting(false); }
   };
 
+  const deleteAccount = async (member: ManagedUser) => {
+    if (isSubmitting || isLocalPreview || member.id === currentUser?.id) return;
+    const nameOrEmail = member.full_name || member.email || 'tài khoản này';
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${nameOrEmail}" khỏi hệ thống không?\n\nLưu ý: Hành động này không thể hoàn tác.`)) {
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ action: 'delete', userId: member.id }),
+      });
+      await readApiJson(response, 'Không thể xóa tài khoản.');
+      removeActiveSession(member.id);
+      if (member.email) removeActiveSession(member.email);
+      if (email === member.email) {
+        setEmail('');
+        setFullName('');
+        setRole('staff');
+        setStaffPermissions(createEmptyPermissions());
+      }
+      await loadMembers();
+      refreshActiveSessions();
+      onAccountChanged?.();
+      setMessage(`Đã xóa vĩnh viễn tài khoản "${nameOrEmail}".`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Không thể xóa tài khoản.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <DialogFrame label="Quản lý tài khoản" onClose={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
       <section    className="dialog-panel relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -317,7 +352,38 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           {!isLoading && displayedMembers.length === 0 && <p className="p-4 text-sm text-slate-500">Chưa có danh sách tài khoản.</p>}
           {displayedMembers.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
             <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{member.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
-            <div className="flex gap-2"><button disabled={isSubmitting} onClick={() => { setFullName(member.full_name); setEmail(member.email || ''); setRole(member.role || 'staff'); setStaffPermissions({ ...createEmptyPermissions(), ...member.permissions }); }} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800">Sửa quyền</button><button disabled={isSubmitting || member.id === currentUser?.id} onClick={() => void setAccountActive(member)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold">{member.is_active ? 'Khóa' : 'Mở khóa'}</button></div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setFullName(member.full_name);
+                  setEmail(member.email || '');
+                  setRole(member.role || 'staff');
+                  setStaffPermissions({ ...createEmptyPermissions(), ...member.permissions });
+                }}
+                className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 transition-colors disabled:opacity-50"
+              >
+                Sửa quyền
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting || member.id === currentUser?.id}
+                onClick={() => void setAccountActive(member)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                {member.is_active ? 'Khóa' : 'Mở khóa'}
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting || member.id === currentUser?.id}
+                onClick={() => void deleteAccount(member)}
+                className="rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 text-xs font-bold transition-colors disabled:opacity-50"
+                title={member.id === currentUser?.id ? 'Không thể tự xóa tài khoản đang đăng nhập' : 'Xóa vĩnh viễn tài khoản khỏi hệ thống'}
+              >
+                Xóa
+              </button>
+            </div>
           </div>)}
         </div>
 

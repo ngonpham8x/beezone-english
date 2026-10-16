@@ -2,7 +2,7 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { DEV_OWNER_ACCOUNT, profileToAccount } from '../src/lib/auth';
+import { DEFAULT_STAFF_PERMISSIONS, DEV_OWNER_ACCOUNT, profileToAccount } from '../src/lib/auth';
 import { getActiveSessions, registerActiveSession } from '../src/lib/activeSessions';
 import { PRIVATE_ACCOUNT_LABEL } from '../src/lib/accountPrivacy';
 import { AuthScreen } from '../src/modules/auth/AuthScreen';
@@ -234,4 +234,130 @@ it('restores the login button after OAuth fails without exposing private error d
   expect(button.getAttribute('aria-busy')).toBe('false');
   fireEvent.click(button);
   await waitFor(() => expect(auth.signIn).toHaveBeenCalledTimes(2));
+});
+
+it('allows an owner to delete a managed account with confirmation and removes it from active sessions', async () => {
+  const staffMember = {
+    id: 'staff-1',
+    email: 'staff@example.test',
+    full_name: 'Staff Member',
+    role: 'staff' as const,
+    is_active: true,
+  };
+  registerActiveSession({
+    id: staffMember.id,
+    name: staffMember.full_name,
+    email: staffMember.email,
+    avatar: '',
+    role: staffMember.role,
+    active: true,
+    permissions: DEFAULT_STAFF_PERMISSIONS,
+  });
+
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const deletedIds = new Set<string>();
+  const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : (input as any)?.url || '';
+    const method = init?.method || (typeof input === 'object' && 'method' in input ? (input as any).method : 'GET');
+    if (url.includes('/api/admin/users')) {
+      if (method === 'PATCH') {
+        const rawBody = init?.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : {};
+        if (rawBody.action === 'delete') {
+          deletedIds.add(rawBody.userId);
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      const allUsers = [
+        { id: DEV_OWNER_ACCOUNT.id, full_name: 'BeeZone Owner', email: DEV_OWNER_ACCOUNT.email, role: 'owner', is_active: true },
+        staffMember,
+      ];
+      return new Response(
+        JSON.stringify({
+          users: allUsers.filter((u) => !deletedIds.has(u.id)),
+          hiddenAccountIds: [],
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    return new Response(JSON.stringify({}), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', fetcher);
+
+  render(
+    <UserManagementModal
+      isOpen
+      onClose={vi.fn()}
+      accessToken="test-token"
+      currentUser={DEV_OWNER_ACCOUNT}
+    />,
+  );
+
+  const staffElements = await screen.findAllByText('Staff Member');
+  expect(staffElements.length).toBeGreaterThanOrEqual(1);
+
+  const deleteButtons = screen.getAllByRole('button', { name: 'Xóa' });
+  expect(deleteButtons).toHaveLength(2);
+
+  // First button corresponds to current user (DEV_OWNER_ACCOUNT) -> disabled
+  expect((deleteButtons[0] as HTMLButtonElement).disabled).toBe(true);
+  // Second button corresponds to staffMember -> enabled
+  expect((deleteButtons[1] as HTMLButtonElement).disabled).toBe(false);
+
+  // Click delete on staffMember
+  fireEvent.click(deleteButtons[1]);
+  expect(confirmSpy).toHaveBeenCalledOnce();
+
+  await waitFor(() => {
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/admin/users',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'delete', userId: staffMember.id }),
+      }),
+    );
+  });
+
+  // Verify staff session removed from active sessions
+  expect(getActiveSessions().some((s) => s.id === staffMember.id)).toBe(false);
+  expect(await screen.findByText(/Đã xóa vĩnh viễn tài khoản "Staff Member"/)).toBeTruthy();
+  await waitFor(() => expect(screen.queryByText('Staff Member')).toBeNull());
+});
+
+it('does not send delete request if confirmation is cancelled', async () => {
+  const staffMember = {
+    id: 'staff-2',
+    email: 'staff2@example.test',
+    full_name: 'Staff Two',
+    role: 'staff' as const,
+    is_active: true,
+  };
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const fetcher = vi.fn(async () =>
+    new Response(
+      JSON.stringify({
+        users: [staffMember],
+        hiddenAccountIds: [],
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    ),
+  );
+  vi.stubGlobal('fetch', fetcher);
+
+  render(
+    <UserManagementModal
+      isOpen
+      onClose={vi.fn()}
+      accessToken="test-token"
+      currentUser={DEV_OWNER_ACCOUNT}
+    />,
+  );
+
+  await screen.findByText('Staff Two');
+  const deleteBtn = screen.getByRole('button', { name: 'Xóa' });
+  fireEvent.click(deleteBtn);
+
+  expect(confirmSpy).toHaveBeenCalledOnce();
+  expect(fetcher).toHaveBeenCalledTimes(1); // Only the initial GET
 });
