@@ -65,7 +65,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
   return (
     <main className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-zinc-900 to-amber-950 p-4">
       <section className="w-full max-w-md rounded-3xl border border-amber-200 bg-white p-6 shadow-2xl sm:p-8">
-        <Logo size={82} className="mx-auto mb-4" />
+        <div className="mb-4 flex justify-center">
+          <Logo size={82} />
+        </div>
         <h1 className="text-center text-xl font-extrabold text-slate-900">Trung tâm ngoại ngữ BeeZone</h1>
         <p className="mt-2 text-center text-sm text-slate-500">Quản lý học viên, học vụ và học phí</p>
         <div className="my-6 space-y-2 rounded-xl bg-amber-50 p-4 text-xs text-slate-700">
