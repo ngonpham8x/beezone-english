@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     try { privilegedKey ||= JSON.parse(Buffer.from(browserKey.split('.')[1], 'base64url').toString()).role === 'service_role'; } catch { /* The auth client handles malformed publishable keys. */ }
   }
   if (privilegedKey) throw new Error('Không được đặt Supabase secret/service-role key vào biến VITE_.');
-  for (const key of ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_URL', 'ALLOWED_ORIGINS']) {
+  for (const key of ['SUPABASE_URL', 'VITE_SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'APP_URL', 'ALLOWED_ORIGINS']) {
     if (env[key]) process.env[key] = env[key];
   }
   return {
