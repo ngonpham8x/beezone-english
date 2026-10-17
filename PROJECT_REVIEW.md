@@ -1,3 +1,33 @@
+# Rà soát BeeZone — 17/10/2026
+
+Đã đọc lại `ARCHITECTURE.md` và báo cáo bên dưới trước khi sửa. Lượt này dùng Chromium thật qua Playwright theo lựa chọn của người dùng, dựng các màn hình/component hiện có với dữ liệu mẫu và chặn yêu cầu tới Supabase/API quản trị. Không dùng phiên Google hoặc dữ liệu trung tâm thật. Bộ dựng kiểm thử chỉ nằm trong `.vercel`, không thêm đường dẫn bỏ qua đăng nhập vào ứng dụng.
+
+## Quyền riêng tư của nhật ký
+
+Theo yêu cầu bổ sung, API nhật ký hiện bỏ toàn bộ dòng do tài khoản riêng thực hiện, nhắm vào tài khoản riêng hoặc chứa thông tin nhận diện của nó, cho cả nhật ký tài khoản và nhật ký thao tác. Trước đây một số dòng chỉ được thay tên/email bằng nhãn chung nên nội dung thao tác vẫn hiển thị. Quy tắc lấy `is_private` từ profile máy chủ, không ghi email cá nhân vào mã nguồn và không xóa lịch sử gốc.
+
+Kiểm thử mới thất bại trên cách xử lý cũ; sau sửa, kiểm thử xác nhận API không trả các dòng này, các dòng thông thường vẫn còn, các bản ghi đầu vào không bị thay đổi và quota/xác thực vẫn chạy. Chromium ở 390 và 1366 px xác nhận nội dung riêng không xuất hiện hoặc trả về trong tìm kiếm, bảng không tràn toàn trang và không có lỗi chạy. Dữ liệu thử dùng danh tính giả; chưa dùng phiên Google thật để đọc nhật ký production.
+
+Lượt `npm run check` sau thay đổi này đã qua: TypeScript, **389 kiểm thử / 29 tệp**, production build và kiểm tra bundle/CSP. Không thay schema hoặc chạy migration cho thay đổi hiển thị nhật ký này.
+
+## Các lỗi giao diện đã sửa
+
+- **Bộ chọn trong hộp thoại tranh focus.** Mở danh sách kênh liên hệ phụ huynh bằng bàn phím trước đây có thể gây vòng lặp focus và lỗi tràn ngăn xếp. Portal hiện nằm trong hộp thoại sở hữu nó, cùng lớp hiển thị. Escape đóng danh sách trước, giữ hộp thoại; lần Escape tiếp theo mới đóng hộp thoại. Kiểm thử mới thất bại trên mã cũ và qua sau khi sửa.
+- **Đóng tìm kiếm điện thoại làm mất focus.** Escape hoặc nút đóng hiện đưa focus về nút mở tìm kiếm và giữ nội dung đã nhập.
+- **Chân menu che các mục Hệ thống.** Menu có vùng cuộn riêng; khối cài ứng dụng/thu gọn nằm ngoài vùng cuộn và không phủ lên mục cuối.
+- **Tên học viên bị cắt trên thẻ.** Điểm danh tách mã và tên thành hai dòng; tuyển sinh cho tên xuống dòng để đọc đủ danh tính trên màn hình hẹp.
+
+## Kết quả kiểm tra
+
+- **144 lượt mở menu**: đủ 18 mục tại 320×568, 390×844, 480×800, 640×360, 820×1180, 1024×768, 1366×768 và 1920×1080. Không ghi nhận tràn ngang toàn trang hoặc lỗi JavaScript của ứng dụng. Đã xem ảnh chụp giao diện điện thoại và máy tính.
+- **134 kiểm tra tương tác** tại 320, 390 (có cảm ứng), 820 và 1366 px: gồm 52 lần mở bộ lọc, 40 lần mở/đóng biểu mẫu, cuộn bảng bằng bàn phím, 8 lượt cuộn tới cuối tuần, 4 lượt chọn kênh liên hệ trong hộp thoại và kiểm tra mục cuối menu. Popup nằm trong viewport; Escape và focus được kiểm tra riêng. Chỉ sửa/lưu điểm danh vào state mẫu trong trình duyệt kiểm thử, không gửi thông báo phụ huynh.
+- `npm run check` cuối đã qua: TypeScript, **388 kiểm thử / 29 tệp**, production build và kiểm tra bundle/CSP.
+- Cấu hình SQL cho tài khoản quản trị bổ sung được giữ riêng trong `.vercel`, không đưa email vào Git. Đã thử bằng PostgreSQL trong bộ nhớ: cấu hình trước đăng nhập, nhận quyền ở lần đăng nhập đầu, chạy lại không tạo audit trùng và giữ thiết lập riêng tư đã có. Người dùng đã xác nhận chạy trên Supabase qua kết quả `admin_configured = true`, `account_active = false`; chưa xác nhận lần đăng nhập Google đầu tiên của tài khoản mới.
+
+Ảnh chụp và kết quả JSON được giữ cục bộ trong `.vercel/review-tools/ui-qa/results`. Đây là kiểm tra Chromium với viewport giả lập và dữ liệu mẫu; chưa xác nhận trên máy iPhone/Android thật hoặc Safari, và không thay thế kiểm tra đăng nhập Google/đồng bộ trên tài khoản thật. Cảnh báo WebSocket HMR trong môi trường dựng kiểm thử được ghi riêng, không tính là lỗi JavaScript ứng dụng. Các giới hạn quyền đọc dữ liệu và vận hành production ở báo cáo trước vẫn cần được giữ rõ.
+
+---
+
 # Rà soát BeeZone — 16/10/2026
 
 Phạm vi gồm mã nguồn, ranh giới module, xác thực và đồng bộ, học phí theo buổi, kiểm thử nghiệp vụ/giao diện, dependency và kiểm tra HTTP local/Vercel. Không thay đổi database production, quyền tài khoản hoặc lịch sử dữ liệu trong lần rà soát này.

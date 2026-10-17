@@ -33,6 +33,7 @@ Use `SUPABASE_SERVICE_ROLE_KEY` only for legacy Supabase projects that do not pr
 - The shared `server/admin.ts` boundary validates methods, exact configured origins, JWT shape and UTF-8 body size before authentication; checks the live user and active owner profile; enforces durable quotas; and does not cache responses. Caller-controlled Host/IP headers are not trusted. The database protects the final active owner.
 - RLS permits the browser to read only its own active profile. Browser clients cannot grant roles, activate profiles, or provision Google accounts.
 - Account provisioning, role changes, and lock/unlock operations write to a separate RLS-protected audit table. Only the protected server endpoint can write it and only active owners can read it through the API.
+- The audit display API omits entire business/account entries authored by, targeting, or identifying a server-marked private account. It uses trusted profile IDs, emails and names; it does not erase stored events, rewrite backups or grant roles. The shared-document read-access limitation below still applies.
 - Vercel headers add CSP, clickjacking, MIME-sniffing, referrer, and device-permission protections.
 
 No internet-facing application can be guaranteed to be “unhackable”. Keep dependencies updated, require a password manager and MFA for owner Google accounts, review Supabase/Vercel audit logs, and rotate the server secret immediately if it is ever exposed.

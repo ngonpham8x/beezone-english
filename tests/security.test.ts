@@ -219,17 +219,18 @@ describe('request boundary', () => {
 });
 
 describe('authorization and durable quotas', () => {
-  it('redacts private actors and excludes their account entries before returning logs, without writing history', async () => {
+  it('excludes whole private activities and account entries from API responses without writing history', async () => {
     state.members = [{ id: 'private-id', email: 'private@example.test', full_name: 'Private Person', is_private: true }];
     const base = { id: 'account-log', occurred_at: '2026-10-14T08:00:00Z', action: 'ACCOUNT_UPDATED', actor_id: 'private-id', actor_name: 'Private Person', target_id: 'visible-id', target_name: 'Visible Person', target_role: 'staff', details: 'Changed by private@example.test' };
-    state.auditRows = [base, { ...base, id: 'hidden', target_id: 'private-id', target_name: 'Private Person' }];
-    state.center = { payload: { activityLogs: [{ id: 'business-log', timestamp: '2026-10-14', userEmail: 'PRIVATE@example.test', userName: 'Old Google Name', action: 'SỬA', module: 'Học viên', details: 'Private Person updated a record' }] } };
+    state.auditRows = [base, { ...base, id: 'hidden', target_id: 'private-id', target_name: 'Private Person' }, { ...base, id: 'visible-account-log', actor_id: callerId, actor_name: 'Visible Owner', details: 'An ordinary permission update' }];
+    const visibleActivity = { id: 'visible-business-log', timestamp: '2026-10-14', userEmail: 'visible@example.test', userName: 'Visible Owner', action: 'SỬA', module: 'Học viên', details: 'An ordinary update' };
+    state.center = { payload: { activityLogs: [{ id: 'business-log', timestamp: '2026-10-14', userEmail: 'PRIVATE@example.test', userName: 'Old Google Name', action: 'SỬA', module: 'Học viên', details: 'Private Person updated a record' }, visibleActivity] } };
     const stored = structuredClone({ audit: state.auditRows, center: state.center });
     const res = await call('audit-logs');
     expect(res.statusCode).toBe(200);
     expect(res.body.logs).toHaveLength(1);
-    expect(res.body.logs[0]).toMatchObject({ actorName: 'Quản trị hệ thống', targetName: 'Visible Person' });
-    expect(res.body.activityLogs[0]).toMatchObject({ userName: 'Quản trị hệ thống', userEmail: '', action: 'SỬA' });
+    expect(res.body.logs[0]).toMatchObject({ id: 'visible-account-log', actorName: 'Visible Owner', targetName: 'Visible Person' });
+    expect(res.body.activityLogs).toEqual([visibleActivity]);
     expect(JSON.stringify(res.body).toLowerCase()).not.toContain('private@example.test');
     expect(JSON.stringify(res.body)).not.toContain('Private Person');
     expect(JSON.stringify(res.body)).not.toContain('Old Google Name');

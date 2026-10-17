@@ -23,33 +23,35 @@ interface AccountAuditRow {
 /** A display projection only: never replace the stored audit or backup with this result. */
 export function createAuditPrivacy(profiles: AuditProfile[]) {
   const privateProfiles = profiles.filter((profile) => profile.is_private === true);
+  const identity = (value: string) => value.trim().normalize('NFC').toLowerCase();
   const privateIds = new Set(privateProfiles.map((profile) => profile.id));
   const privateEmails = new Set(
-    privateProfiles.map((profile) => profile.email?.trim().toLowerCase()).filter(Boolean),
+    privateProfiles.map((profile) => profile.email && identity(profile.email)).filter(Boolean),
   );
   const privateNames = new Set(
-    privateProfiles.map((profile) => profile.full_name?.trim().toLowerCase()).filter(Boolean),
+    privateProfiles.map((profile) => profile.full_name && identity(profile.full_name))
+      .filter((name) => name && name !== identity(PRIVATE_ACCOUNT_LABEL)),
   );
   const terms = [
-    ...new Set(privateProfiles.flatMap((profile) => [profile.email, profile.full_name])),
+    ...new Set(privateProfiles.flatMap((profile) => [profile.id, profile.email, profile.full_name])),
   ]
     .filter(
       (term): term is string =>
-        typeof term === 'string' && term.trim().length >= 3 && term !== PRIVATE_ACCOUNT_LABEL,
+        typeof term === 'string' && term.trim().length >= 3 && identity(term) !== identity(PRIVATE_ACCOUNT_LABEL),
     )
-    .map((term) => term.trim())
+    .map((term) => term.trim().normalize('NFC'))
     .sort((a, b) => b.length - a.length);
   const expression = terms.length
-    ? new RegExp(terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'giu')
+    ? new RegExp(terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'iu')
     : null;
-  const redact = (text: string) =>
-    expression ? text.replace(expression, () => PRIVATE_ACCOUNT_LABEL) : text;
+  const mentionsPrivateAccount = (...texts: string[]) =>
+    texts.some((text) => expression?.test(text.normalize('NFC')));
 
   return {
     activityLogs(value: unknown): ActivityLog[] {
       if (value === undefined || value === null) return [];
       if (!Array.isArray(value)) throw new Error('Invalid activity logs');
-      return value.map((log) => {
+      return value.flatMap((log) => {
         if (
           !log ||
           ['id', 'timestamp', 'userEmail', 'userName', 'action', 'module', 'details'].some(
@@ -57,40 +59,44 @@ export function createAuditPrivacy(profiles: AuditProfile[]) {
           )
         )
           throw new Error('Invalid activity log');
-        const isPrivate = privateEmails.has(log.userEmail.trim().toLowerCase());
-        return {
+        if (
+          privateEmails.has(identity(log.userEmail)) ||
+          (!log.userEmail.trim() && privateNames.has(identity(log.userName))) ||
+          mentionsPrivateAccount(log.id, log.timestamp, log.userEmail, log.userName, log.action, log.module, log.details)
+        ) return [];
+        return [{
           id: log.id,
           timestamp: log.timestamp,
           action: log.action,
-          userName: isPrivate ? PRIVATE_ACCOUNT_LABEL : redact(log.userName),
-          userEmail: isPrivate ? '' : redact(log.userEmail),
-          module: redact(log.module),
-          details: redact(log.details),
-        };
+          userName: log.userName,
+          userEmail: log.userEmail,
+          module: log.module,
+          details: log.details,
+        }];
       });
     },
     accountLogs(rows: AccountAuditRow[]): AccountAuditLog[] {
       return rows
         .filter(
           (row) =>
+            !privateIds.has(row.actor_id || '') &&
             !privateIds.has(row.target_id || '') &&
-            // Legacy rows may have no target ID. Match only a verified private profile's identity.
+            // Legacy rows may lack IDs; use identities from trusted private profiles.
+            !(row.actor_id === null && privateNames.has(identity(row.actor_name))) &&
             !(
               row.target_id === null &&
-              (privateEmails.has(row.target_name.trim().toLowerCase()) ||
-                privateNames.has(row.target_name.trim().toLowerCase()))
-            ),
+              privateNames.has(identity(row.target_name))
+            ) &&
+            !mentionsPrivateAccount(row.id, row.occurred_at, row.actor_name, row.target_name, row.details),
         )
         .map((row) => ({
           id: row.id,
           occurredAt: row.occurred_at,
           action: row.action,
-          actorName: privateIds.has(row.actor_id || '')
-            ? PRIVATE_ACCOUNT_LABEL
-            : redact(row.actor_name),
-          targetName: redact(row.target_name),
+          actorName: row.actor_name,
+          targetName: row.target_name,
           targetRole: row.target_role,
-          details: redact(row.details),
+          details: row.details,
         }));
     },
   };

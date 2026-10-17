@@ -38,9 +38,12 @@ const base = {
   details: 'Private Person saved a student',
 };
 
-it('hides private names/emails from the rendered journal and search, preserving the stored record', () => {
+it('omits the entire private activity from the rendered journal and search, preserving stored records', () => {
   const privacy = createAuditPrivacy([privateProfile]);
-  const logs = privacy.activityLogs([base]);
+  const visible = { ...base, id: 'visible-log', userEmail: 'visible@example.test', userName: 'Visible Person', details: 'A visible activity' };
+  const stored = structuredClone([base, visible]);
+  const logs = privacy.activityLogs(stored);
+  expect(logs).toEqual([visible]);
   render(
     <ActivityLogView
       logs={logs}
@@ -50,7 +53,9 @@ it('hides private names/emails from the rendered journal and search, preserving 
       onRefreshAccountLogs={vi.fn()}
     />,
   );
-  expect(screen.getByText(PRIVATE_ACCOUNT_LABEL)).toBeTruthy();
+  expect(screen.queryByText(PRIVATE_ACCOUNT_LABEL)).toBeNull();
+  expect(screen.queryByText(base.details)).toBeNull();
+  expect(screen.getByText(visible.details)).toBeTruthy();
   expect(document.body.textContent).not.toContain('Old Google Name');
   expect(document.body.textContent).not.toContain('private@example.test');
   expect(document.body.textContent).not.toContain('p•••@example.test');
@@ -58,8 +63,7 @@ it('hides private names/emails from the rendered journal and search, preserving 
     target: { value: privateProfile.email },
   });
   expect(screen.queryByText(logs[0].details)).toBeNull();
-  expect(base.userEmail).toBe(privateProfile.email);
-  expect(base.details).toContain('Private Person');
+  expect(stored).toEqual([base, visible]);
 });
 
 it('keeps legacy visible accounts and treats special characters in a private name literally', () => {
@@ -67,13 +71,15 @@ it('keeps legacy visible accounts and treats special characters in a private nam
     createAuditPrivacy([{ ...privateProfile, is_private: undefined }]).activityLogs([base]),
   ).toEqual([base]);
   const privacy = createAuditPrivacy([{ ...privateProfile, full_name: 'A+B (Owner)' }]);
-  expect(
-    privacy.activityLogs([{ ...base, details: 'A+B (Owner) saved; AAB Owner unchanged' }])[0]
-      .details,
-  ).toBe(`${PRIVATE_ACCOUNT_LABEL} saved; AAB Owner unchanged`);
+  const visible = { ...base, userEmail: 'visible@example.test', userName: 'Visible Person', details: 'AAB Owner unchanged' };
+  expect(privacy.activityLogs([
+    { ...visible, id: 'hidden-1', details: 'A+B (Owner) saved' },
+    { ...visible, id: 'hidden-2', details: 'A+B (Owner) saved again' },
+    visible,
+  ])).toEqual([visible]);
 });
 
-it('hides private target entries with IDs and legacy names, while anonymizing a private actor for other targets', () => {
+it('hides whole account entries for private actors, targets and identity references, retaining ordinary entries', () => {
   const row = {
     id: 'audit',
     occurred_at: '2026-10-14T08:00:00Z',
@@ -89,16 +95,38 @@ it('hides private target entries with IDs and legacy names, while anonymizing a 
     row,
     { ...row, id: 'hidden-id', target_id: privateProfile.id },
     { ...row, id: 'hidden-legacy', target_id: null, target_name: privateProfile.full_name },
+    { ...row, id: 'hidden-actor-id', actor_name: PRIVATE_ACCOUNT_LABEL, details: 'Permission update' },
+    { ...row, id: 'hidden-target-id', actor_id: 'visible-owner', actor_name: 'Visible Owner', target_id: privateProfile.id, target_name: PRIVATE_ACCOUNT_LABEL, details: 'Permission update' },
+    { ...row, id: 'hidden-reference', actor_id: 'visible-owner', actor_name: 'Visible Owner', details: 'Mentioned PRIVATE@example.test' },
+    { ...row, id: 'hidden-legacy-email', actor_id: null, actor_name: 'Visible Owner', target_id: null, target_name: 'Old name (Private@example.test)', details: 'Permission update' },
+    { ...row, id: 'visible', actor_id: 'visible-owner', actor_name: 'Visible Owner', details: 'An ordinary permission update' },
   ];
   const snapshot = structuredClone(rows);
   const visible = createAuditPrivacy([privateProfile]).accountLogs(rows);
   expect(visible).toHaveLength(1);
   expect(visible[0]).toMatchObject({
-    actorName: PRIVATE_ACCOUNT_LABEL,
+    id: 'visible',
+    actorName: 'Visible Owner',
     targetName: 'Visible Person',
-    details: `Updated by ${PRIVATE_ACCOUNT_LABEL}`,
+    details: 'An ordinary permission update',
   });
   expect(rows).toEqual(snapshot);
+});
+
+it('hides private references in another actor\'s details, name and module, without treating the generic system label as an identity', () => {
+  const visible = { ...base, userEmail: 'visible@example.test', userName: 'Visible Owner', details: 'An ordinary update' };
+  const privacy = createAuditPrivacy([privateProfile]);
+  expect(privacy.activityLogs([
+    { ...visible, id: 'email', details: 'Changed PRIVATE@example.test' },
+    { ...visible, id: 'name', details: 'Changed Private Person' },
+    { ...visible, id: 'module', module: 'Profile private-id' },
+    { ...visible, id: 'legacy', userEmail: '', userName: privateProfile.full_name },
+    visible,
+  ])).toEqual([visible]);
+  expect(createAuditPrivacy([{ ...privateProfile, full_name: PRIVATE_ACCOUNT_LABEL }]).activityLogs([
+    { ...visible, userName: PRIVATE_ACCOUNT_LABEL },
+  ])).toEqual([{ ...visible, userName: PRIVATE_ACCOUNT_LABEL }]);
+  expect(() => privacy.activityLogs([{ ...base, userEmail: null }])).toThrow('Invalid activity log');
 });
 
 it('never falls back to raw shared logs when the audit API fails or a late response belongs to a previous account', async () => {
