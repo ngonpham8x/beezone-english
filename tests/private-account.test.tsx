@@ -361,3 +361,77 @@ it('does not send delete request if confirmation is cancelled', async () => {
   expect(confirmSpy).toHaveBeenCalledOnce();
   expect(fetcher).toHaveBeenCalledTimes(1); // Only the initial GET
 });
+
+it('opens edit permissions dialog for a user, allows batch selection and updates permissions', async () => {
+  const staffMember = {
+    id: 'staff-edit',
+    email: 'staffedit@example.test',
+    full_name: 'Staff To Edit',
+    role: 'staff' as const,
+    is_active: true,
+  };
+  const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : (input as any)?.url || '';
+    const method = init?.method || (typeof input === 'object' && 'method' in input ? (input as any).method : 'GET');
+    if (url.includes('/api/admin/users')) {
+      if (method === 'PATCH') {
+        const rawBody = init?.body ? (typeof init.body === 'string' ? JSON.parse(init.body) : init.body) : {};
+        if (rawBody.action === 'updatePermissions') {
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      return new Response(
+        JSON.stringify({
+          users: [staffMember],
+          hiddenAccountIds: [],
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    return new Response(JSON.stringify({}), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', fetcher);
+
+  render(
+    <UserManagementModal
+      isOpen
+      onClose={vi.fn()}
+      accessToken="test-token"
+      currentUser={DEV_OWNER_ACCOUNT}
+    />,
+  );
+
+  await screen.findByText('Staff To Edit');
+  const editBtn = screen.getByRole('button', { name: 'Sửa quyền' });
+  fireEvent.click(editBtn);
+
+  // Edit dialog is now open
+  expect(screen.getByRole('dialog', { name: /Sửa quyền Staff To Edit/ })).toBeTruthy();
+  expect(screen.getByText('Sửa cấp quyền: Staff To Edit')).toBeTruthy();
+
+  // Click batch select button "✓ Chọn tất cả quyền" inside edit dialog
+  const selectAllButtons = screen.getAllByRole('button', { name: '✓ Chọn tất cả quyền' });
+  fireEvent.click(selectAllButtons[selectAllButtons.length - 1]);
+
+  // Click "Cập nhật cấp quyền"
+  const submitBtn = screen.getByRole('button', { name: 'Cập nhật cấp quyền' });
+  fireEvent.click(submitBtn);
+
+  await waitFor(() => {
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/admin/users',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: expect.stringContaining('"action":"updatePermissions"'),
+      }),
+    );
+  });
+
+  // Success message is displayed
+  expect(await screen.findByText(/Cập nhật cấp quyền thành công cho tài khoản "Staff To Edit"!/)).toBeTruthy();
+  // Edit dialog is closed
+  expect(screen.queryByRole('dialog', { name: /Sửa quyền Staff To Edit/ })).toBeNull();
+});
+

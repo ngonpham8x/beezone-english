@@ -350,18 +350,41 @@ export default adminApi(
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
         return json(res, 400, { error: 'ID tài khoản không hợp lệ.' });
       }
-      const permissions = normalizeStaffPermissions(body.permissions);
+      const newRole = body.role === 'owner' || body.role === 'staff' ? body.role : null;
+      const permissions =
+        newRole === 'owner' ? OWNER_PERMISSIONS : normalizeStaffPermissions(body.permissions);
       const { data: target, error: targetError } = await client
         .from('profiles')
-        .select('id, full_name, role, permissions')
+        .select('id, full_name, role, is_active, permissions, is_private')
         .eq('id', userId)
         .maybeSingle();
       if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
-      if (target.role !== 'staff')
-        return json(res, 400, { error: 'Chủ trung tâm luôn có toàn quyền.' });
+      if (target.is_private === true)
+        return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+
+      const finalRole = newRole || target.role;
+      if (userId === callerId && finalRole !== 'owner') {
+        return json(res, 400, { error: 'Bạn không thể tự hạ quyền Chủ trung tâm.' });
+      }
+      if (target.role === 'owner' && target.is_active && finalRole !== 'owner') {
+        const { count, error } = await client
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'owner')
+          .eq('is_active', true);
+        if (error || (count ?? 0) <= 1) {
+          return json(res, 400, { error: 'Không thể hạ quyền Chủ trung tâm cuối cùng.' });
+        }
+      }
+
+      const updates: any = {
+        permissions: finalRole === 'owner' ? OWNER_PERMISSIONS : permissions,
+      };
+      if (newRole) updates.role = newRole;
+
       const { error: updatePermsError } = await client
         .from('profiles')
-        .update({ permissions })
+        .update(updates)
         .eq('id', userId);
       if (updatePermsError) return json(res, 500, { error: 'Không thể cập nhật quyền.' });
 
@@ -370,13 +393,16 @@ export default adminApi(
         actorId: callerId,
         actorName: callerName,
         targetId: userId,
-        targetName: target.full_name || 'Nhân viên',
-        targetRole: 'staff',
-        details: `Cập nhật cấu hình quyền và lớp phân công: ${permissionSummary(permissions)}`,
+        targetName: target.full_name || 'Tài khoản BeeZone',
+        targetRole: finalRole,
+        details: `Cập nhật cấp bậc và quyền: ${finalRole === 'owner' ? 'Toàn quyền Chủ trung tâm.' : permissionSummary(permissions)}`,
       });
       if (!auditRecorded) {
         const restored = await compensate(() =>
-          client.from('profiles').update({ permissions: target.permissions }).eq('id', userId),
+          client
+            .from('profiles')
+            .update({ permissions: target.permissions, role: target.role })
+            .eq('id', userId),
         );
         return json(res, 500, {
           error: restored

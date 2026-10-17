@@ -80,6 +80,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('staff');
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(createEmptyPermissions);
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [editRole, setEditRole] = useState<UserRole>('staff');
+  const [editPermissions, setEditPermissions] = useState<StaffPermissions>(createEmptyPermissions);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -216,6 +219,47 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       onAccountChanged?.();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Không thể cấp quyền Google.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openEditModal = (member: ManagedUser) => {
+    setEditingUser(member);
+    setEditRole(member.role || 'staff');
+    setEditPermissions(
+      member.permissions
+        ? JSON.parse(JSON.stringify(member.permissions))
+        : createEmptyPermissions(),
+    );
+    setError(null);
+  };
+
+  const handleUpdateUserPermissions = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingUser || isSubmitting || isLocalPreview) return;
+    setIsSubmitting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          action: 'updatePermissions',
+          userId: editingUser.id,
+          role: editRole,
+          permissions: editRole === 'staff' ? editPermissions : undefined,
+        }),
+      });
+      await readApiJson(response, 'Không thể cập nhật cấp quyền.');
+      const targetName = editingUser.full_name || editingUser.email || 'tài khoản';
+      setEditingUser(null);
+      await loadMembers();
+      onAccountChanged?.();
+      setMessage(`Cập nhật cấp quyền thành công cho tài khoản "${targetName}"!`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Không thể cập nhật cấp quyền.');
     } finally {
       setIsSubmitting(false);
     }
@@ -417,12 +461,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => {
-                  setFullName(member.full_name);
-                  setEmail(member.email || '');
-                  setRole(member.role || 'staff');
-                  setStaffPermissions({ ...createEmptyPermissions(), ...member.permissions });
-                }}
+                onClick={() => openEditModal(member)}
                 className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 transition-colors disabled:opacity-50"
               >
                 Sửa quyền
@@ -535,6 +574,232 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           )}
         </div>
       </section>
+
+      {editingUser && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Sửa quyền ${editingUser.full_name || editingUser.email}`}
+          className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs"
+        >
+          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setEditingUser(null)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Đóng"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="pr-8">
+              <h3 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                <ShieldCheck className="h-5 w-5 text-amber-600" />
+                Sửa cấp quyền: {editingUser.full_name || editingUser.email}
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Email: <span className="font-semibold text-slate-700">{editingUser.email}</span>
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateUserPermissions} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Cấp bậc tài khoản</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as UserRole)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="staff">Nhân viên (Phân quyền theo từng chức năng bên dưới)</option>
+                  <option value="owner">Chủ trung tâm (Toàn quyền tất cả các chức năng và các lớp)</option>
+                </select>
+              </div>
+
+              {editRole === 'owner' ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-medium text-emerald-900">
+                  ✓ <strong>Chủ trung tâm:</strong> Tài khoản này sẽ có toàn bộ quyền quản trị cao nhất, truy cập mọi chức năng, tất cả lớp học và báo cáo doanh thu.
+                </div>
+              ) : (
+                <fieldset className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <legend className="px-1 text-xs font-extrabold text-slate-900">Tích chọn các quyền cho nhân viên</legend>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next: any = {};
+                          for (const g of permissionGroups) {
+                            for (const o of g.options) {
+                              if (!next[o.module]) next[o.module] = {};
+                              next[o.module][o.action] = true;
+                            }
+                          }
+                          setEditPermissions((prev) => ({ ...prev, ...next }));
+                        }}
+                        className="rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        ✓ Chọn tất cả quyền
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditPermissions((prev) => ({
+                            ...createEmptyPermissions(),
+                            assignedClassIds: prev.assignedClassIds,
+                            teacherId: prev.teacherId,
+                          }))
+                        }
+                        className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        Bỏ chọn hết
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {permissionGroups.map((group) => (
+                      <div key={group.title} className="rounded-lg bg-white p-3 border border-slate-200 shadow-xs">
+                        <p className="mb-2 text-[11px] font-extrabold uppercase text-slate-700">{group.title}</p>
+                        <div className="space-y-1.5">
+                          {group.options.map((option) => {
+                            const checked = Boolean(
+                              (editPermissions[option.module] as Record<string, boolean>)?.[option.action],
+                            );
+                            return (
+                              <label
+                                key={`${option.module}.${option.action}`}
+                                className={`flex cursor-pointer items-start gap-2 text-[11px] font-medium ${
+                                  option.emphasis ? 'text-amber-900' : 'text-slate-700'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setEditPermissions((current) => ({
+                                      ...current,
+                                      [option.module]: {
+                                        ...(current[option.module] as Record<string, boolean>),
+                                        [option.action]: !checked,
+                                      },
+                                    }));
+                                  }}
+                                  className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Phân công lớp phụ trách */}
+                    <div className="md:col-span-3 rounded-lg bg-white border border-amber-300 p-3 shadow-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                        <p className="text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
+                          Phân công lớp phụ trách (Chỉ được Điểm danh & Chấm điểm các lớp này)
+                        </p>
+                        {classes.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditPermissions((prev) => ({
+                                ...prev,
+                                assignedClassIds: classes.map((c) => c.id),
+                              }))
+                            }
+                            className="rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-950 px-2 py-0.5 text-[10px] font-bold transition-colors cursor-pointer"
+                          >
+                            ✓ Chọn tất cả lớp
+                          </button>
+                        )}
+                      </div>
+                      {classes.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 italic">Chưa có dữ liệu lớp học trong hệ thống.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto pr-1">
+                          {classes.map((c) => {
+                            const isAssigned = editPermissions.assignedClassIds?.includes(c.id) || false;
+                            return (
+                              <label
+                                key={c.id}
+                                className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-800 bg-slate-50 p-1.5 rounded-lg border border-slate-200 hover:border-amber-400"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  onChange={(e) => {
+                                    const currentIds = editPermissions.assignedClassIds || [];
+                                    const nextIds = e.target.checked
+                                      ? [...currentIds, c.id]
+                                      : currentIds.filter((id) => id !== c.id);
+                                    setEditPermissions((prev) => ({ ...prev, assignedClassIds: nextIds }));
+                                  }}
+                                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span className="truncate font-semibold text-xs">
+                                  {c.name.replace(/\s*\([^)]*\)/g, '').trim()}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {teachers.length > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                            Gán hồ sơ giáo viên:
+                          </span>
+                          <select
+                            value={editPermissions.teacherId || ''}
+                            onChange={(e) =>
+                              setEditPermissions((prev) => ({
+                                ...prev,
+                                teacherId: e.target.value || undefined,
+                              }))
+                            }
+                            className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                          >
+                            <option value="">-- Tự do / Chưa liên kết giáo viên cụ thể --</option>
+                            {teachers.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.id})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </fieldset>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-xl bg-amber-500 hover:bg-amber-600 px-5 py-2.5 text-xs font-bold text-slate-950 disabled:opacity-50 flex items-center gap-2 shadow-xs cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin text-slate-950" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4 text-slate-950" />
+                  )}
+                  Cập nhật cấp quyền
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DialogFrame>
   );
 };
