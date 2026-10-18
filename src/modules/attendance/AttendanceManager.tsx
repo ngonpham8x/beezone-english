@@ -523,12 +523,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                     <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0">
-                          {index + 1}
-                        </span>
-                        <span className="font-mono text-[11px] font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50 shrink-0">
-                          {st.code}
-                        </span>
+                          <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {index + 1}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50 shrink-0">
+                            {st.code}
+                          </span>
                         </div>
                         <span className="mt-1 block break-words font-extrabold text-sm text-slate-900">
                           {st.name}

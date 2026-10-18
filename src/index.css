@@ -35,7 +35,7 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 .filter-control { display: block; width: 100%; min-width: 0; max-width: 100%; height: 2.5rem; border: 1px solid #cbd5e1; border-radius: 0.75rem; background: #f8fafc; padding: 0.5rem 0.75rem; color: #334155; font-size: 0.8125rem; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
 .filter-control:focus { border-color: #f59e0b; }
 .filter-control--search { padding-left: 2.25rem; }
-.filter-control--date { padding-inline: 0.5rem; font-variant-numeric: tabular-nums; }
+.filter-control--date { appearance: none; padding-inline: 0.75rem; font-variant-numeric: tabular-nums; }
 .filter-control--date::-webkit-datetime-edit { min-width: 0; padding: 0; }
 .filter-control--date::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 .filter-control--date::-webkit-calendar-picker-indicator { margin-left: 0; padding: 0; }
@@ -76,19 +76,27 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 }
 .class-picker { width: 18rem; min-width: 0; max-width: 100%; }
 .attendance-filters, .log-filters { display: grid; flex: 1 1 24rem; min-width: 0; max-width: 32rem; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
-.attendance-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 9.5rem); }
-@container (max-width: 349px) {
-  .attendance-filters .select-menu-leading { display: none; }
-  .attendance-filters .select-menu-trigger[data-has-icon="true"] { padding-inline: 0.5rem; }
-}
+.attendance-filters { flex-basis: 100%; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
+.attendance-filters .select-menu-trigger { height: auto; min-height: 2.75rem; }
+.attendance-filters .select-menu-label { overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
 .attendance-filters > *, .log-filters > *, .tuition-filters > * { min-width: 0; }
-.report-controls { display: grid; grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr); gap: 0.5rem; width: 100%; min-width: 0; }
+.report-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; width: 100%; min-width: 0; }
+.report-controls > label { display: block; min-width: 0; }
 .report-periods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-column: 1 / -1; }
 .report-periods button { min-width: 0; min-height: 2.75rem; padding-inline: 0.5rem; }
-.report-print { grid-column: 2; grid-row: 1; justify-content: center; min-width: 0; min-height: 2.75rem; }
+.report-print { justify-content: center; min-width: 0; min-height: 2.75rem; }
+/* Native mobile date labels can include the month name. Give them a full row
+   until both controls have enough room, including at larger text sizes. */
+@container (min-width: 520px) {
+  .attendance-filters { grid-template-columns: minmax(0, 1fr) minmax(14rem, 1fr); }
+  .report-controls { grid-template-columns: minmax(14rem, 1fr) minmax(0, 1fr); }
+}
 @container (min-width: 700px) {
   .report-controls { display: flex; flex-wrap: wrap; align-items: center; width: auto; }
-  .report-controls > label { width: 10rem; }
+  .report-controls > label { width: 15rem; }
+}
+@container (min-width: 950px) {
+  .attendance-filters { flex: 1 1 32rem; max-width: 36rem; }
 }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 2.25rem; height: 2.25rem; }
 @media (max-width: 1023px), (pointer: coarse) { .icon-button { width: 2.75rem; height: 2.75rem; } }
