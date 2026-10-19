@@ -102,10 +102,13 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     let resolvingUserId: string | null = null;
     let resolutionId = 0;
     let authEventObserved = false;
+    let latestSession: Session | null = null;
+    let lastProfileCheck = 0;
     const deferredEvents = new Set<number>();
 
     const resolveSession = async (nextSession: Session | null) => {
       if (!isMounted) return;
+      latestSession = nextSession;
       setSession(nextSession);
 
       if (!nextSession) {
@@ -135,6 +138,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       if (!alreadyHydrated) setAuthStatus('loading');
       setAuthError(null);
       try {
+        lastProfileCheck = Date.now();
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -241,6 +245,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       authEventObserved = true;
+      latestSession = nextSession;
       // Supabase holds an auth lock while callbacks run. Defer queries outside it.
       const timer = window.setTimeout(() => {
         deferredEvents.delete(timer);
@@ -249,8 +254,19 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       deferredEvents.add(timer);
     });
 
+    // A permission update by the owner must reach an already signed-in staff member.
+    // Reuse profile resolution: a hydrated session keeps its unsaved data and CAS revision.
+    const refreshProfile = () => {
+      if (document.visibilityState !== 'visible' || !latestSession || Date.now() - lastProfileCheck < 3000) return;
+      void resolveSession(latestSession);
+    };
+    window.addEventListener('focus', refreshProfile);
+    document.addEventListener('visibilitychange', refreshProfile);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', refreshProfile);
+      document.removeEventListener('visibilitychange', refreshProfile);
       deferredEvents.forEach((timer) => window.clearTimeout(timer));
       listener.subscription.unsubscribe();
     };

@@ -1,4 +1,5 @@
 import type { Room, UserAccount } from '../../types';
+import { canManageAcademic } from '../../lib/permissions';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
@@ -17,16 +18,19 @@ export function createRoomActions({
 }: Context) {
   // Room CRUD Handlers
   const handleAddRoom = (r: Room) => {
+    if (!canManageAcademic(currentUser, 'rooms')) return;
     setRooms((prev) => [...prev, r]);
     addLog('THÊM', 'Phòng học', `Thêm phòng học ${r.name}`);
   };
 
   const handleUpdateRoom = (r: Room) => {
+    if (!canManageAcademic(currentUser, 'rooms')) return;
     setRooms((prev) => prev.map((item) => (item.id === r.id ? r : item)));
     addLog('SỬA', 'Phòng học', `Cập nhật phòng học ${r.name}`);
   };
 
   const handleDeleteRoom = (id: string) => {
+    if (!canManageAcademic(currentUser, 'rooms')) return;
     if (scheduleChanges.some((c) => c.roomId === id)) {
       alert('Phòng có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ phòng.');
       return;

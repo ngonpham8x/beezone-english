@@ -116,8 +116,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState(0);
 
-  // Quản lý lớp thay đổi lịch, phòng và phân công nên chỉ Chủ trung tâm được sửa.
-  const canEdit = isOwner;
+  const canEdit = isOwner || permissions.academic?.classes === true;
+  const canCreateProgram = isOwner || permissions.academic?.programs === true;
+  const canCreateRoom = isOwner || permissions.academic?.rooms === true;
 
   useEffect(() => {
     if (!editRequest) return;
@@ -126,6 +127,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   }, [editRequest]);
 
   const handleOpenAdd = () => {
+    if (!canEdit) return;
     setEditingClass({
       id: `CLASS_${crypto.randomUUID()}`,
       code: `LOP-0${classes.length + 1}`,
@@ -148,6 +150,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   };
 
   const handleOpenEdit = (classroom: ClassRoom) => {
+    if (!canEdit) return;
     const existingSlots = timetableSlots
       .filter((slot) => slot.classId === classroom.id)
       .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
@@ -168,7 +171,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingClass || !editingClass.name.trim()) return;
+    if (!canEdit || !editingClass || !editingClass.name.trim()) return;
     const courseError = validateCourse(editingClass);
     if (courseError) { setScheduleError(courseError); return; }
     if (!editingClass.code.trim() || classes.some(c => c.id !== editingClass.id && c.code.trim().toLowerCase() === editingClass.code.trim().toLowerCase())) { setScheduleError('Mã lớp không được bỏ trống hoặc trùng với lớp khác.'); return; }
@@ -209,14 +212,21 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       tuitionFee: 0,
       description: 'Tạo trực tiếp khi lập lớp học.',
     } : null;
-    if (createdProgram) onCreateProgram(createdProgram);
-
+    if (createdProgram && !canCreateProgram) { setScheduleError('Bạn chưa có quyền tạo chương trình học. Hãy chọn chương trình có sẵn.'); return; }
     const savedClass: ClassRoom = {
       ...editingClass,
       programId: matchingProgram?.id || createdProgram?.id || editingClass.programId,
       days: sortSchedule(validEntries).map((entry) => entry.dayOfWeek),
       scheduleTime: scheduleDescription(validEntries),
     };
+    const previous = classes.find(c => c.id === savedClass.id);
+    if (previous && students.some(student => student.classId === savedClass.id) &&
+        (previous.programId !== savedClass.programId || previous.courseStatus !== savedClass.courseStatus) &&
+        !isOwner && !permissions.student.edit) {
+      setScheduleError('Cần thêm quyền sửa học viên để đổi chương trình hoặc trạng thái của lớp đang có học viên.');
+      return;
+    }
+    if (createdProgram) onCreateProgram(createdProgram);
 
     if (classes.some(c => c.id === savedClass.id)) {
       onUpdateClass(savedClass);
@@ -254,7 +264,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   };
 
   const handleCreateRoom = () => {
-    if (!editingClass || !newRoomName.trim()) return;
+    if (!canEdit || !canCreateRoom || !editingClass || !newRoomName.trim()) return;
     const existingRoom = rooms.find((room) => room.name.trim().toLocaleLowerCase('vi-VN') === newRoomName.trim().toLocaleLowerCase('vi-VN'));
     const room = existingRoom || {
       id: `ROOM_${Date.now()}`,
@@ -591,12 +601,12 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   onChange={(e) => setProgramInput(e.target.value)}
                   list="program-options"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  placeholder="Chọn chương trình đã import hoặc nhập mới"
+                  placeholder={canCreateProgram ? 'Chọn chương trình đã import hoặc nhập mới' : 'Chọn chương trình có sẵn'}
                 />
                 <datalist id="program-options">
                   {programs.map((program) => <option key={program.id} value={program.name}>{program.code}</option>)}
                 </datalist>
-                <p className="mt-1 text-[10px] text-slate-500">Có thể chọn chương trình từ Excel hoặc gõ tên mới; tên mới sẽ được lưu để dùng cho các lớp sau.</p>
+                <p className="mt-1 text-[10px] text-slate-500">{canCreateProgram ? 'Có thể chọn chương trình từ Excel hoặc gõ tên mới; tên mới sẽ được lưu để dùng cho các lớp sau.' : 'Chọn chương trình đã có trong danh mục. Tạo chương trình mới cần được cấp thêm quyền.'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -624,11 +634,11 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => setIsQuickRoomOpen((open) => !open)} className="mt-1.5 text-[11px] font-bold text-blue-700 hover:text-blue-900">+ Tạo phòng học mới</button>
+                  {canCreateRoom && <button type="button" onClick={() => setIsQuickRoomOpen((open) => !open)} className="mt-1.5 text-[11px] font-bold text-blue-700 hover:text-blue-900">+ Tạo phòng học mới</button>}
                 </div>
               </div>
 
-              {isQuickRoomOpen && (
+              {canCreateRoom && isQuickRoomOpen && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                   <div className="mb-2 text-xs font-bold text-blue-900">Tạo phòng học mới</div>
                   <div className="grid grid-cols-1 min-[480px]:grid-cols-[minmax(0,1fr)_100px_auto] gap-2">

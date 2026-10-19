@@ -56,6 +56,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const canDelete = isOwner || permissions.teacher.delete;
 
   const handleOpenAdd = () => {
+    if (!canEdit) return;
     setEditingTeacher({
       id: `TEACHER_${crypto.randomUUID()}`,
       name: '',
@@ -72,7 +73,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTeacher || !editingTeacher.name.trim()) return;
+    if (!canEdit || !editingTeacher || !editingTeacher.name.trim()) return;
 
     if (teachers.some(t => t.id === editingTeacher.id)) {
       onUpdateTeacher(editingTeacher);
@@ -134,9 +135,9 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                     </div>
                   </div>
 
-                  {canEdit && (
+                  {(canEdit || canDelete) && (
                     <div className="flex shrink-0 items-center gap-1">
-                      <button
+                      {canEdit && <button
                         aria-label={`Sửa giáo viên ${teacher.name}`}
                         onClick={() => {
                           setEditingTeacher(teacher);
@@ -146,7 +147,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                         title="Sửa"
                       >
                         <Edit className="w-4 h-4" />
-                      </button>
+                      </button>}
 
                       {canDelete && (
                         <button
@@ -303,7 +304,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                           <UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Sĩ số: <span className="font-bold text-slate-800">{cls.studentIds ? cls.studentIds.length : 0} / {cls.capacity > 0 ? cls.capacity : 'Chưa cập nhật'} học sinh</span>
                         </div>
                       </div>
-                      {isOwner && (
+                      {(isOwner || permissions.academic?.classes === true) && (
                         <button
                           type="button"
                           onClick={() => onEditClass(cls)}

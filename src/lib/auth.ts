@@ -1,6 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js';
 import type { StaffPermissions, UserAccount, UserRole } from '../types';
 import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy';
+import { createStaffPermissions, normalizeStaffPermissions } from './permissions';
 
 export interface ProfileRow {
   id: string;
@@ -13,6 +14,7 @@ export interface ProfileRow {
 }
 
 export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
+  ...createStaffPermissions(),
   student: { view: true, add: true, edit: true, delete: false, export: false },
   teacher: { view: true, edit: true, delete: false },
   tuition: { view: true, collect: true, delete: false, showDebt: false },
@@ -21,14 +23,7 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
   report: { view: false, revenue: false },
 };
 
-export const OWNER_PERMISSIONS: StaffPermissions = {
-  student: { view: true, add: true, edit: true, delete: true, export: true },
-  teacher: { view: true, edit: true, delete: true },
-  tuition: { view: true, collect: true, delete: true, showDebt: true },
-  grade: { view: true, edit: true },
-  excel: { import: true, export: true },
-  report: { view: true, revenue: true },
-};
+export const OWNER_PERMISSIONS = createStaffPermissions(true);
 
 export const DEV_OWNER_ACCOUNT: UserAccount = {
   id: 'dev-owner-beezone-1',
@@ -93,11 +88,8 @@ export function createMockSessionForAccount(account: UserAccount): Session {
 }
 
 export function mergePermissions(candidate: Partial<StaffPermissions> | null): StaffPermissions {
-  const result = Object.fromEntries(Object.entries(DEFAULT_STAFF_PERMISSIONS).map(([module, actions]) => [
-    module, Object.fromEntries(Object.keys(actions).map(action => [action, candidate?.[module]?.[action] === true]))
-  ])) as unknown as StaffPermissions;
-  result.assignedClassIds = Array.isArray(candidate?.assignedClassIds) ? candidate.assignedClassIds.filter(id => typeof id === 'string') : [];
-  result.teacherId = typeof candidate?.teacherId === 'string' ? candidate.teacherId : undefined;
+  const result = normalizeStaffPermissions(candidate);
+  result.assignedClassIds ??= [];
   return result;
 }
 

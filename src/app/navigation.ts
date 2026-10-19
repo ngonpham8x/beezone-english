@@ -103,17 +103,18 @@ export const canAccessTab = (tab: string, user: UserAccount): tab is TabId => {
     case 'admissions':
       return permissions.student.view;
     case 'programs':
-      return permissions.student.view;
+      return permissions.student.view || permissions.academic?.programs === true;
     case 'students':
       return permissions.student.view;
     case 'teachers':
       return permissions.teacher.view;
     case 'classes':
-      return permissions.student.view;
+      return permissions.student.view || permissions.academic?.classes === true;
     case 'rooms':
+      return permissions.student.view || permissions.teacher.view || permissions.academic?.rooms === true;
     case 'timetable':
     case 'teacher-schedule':
-      return permissions.student.view || permissions.teacher.view;
+      return permissions.student.view || permissions.teacher.view || permissions.academic?.classes === true;
     case 'grades':
       return permissions.grade.view;
     case 'tuition':

@@ -3,6 +3,7 @@ import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
 import { centerDate } from '../../lib/dates';
+import { canManageAcademic, hasStaffPermission } from '../../lib/permissions';
 import { updateEnrollmentHistory, validateCourse } from '../../lib/operations';
 
 type Context = Pick<
@@ -13,6 +14,7 @@ type Context = Pick<
   | 'setStudents'
   | 'setTimetableSlots'
   | 'setGrades'
+  | 'grades'
   | 'receipts'
   | 'attendanceSessions'
   | 'setAttendanceSessions'
@@ -27,6 +29,7 @@ export function createClassActions({
   setStudents,
   setTimetableSlots,
   setGrades,
+  grades,
   receipts,
   attendanceSessions,
   setAttendanceSessions,
@@ -38,7 +41,7 @@ export function createClassActions({
 }: Context) {
   // Class CRUD Handlers
   const handleAddClass = (c: ClassRoom) => {
-    if (currentUser?.role !== 'owner') return;
+    if (!canManageAcademic(currentUser, 'classes')) return;
     const error = validateCourse(c);
     if (error) {
       alert(error);
@@ -51,7 +54,14 @@ export function createClassActions({
   };
 
   const handleUpdateClass = (c: ClassRoom) => {
-    if (currentUser?.role !== 'owner') return;
+    if (!canManageAcademic(currentUser, 'classes')) return;
+    const previous = classes.find(item => item.id === c.id);
+    if (students.some(student => student.classId === c.id) &&
+        (previous?.programId !== c.programId || previous?.courseStatus !== c.courseStatus) &&
+        !hasStaffPermission(currentUser, 'student', 'edit')) {
+      alert('Cần thêm quyền sửa học viên để đổi chương trình hoặc trạng thái của lớp đang có học viên.');
+      return;
+    }
     const error = validateCourse(c);
     if (error) {
       alert(error);
@@ -102,6 +112,11 @@ export function createClassActions({
   };
 
   const handleDeleteClass = (id: string) => {
+    if (!canManageAcademic(currentUser, 'classes')) return;
+    if (currentUser?.role !== 'owner' && (grades.some(grade => grade.classId === id) || attendanceSessions.some(session => session.classId === id))) {
+      alert('Lớp có lịch sử điểm hoặc điểm danh. Hãy kết thúc đợt học để giữ hồ sơ.');
+      return;
+    }
     if (attendanceSessions.some((session) => session.classId === id && session.billing)) {
       alert('Lớp có lịch sử học phí theo buổi. Hãy kết thúc đợt học để giữ hồ sơ.');
       return;

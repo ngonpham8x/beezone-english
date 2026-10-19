@@ -1,4 +1,5 @@
 import type { Teacher, UserAccount } from '../../types';
+import { hasStaffPermission } from '../../lib/permissions';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
@@ -17,16 +18,19 @@ export function createTeacherActions({
 }: Context) {
   // Teacher CRUD Handlers
   const handleAddTeacher = (t: Teacher) => {
+    if (!hasStaffPermission(currentUser, 'teacher', 'add')) return;
     setTeachers((prev) => [...prev, t]);
     addLog('THÊM', 'Giáo viên', `Thêm giáo viên mới ${t.name}`);
   };
 
   const handleUpdateTeacher = (t: Teacher) => {
+    if (!hasStaffPermission(currentUser, 'teacher', 'edit')) return;
     setTeachers((prev) => prev.map((item) => (item.id === t.id ? t : item)));
     addLog('SỬA', 'Giáo viên', `Cập nhật thông tin giáo viên ${t.name}`);
   };
 
   const handleDeleteTeacher = (id: string) => {
+    if (!hasStaffPermission(currentUser, 'teacher', 'delete')) return;
     if (scheduleChanges.some((c) => c.teacherId === id)) {
       alert('Giáo viên có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ giáo viên.');
       return;

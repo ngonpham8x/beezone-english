@@ -321,7 +321,7 @@ describe('authorization and durable quotas', () => {
           email: 'new@example.test',
           fullName: 'Test Staff',
           role: 'staff',
-          permissions: { student: { view: true, delete: 'true' } },
+          permissions: { student: { view: true, delete: 'true' }, academic: { classes: true, rooms: true, programs: 'true' } },
         },
       }),
     );
@@ -333,6 +333,7 @@ describe('authorization and durable quotas', () => {
     const profile = state.writes.mock.calls.find((call) => call[0] === 'profiles')[1];
     expect(profile.permissions.student.view).toBe(true);
     expect(profile.permissions.student.delete).toBe(false);
+    expect(profile.permissions.academic).toEqual({ classes: true, rooms: true, programs: false });
     expect(state.writes.mock.calls.some((call) => call[0] === 'account_audit_logs')).toBe(true);
   });
   it('removes a partly provisioned account if audit recording fails', async () => {

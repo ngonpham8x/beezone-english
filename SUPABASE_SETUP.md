@@ -10,7 +10,7 @@ Trong thư mục dự án, chạy:
 node scripts/create-supabase-setup.mjs
 ```
 
-Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa migration **001–010** theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **staff chưa kích hoạt**, không tin quyền trong metadata.
+Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa migration **001–011** theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **staff chưa kích hoạt**, không tin quyền trong metadata.
 
 1. Mở đúng project mới → **SQL Editor** → **New query**.
 2. Sao chép toàn bộ file SQL vừa tạo, chọn **Run** một lần.
@@ -21,6 +21,10 @@ Nếu script báo schema đã tồn tại, dừng và kiểm tra migration đã 
 Với project đã có BeeZone, không dùng file khởi tạo mới: đối chiếu schema/backup và áp dụng riêng các migration còn thiếu theo thứ tự. 006 kiểm tra quyền và bảo vệ Chủ trung tâm cuối cùng; 007 kiểm tra học vụ; 008 giữ lịch sử và học phí theo buổi; 009 tạo quota dùng chung và RPC quản trị. Thiếu quota, API trả 503 và chặn thao tác.
 
 010 thêm cờ `is_private` cho profile và allowlist, mặc định `false` để giữ cách hiển thị tài khoản cũ. Tài khoản riêng không xuất hiện trong API danh sách tài khoản/phiên cục bộ; quyền vẫn lấy từ profile đang hoạt động và thao tác vẫn có nhật ký. SQL cấu hình riêng chỉ chạy sau khi schema đã có 010.
+
+011 cho phép Chủ trung tâm cấp riêng quyền quản lý **chương trình học**, **lớp & lịch học**, **phòng học** cho nhân viên. Áp dụng 011 sau 010 và kiểm tra trên staging trước khi phát hành giao diện/API mới. Migration chỉ thay các hàm kiểm tra quyền, không sửa hồ sơ hay dữ liệu trung tâm. Hồ sơ cũ thiếu `academic` mặc định không có quyền quản lý các mục này.
+
+Sau triển khai, Chủ trung tâm mở **Quản lý tài khoản → Sửa quyền**, chọn các mục trong **Quản lý đào tạo (tạo, sửa, xóa)** rồi bấm **Cập nhật cấp quyền**. Để thêm học viên/giáo viên, cấp thêm **Xem học viên**, **Thêm học viên**, **Xem giáo viên**, **Thêm / sửa giáo viên**. Quyền giáo viên tiếp tục dùng khóa `teacher.edit` cũ; không phải cấp lại. Nhân viên quay lại tab ứng dụng để cập nhật quyền, hoặc đăng nhập lại. Việc kiểm tra lại hồ sơ không tải đè dữ liệu đang sửa. Quản lý lớp không tự cấp quyền thu tiền, sửa học viên, điểm danh ngoài lớp được phân công, quản lý tài khoản hay cài đặt.
 
 ## 2. Bật đăng nhập Google
 

@@ -4,6 +4,7 @@ import { DialogFrame } from '../../components/DialogFrame';
 import { ActiveSession, getActiveSessions, removeActiveSession } from '../../lib/activeSessions';
 import { readApiJson } from '../../lib/http';
 import { isLocalPreview } from '../../lib/supabase';
+import { createStaffPermissions, normalizeStaffPermissions } from '../../lib/permissions';
 import { ClassRoom, StaffPermissions, Teacher, UserAccount, UserRole } from '../../types';
 
 interface ManagedUser {
@@ -26,16 +27,7 @@ interface UserManagementModalProps {
   onAccountChanged?: () => void;
 }
 
-const EMPTY_STAFF_PERMISSIONS: StaffPermissions = {
-  student: { view: false, add: false, edit: false, delete: false, export: false },
-  teacher: { view: false, edit: false, delete: false },
-  tuition: { view: false, collect: false, delete: false, showDebt: false },
-  grade: { view: false, edit: false },
-  excel: { import: false, export: false },
-  report: { view: false, revenue: false },
-};
-
-const createEmptyPermissions = (): StaffPermissions => JSON.parse(JSON.stringify(EMPTY_STAFF_PERMISSIONS)) as StaffPermissions;
+const createEmptyPermissions = () => createStaffPermissions();
 
 const permissionGroups: { title: string; options: { module: keyof StaffPermissions; action: string; label: string; emphasis?: boolean }[] }[] = [
   {
@@ -49,10 +41,19 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
     ],
   },
   {
+    title: 'Quản lý đào tạo (tạo, sửa, xóa)',
+    options: [
+      { module: 'academic', action: 'classes', label: 'Quản lý lớp học & lịch học' },
+      { module: 'academic', action: 'rooms', label: 'Quản lý phòng học' },
+      { module: 'academic', action: 'programs', label: 'Quản lý chương trình học' },
+    ],
+  },
+  {
     title: 'Học phí & báo cáo',
     options: [
       { module: 'tuition', action: 'view', label: 'Xem học phí' },
       { module: 'tuition', action: 'collect', label: 'Thu học phí' },
+      { module: 'tuition', action: 'delete', label: 'Xóa phiếu thu' },
       { module: 'tuition', action: 'showDebt', label: 'Xem công nợ', emphasis: true },
       { module: 'report', action: 'view', label: 'Xem báo cáo' },
       { module: 'report', action: 'revenue', label: 'Xem doanh thu', emphasis: true },
@@ -62,7 +63,8 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
     title: 'Học vụ & tệp dữ liệu',
     options: [
       { module: 'teacher', action: 'view', label: 'Xem giáo viên' },
-      { module: 'teacher', action: 'edit', label: 'Sửa giáo viên' },
+      { module: 'teacher', action: 'edit', label: 'Thêm / sửa giáo viên' },
+      { module: 'teacher', action: 'delete', label: 'Xóa giáo viên' },
       { module: 'grade', action: 'view', label: 'Xem điểm' },
       { module: 'grade', action: 'edit', label: 'Nhập / sửa điểm' },
       { module: 'excel', action: 'import', label: 'Nhập Excel' },
@@ -167,15 +169,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const selectAllPermissions = () => {
     setStaffPermissions((current) => {
-      const next: any = {};
-      for (const group of permissionGroups) {
-        for (const opt of group.options) {
-          if (!next[opt.module]) next[opt.module] = {};
-          next[opt.module][opt.action] = true;
-        }
-      }
       return {
-        ...next,
+        ...createStaffPermissions(true),
         assignedClassIds: current.assignedClassIds,
         teacherId: current.teacherId,
       } as StaffPermissions;
@@ -227,11 +222,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const openEditModal = (member: ManagedUser) => {
     setEditingUser(member);
     setEditRole(member.role || 'staff');
-    setEditPermissions(
-      member.permissions
-        ? JSON.parse(JSON.stringify(member.permissions))
-        : createEmptyPermissions(),
-    );
+    setEditPermissions(normalizeStaffPermissions(member.permissions));
     setError(null);
   };
 
@@ -367,7 +358,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                     <p className="mb-2 text-[11px] font-extrabold uppercase text-slate-700">{group.title}</p>
                     <div className="space-y-1.5">
                       {group.options.map((option) => {
-                        const checked = Boolean((staffPermissions[option.module] as Record<string, boolean>)[option.action]);
+                        const checked = Boolean((staffPermissions[option.module] as Record<string, boolean>)?.[option.action]);
                         return (
                           <label key={`${option.module}.${option.action}`} className={`flex cursor-pointer items-start gap-2 text-[11px] font-medium ${option.emphasis ? 'text-amber-900' : 'text-slate-700'}`}>
                             <input type="checkbox" checked={checked} onChange={() => togglePermission(option.module, option.action)} className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
@@ -576,13 +567,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       </section>
 
       {editingUser && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Sửa quyền ${editingUser.full_name || editingUser.email}`}
+        <DialogFrame
+          label={`Sửa quyền ${editingUser.full_name || editingUser.email}`}
+          onClose={() => setEditingUser(null)}
           className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs"
         >
-          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="dialog-panel relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
             <button
               type="button"
               onClick={() => setEditingUser(null)}
@@ -627,14 +617,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                       <button
                         type="button"
                         onClick={() => {
-                          const next: any = {};
-                          for (const g of permissionGroups) {
-                            for (const o of g.options) {
-                              if (!next[o.module]) next[o.module] = {};
-                              next[o.module][o.action] = true;
-                            }
-                          }
-                          setEditPermissions((prev) => ({ ...prev, ...next }));
+                          setEditPermissions((prev) => ({
+                            ...createStaffPermissions(true),
+                            assignedClassIds: prev.assignedClassIds,
+                            teacherId: prev.teacherId,
+                          }));
                         }}
                         className="rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer"
                       >
@@ -798,7 +785,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
               </div>
             </form>
           </div>
-        </div>
+        </DialogFrame>
       )}
     </DialogFrame>
   );

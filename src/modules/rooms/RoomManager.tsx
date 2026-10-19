@@ -25,10 +25,10 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
 
-  // Phòng học là cấu hình dùng chung; chỉ Chủ trung tâm có thể thay đổi.
-  const canEdit = isOwner;
+  const canEdit = isOwner || permissions.academic?.rooms === true;
 
   const handleOpenAdd = () => {
+    if (!canEdit) return;
     setEditingRoom({
       id: `ROOM_${crypto.randomUUID()}`,
       name: '',
@@ -41,7 +41,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingRoom || !editingRoom.name.trim()) return;
+    if (!canEdit || !editingRoom || !editingRoom.name.trim()) return;
     if (!Number.isInteger(editingRoom.capacity) || editingRoom.capacity <= 0) { alert('Sức chứa phòng phải là số nguyên lớn hơn 0.'); return; }
 
     if (rooms.some(r => r.id === editingRoom.id)) {

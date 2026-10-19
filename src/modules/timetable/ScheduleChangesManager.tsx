@@ -19,6 +19,7 @@ interface Props {
   rooms: Room[];
   attendance: AttendanceSession[];
   isOwner: boolean;
+  canManage?: boolean;
   onSave: (change: ScheduleChange) => string | null;
   onDelete: (id: string) => string | null;
 }
@@ -32,9 +33,11 @@ export function ScheduleChangesManager({
   rooms,
   attendance,
   isOwner,
+  canManage = false,
   onSave,
   onDelete,
 }: Props) {
+  const canEdit = isOwner || canManage;
   const [date, setDate] = useState(centerDate);
   const [draft, setDraft] = useState<ScheduleChange | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export function ScheduleChangesManager({
   };
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft || !isOwner) return;
+    if (!draft || !canEdit) return;
     const source = originalLessons.find((slot) => slot.id === draft.sourceSlotId);
     const next =
       draft.kind === 'cancel' && source
@@ -105,7 +108,7 @@ export function ScheduleChangesManager({
             }}
             className="rounded-lg border border-slate-300 p-2 text-sm"
           />
-          {isOwner && (
+          {canEdit && (
             <button
               onClick={open}
               disabled={!classes.length}
@@ -157,7 +160,7 @@ export function ScheduleChangesManager({
                       {c.date} · {c.reason}
                     </p>
                   </div>
-                  {isOwner && (
+                  {canEdit && (
                     <div className="flex gap-2">
                       <button
                         className="rounded border border-slate-300 px-3 py-2"

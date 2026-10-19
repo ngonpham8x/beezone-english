@@ -1,23 +1,8 @@
 import { adminApi } from '../../server/admin.js';
 import { json } from '../../server/request.js';
+import { createStaffPermissions, normalizeStaffPermissions } from '../../src/lib/permissions.js';
 
-const STAFF_PERMISSION_SHAPE = {
-  student: ['view', 'add', 'edit', 'delete', 'export'],
-  teacher: ['view', 'edit', 'delete'],
-  tuition: ['view', 'collect', 'delete', 'showDebt'],
-  grade: ['view', 'edit'],
-  excel: ['import', 'export'],
-  report: ['view', 'revenue'],
-} as const;
-
-const OWNER_PERMISSIONS = {
-  student: { view: true, add: true, edit: true, delete: true, export: true },
-  teacher: { view: true, edit: true, delete: true },
-  tuition: { view: true, collect: true, delete: true, showDebt: true },
-  grade: { view: true, edit: true },
-  excel: { import: true, export: true },
-  report: { view: true, revenue: true },
-};
+const OWNER_PERMISSIONS = createStaffPermissions(true);
 
 type AccountAuditAction =
   | 'ACCOUNT_PROVISIONED'
@@ -29,7 +14,7 @@ function roleLabel(role: 'owner' | 'staff') {
   return role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên';
 }
 
-function permissionSummary(permissions: Record<string, Record<string, boolean>>) {
+function permissionSummary(permissions: ReturnType<typeof createStaffPermissions>) {
   const labels: Record<string, Record<string, string>> = {
     student: {
       view: 'xem học viên',
@@ -38,7 +23,7 @@ function permissionSummary(permissions: Record<string, Record<string, boolean>>)
       delete: 'xóa học viên',
       export: 'xuất học viên',
     },
-    teacher: { view: 'xem giáo viên', edit: 'sửa giáo viên', delete: 'xóa giáo viên' },
+    teacher: { view: 'xem giáo viên', edit: 'thêm / sửa giáo viên', delete: 'xóa giáo viên' },
     tuition: {
       view: 'xem học phí',
       collect: 'thu học phí',
@@ -48,10 +33,11 @@ function permissionSummary(permissions: Record<string, Record<string, boolean>>)
     grade: { view: 'xem điểm', edit: 'sửa điểm' },
     excel: { import: 'nhập Excel', export: 'xuất Excel' },
     report: { view: 'xem báo cáo', revenue: 'xem doanh thu' },
+    academic: { programs: 'quản lý chương trình học', classes: 'quản lý lớp và lịch học', rooms: 'quản lý phòng học' },
   };
   const granted = Object.entries(labels).flatMap(([module, actions]) =>
     Object.entries(actions)
-      .filter(([action]) => permissions[module]?.[action] === true)
+      .filter(([action]) => (permissions[module as keyof typeof permissions] as Record<string, boolean>)?.[action] === true)
       .map(([, label]) => label),
   );
   return granted.length > 0 ? `Quyền: ${granted.join(', ')}.` : 'Không cấp quyền riêng.';
@@ -97,31 +83,6 @@ const ROLLBACK_UNCONFIRMED =
   'Thao tác chưa hoàn tất và không thể xác nhận hoàn tác. Hãy kiểm tra tài khoản và nhật ký trước khi thử lại.';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function normalizeStaffPermissions(candidate: unknown) {
-  const input =
-    candidate && typeof candidate === 'object' && !Array.isArray(candidate)
-      ? (candidate as Record<string, unknown>)
-      : {};
-  const base: any = Object.fromEntries(
-    Object.entries(STAFF_PERMISSION_SHAPE).map(([module, actions]) => {
-      const inputModule =
-        input[module] && typeof input[module] === 'object' && !Array.isArray(input[module])
-          ? (input[module] as Record<string, unknown>)
-          : {};
-      return [
-        module,
-        Object.fromEntries(actions.map((action) => [action, inputModule[action] === true])),
-      ];
-    }),
-  );
-  if (Array.isArray(input.assignedClassIds)) {
-    base.assignedClassIds = input.assignedClassIds.filter((id) => typeof id === 'string');
-  }
-  if (typeof input.teacherId === 'string' && input.teacherId.trim()) {
-    base.teacherId = input.teacherId.trim();
-  }
-  return base;
-}
 
 export default adminApi(
   ['GET', 'POST', 'PATCH', 'DELETE'],

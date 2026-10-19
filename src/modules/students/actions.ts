@@ -3,6 +3,7 @@ import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
 import { centerDate, isCalendarDate } from '../../lib/dates';
+import { hasStaffPermission } from '../../lib/permissions';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
 import { feeStatusFromReceipts } from '../center/model';
@@ -40,6 +41,7 @@ export function createStudentActions({
 }: Context) {
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
+    if (!hasStaffPermission(currentUser, 'student', 'add')) return;
     if (newStudent.classId)
       setEnrollments((prev) =>
         updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()),
@@ -55,6 +57,7 @@ export function createStudentActions({
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
+    if (!hasStaffPermission(currentUser, 'student', 'edit')) return;
     setEnrollments((prev) =>
       updateEnrollmentHistory(
         prev,
@@ -76,6 +79,7 @@ export function createStudentActions({
   };
 
   const handleDeleteStudent = (id: string) => {
+    if (!hasStaffPermission(currentUser, 'student', 'delete')) return;
     const st = students.find((s) => s.id === id);
     if (
       attendanceSessions.some(

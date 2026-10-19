@@ -430,8 +430,22 @@ it('opens edit permissions dialog for a user, allows batch selection and updates
   });
 
   // Success message is displayed
+  const update = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')?.[1];
+  const grants = JSON.parse(String(update?.body)).permissions;
+  expect(grants.academic).toEqual({ programs: true, classes: true, rooms: true });
+  expect(grants.student.add).toBe(true);
+  expect(grants.teacher.edit).toBe(true);
+  expect(grants.teacher.delete).toBe(true);
+  expect(grants.tuition.delete).toBe(true);
   expect(await screen.findByText(/Cập nhật cấp quyền thành công cho tài khoản "Staff To Edit"!/)).toBeTruthy();
   // Edit dialog is closed
   expect(screen.queryByRole('dialog', { name: /Sửa quyền Staff To Edit/ })).toBeNull();
+  const reopen = screen.getByRole('button', { name: 'Sửa quyền' });
+  reopen.focus();
+  fireEvent.click(reopen);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(screen.queryByRole('dialog', { name: /Sửa quyền Staff To Edit/ })).toBeNull();
+  expect(screen.getByRole('dialog', { name: 'Quản lý tài khoản' })).toBeTruthy();
+  expect(document.activeElement).toBe(reopen);
 });
 

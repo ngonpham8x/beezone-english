@@ -34,6 +34,50 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('allows explicit academic delegation and keeps unrelated permissions denied', async () => {
+    await asStaff({ academic: { classes: true, rooms: true, programs: true }, student: { add: true }, teacher: { edit: true } });
+    const payload = {
+      ...base,
+      programs: [{ id: 'p', name: 'Test program' }],
+      rooms: [{ id: 'r', name: 'Test room' }],
+      teachers: [{ id: 't', name: 'Test teacher', assignedClassIds: ['c'] }],
+      classes: [{ id: 'c', teacherId: 't', roomId: 'r', programId: 'p', studentIds: ['s'] }],
+      students: [{ id: 's', classId: 'c', programId: 'p', feeStatus: 'unpaid' }],
+      timetableSlots: [{ id: 'slot', classId: 'c', teacherId: 't', roomId: 'r', dayOfWeek: 'Thứ 3', startTime: '18:00', endTime: '19:00' }],
+      enrollments: [{ id: 'e', studentId: 's', classId: 'c', status: 'active', startDate: '2026-10-01' }],
+      scheduleChanges: [{ id: 'extra', classId: 'c', kind: 'extra', date: '2026-10-02', startTime: '18:00', endTime: '19:00', reason: 'Test' }],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    expect((await db.query<{ payload: typeof payload }>('select payload from public.center_data')).rows[0].payload).toEqual(payload);
+    for (const patch of [{ settings: { name: 'Unauthorized' } }, { backups: [{ id: 'backup' }] }, { grades: [{ id: 'g', classId: 'c', studentId: 's' }] }, { students: [{ ...payload.students[0], name: 'Unauthorized edit' }] }]) {
+      await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, ...patch })])).rejects.toThrow();
+    }
+  });
+  it('keeps legacy, missing and non-boolean academic grants denied and scopes grants separately', async () => {
+    for (const academic of [undefined, {}, { classes: 'true', rooms: 'true', programs: 'true' }]) {
+      await db.exec('reset role');
+      await asStaff({ student: { add: true, edit: true }, teacher: { edit: true }, academic });
+      for (const patch of [{ rooms: [{ id: 'r' }] }, { programs: [{ id: 'p' }] }, { classes: [{ id: 'c', studentIds: [] }] }, { timetableSlots: [{ id: 'slot' }] }]) {
+        await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, ...patch })])).rejects.toThrow();
+      }
+    }
+    await db.exec('reset role');
+    await asStaff({ academic: { rooms: true } });
+    const withRoom = { ...base, rooms: [{ id: 'r', name: 'Room' }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(withRoom)]);
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withRoom, rooms: [{ id: 'r', name: 'Renamed' }] })]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withRoom, programs: [{ id: 'p' }] })])).rejects.toThrow(/Owner permission/);
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(base)]);
+  });
+  it('prevents delegated removal of classes, rooms and programs with linked history', async () => {
+    const payload = { ...base, programs: [{ id: 'p' }], rooms: [{ id: 'r' }], classes: [{ id: 'c', programId: 'p', roomId: 'r', studentIds: [] }], attendanceSessions: [{ id: 'a', classId: 'c', date: '2020-01-01', entries: [] }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({ academic: { programs: true, rooms: true, classes: true } });
+    for (const patch of [{ classes: [] }, { rooms: [] }, { programs: [] }]) {
+      await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, ...patch })])).rejects.toThrow(/must be preserved/);
+    }
+    expect((await db.query<{ payload: typeof payload }>('select payload from public.center_data')).rows[0].payload).toEqual(payload);
+  });
   const sessionPayload = (billed=true) => ({...base,sessionBillingVersion:1,classes:[{id:'a',teacherId:'t',studentIds:['s'],billingMode:'session',sessionRate:150000,sessionBillingStartDate:'2020-01-01',sessionAbsencePolicy:'attended'}],students:[{id:'s',classId:'a',status:'active',feeStatus:billed?'debt':'unpaid'}],attendanceSessions:billed?[{id:'att',classId:'a',date:'2020-01-02',billing:{unitPrice:150000,absencePolicy:'attended'},entries:[{studentId:'s',status:'present'}]}]:[]});
   const sessionReceipt = {id:'r',studentId:'s',classId:'a',paymentKind:'session',courseFee:0,monthlyFee:0,sessionFee:150000,sessionLines:[{attendanceSessionId:'att',date:'2020-01-02',unitPrice:150000}],discount:0,paidAmount:50000,debtAmount:100000,paymentDate:'2020-01-10'};
   it('includes unbilled lessons in student debt when a teacher saves attendance',async()=>{

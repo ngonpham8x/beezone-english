@@ -17,7 +17,7 @@ import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { validateRecurringChanges } from '../../lib/operations';
-import type { AttendanceSession, ScheduleChange } from '../../types';
+import type { AttendanceSession, ScheduleChange, StaffPermissions } from '../../types';
 import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
 
@@ -29,6 +29,7 @@ interface TimetableManagerProps {
   teachers: Teacher[];
   rooms: Room[];
   isOwner: boolean;
+  permissions?: StaffPermissions;
   onAddSlot: (slot: TimetableSlot) => void;
   onUpdateSlot: (slot: TimetableSlot) => void;
   onDeleteSlot: (id: string) => void;
@@ -50,6 +51,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   teachers,
   rooms,
   isOwner,
+  permissions,
   onAddSlot,
   onUpdateSlot,
   onDeleteSlot
@@ -60,7 +62,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
   const [conflictError, setConflictError] = useState<string | null>(null);
-  const canEdit = isOwner;
+  const canEdit = isOwner || permissions?.academic?.classes === true;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -135,7 +137,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingSlot) return;
+    if (!canEdit || !editingSlot) return;
     const startTime = normaliseTime(editingSlot.startTime);
     const endTime = normaliseTime(editingSlot.endTime);
     if (!startTime || !endTime || startTime >= endTime) {
@@ -274,7 +276,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         )}
       </div>
 
-      {onSaveChange && onDeleteChange && <ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={attendanceSessions} isOwner={isOwner} onSave={onSaveChange} onDelete={onDeleteChange} />}
+      {onSaveChange && onDeleteChange && <ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={attendanceSessions} isOwner={isOwner} canManage={canEdit} onSave={onSaveChange} onDelete={onDeleteChange} />}
       <p className="text-xs text-slate-500">Lịch tuần bên dưới là lịch lặp lại. Xem lịch thực tế phía trên để biết buổi nghỉ, đổi lịch và học bù.</p>
       {/* TIMETABLE GRID TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">

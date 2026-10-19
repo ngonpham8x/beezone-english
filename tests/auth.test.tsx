@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   listener: null as null | ((event: string, session: any) => void),
   payload: {} as any, centerError: false, profileActive: true,
   profilePrivate: false,
+  profileRole: 'owner', profilePermissions: null as any,
   profileError: false,
   sessionRequest: null as null | (() => Promise<any>),
   writeError: null as null | { code: string },
@@ -28,7 +29,7 @@ vi.mock('../src/lib/supabase', () => {
         select: () => builder, eq: () => builder,
         update: (value: any) => { update = value; return builder; }, insert: (value: any) => { update = value; return builder; },
         async maybeSingle() {
-          if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: 'owner', is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: null } : null, error: state.profileError ? { message: 'offline' } : null }; }
+          if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: state.profileRole, is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: state.profilePermissions } : null, error: state.profileError ? { message: 'offline' } : null }; }
           if (update) { if (state.writeError) return { data: null, error: state.writeError }; state.writes.push(structuredClone(update.payload)); return { data: { updated_at: `revision-${state.writes.length}` }, error: null }; }
           state.centerReads++;
           return { data: { payload: structuredClone(state.payload), updated_at: 'initial-revision' }, error: state.centerError ? { message: 'offline' } : null };
@@ -40,7 +41,7 @@ vi.mock('../src/lib/supabase', () => {
   } };
 });
 vi.mock('../src/modules/dashboard/DashboardView', () => ({ DashboardView: ({ onNavigateTab }: any) => <button onClick={() => onNavigateTab('students')}>Open students</button> }));
-vi.mock('../src/modules/students/StudentManager', () => ({ StudentManager: ({ students, onUpdateStudent }: any) => <div><p>{students[0]?.name}</p><button onClick={() => onUpdateStudent({ ...students[0], name: 'Edited locally' })}>Edit student</button></div> }));
+vi.mock('../src/modules/students/StudentManager', () => ({ StudentManager: ({ students, onUpdateStudent, permissions }: any) => <div><p>{students[0]?.name}</p><span>{permissions.student.add ? 'Can add student' : 'Cannot add student'}</span><button onClick={() => onUpdateStudent({ ...students[0], name: 'Edited locally' })}>Edit student</button></div> }));
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear(); window.history.replaceState(null, '', '/');
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
@@ -48,6 +49,7 @@ beforeEach(() => {
   state.centerError = false; state.profileActive = true; state.profileReads = 0; state.centerReads = 0; state.writes = [];
   state.writeError = null;
   state.profilePrivate = false;
+  state.profileRole = 'owner'; state.profilePermissions = null;
   state.profileError = false;
   state.sessionRequest = null;
 });
@@ -86,6 +88,28 @@ it('does not reload business data or erase unsaved edits when the same session r
   await waitFor(() => expect(state.profileReads).toBeGreaterThanOrEqual(2));
   expect(state.centerReads).toBe(1); expect(screen.getByText('Edited locally')).toBeTruthy();
   await waitFor(() => expect(state.writes.some(payload => payload.students[0].name === 'Edited locally')).toBe(true), { timeout: 3000 });
+});
+it('refreshes changed staff grants on return without reloading edited data or duplicating focus checks', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit student' }));
+  state.profileRole = 'staff';
+  state.profilePermissions = { student: { view: true, add: false, edit: true } };
+  const now = Date.now();
+  const time = vi.spyOn(Date, 'now').mockReturnValue(now + 4000);
+  fireEvent.focus(window);
+  fireEvent(document, new Event('visibilitychange'));
+  await screen.findByText('Cannot add student');
+  expect(state.profileReads).toBe(2);
+  expect(state.centerReads).toBe(1);
+  expect(screen.getByText('Edited locally')).toBeTruthy();
+  state.profilePermissions.student.add = true;
+  time.mockReturnValue(now + 8000);
+  fireEvent.focus(window);
+  await screen.findByText('Can add student');
+  expect(state.profileReads).toBe(3);
+  expect(state.centerReads).toBe(1);
+  expect(screen.getByText('Edited locally')).toBeTruthy();
 });
 it('shows a data-load error and retries without opening demonstration data', async () => {
   state.centerError = true;

@@ -12,7 +12,7 @@ import {
 import React, { useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { StatCard } from '../../components/StatCard';
-import { ClassRoom, CourseProgram, Student } from '../../types';
+import { ClassRoom, CourseProgram, StaffPermissions, Student } from '../../types';
 
 interface CourseProgramManagerProps {
   programs: CourseProgram[];
@@ -22,6 +22,7 @@ interface CourseProgramManagerProps {
   onUpdateProgram: (program: CourseProgram) => void;
   onDeleteProgram: (id: string) => void;
   isOwner: boolean;
+  permissions?: StaffPermissions;
 }
 
 export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
@@ -31,8 +32,10 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   onAddProgram,
   onUpdateProgram,
   onDeleteProgram,
-  isOwner
+  isOwner,
+  permissions
 }) => {
+  const canEdit = isOwner || permissions?.academic?.programs === true;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<CourseProgram | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -46,6 +49,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   const [formDescription, setFormDescription] = useState('');
 
   const openCreateModal = () => {
+    if (!canEdit) return;
     setEditingProgram(null);
     setFormCode(`ENG-${Date.now().toString().slice(-4)}`);
     setFormName('');
@@ -56,6 +60,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   };
 
   const openEditModal = (prog: CourseProgram) => {
+    if (!canEdit) return;
     setEditingProgram(prog);
     setFormCode(prog.code);
     setFormName(prog.name);
@@ -67,6 +72,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     if (!formName.trim() || !formCode.trim()) {
       alert('Vui lòng nhập đầy đủ mã và tên chương trình học');
       return;
@@ -145,7 +151,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
           </p>
         </div>
 
-        {isOwner && (
+        {canEdit && (
           <button
             type="button"
             onClick={openCreateModal}
@@ -248,7 +254,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                 </div>
               </div>
 
-              {isOwner && (
+              {canEdit && (
                 <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
                     type="button"

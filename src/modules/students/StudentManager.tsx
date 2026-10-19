@@ -215,6 +215,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
   // Empty new student form builder
   const handleOpenAddModal = () => {
+    if (!canAdd) return;
     const nextCodeNum = students.length + 1;
     const autoCode = `HS${nextCodeNum.toString().padStart(3, '0')}`;
     setEditingStudent({
@@ -245,6 +246,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const handleSaveStudent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStudent) return;
+    const isExisting = students.some(student => student.id === editingStudent.id);
+    if (isExisting ? !canEdit : !canAdd) return;
 
     if (!editingStudent.name.trim()) {
       alert('Vui lòng nhập họ và tên học sinh');
@@ -295,7 +298,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         tuitionFee: 0,
         description: 'Tạo thủ công tại hồ sơ học viên.'
       };
-      if (!existingProgram && !isOwner) { alert('Chỉ Chủ trung tâm được tạo chương trình học mới.'); return; }
+      if (!existingProgram && !isOwner && permissions.academic?.programs !== true) { alert('Bạn chưa được cấp quyền tạo chương trình học mới.'); return; }
       if (!existingProgram) onCreateProgram(program);
       studentToSave = { ...studentToSave, programId: program.id };
     }

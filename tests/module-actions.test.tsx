@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NAVIGATION_GROUPS, canAccessTab, getNavigationGroups } from '../src/app/navigation';
 import { DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT } from '../src/lib/auth';
+import { createStaffPermissions } from '../src/lib/permissions';
 import { parseCenterData } from '../src/lib/centerData';
 import { centerDate } from '../src/lib/dates';
 import { splitAttendanceNote } from '../src/modules/attendance/parentContact';
@@ -63,6 +64,44 @@ afterEach(() => {
 });
 
 describe('domain command integration', () => {
+  it('creates academic records, teachers and students only with the corresponding active staff grants', () => {
+    const user = { ...limitedStaff, permissions: createStaffPermissions() };
+    const { result, rerender } = renderHook(({ account }) => useTestCenter(account), { initialProps: { account: user } });
+    const snapshot = () => Object.fromEntries(Object.entries(result.current.store).filter(([, value]) => typeof value !== 'function'));
+    const data = dataset();
+    const classroom = { ...data.classes[0], id: 'delegated-class', studentIds: [] };
+    const room = { ...data.rooms[0], id: 'delegated-room' };
+    const program = { ...data.programs[0], id: 'delegated-program' };
+    const teacher = { ...data.teachers[0], id: 'delegated-teacher', assignedClassIds: [] };
+    const student = { ...data.students[0], id: 'delegated-student', classId: '', programId: program.id };
+    const create = () => {
+      result.current.actions.handleAddRoom(room);
+      result.current.actions.handleAddProgram(program);
+      result.current.actions.handleAddTeacher(teacher);
+      result.current.actions.handleAddClass(classroom);
+      result.current.actions.handleAddStudent(student);
+    };
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const before = snapshot();
+    act(create);
+    expect(snapshot()).toEqual(before);
+    rerender({ account: { ...user, permissions: { ...user.permissions, academic: { rooms: true, classes: true, programs: true }, student: { ...user.permissions.student, add: true }, teacher: { ...user.permissions.teacher, edit: true } } } });
+    act(create);
+    expect(result.current.store.classes.some(c => c.id === classroom.id)).toBe(true);
+    expect(result.current.store.rooms.some(r => r.id === room.id)).toBe(true);
+    expect(result.current.store.programs.some(p => p.id === program.id)).toBe(true);
+    expect(result.current.store.teachers.some(t => t.id === teacher.id)).toBe(true);
+    expect(result.current.store.students.some(s => s.id === student.id)).toBe(true);
+    const granted = snapshot();
+    rerender({ account: { ...user, active: false, permissions: DEV_OWNER_ACCOUNT.permissions } });
+    act(() => {
+      result.current.actions.handleDeleteRoom(room.id);
+      result.current.actions.handleDeleteClass(classroom.id);
+      result.current.actions.handleDeleteTeacher(teacher.id);
+      result.current.actions.handleUpdateStudent({ ...student, name: 'Denied' });
+    });
+    expect(snapshot()).toEqual(granted);
+  });
   it('records a parent contact only for saved absences and preserves it through edits and JSON backup', () => {
     const { result } = renderHook(() => useTestCenter());
     const data = dataset();

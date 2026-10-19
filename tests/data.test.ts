@@ -91,6 +91,8 @@ describe('authorization and API errors', () => {
     const permissions = mergePermissions(null);
     expect(permissions.student.add).toBe(false); expect(permissions.tuition.collect).toBe(false); expect(permissions.excel.import).toBe(false);
     expect(mergePermissions({ student: { view: 'true' } } as any).student.view).toBe(false);
+    expect(permissions.academic).toEqual({ programs: false, classes: false, rooms: false });
+    expect(mergePermissions({ academic: { programs: 'true', classes: true, rooms: false } } as any).academic).toEqual({ programs: false, classes: true, rooms: false });
   });
   it.each(['null', '[]', 'true', '1', '{bad', null, [], { text: 'x'.repeat(10_001) }])('rejects invalid request body %j', body => expect(parseRequestBody(body)).toBeNull());
   it('accepts object JSON', () => expect(parseRequestBody('{"action":"setActive"}')).toEqual({ action: 'setActive' }));

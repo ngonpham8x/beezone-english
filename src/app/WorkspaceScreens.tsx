@@ -160,7 +160,7 @@ export function WorkspaceScreens({
             setTaskRequest(destination);
             if (destination.tab === 'students')
               setSearchQuery(students.find((s) => s.id === destination.studentId)?.code || '');
-            if (destination.tab === 'classes' && currentUser.role === 'owner')
+            if (destination.tab === 'classes' && (currentUser.role === 'owner' || currentUser.permissions.academic?.classes === true))
               setClassEditRequest(classes.find((c) => c.id === destination.classId) || null);
             navigateTo(destination.tab);
           }}
@@ -250,6 +250,7 @@ export function WorkspaceScreens({
     case 'timetable':
       return (
         <TimetableManager
+          permissions={currentUser.permissions}
           timetableSlots={timetableSlots}
           classes={classes}
           teachers={teachers}
@@ -311,6 +312,7 @@ export function WorkspaceScreens({
     case 'programs':
       return (
         <CourseProgramManager
+          permissions={currentUser.permissions}
           programs={programs}
           classes={classes}
           students={students}

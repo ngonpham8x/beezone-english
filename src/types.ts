@@ -7,6 +7,8 @@ export interface StaffPermissions {
   grade: { view: boolean; edit: boolean };
   excel: { import: boolean; export: boolean };
   report: { view: boolean; revenue: boolean };
+  // Missing on older profiles: academic management must be explicitly granted.
+  academic?: { programs: boolean; classes: boolean; rooms: boolean };
   assignedClassIds?: string[];
   teacherId?: string;
 }

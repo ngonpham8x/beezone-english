@@ -4,6 +4,7 @@ import type { ActivityLogger } from '../system/activityLogger';
 
 import { lessonsOn, validateScheduleChange } from '../../lib/operations';
 import { findScheduleConflict } from '../../lib/schedule';
+import { canManageAcademic } from '../../lib/permissions';
 import { withClassScheduleSummary } from '../center/model';
 
 type Context = Pick<
@@ -33,6 +34,7 @@ export function createScheduleActions({
 }: Context) {
   // Timetable Handlers
   const handleAddSlot = (slot: TimetableSlot) => {
+    if (!canManageAcademic(currentUser, 'classes')) return;
     const next = [...timetableSlots, slot];
     setTimetableSlots(next);
     setClasses((classrooms) =>
@@ -48,6 +50,7 @@ export function createScheduleActions({
   };
 
   const handleUpdateSlot = (slot: TimetableSlot) => {
+    if (!canManageAcademic(currentUser, 'classes')) return;
     const oldClassId = timetableSlots.find((s) => s.id === slot.id)?.classId;
     const next = timetableSlots.map((s) => (s.id === slot.id ? slot : s));
     setTimetableSlots(next);
@@ -62,6 +65,7 @@ export function createScheduleActions({
   };
 
   const handleDeleteSlot = (id: string) => {
+    if (!canManageAcademic(currentUser, 'classes')) return;
     if (scheduleChanges.some((c) => c.sourceSlotId === id)) {
       alert('Ca học có lịch nghỉ/học bù liên quan. Giữ ca gốc hoặc hủy điều chỉnh trước.');
       return;
@@ -81,6 +85,7 @@ export function createScheduleActions({
   };
 
   const handleReplaceClassSchedule = (classId: string, slots: TimetableSlot[]) => {
+    if (!canManageAcademic(currentUser, 'classes')) return;
     const next = [...timetableSlots.filter((slot) => slot.classId !== classId), ...slots];
     setTimetableSlots(next);
     setClasses((classrooms) =>
@@ -91,7 +96,7 @@ export function createScheduleActions({
   };
 
   const handleSaveScheduleChange = (change: ScheduleChange): string | null => {
-    if (currentUser?.role !== 'owner') return 'Chỉ Chủ trung tâm được đổi lịch.';
+    if (!canManageAcademic(currentUser, 'classes')) return 'Bạn chưa được cấp quyền quản lý lớp và lịch học.';
     const error = validateScheduleChange(
       change,
       classes,
@@ -111,7 +116,7 @@ export function createScheduleActions({
     return null;
   };
   const handleDeleteScheduleChange = (id: string): string | null => {
-    if (currentUser?.role !== 'owner') return 'Chỉ Chủ trung tâm được đổi lịch.';
+    if (!canManageAcademic(currentUser, 'classes')) return 'Bạn chưa được cấp quyền quản lý lớp và lịch học.';
     const change = scheduleChanges.find((item) => item.id === id);
     if (!change) return null;
     if (
