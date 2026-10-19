@@ -57,6 +57,7 @@ interface ClassManagerProps {
   onReplaceClassSchedule: (classId: string, slots: TimetableSlot[]) => void;
   onCreateRoom: (room: Room) => void;
   onCreateProgram: (program: CourseProgram) => void;
+  onCreateTeacher?: (teacher: Teacher) => void;
   editRequest?: ClassRoom | null;
   onEditRequestHandled?: () => void;
 }
@@ -102,6 +103,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   onReplaceClassSchedule,
   onCreateRoom,
   onCreateProgram,
+  onCreateTeacher,
   editRequest,
   onEditRequestHandled,
 }) => {
@@ -115,10 +117,14 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const [isQuickRoomOpen, setIsQuickRoomOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState(0);
+  const [isQuickTeacherOpen, setIsQuickTeacherOpen] = useState(false);
+  const [newTeacherName, setNewTeacherName] = useState('');
+  const [newTeacherPhone, setNewTeacherPhone] = useState('');
 
   const canEdit = isOwner || permissions.academic?.classes === true;
   const canCreateProgram = isOwner || permissions.academic?.programs === true;
   const canCreateRoom = isOwner || permissions.academic?.rooms === true;
+  const canCreateTeacher = isOwner || permissions.teacher?.edit === true;
 
   useEffect(() => {
     if (!editRequest) return;
@@ -146,6 +152,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     setIsQuickRoomOpen(false);
     setNewRoomName('');
     setNewRoomCapacity(0);
+    setIsQuickTeacherOpen(false);
+    setNewTeacherName('');
+    setNewTeacherPhone('');
     setIsModalOpen(true);
   };
 
@@ -166,7 +175,34 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     setIsQuickRoomOpen(false);
     setNewRoomName('');
     setNewRoomCapacity(0);
+    setIsQuickTeacherOpen(false);
+    setNewTeacherName('');
+    setNewTeacherPhone('');
     setIsModalOpen(true);
+  };
+
+  const handleCreateTeacher = () => {
+    if (!canCreateTeacher) return;
+    const trimmed = newTeacherName.trim();
+    if (!trimmed) {
+      setScheduleError('Vui lòng nhập tên giáo viên mới.');
+      return;
+    }
+    const created: Teacher = {
+      id: `TEA_${Date.now()}`,
+      name: trimmed,
+      phone: newTeacherPhone.trim() || 'Chưa cập nhật',
+      email: `${trimmed.toLowerCase().replace(/[^a-z0-9]/g, '') || 'giaovien'}@beezone.local`,
+      address: '',
+      specialty: 'Tiếng Anh',
+      assignedClassIds: editingClass ? [editingClass.id] : [],
+    };
+    onCreateTeacher?.(created);
+    setEditingClass((current) => current ? { ...current, teacherId: created.id } : current);
+    setNewTeacherName('');
+    setNewTeacherPhone('');
+    setIsQuickTeacherOpen(false);
+    setScheduleError(null);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -178,7 +214,6 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     if (!Number.isInteger(editingClass.capacity) || editingClass.capacity < 0) { setScheduleError('Sĩ số tối đa phải là số nguyên không âm.'); return; }
     const room = rooms.find(r => r.id === editingClass.roomId);
     if (room?.status === 'maintenance') { setScheduleError('Phòng đang bảo trì. Hãy chọn phòng khác.'); return; }
-    if (room && room.capacity > 0 && editingClass.capacity > room.capacity) { setScheduleError('Sĩ số tối đa của lớp vượt sức chứa phòng.'); return; }
     if (editingClass.capacity > 0 && students.filter(s => s.classId === editingClass.id && s.status === 'active').length > editingClass.capacity) { setScheduleError('Sĩ số tối đa thấp hơn số học viên đang học.'); return; }
     const normalisedEntries = scheduleEntries.map((entry) => ({
       ...entry,
@@ -617,13 +652,32 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <label className="block font-semibold text-slate-700 mb-1">Giáo Viên Dạy</label>
                   <select
                     value={editingClass.teacherId}
-                    onChange={(e) => setEditingClass({ ...editingClass, teacherId: e.target.value })}
+                    onChange={(e) => {
+                      if (e.target.value === '__NEW__') {
+                        setIsQuickTeacherOpen(true);
+                      } else {
+                        setEditingClass({ ...editingClass, teacherId: e.target.value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                   >
+                    <option value="">-- Chọn giáo viên dạy --</option>
                     {teachers.map(t => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
+                    {canCreateTeacher && (
+                      <option value="__NEW__">➕ Tạo thêm giáo viên mới...</option>
+                    )}
                   </select>
+                  {canCreateTeacher && (
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickTeacherOpen((open) => !open)}
+                      className="mt-1.5 text-[11px] font-bold text-amber-700 hover:text-amber-900 cursor-pointer"
+                    >
+                      + Tạo giáo viên mới
+                    </button>
+                  )}
                 </div>
 
                 <div>
@@ -633,13 +687,57 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                     onChange={(e) => setEditingClass({ ...editingClass, roomId: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                   >
+                    <option value="">-- Chọn phòng học --</option>
                     {rooms.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
+                      <option key={r.id} value={r.id}>
+                        {r.name} {r.capacity > 0 ? `(Sức chứa: ${r.capacity} chỗ)` : ''}
+                      </option>
                     ))}
                   </select>
-                  {canCreateRoom && <button type="button" onClick={() => setIsQuickRoomOpen((open) => !open)} className="mt-1.5 text-[11px] font-bold text-blue-700 hover:text-blue-900">+ Tạo phòng học mới</button>}
+                  {canCreateRoom && <button type="button" onClick={() => setIsQuickRoomOpen((open) => !open)} className="mt-1.5 text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer">+ Tạo phòng học mới</button>}
+                  {(() => {
+                    const currentRoom = rooms.find(r => r.id === editingClass.roomId);
+                    if (currentRoom && currentRoom.capacity > 0 && editingClass.capacity > currentRoom.capacity) {
+                      return (
+                        <p className="mt-1 text-[10px] text-amber-700 font-medium">
+                          ⚠️ Lưu ý: Sĩ số lớp ({editingClass.capacity}) lớn hơn sức chứa phòng ({currentRoom.capacity} chỗ).
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
+
+              {canCreateTeacher && isQuickTeacherOpen && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <div className="mb-2 text-xs font-bold text-amber-950">Tạo giáo viên mới</div>
+                  <div className="grid grid-cols-1 min-[480px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                    <input
+                      type="text"
+                      value={newTeacherName}
+                      onChange={(event) => setNewTeacherName(event.target.value)}
+                      placeholder="Tên giáo viên (VD: Cô Lan, Thầy Alex)"
+                      className="min-w-0 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs"
+                      autoFocus
+                    />
+                    <input
+                      type="text"
+                      value={newTeacherPhone}
+                      onChange={(event) => setNewTeacherPhone(event.target.value)}
+                      placeholder="Số điện thoại / Chuyên môn"
+                      className="min-w-0 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateTeacher}
+                      className="rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700 text-xs shrink-0 cursor-pointer"
+                    >
+                      Thêm
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {canCreateRoom && isQuickRoomOpen && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">

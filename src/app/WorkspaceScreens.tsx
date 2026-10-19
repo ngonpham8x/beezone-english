@@ -231,6 +231,7 @@ export function WorkspaceScreens({
           onReplaceClassSchedule={handleReplaceClassSchedule}
           onCreateRoom={handleAddRoom}
           onCreateProgram={handleCreateProgram}
+          onCreateTeacher={handleAddTeacher}
           editRequest={classEditRequest}
           onEditRequestHandled={() => setClassEditRequest(null)}
         />
