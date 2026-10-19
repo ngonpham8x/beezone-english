@@ -9,7 +9,7 @@ import {
   validateSessionReceipt,
   withUnbilledSessionReceipts,
 } from '../src/lib/sessionBilling';
-import { debtBreakdown, feeStatusForReceipts, getReceiptPaymentEntries } from '../src/lib/tuition';
+import { debtBreakdown, feeStatusForReceipts, getReceiptPaymentEntries, isStudentOwingTuition } from '../src/lib/tuition';
 import { parseCenterData, parseBackupArchive } from '../src/lib/centerData';
 export const classroom: ClassRoom = {
   ...initial.initialClasses[0],
@@ -184,5 +184,25 @@ describe('per-lesson tuition', () => {
         initial.initialSettings,
       ),
     ).toThrow(/trùng ngày/);
+  });
+  it('detects active unpaid students as owing tuition even before any receipts are created', () => {
+    const activeUnpaidStudent = { id: 'st1', status: 'active' as const, feeStatus: 'unpaid' as const };
+    const activePaidStudent = { id: 'st2', status: 'active' as const, feeStatus: 'paid' as const };
+    const reservedUnpaidStudent = { id: 'st3', status: 'reserved' as const, feeStatus: 'unpaid' as const };
+    const droppedUnpaidStudent = { id: 'st4', status: 'dropped' as const, feeStatus: 'unpaid' as const };
+
+    expect(isStudentOwingTuition(activeUnpaidStudent, [])).toBe(true);
+    expect(isStudentOwingTuition(activePaidStudent, [])).toBe(false);
+    expect(isStudentOwingTuition(reservedUnpaidStudent, [])).toBe(false);
+    expect(isStudentOwingTuition(droppedUnpaidStudent, [])).toBe(false);
+
+    const debtReceipt: TuitionReceipt = {
+      ...invoice(),
+      studentId: 'st3',
+      debtAmount: 500000,
+      paidAmount: 0,
+      status: 'debt',
+    };
+    expect(isStudentOwingTuition(reservedUnpaidStudent, [debtReceipt])).toBe(true);
   });
 });

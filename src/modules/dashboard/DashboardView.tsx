@@ -26,7 +26,7 @@ import {
 } from 'recharts';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
-import { debtBreakdown, getReceiptPaymentEntries } from '../../lib/tuition';
+import { debtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition } from '../../lib/tuition';
 import type { AttendanceSession, ScheduleChange, TimetableSlot } from '../../types';
 import {
   ClassRoom,
@@ -90,12 +90,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   const reservedStudents = students.filter((student) => student.status === 'reserved');
   const droppedStudents = students.filter((student) => student.status === 'dropped');
   const paidStudents = students.filter((student) => student.feeStatus === 'paid');
-  const debtStudents = students.filter((student) => debtBreakdown(receipts.filter((receipt) => receipt.studentId === student.id)).total > 0);
+  const debtStudents = students.filter((student) => isStudentOwingTuition(student, receipts));
   const totalCollected = receipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0);
   const totalDebtBreakdown = debtBreakdown(receipts);
   const totalDebt = totalDebtBreakdown.total;
   const totalDue = totalCollected + totalDebt;
-  const collectionRate = totalDue > 0 ? Math.round((totalCollected / totalDue) * 100) : 100;
+  const collectionRate = totalDue > 0
+    ? Math.round((totalCollected / totalDue) * 100)
+    : (totalCollected > 0 || (activeStudents.length === 0 && debtStudents.length === 0) ? 100 : 0);
 
   // Tính doanh thu theo từng đợt thanh toán thực tế (hỗ trợ đóng học phí theo khóa nhiều đợt)
   const paymentEntries = getReceiptPaymentEntries(receipts);

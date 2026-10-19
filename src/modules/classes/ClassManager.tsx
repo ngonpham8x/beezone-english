@@ -512,9 +512,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
                         <div className="text-right">
                           <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            debt.total > 0 ? 'bg-rose-100 text-rose-800' : st.feeStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                            st.feeStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                           }`}>
-                            {debt.total > 0 ? 'Đóng thiếu' : st.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa có phiếu'}
+                            {debt.total > 0 ? 'Đóng thiếu' : st.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa đóng'}
                           </span>
                           {debt.monthly > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Tháng: {debt.monthly.toLocaleString('vi-VN')} đ</div>}
                           {debt.course > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Khóa: {debt.course.toLocaleString('vi-VN')} đ</div>}{debt.session > 0 && <div className="mt-1 text-[10px] font-bold text-rose-700">Buổi: {debt.session.toLocaleString('vi-VN')} đ</div>}

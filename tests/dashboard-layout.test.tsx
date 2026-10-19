@@ -74,3 +74,25 @@ it('preserves the welcome position and shortcuts when the banner is collapsed', 
     }),
   ).toBeNull();
 });
+
+it('counts active unpaid students in debt metrics even when no receipts exist', () => {
+  const activeUnpaidStudent = {
+    ...initial.initialStudents[0],
+    id: 'hs-new',
+    name: 'Học sinh chưa đóng',
+    status: 'active' as const,
+    feeStatus: 'unpaid' as const,
+  };
+  render(
+    <DashboardView
+      {...props}
+      students={[activeUnpaidStudent]}
+      receipts={[]}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: /Học sinh nợ phí/i }));
+  expect(screen.getByText('Học sinh còn nợ học phí')).toBeTruthy();
+  expect(screen.getAllByText('Học sinh chưa đóng').length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByText('Chưa đóng')).toBeTruthy();
+});

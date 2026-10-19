@@ -28,7 +28,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
 import { matchesSearch as matchesSearchText } from '../../lib/search';
-import { debtBreakdown } from '../../lib/tuition';
+import { debtBreakdown, isStudentOwingTuition } from '../../lib/tuition';
 import {
   ClassEnrollment,
   ClassRoom,
@@ -373,7 +373,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} />
         <StatCard label="Đang theo học" value={students.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
         <StatCard label="Đang bảo lưu" value={students.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
-        <StatCard label="Còn nợ học phí" value={students.filter(s => debtBreakdown(receipts.filter(r => r.studentId === s.id)).total > 0).length + ' HS'} icon={AlertCircle} tone="rose" />
+        <StatCard label="Còn nợ học phí" value={students.filter(s => isStudentOwingTuition(s, receipts)).length + ' HS'} icon={AlertCircle} tone="rose" />
       </div>
 
       {/* Filters & View Mode Bar */}

@@ -1,4 +1,4 @@
-import { FeeStatus, TuitionInstallment, TuitionReceipt } from '../types';
+import { FeeStatus, Student, TuitionInstallment, TuitionReceipt } from '../types';
 
 export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 
@@ -49,6 +49,16 @@ export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
   const paid = receipts.reduce((sum, receipt) => sum + Math.max(receipt.paidAmount || 0, 0), 0);
   if (debt > 0) return paid > 0 ? 'partial' : 'debt';
   return paid > 0 ? 'paid' : 'unpaid';
+};
+
+export const isStudentOwingTuition = (
+  student: Pick<Student, 'id' | 'status' | 'feeStatus'>,
+  receipts: TuitionReceipt[] = [],
+): boolean => {
+  const studentReceipts = receipts.filter((receipt) => receipt.studentId === student.id);
+  const debt = debtBreakdown(studentReceipts).total;
+  if (debt > 0) return true;
+  return student.status === 'active' && student.feeStatus !== 'paid';
 };
 
 export interface ReceiptPaymentEntry {

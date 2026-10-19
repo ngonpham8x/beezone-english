@@ -4,6 +4,7 @@ import { DialogFrame } from '../../components/DialogFrame';
 import {
   debtBreakdown,
   getReceiptPaymentEntries,
+  isStudentOwingTuition,
   paymentKindLabel,
   paymentKindOf,
   paymentMethodLabel,
@@ -80,7 +81,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     active: students.filter((student) => student.status === 'active'),
     reserved: students.filter((student) => student.status === 'reserved'),
     dropped: students.filter((student) => student.status === 'dropped'),
-    debt: students.filter((student) => debtBreakdown(receipts.filter((receipt) => receipt.studentId === student.id)).total > 0),
+    debt: students.filter((student) => isStudentOwingTuition(student, receipts)),
     paid: students.filter((student) => student.feeStatus === 'paid')
   };
 
