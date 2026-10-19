@@ -1,4 +1,4 @@
-import { FeeStatus, Student, TuitionInstallment, TuitionReceipt } from '../types';
+import { ClassRoom, CourseProgram, FeeStatus, Student, TuitionInstallment, TuitionReceipt } from '../types';
 
 export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 
@@ -59,6 +59,27 @@ export const isStudentOwingTuition = (
   const debt = debtBreakdown(studentReceipts).total;
   if (debt > 0) return true;
   return student.status === 'active' && student.feeStatus !== 'paid';
+};
+
+export const unbilledTuitionForStudents = (
+  students: Pick<Student, 'id' | 'status' | 'feeStatus' | 'programId' | 'classId'>[],
+  receipts: TuitionReceipt[] = [],
+  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[] = [],
+  classes: Pick<ClassRoom, 'id' | 'billingMode'>[] = [],
+): number => {
+  const programFeeMap = new Map(programs.map((p) => [p.id, p.tuitionFee || 0]));
+  const classMap = new Map(classes.map((c) => [c.id, c]));
+
+  return students
+    .filter((s) => {
+      if (s.status !== 'active' || s.feeStatus === 'paid') return false;
+      const studentReceipts = receipts.filter((r) => r.studentId === s.id);
+      if (studentReceipts.length > 0) return false;
+      const cls = classMap.get(s.classId);
+      if (cls?.billingMode === 'session') return false;
+      return true;
+    })
+    .reduce((sum, s) => sum + (programFeeMap.get(s.programId) || 0), 0);
 };
 
 export interface ReceiptPaymentEntry {

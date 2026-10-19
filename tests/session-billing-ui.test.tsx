@@ -223,3 +223,41 @@ it('opens payment reminders from the compact section without losing receipt edit
     '2026-10-06',
   );
 });
+
+it('displays active unpaid students in TuitionManager with quick collect button', () => {
+  const unpaidStudent = {
+    ...initial.initialStudents[0],
+    id: 'hs-unpaid',
+    name: 'Trương Gia Bảo',
+    code: 'HS001',
+    status: 'active' as const,
+    feeStatus: 'unpaid' as const,
+    programId: initial.initialPrograms[0].id,
+    classId: initial.initialClasses[0].id,
+  };
+  render(
+    <TuitionManager
+      receipts={[]}
+      attendanceSessions={[]}
+      students={[unpaidStudent]}
+      classes={initial.initialClasses}
+      programs={initial.initialPrograms}
+      settings={initial.initialSettings}
+      permissions={DEV_OWNER_ACCOUNT.permissions}
+      isOwner
+      onAddReceipt={vi.fn()}
+      onUpdateReceipt={vi.fn()}
+      onDeleteReceipt={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('region', { name: 'Học viên cần thu học phí' })).toBeTruthy();
+  expect(screen.getByText('Trương Gia Bảo')).toBeTruthy();
+  expect(screen.getByText('HS001')).toBeTruthy();
+
+  const collectButton = screen.getByRole('button', { name: 'Thu học phí' });
+  fireEvent.click(collectButton);
+
+  expect(screen.getByText('Lập Phiếu Thu Học Phí')).toBeTruthy();
+  expect(screen.getByDisplayValue(/Trương Gia Bảo/)).toBeTruthy();
+});

@@ -25,13 +25,16 @@ import { centerDate, isCalendarDate } from '../../lib/dates';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import {
+  debtBreakdown,
   getReceiptInstallments,
   getReceiptPaymentEntries,
+  isStudentOwingTuition,
   paymentKindLabel,
   paymentKindOf,
   paymentMethodLabel,
   paymentPeriodLabel,
   receiptFee,
+  unbilledTuitionForStudents,
 } from '../../lib/tuition';
 import type { AttendanceSession } from '../../types';
 import {
@@ -137,10 +140,39 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     onRequestHandled?.();
   }, [requestReceiptId]);
 
+  const unbilledActiveTuition = useMemo(
+    () => unbilledTuitionForStudents(students, receipts, programs, classes),
+    [students, receipts, programs, classes],
+  );
+  const recordedDebt = useMemo(
+    () => withUnbilledSessionReceipts(receipts, attendanceSessions).reduce((sum, r) => sum + r.debtAmount, 0),
+    [receipts, attendanceSessions],
+  );
   const totalCollected = receipts.reduce((sum, r) => sum + r.paidAmount, 0);
-  const totalDebt = withUnbilledSessionReceipts(receipts, attendanceSessions).reduce((sum, r) => sum + r.debtAmount, 0);
+  const totalDebt = recordedDebt + unbilledActiveTuition;
   const monthlyCollected = receipts.filter((receipt) => paymentKindOf(receipt) === 'monthly').reduce((sum, receipt) => sum + receipt.paidAmount, 0);
   const courseCollected = receipts.filter((receipt) => receipt.paymentKind === 'course').reduce((sum, receipt) => sum + receipt.paidAmount, 0);
+
+  const pendingTuitionStudents = useMemo(() => {
+    return students
+      .filter((s) => isStudentOwingTuition(s, receipts))
+      .map((s) => {
+        const cls = classes.find((c) => c.id === s.classId);
+        const prog = programs.find((p) => p.id === s.programId);
+        const studentReceipts = receipts.filter((r) => r.studentId === s.id);
+        const debt = debtBreakdown(studentReceipts);
+        const hasReceipt = studentReceipts.length > 0;
+        const expectedAmount = debt.total > 0 ? debt.total : (prog?.tuitionFee || 0);
+        return {
+          student: s,
+          classroom: cls,
+          program: prog,
+          debt,
+          hasReceipt,
+          expectedAmount,
+        };
+      });
+  }, [students, receipts, classes, programs]);
   const paymentEntries = useMemo(() => getReceiptPaymentEntries(receipts), [receipts]);
   const receiptMonths: string[] = useMemo(() => {
     const months = new Set<string>();
@@ -194,28 +226,42 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     if (preset === 'monthly' || preset === 'course' || preset === 'session') setFilterPaymentKind(preset);
   };
 
-  const handleOpenCollect = () => {
-    const eligibleStudent = students.find(s => classes.find(c => c.id === s.classId)?.billingMode !== 'session');
-    if (!eligibleStudent) { setSessionNotice('Các lớp đang thu theo buổi. Chọn học viên và buổi học trong phần Học phí theo buổi để thu tiền.'); return; }
+  const handleOpenCollectForStudent = (student: Student) => {
+    const cls = classes.find((c) => c.id === student.classId);
+    if (cls?.billingMode === 'session') {
+      setSessionNotice(`Lớp ${cls.name} thu theo buổi học. Hãy chọn học viên và buổi học trong phần Học phí theo buổi để thu tiền.`);
+      return;
+    }
+    const prog = programs.find((p) => p.id === student.programId);
+    const studentReceipts = receipts.filter((r) => r.studentId === student.id);
+    const debt = debtBreakdown(studentReceipts);
+    const fee = debt.total > 0 ? debt.total : (prog?.tuitionFee || 0);
+    const kind = cls?.billingMode === 'course' ? 'course' : 'monthly';
+
     setEditingReceipt(null);
-    setCollectingStudentId(eligibleStudent.id);
-    const st = eligibleStudent;
-    const program = programs.find(p => p.id === st?.programId);
-    const suggestedMonthlyFee = program?.tuitionFee ?? 0;
-    setCourseFeeInput(0);
-    setMonthlyFeeInput(suggestedMonthlyFee);
-    setPaymentKind('monthly');
+    setCollectingStudentId(student.id);
+    setCourseFeeInput(kind === 'course' ? fee : 0);
+    setMonthlyFeeInput(kind === 'monthly' ? fee : 0);
+    setPaymentKind(kind);
     setMonthlyBillingPeriod(currentMonth);
     setCourseBillingPeriod(coursePeriodOptions[0] || defaultCoursePeriod);
-    setPaidAmountInput(suggestedMonthlyFee);
+    setPaidAmountInput(fee);
     setPaymentDateInput(centerDate());
     setDueDateInput('');
     setDiscountInput(0);
-    setPaymentMethod('Chưa xác định');
-    setPaymentNotes('');
+    setPaymentMethod('Tiền mặt');
+    setPaymentNotes('Thu học phí');
     setCollectorNameInput('');
     setCollectError(null);
     setIsCollectModalOpen(true);
+  };
+
+  const handleOpenCollect = () => {
+    const eligibleStudent =
+      students.find((s) => s.status === 'active' && s.feeStatus !== 'paid' && classes.find((c) => c.id === s.classId)?.billingMode !== 'session') ||
+      students.find((s) => classes.find((c) => c.id === s.classId)?.billingMode !== 'session');
+    if (!eligibleStudent) { setSessionNotice('Các lớp đang thu theo buổi. Chọn học viên và buổi học trong phần Học phí theo buổi để thu tiền.'); return; }
+    handleOpenCollectForStudent(eligibleStudent);
   };
 
   const handleOpenEditReceipt = (receipt: TuitionReceipt) => {
@@ -452,18 +498,30 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
       <div className="stats-grid stats-grid--five tuition-kpis">
         <StatCard label="Thực thu" value={totalCollected.toLocaleString('vi-VN') + ' đ'} icon={CheckCircle} tone="emerald" subtitle="Tiền đã nhận" onClick={() => showReceiptDetail('all')} />
-        <StatCard label="Công nợ" value={totalDebt.toLocaleString('vi-VN') + ' đ'} icon={AlertCircle} tone="rose" subtitle="Gồm buổi chưa lập phiếu" onClick={() => showReceiptDetail('debt')} />
+        <StatCard
+          label="Công nợ"
+          value={totalDebt.toLocaleString('vi-VN') + ' đ'}
+          icon={AlertCircle}
+          tone="rose"
+          subtitle={pendingTuitionStudents.length > 0 ? `${pendingTuitionStudents.length} HS cần thu / nợ phí` : 'Gồm buổi chưa lập phiếu'}
+          onClick={() => showReceiptDetail('debt')}
+        />
         <StatCard label="Học phí tháng" value={monthlyCollected.toLocaleString('vi-VN') + ' đ'} icon={DollarSign} tone="sky" subtitle="Đã thu theo tháng" onClick={() => showReceiptDetail('monthly')} />
         <StatCard label="Học phí khóa" value={courseCollected.toLocaleString('vi-VN') + ' đ'} icon={FileText} tone="amber" subtitle="Đã thu theo khóa" onClick={() => showReceiptDetail('course')} />
         <StatCard label="Học phí buổi" value={receipts.filter(r => r.paymentKind === 'session').reduce((sum,r) => sum+r.paidAmount,0).toLocaleString('vi-VN') + ' đ'} icon={Calendar} tone="violet" subtitle="Đã thu theo buổi" onClick={() => showReceiptDetail('session')} />
       </div>
       {(() => {
-        const totalReceivable=totalCollected+totalDebt;
-        const collectionRate=totalReceivable>0?Math.round(totalCollected/totalReceivable*100):100;
-        return <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1 text-xs text-slate-500">
-          <p>Phải thu: <strong className="font-semibold text-slate-700">{totalReceivable.toLocaleString('vi-VN')} đ</strong> · Còn nợ: <strong className="font-semibold text-rose-700">{totalDebt.toLocaleString('vi-VN')} đ</strong></p>
-          <div className="flex items-center gap-2"><span>Đã thu {collectionRate}%</span><div className="h-1 w-24 overflow-hidden rounded-full bg-slate-200" aria-hidden="true"><div className="h-full rounded-full bg-emerald-500" style={{width:Math.min(100,collectionRate)+'%'}} /></div></div>
-        </div>;
+        const totalReceivable = totalCollected + totalDebt;
+        const activeCount = students.filter(s => s.status === 'active').length;
+        const collectionRate = totalReceivable > 0
+          ? Math.round(totalCollected / totalReceivable * 100)
+          : (totalCollected > 0 || (activeCount === 0 && pendingTuitionStudents.length === 0) ? 100 : 0);
+        return (
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1 text-xs text-slate-500">
+            <p>Phải thu: <strong className="font-semibold text-slate-700">{totalReceivable.toLocaleString('vi-VN')} đ</strong> · Còn nợ: <strong className="font-semibold text-rose-700">{totalDebt.toLocaleString('vi-VN')} đ</strong></p>
+            <div className="flex items-center gap-2"><span>Đã thu {collectionRate}%</span><div className="h-1 w-24 overflow-hidden rounded-full bg-slate-200" aria-hidden="true"><div className="h-full rounded-full bg-emerald-500" style={{width:Math.min(100,collectionRate)+'%'}} /></div></div>
+          </div>
+        );
       })()}
       {sessionNotice && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{sessionNotice}</p>}
       {(classes.some(c => c.billingMode === 'session') || attendanceSessions.some(a => a.billing) || requestReceiptId?.startsWith('pending-session:')) && (
@@ -473,6 +531,86 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         <summary>Nhắc hạn thanh toán · {receipts.filter(r => r.debtAmount > 0).length} phiếu còn nợ</summary>
         <TuitionDuePanel receipts={receipts} students={students} settings={settings} onOpen={r => canCollect ? handleOpenEditReceipt(r) : setSelectedReceipt(r)} />
       </details>}
+
+      {pendingTuitionStudents.length > 0 && (
+        <section aria-label="Học viên cần thu học phí" className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50/50 p-3.5 sm:p-4 shadow-2xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500 text-slate-950 font-black text-xs shadow-2xs">
+                {pendingTuitionStudents.length}
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  Học viên cần thu học phí
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    Chưa hoàn thành
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-600">
+                  Học viên đang học chưa đóng hoặc còn nợ tiền học phí cần theo dõi thu
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800 bg-white px-3 py-1.5 rounded-xl border border-amber-200 shadow-2xs">
+                Tổng cần thu: <strong className="text-rose-700 font-extrabold">{pendingTuitionStudents.reduce((sum, item) => sum + item.expectedAmount, 0).toLocaleString('vi-VN')} đ</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-amber-200 bg-white shadow-2xs">
+            <table className="w-full text-left text-xs text-slate-700 border-collapse min-w-[700px]">
+              <thead className="bg-amber-100/70 text-slate-800 uppercase text-[10px] font-bold border-b border-amber-200">
+                <tr>
+                  <th className="py-2.5 px-3">Mã HS</th>
+                  <th className="py-2.5 px-3">Học sinh</th>
+                  <th className="py-2.5 px-3">Lớp học</th>
+                  <th className="py-2.5 px-3">Chương trình</th>
+                  <th className="py-2.5 px-3 text-right">Số tiền cần thu</th>
+                  <th className="py-2.5 px-3 text-center">Tình trạng</th>
+                  <th className="py-2.5 px-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100/70 font-medium">
+                {pendingTuitionStudents.map(({ student, classroom, program, debt, expectedAmount }) => (
+                  <tr key={student.id} className="hover:bg-amber-50/50 transition-colors">
+                    <td className="py-2.5 px-3 font-mono font-bold text-amber-950">{student.code}</td>
+                    <td className="py-2.5 px-3">
+                      <div className="font-bold text-slate-900">{student.name}</div>
+                      <div className="text-[10px] text-slate-500">Phụ huynh: {student.parentName || 'Chưa ghi'} ({student.parentPhone || student.phone || 'Chưa có SĐT'})</div>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-700">{classroom?.name || 'Chưa xếp lớp'}</td>
+                    <td className="py-2.5 px-3 text-slate-700">{program?.name || 'Chưa chọn chương trình'}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-rose-700">
+                      {expectedAmount.toLocaleString('vi-VN')} đ
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        debt.total > 0
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}>
+                        {debt.total > 0 ? 'Đóng thiếu' : 'Chưa đóng'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      {canCollect && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCollectForStudent(student)}
+                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-2xs transition active:scale-95 inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Thu học phí
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -696,9 +834,22 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-900"
                   required
                 >
-                  {students.filter(s => editingReceipt || classes.find(c => c.id === s.classId)?.billingMode !== 'session').map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.code}) - Phụ huynh: {s.parentName}</option>
-                  ))}
+                  {students
+                    .filter((s) => editingReceipt || classes.find((c) => c.id === s.classId)?.billingMode !== 'session')
+                    .sort((a, b) => {
+                      const aOwing = isStudentOwingTuition(a, receipts) ? 0 : 1;
+                      const bOwing = isStudentOwingTuition(b, receipts) ? 0 : 1;
+                      return aOwing - bOwing || a.name.localeCompare(b.name, 'vi-VN');
+                    })
+                    .map((s) => {
+                      const owing = isStudentOwingTuition(s, receipts);
+                      const tag = owing ? '⚠️ [Chưa đóng/còn nợ]' : '✓ [Đã đóng đủ]';
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {tag} {s.name} ({s.code}) - Phụ huynh: {s.parentName || 'Chưa ghi'}
+                        </option>
+                      );
+                    })}
                 </select>
               </div>
 

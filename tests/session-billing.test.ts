@@ -9,7 +9,7 @@ import {
   validateSessionReceipt,
   withUnbilledSessionReceipts,
 } from '../src/lib/sessionBilling';
-import { debtBreakdown, feeStatusForReceipts, getReceiptPaymentEntries, isStudentOwingTuition } from '../src/lib/tuition';
+import { debtBreakdown, feeStatusForReceipts, getReceiptPaymentEntries, isStudentOwingTuition, unbilledTuitionForStudents } from '../src/lib/tuition';
 import { parseCenterData, parseBackupArchive } from '../src/lib/centerData';
 export const classroom: ClassRoom = {
   ...initial.initialClasses[0],
@@ -204,5 +204,31 @@ describe('per-lesson tuition', () => {
       status: 'debt',
     };
     expect(isStudentOwingTuition(reservedUnpaidStudent, [debtReceipt])).toBe(true);
+  });
+  it('calculates unbilled tuition amount for active unpaid students without receipts', () => {
+    const studentA = { id: 'sA', status: 'active' as const, feeStatus: 'unpaid' as const, programId: 'p1', classId: 'cA' };
+    const studentB = { id: 'sB', status: 'active' as const, feeStatus: 'paid' as const, programId: 'p1', classId: 'cA' };
+    const studentC = { id: 'sC', status: 'active' as const, feeStatus: 'unpaid' as const, programId: 'p2', classId: 'cC' }; // session class
+    const programs = [
+      { id: 'p1', tuitionFee: 2400000 },
+      { id: 'p2', tuitionFee: 150000 },
+    ];
+    const classes = [
+      { id: 'cA', billingMode: 'monthly' as const },
+      { id: 'cC', billingMode: 'session' as const },
+    ];
+
+    // studentA owes 2,400,000; studentB is paid; studentC is session billing (handled separately)
+    expect(unbilledTuitionForStudents([studentA, studentB, studentC], [], programs, classes)).toBe(2400000);
+
+    // If studentA gets a receipt, unbilled tuition becomes 0
+    const receiptA: TuitionReceipt = {
+      ...invoice(),
+      studentId: 'sA',
+      debtAmount: 0,
+      paidAmount: 2400000,
+      status: 'paid',
+    };
+    expect(unbilledTuitionForStudents([studentA, studentB, studentC], [receiptA], programs, classes)).toBe(0);
   });
 });

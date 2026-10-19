@@ -26,7 +26,7 @@ import {
 } from 'recharts';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
-import { debtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition } from '../../lib/tuition';
+import { debtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition, unbilledTuitionForStudents } from '../../lib/tuition';
 import type { AttendanceSession, ScheduleChange, TimetableSlot } from '../../types';
 import {
   ClassRoom,
@@ -91,9 +91,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   const droppedStudents = students.filter((student) => student.status === 'dropped');
   const paidStudents = students.filter((student) => student.feeStatus === 'paid');
   const debtStudents = students.filter((student) => isStudentOwingTuition(student, receipts));
+  const unbilledActiveTuition = unbilledTuitionForStudents(students, receipts, programs, classes);
   const totalCollected = receipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0);
   const totalDebtBreakdown = debtBreakdown(receipts);
-  const totalDebt = totalDebtBreakdown.total;
+  const totalDebt = totalDebtBreakdown.total + unbilledActiveTuition;
   const totalDue = totalCollected + totalDebt;
   const collectionRate = totalDue > 0
     ? Math.round((totalCollected / totalDue) * 100)
@@ -307,7 +308,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
         <div className="stats-grid stats-grid--three">
           <StatCard label="Tổng phải thu" value={currency(totalDue)} subtitle="Tháng, khóa và buổi" />
           <StatCard label="Tiền đã nhận" value={currency(totalCollected)} tone="emerald" subtitle="Các đợt thu thực tế" />
-          <StatCard label="Còn phải thu" value={currency(totalDebt)} tone="rose" subtitle={'Tháng: '+currency(totalDebtBreakdown.monthly)+' · Khóa: '+currency(totalDebtBreakdown.course)+' · Buổi: '+currency(totalDebtBreakdown.session)} />
+          <StatCard
+            label="Còn phải thu"
+            value={currency(totalDebt)}
+            tone="rose"
+            subtitle={unbilledActiveTuition > 0
+              ? `${currency(unbilledActiveTuition)} chưa lập phiếu · Nợ cũ: ${currency(totalDebtBreakdown.total)}`
+              : 'Tháng: ' + currency(totalDebtBreakdown.monthly) + ' · Khóa: ' + currency(totalDebtBreakdown.course) + ' · Buổi: ' + currency(totalDebtBreakdown.session)
+            }
+          />
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div className="h-full rounded-full bg-emerald-500" style={{width:Math.min(collectionRate,100)+'%'}} /></div>
       </section>}
