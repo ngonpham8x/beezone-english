@@ -41,11 +41,11 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
     ],
   },
   {
-    title: 'Quản lý đào tạo (tạo, sửa, xóa)',
+    title: 'Quản lý đào tạo (thêm, sửa, xóa)',
     options: [
-      { module: 'academic', action: 'classes', label: 'Quản lý lớp học & lịch học' },
-      { module: 'academic', action: 'rooms', label: 'Quản lý phòng học' },
-      { module: 'academic', action: 'programs', label: 'Quản lý chương trình học' },
+      { module: 'academic', action: 'programs', label: 'Thêm / sửa / xóa chương trình học' },
+      { module: 'academic', action: 'classes', label: 'Thêm / sửa / xóa lớp học & lịch học' },
+      { module: 'academic', action: 'rooms', label: 'Thêm / sửa / xóa phòng học' },
     ],
   },
   {

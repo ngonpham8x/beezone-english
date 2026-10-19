@@ -33,7 +33,7 @@ function permissionSummary(permissions: ReturnType<typeof createStaffPermissions
     grade: { view: 'xem điểm', edit: 'sửa điểm' },
     excel: { import: 'nhập Excel', export: 'xuất Excel' },
     report: { view: 'xem báo cáo', revenue: 'xem doanh thu' },
-    academic: { programs: 'quản lý chương trình học', classes: 'quản lý lớp và lịch học', rooms: 'quản lý phòng học' },
+    academic: { programs: 'thêm / sửa / xóa chương trình học', classes: 'thêm / sửa / xóa lớp và lịch học', rooms: 'thêm / sửa / xóa phòng học' },
   };
   const granted = Object.entries(labels).flatMap(([module, actions]) =>
     Object.entries(actions)
