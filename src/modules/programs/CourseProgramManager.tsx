@@ -1,5 +1,7 @@
 import {
   BookOpen,
+  Check,
+  ChevronDown,
   Edit2,
   GraduationCap,
   Layers,
@@ -9,10 +11,24 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { StatCard } from '../../components/StatCard';
 import { ClassRoom, CourseProgram, StaffPermissions, Student } from '../../types';
+
+const DEFAULT_CATEGORIES = [
+  'Mầm Non',
+  'Cambridge (Starters, KET, PET)',
+  'IELTS',
+  'TOEIC',
+  'TOEFL',
+  'Tiểu Học (Cấp 1)',
+  'THCS (Cấp 2)',
+  'THPT (Cấp 3)',
+  'Giao Tiếp / Khác',
+  'Family and Friends',
+  'Kỹ Năng & Thể Chất'
+];
 
 interface CourseProgramManagerProps {
   programs: CourseProgram[];
@@ -44,18 +60,53 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   // Form states
   const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState<CourseProgram['category']>('Cambridge');
-  const [formTuitionFee, setFormTuitionFee] = useState<number>(3000000);
+  const [formCategories, setFormCategories] = useState<string[]>([]);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [formTuitionFee, setFormTuitionFee] = useState<number | ''>('');
   const [formDescription, setFormDescription] = useState('');
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close category dropdown on outside click
+  useEffect(() => {
+    if (!isCategoryDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isCategoryDropdownOpen]);
+
+  // All available categories pool (defaults + existing programs + custom added)
+  const allAvailableCategories = useMemo(() => {
+    const set = new Set<string>(DEFAULT_CATEGORIES);
+    programs.forEach(p => {
+      if (p.category) {
+        p.category.split(',').forEach(c => {
+          const t = c.trim();
+          if (t) set.add(t);
+        });
+      }
+    });
+    customCategories.forEach(c => {
+      if (c.trim()) set.add(c.trim());
+    });
+    return Array.from(set);
+  }, [programs, customCategories]);
 
   const openCreateModal = () => {
     if (!canEdit) return;
     setEditingProgram(null);
     setFormCode(`ENG-${Date.now().toString().slice(-4)}`);
     setFormName('');
-    setFormCategory('Cambridge');
-    setFormTuitionFee(3000000);
+    setFormCategories([]);
+    setFormTuitionFee('');
     setFormDescription('');
+    setCategorySearch('');
+    setIsCategoryDropdownOpen(false);
     setIsModalOpen(true);
   };
 
@@ -64,9 +115,14 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     setEditingProgram(prog);
     setFormCode(prog.code);
     setFormName(prog.name);
-    setFormCategory(prog.category);
+    const cats = prog.category
+      ? prog.category.split(',').map(c => c.trim()).filter(Boolean)
+      : [];
+    setFormCategories(cats.length > 0 ? cats : ['Giao Tiếp / Khác']);
     setFormTuitionFee(prog.tuitionFee);
     setFormDescription(prog.description || '');
+    setCategorySearch('');
+    setIsCategoryDropdownOpen(false);
     setIsModalOpen(true);
   };
 
@@ -78,15 +134,18 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       return;
     }
     if (programs.some(program => program.id !== editingProgram?.id && program.code.trim().toLowerCase() === formCode.trim().toLowerCase())) { alert('Mã chương trình đã tồn tại.'); return; }
-    if (!Number.isFinite(formTuitionFee) || formTuitionFee < 0) { alert('Học phí phải là số không âm.'); return; }
+    const parsedTuitionFee = formTuitionFee === '' ? 0 : Number(formTuitionFee);
+    if (!Number.isFinite(parsedTuitionFee) || parsedTuitionFee < 0) { alert('Học phí phải là số không âm.'); return; }
+
+    const finalCategory = formCategories.length > 0 ? formCategories.join(', ') : 'Giao Tiếp / Khác';
 
     if (editingProgram) {
       onUpdateProgram({
         ...editingProgram,
         code: formCode.trim().toUpperCase(),
         name: formName.trim(),
-        category: formCategory,
-        tuitionFee: Number(formTuitionFee) || 0,
+        category: finalCategory,
+        tuitionFee: parsedTuitionFee,
         description: formDescription.trim()
       });
     } else {
@@ -94,8 +153,8 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
         id: `PROG_${Date.now()}`,
         code: formCode.trim().toUpperCase(),
         name: formName.trim(),
-        category: formCategory,
-        tuitionFee: Number(formTuitionFee) || 0,
+        category: finalCategory,
+        tuitionFee: parsedTuitionFee,
         description: formDescription.trim()
       };
       onAddProgram(newProgram);
@@ -119,10 +178,29 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     }
   };
 
+  // Filter categories list
+  const availableFilterCategories = useMemo(() => {
+    const set = new Set<string>();
+    ['Mầm Non', 'Cambridge', 'IELTS', 'TOEIC', 'Tiểu Học (Cấp 1)', 'THCS (Cấp 2)', 'THPT (Cấp 3)', 'Giao Tiếp / Khác'].forEach(c => set.add(c));
+    programs.forEach(p => {
+      if (p.category) {
+        p.category.split(',').forEach(c => {
+          const t = c.trim();
+          if (t) set.add(t);
+        });
+      }
+    });
+    return ['all', ...Array.from(set)];
+  }, [programs]);
+
   // Filtered programs
   const filteredPrograms = useMemo(() => {
     return programs.filter(p => {
-      const matchCat = filterCategory === 'all' || p.category === filterCategory;
+      const pCats = p.category ? p.category.split(',').map(c => c.trim().toLowerCase()) : [];
+      const matchCat =
+        filterCategory === 'all' ||
+        pCats.includes(filterCategory.toLowerCase()) ||
+        (p.category && p.category.toLowerCase().includes(filterCategory.toLowerCase()));
       const matchKey =
         p.name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
         p.code.toLowerCase().includes(searchKeyword.toLowerCase());
@@ -172,7 +250,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       {/* Filter and Search Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-2">
-          {['all', 'Cambridge', 'IELTS', 'TOEIC', 'Cấp 1', 'Cấp 2', 'Khác'].map(cat => (
+          {availableFilterCategories.map(cat => (
             <button
               key={cat}
               type="button"
@@ -212,10 +290,14 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
             >
               <div>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-extrabold border border-amber-200">
-                    {prog.category}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-slate-400">
+                  <div className="flex flex-wrap gap-1">
+                    {(prog.category ? prog.category.split(',') : ['Khác']).map(c => c.trim()).filter(Boolean).map(cat => (
+                      <span key={cat} className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-extrabold border border-amber-200">
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-xs font-mono font-bold text-slate-400 shrink-0">
                     {prog.code}
                   </span>
                 </div>
@@ -313,24 +395,164 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Phân loại
+                <div className="relative" ref={categoryDropdownRef}>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Phân loại *</span>
+                    {formCategories.length > 0 && (
+                      <span className="text-[10px] font-semibold text-amber-700">
+                        {formCategories.length} đã chọn
+                      </span>
+                    )}
                   </label>
-                  <select
-                    value={formCategory}
-                    onChange={e => setFormCategory(e.target.value as CourseProgram['category'])}
-                    className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-600 focus:outline-hidden bg-white"
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryDropdownOpen(prev => !prev)}
+                    className="w-full min-h-[38px] text-xs px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-600 focus:outline-hidden bg-white flex items-center justify-between gap-2 text-left cursor-pointer"
                   >
-                    <option value="Cambridge">Cambridge (Starters, KET, PET)</option>
-                    <option value="IELTS">IELTS</option>
-                    <option value="TOEIC">TOEIC</option>
-                    <option value="TOEFL">TOEFL</option>
-                    <option value="Cấp 1">Tiểu Học (Cấp 1)</option>
-                    <option value="Cấp 2">THCS (Cấp 2)</option>
-                    <option value="Cấp 3">THPT (Cấp 3)</option>
-                    <option value="Khác">Giao Tiếp / Khác</option>
-                  </select>
+                    <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
+                      {formCategories.length === 0 ? (
+                        <span className="text-slate-400 font-normal">Chọn hoặc thêm phân loại...</span>
+                      ) : (
+                        formCategories.map(cat => (
+                          <span
+                            key={cat}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[11px]"
+                          >
+                            <span className="truncate max-w-[120px]">{cat}</span>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFormCategories(prev => prev.filter(c => c !== cat));
+                              }}
+                              className="hover:text-red-700 cursor-pointer ml-0.5 text-xs font-extrabold"
+                              title="Bỏ phân loại này"
+                            >
+                              ×
+                            </span>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isCategoryDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 text-xs">
+                      <div className="flex gap-1.5 mb-2">
+                        <input
+                          type="text"
+                          value={categorySearch}
+                          onChange={e => setCategorySearch(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const trimmed = categorySearch.trim();
+                              if (trimmed) {
+                                if (!customCategories.includes(trimmed)) {
+                                  setCustomCategories(prev => [...prev, trimmed]);
+                                }
+                                if (!formCategories.includes(trimmed)) {
+                                  setFormCategories(prev => [...prev, trimmed]);
+                                }
+                                setCategorySearch('');
+                              }
+                            }
+                          }}
+                          placeholder="Tìm hoặc gõ thêm phân loại..."
+                          className="flex-1 text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-amber-600 focus:outline-hidden"
+                          autoFocus
+                        />
+                        {categorySearch.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = categorySearch.trim();
+                              if (trimmed) {
+                                if (!customCategories.includes(trimmed)) {
+                                  setCustomCategories(prev => [...prev, trimmed]);
+                                }
+                                if (!formCategories.includes(trimmed)) {
+                                  setFormCategories(prev => [...prev, trimmed]);
+                                }
+                                setCategorySearch('');
+                              }
+                            }}
+                            className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Thêm
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar">
+                        {allAvailableCategories
+                          .filter(c => !categorySearch.trim() || c.toLowerCase().includes(categorySearch.trim().toLowerCase()))
+                          .map(cat => {
+                            const isSelected = formCategories.includes(cat);
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => {
+                                  setFormCategories(prev =>
+                                    prev.includes(cat)
+                                      ? prev.filter(c => c !== cat)
+                                      : [...prev, cat]
+                                  );
+                                }}
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left transition cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-amber-50 text-amber-900 font-bold'
+                                    : 'text-slate-700 hover:bg-slate-100 font-medium'
+                                }`}
+                              >
+                                <span className="truncate">{cat}</span>
+                                {isSelected ? (
+                                  <Check className="w-4 h-4 text-amber-600 shrink-0 ml-1" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded border border-slate-300 shrink-0 ml-1" />
+                                )}
+                              </button>
+                            );
+                          })}
+
+                        {categorySearch.trim() && !allAvailableCategories.some(c => c.toLowerCase() === categorySearch.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = categorySearch.trim();
+                              if (trimmed) {
+                                if (!customCategories.includes(trimmed)) {
+                                  setCustomCategories(prev => [...prev, trimmed]);
+                                }
+                                if (!formCategories.includes(trimmed)) {
+                                  setFormCategories(prev => [...prev, trimmed]);
+                                }
+                                setCategorySearch('');
+                              }
+                            }}
+                            className="w-full flex items-center gap-2 px-2.5 py-2 text-xs text-amber-700 hover:bg-amber-50 rounded-lg font-bold border-t border-slate-100 mt-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm mới: &ldquo;{categorySearch.trim()}&rdquo;</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="pt-2 mt-1 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Tích chọn 1 hoặc nhiều phân loại</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsCategoryDropdownOpen(false)}
+                          className="font-bold text-amber-700 hover:text-amber-800 cursor-pointer px-2 py-0.5 rounded-md hover:bg-amber-50"
+                        >
+                          Xong
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -356,11 +578,23 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                   type="number"
                   required
                   min="0"
-                  step="50000"
+                  step="any"
                   value={formTuitionFee}
-                  onChange={e => setFormTuitionFee(Number(e.target.value))}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormTuitionFee(val === '' ? '' : Number(val));
+                  }}
+                  placeholder="Nhập mức học phí tùy ý (VD: 540000)"
                   className="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-600 focus:outline-hidden"
                 />
+                {formTuitionFee !== '' && !isNaN(Number(formTuitionFee)) && Number(formTuitionFee) > 0 && (
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                    <span>Số tiền hiển thị:</span>
+                    <span className="font-bold text-emerald-700">
+                      {Number(formTuitionFee).toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>

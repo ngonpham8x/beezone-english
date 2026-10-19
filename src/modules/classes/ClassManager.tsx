@@ -575,8 +575,11 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <label className="block font-semibold text-slate-700 mb-1">Sức Chứa Tối Đa</label>
                   <input
                     type="number"
-                    value={editingClass.capacity}
-                    onChange={(e) => setEditingClass({ ...editingClass, capacity: Number(e.target.value) })}
+                    min="1"
+                    step="1"
+                    value={editingClass.capacity || ''}
+                    onChange={(e) => setEditingClass({ ...editingClass, capacity: e.target.value === '' ? 0 : Number(e.target.value) })}
+                    placeholder="VD: 20"
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                   />
                 </div>

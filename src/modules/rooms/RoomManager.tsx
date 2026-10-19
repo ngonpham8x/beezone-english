@@ -204,8 +204,11 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Sức Chứa (Chỗ ngồi)</label>
                 <input
                   type="number"
-                  value={editingRoom.capacity}
-                  onChange={(e) => setEditingRoom({ ...editingRoom, capacity: Number(e.target.value) })}
+                  min="0"
+                  step="1"
+                  value={editingRoom.capacity || ''}
+                  onChange={(e) => setEditingRoom({ ...editingRoom, capacity: e.target.value === '' ? 0 : Number(e.target.value) })}
+                  placeholder="VD: 15"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                 />
               </div>
