@@ -42,6 +42,9 @@ export const HorizontalScroll = forwardRef<HTMLDivElement, HorizontalScrollProps
 
   return <div className="min-w-0">
     {scroll.max > 1 && <div role="group" aria-label={`${label}: điều khiển cuộn ngang`} className="horizontal-scroll-controls print:hidden">
+      <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 shadow-2xs shrink-0 select-none">
+        ↔ Cuộn ngang
+      </span>
       <button type="button" onClick={() => move(-1)} disabled={scroll.position <= 1} aria-label={`${label}: cuộn trái`}><ChevronLeft className="h-4 w-4" /></button>
       <input type="range" min={0} max={scroll.max} step={1} value={scroll.position} aria-label={`${label}: vị trí cuộn ngang`} onChange={event => {
         const viewport = viewportRef.current;
