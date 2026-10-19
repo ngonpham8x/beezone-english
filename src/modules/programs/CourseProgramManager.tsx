@@ -14,6 +14,7 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { StatCard } from '../../components/StatCard';
+import { splitProgramCategories } from '../../lib/programCategories';
 import { ClassRoom, CourseProgram, StaffPermissions, Student } from '../../types';
 
 const DEFAULT_CATEGORIES = [
@@ -85,7 +86,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     const set = new Set<string>(DEFAULT_CATEGORIES);
     programs.forEach(p => {
       if (p.category) {
-        p.category.split(',').forEach(c => {
+        splitProgramCategories(p.category).forEach(c => {
           const t = c.trim();
           if (t) set.add(t);
         });
@@ -116,7 +117,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     setFormCode(prog.code);
     setFormName(prog.name);
     const cats = prog.category
-      ? prog.category.split(',').map(c => c.trim()).filter(Boolean)
+      ? splitProgramCategories(prog.category)
       : [];
     setFormCategories(cats.length > 0 ? cats : ['Giao Tiếp / Khác']);
     setFormTuitionFee(prog.tuitionFee);
@@ -184,7 +185,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     ['Mầm Non', 'Cambridge', 'IELTS', 'TOEIC', 'Tiểu Học (Cấp 1)', 'THCS (Cấp 2)', 'THPT (Cấp 3)', 'Giao Tiếp / Khác'].forEach(c => set.add(c));
     programs.forEach(p => {
       if (p.category) {
-        p.category.split(',').forEach(c => {
+        splitProgramCategories(p.category).forEach(c => {
           const t = c.trim();
           if (t) set.add(t);
         });
@@ -196,7 +197,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   // Filtered programs
   const filteredPrograms = useMemo(() => {
     return programs.filter(p => {
-      const pCats = p.category ? p.category.split(',').map(c => c.trim().toLowerCase()) : [];
+      const pCats = splitProgramCategories(p.category).map(c => c.toLowerCase());
       const matchCat =
         filterCategory === 'all' ||
         pCats.includes(filterCategory.toLowerCase()) ||
@@ -291,7 +292,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-wrap gap-1">
-                    {(prog.category ? prog.category.split(',') : ['Khác']).map(c => c.trim()).filter(Boolean).map(cat => (
+                    {(prog.category ? splitProgramCategories(prog.category) : ['Khác']).map(cat => (
                       <span key={cat} className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-extrabold border border-amber-200">
                         {cat}
                       </span>
@@ -395,7 +396,14 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                   />
                 </div>
 
-                <div className="relative" ref={categoryDropdownRef}>
+                <div className="relative" ref={categoryDropdownRef} onKeyDown={event => {
+                  if (event.key === 'Escape' && isCategoryDropdownOpen) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setIsCategoryDropdownOpen(false);
+                    categoryDropdownRef.current?.querySelector('button')?.focus();
+                  }
+                }}>
                   <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                     <span>Phân loại *</span>
                     {formCategories.length > 0 && (
@@ -406,6 +414,8 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                   </label>
                   <button
                     type="button"
+                    aria-label="Chọn phân loại chương trình"
+                    aria-expanded={isCategoryDropdownOpen}
                     onClick={() => setIsCategoryDropdownOpen(prev => !prev)}
                     className="w-full min-h-[38px] text-xs px-3 py-1.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-600 focus:outline-hidden bg-white flex items-center justify-between gap-2 text-left cursor-pointer"
                   >

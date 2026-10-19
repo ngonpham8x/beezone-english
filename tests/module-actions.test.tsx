@@ -64,6 +64,21 @@ afterEach(() => {
 });
 
 describe('domain command integration', () => {
+  it.each(['grades', 'attendance'] as const)('preserves class %s history when an owner requests deletion', (history) => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const classroom = { ...data.classes[0], id: 'historic-class', code: 'HISTORY', studentIds: [] };
+    data.classes.push(classroom);
+    if (history === 'grades') data.grades.push({ ...data.grades[0], id: 'historic-grade', classId: classroom.id });
+    else data.attendanceSessions = [{ id: 'historic-attendance', classId: classroom.id, date: centerDate(), lessonTopic: 'Review', entries: [] }];
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const before = { classes: result.current.store.classes, grades: result.current.store.grades, attendance: result.current.store.attendanceSessions };
+    act(() => result.current.actions.handleDeleteClass(classroom.id));
+    expect(result.current.store.classes).toEqual(before.classes);
+    expect(result.current.store.grades).toEqual(before.grades);
+    expect(result.current.store.attendanceSessions).toEqual(before.attendance);
+    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('lịch sử'));
+  });
   it('creates academic records, teachers and students only with the corresponding active staff grants', () => {
     const user = { ...limitedStaff, permissions: createStaffPermissions() };
     const { result, rerender } = renderHook(({ account }) => useTestCenter(account), { initialProps: { account: user } });

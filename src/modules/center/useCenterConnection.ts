@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useEffect, useRef, useState } from 'react';
 import { registerActiveSession, removeActiveSession } from '../../lib/activeSessions';
 import { completedAuthUrl } from '../../lib/appUrl';
+import { reportError } from '../../lib/diagnostics';
 import {
   createMockSessionForAccount,
   DEV_OWNER_ACCOUNT,
@@ -298,7 +299,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         if (result.error?.code === 'PT413')
           throw new Error('Dữ liệu vượt giới hạn 32 MB. Hãy sao lưu thay đổi đang nhập và liên hệ quản trị.');
         if (result.error) {
-          console.error('[CenterSync Error]', result.error);
+          reportError('center-sync', result.error);
           const errorDetail = result.error.message || result.error.details || '';
           const hint = result.error.code === '42501'
             ? ' (Tài khoản hiện tại chưa được cấp quyền lưu mục này trên máy chủ)'

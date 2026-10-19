@@ -113,12 +113,8 @@ export function createClassActions({
 
   const handleDeleteClass = (id: string) => {
     if (!canManageAcademic(currentUser, 'classes')) return;
-    if (currentUser?.role !== 'owner' && (grades.some(grade => grade.classId === id) || attendanceSessions.some(session => session.classId === id))) {
+    if (grades.some(grade => grade.classId === id) || attendanceSessions.some(session => session.classId === id)) {
       alert('Lớp có lịch sử điểm hoặc điểm danh. Hãy kết thúc đợt học để giữ hồ sơ.');
-      return;
-    }
-    if (attendanceSessions.some((session) => session.classId === id && session.billing)) {
-      alert('Lớp có lịch sử học phí theo buổi. Hãy kết thúc đợt học để giữ hồ sơ.');
       return;
     }
     if (
