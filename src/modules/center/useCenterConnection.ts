@@ -297,10 +297,16 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
           throw new Error('Đã đạt giới hạn lưu dữ liệu. Chờ khoảng một phút rồi thử lại; thay đổi đang nhập vẫn được giữ nguyên.');
         if (result.error?.code === 'PT413')
           throw new Error('Dữ liệu vượt giới hạn 32 MB. Hãy sao lưu thay đổi đang nhập và liên hệ quản trị.');
-        if (result.error)
+        if (result.error) {
+          console.error('[CenterSync Error]', result.error);
+          const errorDetail = result.error.message || result.error.details || '';
+          const hint = result.error.code === '42501'
+            ? ' (Tài khoản hiện tại chưa được cấp quyền lưu mục này trên máy chủ)'
+            : (errorDetail ? ` (${errorDetail})` : '');
           throw new Error(
-            'Không thể lưu dữ liệu lên máy chủ. Kiểm tra kết nối và quyền truy cập rồi thử lại.',
+            `Không thể lưu dữ liệu lên máy chủ. Kiểm tra kết nối và quyền truy cập rồi thử lại.${hint}`,
           );
+        }
         if (!active) return;
         cloudRevisionRef.current = result.data.updated_at;
         savedPayloadRef.current = JSON.stringify(payload);
