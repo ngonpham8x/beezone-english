@@ -2,6 +2,7 @@ import { CheckboxMultiSelect } from '../../components/CheckboxMultiSelect';
 import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { showAlert } from '../../lib/dialogs';
 import { academicPermission } from '../../lib/permissions';
+import { formatTeacherCode, nextTeacherId } from '../../lib/identifiers';
 import {
   Award,
   BookOpen,
@@ -68,7 +69,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const handleOpenAdd = () => {
     if (!canAdd) return;
     setEditingTeacher({
-      id: `TEACHER_${crypto.randomUUID()}`,
+      id: nextTeacherId(teachers),
       name: '',
       phone: '',
       email: '',
@@ -126,7 +127,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
       {/* Teacher Cards Grid */}
       <div className="entity-grid">
-        {teachers.filter(teacher => matchesSearch(searchQuery, teacher.name, teacher.phone, teacher.email)).map((teacher) => {
+        {teachers.filter(teacher => matchesSearch(searchQuery, teacher.name, teacher.phone, teacher.email)).map((teacher, index) => {
           const teacherClasses = classes.filter(c => c.teacherId === teacher.id);
 
           return (
@@ -140,7 +141,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                     <TeacherAvatar teacher={teacher} className="h-14 w-14 shrink-0 text-sm shadow-xs" />
                     <div className="min-w-0">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                        {teacher.id}
+                        {formatTeacherCode(teacher, index)}
                       </span>
                       <h3 className="font-bold text-slate-900 text-base mt-0.5">{teacher.name}</h3>
                       <div className="text-xs text-amber-700 font-semibold flex items-center gap-1">

@@ -403,4 +403,58 @@ describe('StudentManager multi-class dropdown selector', () => {
       })
     );
   });
+
+  it('RoomManager formats raw UUID IDs as clean P-01 codes and hides raw UUIDs', () => {
+    const mockRooms: Room[] = [
+      { id: 'ROOM_1792406259385', name: 'Phòng 101', capacity: 20, status: 'available' },
+      { id: 'ROOM_c28981b6-f638-47ed-9e2e-bc910b025608', name: 'Phòng 102', capacity: 15, status: 'available' },
+    ];
+    render(
+      <RoomManager
+        rooms={mockRooms}
+        classes={[]}
+        permissions={OWNER_PERMISSIONS}
+        isOwner={true}
+        onAddRoom={vi.fn()}
+        onUpdateRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />
+    );
+
+    // Badges should show P-01 and P-02, not the raw UUIDs
+    expect(screen.getByText('P-01')).toBeTruthy();
+    expect(screen.getByText('P-02')).toBeTruthy();
+    expect(screen.queryByText('ROOM_1792406259385')).toBeNull();
+    expect(screen.queryByText('ROOM_c28981b6-f638-47ed-9e2e-bc910b025608')).toBeNull();
+  });
+
+  it('TeacherManager formats raw UUID IDs as clean GV-01 codes and hides raw UUIDs', () => {
+    const mockTeachers: Teacher[] = [
+      {
+        id: 'TEACHER_1792406259385',
+        name: 'Nguyễn Thị Hoa',
+        phone: '0901234567',
+        email: 'hoa@example.com',
+        address: 'Hà Nội',
+        specialty: 'IELTS',
+        assignedClassIds: [],
+      },
+    ];
+    render(
+      <TeacherManager
+        teachers={mockTeachers}
+        classes={[]}
+        permissions={OWNER_PERMISSIONS}
+        isOwner={true}
+        onAddTeacher={vi.fn()}
+        onUpdateTeacher={vi.fn()}
+        onDeleteTeacher={vi.fn()}
+        onEditClass={vi.fn()}
+      />
+    );
+
+    // Badge should show GV-01, not raw TEACHER_1792406259385
+    expect(screen.getByText('GV-01')).toBeTruthy();
+    expect(screen.queryByText('TEACHER_1792406259385')).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 import { ConfirmedForm } from '../../components/ConfirmedForm';
-import { nextStudentCode } from '../../lib/identifiers';
+import { nextStudentCode, nextRoomId } from '../../lib/identifiers';
 import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass, classProgramIds, classMatchesProgram } from '../../lib/studentClasses';
@@ -439,7 +439,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     if ((!canEdit && !canAdd) || !canCreateRoom || !editingClass || !newRoomName.trim()) return;
     const existingRoom = rooms.find((room) => room.name.trim().toLocaleLowerCase('vi-VN') === newRoomName.trim().toLocaleLowerCase('vi-VN'));
     const room = existingRoom || {
-      id: `ROOM_${Date.now()}`,
+      id: nextRoomId(rooms),
       name: newRoomName.trim(),
       capacity: Math.max(0, newRoomCapacity),
       status: 'available' as const,

@@ -1,5 +1,6 @@
 import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { academicPermission } from '../../lib/permissions';
+import { formatRoomCode, nextRoomId } from '../../lib/identifiers';
 import { showAlert } from '../../lib/dialogs';
 import { CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
 import React, { useState } from 'react';
@@ -37,7 +38,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const handleOpenAdd = () => {
     if (!canAdd) return;
     setEditingRoom({
-      id: `ROOM_${crypto.randomUUID()}`,
+      id: nextRoomId(rooms),
       name: '',
       capacity: 0,
       status: 'available',
@@ -88,7 +89,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
       {/* Grid */}
       <div className="entity-grid entity-grid--rooms">
-        {rooms.map((room) => {
+        {rooms.map((room, index) => {
           const roomClasses = classes.filter(c => c.roomId === room.id);
 
           return (
@@ -100,7 +101,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="min-w-0">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                      {room.id}
+                      {formatRoomCode(room, index)}
                     </span>
                     <h3 className="font-bold text-slate-900 text-base mt-1">{room.name}</h3>
                   </div>
