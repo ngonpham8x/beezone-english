@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { submitForm } from './submitForm';
 import * as dialogs from '../src/lib/dialogs';
 import React from 'react';
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
@@ -59,7 +60,7 @@ it('saves extra class checkboxes without creating duplicate student profiles', (
   fireEvent.click(screen.getAllByTitle(/Sửa/)[0]);
   fireEvent.click(screen.getByRole('button', { name: 'Chọn các lớp học' }));
   for (const cls of classes.slice(1)) fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(cls.code) }));
-  fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+  submitForm(screen.getByRole('dialog').querySelector('form')!);
   expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: student.id, classId: classes[0].id, additionalClassIds: [classes[1].id, classes[2].id] }));
 });
 

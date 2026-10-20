@@ -1,3 +1,4 @@
+import { academicPermission } from '../lib/permissions';
 import {
   BarChart3,
   BookOpen,
@@ -101,20 +102,20 @@ export const canAccessTab = (tab: string, user: UserAccount): tab is TabId => {
     case 'attendance':
       return permissions.student.view || permissions.teacher.view;
     case 'admissions':
-      return permissions.student.view;
+      return permissions.student.view || permissions.student.add || permissions.student.edit || permissions.student.delete;
     case 'programs':
-      return permissions.student.view || permissions.academic?.programs === true;
+      return permissions.student.view || (['add', 'edit', 'delete'] as const).some(action => academicPermission(permissions, 'programs', action));
     case 'students':
       return permissions.student.view;
     case 'teachers':
-      return permissions.teacher.view;
+      return permissions.teacher.view || (permissions.teacher.add ?? permissions.teacher.edit) || permissions.teacher.edit || permissions.teacher.delete;
     case 'classes':
-      return permissions.student.view || permissions.academic?.classes === true;
+      return permissions.student.view || (['add', 'edit', 'delete'] as const).some(action => academicPermission(permissions, 'classes', action));
     case 'rooms':
-      return permissions.student.view || permissions.teacher.view || permissions.academic?.rooms === true;
+      return permissions.student.view || permissions.teacher.view || (['add', 'edit', 'delete'] as const).some(action => academicPermission(permissions, 'rooms', action));
     case 'timetable':
     case 'teacher-schedule':
-      return permissions.student.view || permissions.teacher.view || permissions.academic?.classes === true;
+      return permissions.student.view || permissions.teacher.view || (['add', 'edit', 'delete'] as const).some(action => academicPermission(permissions, 'classes', action));
     case 'grades':
       return permissions.grade.view;
     case 'tuition':

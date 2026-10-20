@@ -1,3 +1,5 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import {
   AlertTriangle,
   CalendarDays,
@@ -20,6 +22,7 @@ import { validateRecurringChanges } from '../../lib/operations';
 import type { AttendanceSession, ScheduleChange, StaffPermissions } from '../../types';
 import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
+import { academicPermission } from '../../lib/permissions';
 
 interface TimetableManagerProps {
   scheduleChanges?: ScheduleChange[]; attendanceSessions?: AttendanceSession[];
@@ -69,6 +72,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
+  const [slotToDelete, setSlotToDelete] = useState<TimetableSlot | null>(null);
   const [selectedDays, setSelectedDays] = useState<string[]>(['Thứ 2']);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [isQuickClassOpen, setIsQuickClassOpen] = useState(false);
@@ -78,7 +82,9 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   const [newTeacherPhone, setNewTeacherPhone] = useState('');
   const [isQuickRoomOpen, setIsQuickRoomOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
-  const canEdit = isOwner || permissions?.academic?.classes === true;
+  const canEdit = isOwner || academicPermission(permissions, 'classes', 'edit');
+  const canAdd = isOwner || academicPermission(permissions, 'classes', 'add');
+  const canDelete = isOwner || academicPermission(permissions, 'classes', 'delete');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollTable = (direction: 'left' | 'right') => {
@@ -210,7 +216,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
     const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit || !editingSlot) return;
+    if (!editingSlot || (timetableSlots.some(item => item.id === editingSlot.id) ? !canEdit : !canAdd)) return;
     if (selectedDays.length === 0) {
       setConflictError('Vui lòng tích chọn ít nhất một ngày trong tuần.');
       return;
@@ -327,7 +333,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
             </button>
           </div>
 
-          {canEdit && (
+          {canAdd && (
             <button
               onClick={handleOpenAdd}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
@@ -405,7 +411,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         )}
       </div>
 
-      {onSaveChange && onDeleteChange && <ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={attendanceSessions} isOwner={isOwner} canManage={canEdit} onSave={onSaveChange} onDelete={onDeleteChange} />}
+      {onSaveChange && onDeleteChange && <ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={attendanceSessions} isOwner={isOwner} canManage={canEdit} permissions={permissions} onSave={onSaveChange} onDelete={onDeleteChange} />}
       <p className="text-xs text-slate-500">Lịch tuần bên dưới là lịch lặp lại. Xem lịch thực tế phía trên để biết buổi nghỉ, đổi lịch và học bù.</p>
       {/* TIMETABLE GRID TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -461,10 +467,10 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                                   >
                                     <div className="font-bold text-red-900 flex items-center justify-between">
                                       <span className="truncate">{cls?.name || 'Lớp học'}</span>
-                                      {canEdit && (
-                                        <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                                          <button onClick={() => handleOpenEdit(slot)} className="text-slate-400 hover:text-amber-600" title="Sửa ca"><Edit className="w-3 h-3" /></button>
-                                          <button onClick={() => onDeleteSlot(slot.id)} className="text-slate-400 hover:text-rose-600" title="Xóa ca"><Trash2 className="w-3 h-3" /></button>
+                                      {(canEdit || canDelete) && (
+                                        <span className="flex items-center gap-1 transition-opacity">
+                                          <button hidden={!canEdit} onClick={() => handleOpenEdit(slot)} className="text-slate-400 hover:text-amber-600" title="Sửa ca"><Edit className="w-3 h-3" /></button>
+                                          <button hidden={!canDelete} onClick={() => setSlotToDelete(slot)} className="text-slate-400 hover:text-rose-600" title="Xóa ca"><Trash2 className="w-3 h-3" /></button>
                                         </span>
                                       )}
                                     </div>
@@ -524,7 +530,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
+            <ConfirmedForm confirmWhen={timetableSlots.some(item => item.id === editingSlot.id)} entityLabel="lịch học" onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Lớp Học *</label>
                 <select
@@ -676,10 +682,14 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                   <Save className="w-4 h-4 text-slate-950" /> Lưu Ca Học
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}
+      <ConfirmModal isOpen={!!slotToDelete} title="Xác nhận xóa ca học"
+        message="Bạn có muốn xóa ca học này khỏi thời khóa biểu không?" confirmText="Xác nhận xóa"
+        onConfirm={() => { if (slotToDelete && canDelete) onDeleteSlot(slotToDelete.id); }}
+        onClose={() => setSlotToDelete(null)} />
     </div>
   );
 };

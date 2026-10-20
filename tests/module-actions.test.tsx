@@ -157,7 +157,7 @@ describe('domain command integration', () => {
     const before = snapshot();
     act(create);
     expect(snapshot()).toEqual(before);
-    rerender({ account: { ...user, permissions: { ...user.permissions, academic: { rooms: true, classes: true, programs: true }, student: { ...user.permissions.student, add: true }, teacher: { ...user.permissions.teacher, edit: true } } } });
+    rerender({ account: { ...user, permissions: { ...user.permissions, academic: { rooms: true, classes: true, programs: true }, student: { ...user.permissions.student, add: true }, teacher: { ...user.permissions.teacher, add: true, edit: true } } } });
     act(create);
     expect(result.current.store.classes.some(c => c.id === classroom.id)).toBe(true);
     expect(result.current.store.rooms.some(r => r.id === room.id)).toBe(true);

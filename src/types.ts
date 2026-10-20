@@ -2,13 +2,13 @@ export type UserRole = 'owner' | 'staff';
 
 export interface StaffPermissions {
   student: { view: boolean; add: boolean; edit: boolean; delete: boolean; export: boolean };
-  teacher: { view: boolean; edit: boolean; delete: boolean };
+  teacher: { view: boolean; add?: boolean; edit: boolean; delete: boolean };
   tuition: { view: boolean; collect: boolean; delete: boolean; showDebt: boolean };
   grade: { view: boolean; edit: boolean };
   excel: { import: boolean; export: boolean };
   report: { view: boolean; revenue: boolean };
   // Missing on older profiles: academic management must be explicitly granted.
-  academic?: { programs: boolean; classes: boolean; rooms: boolean };
+  academic?: { programs: boolean; classes: boolean; rooms: boolean } & Partial<Record<`${'programs' | 'classes' | 'rooms'}${'Add' | 'Edit' | 'Delete'}`, boolean>>;
   assignedClassIds?: string[];
   teacherId?: string;
 }

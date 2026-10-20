@@ -1,4 +1,7 @@
+import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
+import { nextStudentCode } from '../../lib/identifiers';
+import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { isStudentInClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
 import {
   AlertCircle,
@@ -22,7 +25,6 @@ import {
   X,
 } from 'lucide-react';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { toast } from '../../lib/toast';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ConfirmModal, AlertModal } from '../../components/ConfirmModal';
 import { DateInput } from '../../components/DateInput';
@@ -214,28 +216,30 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
 
   const handleCreateClassQuick = () => {
+    if (!onAddClass || (!isOwner && !academicPermission(permissions, 'classes', 'add'))) return;
     if (!newClassName.trim()) {
       showAlert('Vui lòng nhập tên lớp học');
       return;
     }
     const code = newClassCode.trim() || `LOP-${String(classes.length + 1).padStart(2, '0')}`;
+    if (classes.some(item => item.code.trim().toLowerCase() === code.toLowerCase())) { showAlert('Mã lớp đã tồn tại. Hãy nhập mã khác.'); return; }
     const newClass: ClassRoom = {
       id: `CLASS_${Date.now()}`,
       code,
       name: newClassName.trim(),
       capacity: 20,
-      programId: editingStudent?.programId || programs[0]?.id || '',
+      programId: editingStudent?.programId || '',
       teacherId: '',
       roomId: '',
       days: [],
       scheduleTime: '',
-      studentIds: editingStudent ? [editingStudent.id] : [],
-      courseStatus: 'active',
+      studentIds: [],
+      courseStatus: 'planned',
       billingMode: 'course',
     };
     onAddClass?.(newClass);
     if (editingStudent) {
-      setEditingStudent({ ...editingStudent, classId: newClass.id });
+      setEditingStudent(editingStudent.classId ? { ...editingStudent, additionalClassIds: [...new Set([...(editingStudent.additionalClassIds || []), newClass.id])] } : { ...editingStudent, classId: newClass.id });
     }
     setNewClassCode('');
     setNewClassName('');
@@ -361,8 +365,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   // Empty new student form builder
   const handleOpenAddModal = () => {
     if (!canAdd) return;
-    const nextCodeNum = students.length + 1;
-    const autoCode = `HS${nextCodeNum.toString().padStart(3, '0')}`;
+    const autoCode = nextStudentCode(students);
     setEditingStudent({
       id: `HS_NEW_${Date.now()}`,
       code: autoCode,
@@ -380,7 +383,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       parentPhone: '',
       enrollDate: centerDate(),
       notes: '',
-      status: 'active',
+      status: 'registered',
       feeStatus: 'unpaid'
     });
     setProgramEntryMode('catalog');
@@ -428,7 +431,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     let studentToSave = { ...editingStudent, dob, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
     const membershipError = validateStudentClasses(studentToSave, classes, students);
     if (membershipError) { showAlert(membershipError); return; }
-    if (programEntryMode === 'manual') {
+    if (programEntryMode === 'manual' && manualProgramName.trim()) {
       const name = manualProgramName.trim();
       if (!name) {
         showAlert('Vui lòng nhập tên chương trình học.');
@@ -448,7 +451,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         tuitionFee: 0,
         description: 'Tạo thủ công tại hồ sơ học viên.'
       };
-      if (!existingProgram && !isOwner && permissions.academic?.programs !== true) { showAlert('Bạn chưa được cấp quyền tạo chương trình học mới.'); return; }
+      if (!existingProgram && !isOwner && !academicPermission(permissions, 'programs', 'add')) { showAlert('Bạn chưa được cấp quyền tạo chương trình học mới.'); return; }
       if (!existingProgram) onCreateProgram(program);
       studentToSave = { ...studentToSave, programId: program.id };
     }
@@ -457,18 +460,13 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       studentToSave = { ...studentToSave, classId: selectedClass.id, programId: selectedClass.programId };
     }
 
-    if (!studentToSave.programId) {
-      showAlert('Vui lòng chọn hoặc nhập chương trình học.');
-      return;
-    }
+    // A registered prospect may be created before programs and classes exist.
 
     const existing = students.find(s => s.id === studentToSave.id);
     if (existing) {
       onUpdateStudent(studentToSave);
-      toast.success(`Đã cập nhật học viên “${studentToSave.name}” thành công!`);
     } else {
       onAddStudent(studentToSave);
-      toast.success(`Đã thêm mới học viên “${studentToSave.name}” thành công!`);
     }
 
     setIsModalOpen(false);
@@ -974,7 +972,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </button>
             )}
 
-            <form onSubmit={handleSaveStudent} className="space-y-4 text-xs">
+            <ConfirmedForm confirmWhen={students.some(item => item.id === editingStudent?.id)} entityLabel="học viên" onSubmit={handleSaveStudent} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Mã Học Sinh (Tự động)</label>
@@ -1056,7 +1054,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         value={editingStudent.programId}
                         onChange={(e) => setEditingStudent({ ...editingStudent, programId: e.target.value })}
                         className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
-                        required
                       >
                         <option value="">Chọn chương trình đã nhập từ Excel / danh mục</option>
                         {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1072,7 +1069,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         list="student-program-options"
                         placeholder="Nhập tên chương trình học..."
                         className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
-                        required
                       />
                       <datalist id="student-program-options">{programs.map((program) => <option key={program.id} value={program.name} />)}</datalist>
                       <p className="mt-1 text-[10px] text-slate-500">Tên mới sẽ được tạo trong danh mục và dùng được khi xuất/nhập Excel.</p>
@@ -1085,7 +1081,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     <label className="font-semibold text-slate-700 text-xs">
                       Lớp học ({selectedClassIds.length > 0 ? `${selectedClassIds.length} lớp đã chọn` : 'Chưa xếp lớp'})
                     </label>
-                    {onAddClass && (
+                    {onAddClass && (isOwner || academicPermission(permissions, 'classes', 'add')) && (
                       <button
                         type="button"
                         onClick={() => setIsQuickClassOpen(true)}
@@ -1096,6 +1092,16 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     )}
                   </div>
 
+                  {isQuickClassOpen && <fieldset className="mb-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <legend className="font-semibold">Tạo lớp trước khi lưu học viên</legend>
+                    <input aria-label="Mã lớp mới" value={newClassCode} onChange={event => setNewClassCode(event.target.value)} placeholder="Mã lớp (tự tạo nếu để trống)" className="w-full rounded-lg border border-slate-300 bg-white p-2" />
+                    <input aria-label="Tên lớp mới" value={newClassName} onChange={event => setNewClassName(event.target.value)} placeholder="Tên lớp học" className="w-full rounded-lg border border-slate-300 bg-white p-2" />
+                    <p className="text-slate-600">Có thể bổ sung chương trình, giáo viên, phòng và lịch học sau.</p>
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setIsQuickClassOpen(false)} className="rounded-lg border px-3 py-2">Đóng tạo lớp</button>
+                      <button type="button" onClick={handleCreateClassQuick} className="rounded-lg bg-amber-500 px-3 py-2 font-bold">Tạo lớp</button>
+                    </div>
+                  </fieldset>}
                   {/* Trigger Button */}
                   <button
                     type="button"
@@ -1410,7 +1416,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <Save className="w-4 h-4 text-slate-950" /> Lưu Học Sinh
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

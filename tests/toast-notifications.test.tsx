@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { submitForm } from './submitForm';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -391,7 +392,7 @@ describe('StudentManager multi-class dropdown selector', () => {
     fireEvent.click(secondClassCheckbox);
 
     // Submit form
-    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+    submitForm(screen.getByRole('dialog').querySelector('form')!);
 
     // Expect update with both classes
     expect(onUpdateStudent).toHaveBeenCalledWith(

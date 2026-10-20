@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { submitForm } from './submitForm';
 import * as dialogs from '../src/lib/dialogs';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -45,18 +46,17 @@ it.each([
   fireEvent.change(name, { target: { value: 'Test new record' } });
   if (kind === 'room') fireEvent.change(form.querySelector('input[type="number"]')!, { target: { value: '12' } });
   if (kind === 'student') {
-    fireEvent.change(form.querySelector('select[required]')!, { target: { value: initialPrograms[0].id } });
-    fireEvent.change(screen.getByPlaceholderText('Ví dụ: L9-PPTE hoặc Lớp 9 - Global Success'), { target: { value: initialClasses[0].code } });
+    // No program or class is required to create a registered student first.
   }
   if (kind === 'class') {
     fireEvent.change(screen.getByPlaceholderText('Chọn chương trình đã import hoặc nhập mới'), { target: { value: initialPrograms[0].name } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Thứ 2' }));
+    // A class may be created before its teacher, room and timetable.
   }
-  fireEvent.submit(form);
+  submitForm(form);
   expect(alert.mock.calls).toEqual([]);
   expect(screen.queryByRole('alert')?.textContent ?? '').toBe('');
   expect(add).toHaveBeenCalledOnce();
   expect(add).toHaveBeenCalledWith(expect.objectContaining({ name: 'Test new record' }));
-  if (kind === 'class') expect(replaceSchedule).toHaveBeenCalledWith(expect.any(String), [expect.objectContaining({ dayOfWeek: 'Thứ 2', startTime: '18:00', endTime: '19:30' })]);
+  if (kind === 'class') expect(replaceSchedule).toHaveBeenCalledWith(expect.any(String), []);
   expect(screen.queryByRole('dialog')).toBeNull();
 });

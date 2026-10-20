@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { submitForm } from './submitForm';
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -275,7 +276,7 @@ it('saves a payment deadline without changing payments or installment history', 
     />,
   );
   fireEvent.change(screen.getByLabelText('Hạn thanh toán'), { target: { value: '2026-10-20' } });
-  fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+  submitForm(screen.getByRole('dialog').querySelector('form')!);
   fireEvent.click(screen.getByRole('button', { name: 'Có, hoàn thành' }));
   expect(onUpdate).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -334,7 +335,7 @@ it('rejects an invalid course period before changing class or recurring schedule
     </LanguageProvider>,
   );
   fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2026-09-01' } });
-  fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+  submitForm(screen.getByRole('dialog').querySelector('form')!);
   expect(onUpdate).not.toHaveBeenCalled();
   expect(onReplace).not.toHaveBeenCalled();
   expect(screen.getByRole('alert').textContent).toContain('Ngày kết thúc');

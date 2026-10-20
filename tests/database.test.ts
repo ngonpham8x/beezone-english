@@ -34,6 +34,21 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it.each(['programs', 'rooms', 'classes', 'teachers'] as const)('enforces separate add/edit/delete grants for %s and respects explicit revocation of legacy grants', async (scope) => {
+    const entity = { id: 'new', name: 'Independent record', ...(scope === 'classes' ? { studentIds: [] } : scope === 'teachers' ? { assignedClassIds: [] } : {}) };
+    const payload = { ...base, [scope]: [entity] };
+    const permissions = scope === 'teachers' ? { teacher: { add: true, edit: false, delete: false } }
+      : { academic: { [scope]: true, [`${scope}Add`]: true, [`${scope}Edit`]: false, [`${scope}Delete`]: false } };
+    await asStaff(permissions);
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, [scope]: [{ ...entity, name: 'Denied edit' }] })])).rejects.toThrow(/denied/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(base)])).rejects.toThrow(/denied/);
+    await db.exec('reset role');
+    await asStaff(scope === 'teachers' ? { teacher: { add: false, edit: true, delete: true } } : { academic: { [`${scope}Edit`]: true, [`${scope}Delete`]: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, [scope]: [{ ...entity, name: 'Allowed edit' }] })]);
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(base)]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)])).rejects.toThrow(/denied/);
+  });
   it('supports delegated multi-class registration and rejects stale clients, invalid references and forged rosters', async () => {
     const classes = ['c1', 'c2', 'c3'].map(id => ({ id, studentIds: id === 'c1' ? ['s'] : [] }));
     const student = { id: 's', classId: 'c1', status: 'active', feeStatus: 'unpaid' };
@@ -84,7 +99,7 @@ describe('database migrations and permission enforcement', () => {
     const withRoom = { ...base, rooms: [{ id: 'r', name: 'Room' }] };
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(withRoom)]);
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withRoom, rooms: [{ id: 'r', name: 'Renamed' }] })]);
-    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withRoom, programs: [{ id: 'p' }] })])).rejects.toThrow(/Owner permission/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withRoom, programs: [{ id: 'p' }] })])).rejects.toThrow(/Owner permission|denied/);
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(base)]);
   });
   it('prevents delegated removal of classes, rooms and programs with linked history', async () => {
@@ -190,7 +205,7 @@ describe('database migrations and permission enforcement', () => {
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
     await asStaff({ student: { edit: true }, teacher: { edit: true } });
     const change = { id: 'change', kind: 'extra', classId: 'a', date: '2026-10-13', startTime: '18:00', endTime: '19:00', reason: 'Makeup' };
-    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [change] })])).rejects.toThrow(/Owner permission required: scheduleChanges/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [change] })])).rejects.toThrow(/Entity creation denied: schedule/);
   });
   it('permits enrollment history for a student editor and denies a viewer', async () => {
     const payload = { ...base, students: [{ id: 's', classId: 'a', feeStatus: 'unpaid' }], classes: [{ id: 'a', teacherId: 't', studentIds: ['s'] }] };
@@ -204,7 +219,7 @@ describe('database migrations and permission enforcement', () => {
   });
   it('denies an unauthorized settings write at the database', async () => {
     await asStaff();
-    await expect(db.query("update public.center_data set payload=$1::jsonb where id='primary'", [JSON.stringify({ ...base, settings: { name: 'Injected' } })])).rejects.toThrow(/Owner permission/);
+    await expect(db.query("update public.center_data set payload=$1::jsonb where id='primary'", [JSON.stringify({ ...base, settings: { name: 'Injected' } })])).rejects.toThrow(/Owner permission|denied/);
   });
   it('allows login activity without permitting business changes', async () => {
     await asStaff();

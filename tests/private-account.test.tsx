@@ -424,6 +424,7 @@ it('opens edit permissions dialog for a user, allows batch selection and updates
   // Click "Cập nhật cấp quyền"
   const submitBtn = screen.getByRole('button', { name: 'Cập nhật cấp quyền' });
   fireEvent.click(submitBtn);
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
 
   await waitFor(() => {
     expect(fetcher).toHaveBeenCalledWith(
@@ -438,7 +439,11 @@ it('opens edit permissions dialog for a user, allows batch selection and updates
   // Success message is displayed
   const update = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')?.[1];
   const grants = JSON.parse(String(update?.body)).permissions;
-  expect(grants.academic).toEqual({ programs: true, classes: true, rooms: true });
+  expect(Object.values(grants.academic).every(value => value === true)).toBe(true);
+  expect(grants.academic.classesAdd).toBe(true);
+  expect(grants.academic.classesEdit).toBe(true);
+  expect(grants.academic.classesDelete).toBe(true);
+  expect(grants.teacher.add).toBe(true);
   expect(grants.student.add).toBe(true);
   expect(grants.teacher.edit).toBe(true);
   expect(grants.teacher.delete).toBe(true);

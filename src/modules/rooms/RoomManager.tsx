@@ -1,3 +1,5 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
+import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
 import { CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
 import React, { useState } from 'react';
@@ -28,10 +30,12 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
 
-  const canEdit = isOwner || permissions.academic?.rooms === true;
+  const canEdit = isOwner || academicPermission(permissions, 'rooms', 'edit');
+  const canAdd = isOwner || academicPermission(permissions, 'rooms', 'add');
+  const canDelete = isOwner || academicPermission(permissions, 'rooms', 'delete');
 
   const handleOpenAdd = () => {
-    if (!canEdit) return;
+    if (!canAdd) return;
     setEditingRoom({
       id: `ROOM_${crypto.randomUUID()}`,
       name: '',
@@ -44,7 +48,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit || !editingRoom || !editingRoom.name.trim()) return;
+    if ((rooms.some(item => item.id === editingRoom?.id) ? !canEdit : !canAdd) || !editingRoom || !editingRoom.name.trim()) return;
     if (!Number.isInteger(editingRoom.capacity) || editingRoom.capacity <= 0) { showAlert('Sức chứa phòng phải là số nguyên lớn hơn 0.'); return; }
 
     if (rooms.some(r => r.id === editingRoom.id)) {
@@ -71,7 +75,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
           </p>
         </div>
 
-        {canEdit && (
+        {canAdd && (
           <button
             onClick={handleOpenAdd}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
@@ -101,9 +105,9 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                     <h3 className="font-bold text-slate-900 text-base mt-1">{room.name}</h3>
                   </div>
 
-                  {canEdit && (
+                  {(canEdit || canDelete) && (
                     <div className="flex shrink-0 items-center gap-1">
-                      <button
+                      <button hidden={!canEdit}
                         aria-label={`Sửa phòng ${room.name}`}
                         onClick={() => {
                           setEditingRoom(room);
@@ -113,7 +117,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button
+                      <button hidden={!canDelete}
                         aria-label={`Xóa phòng ${room.name}`}
                         onClick={() => setRoomToDelete(room)}
                         className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
@@ -189,7 +193,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
               {rooms.some(r => r.id === editingRoom.id) ? 'Cập Nhật Phòng Học' : 'Thêm Phòng Học Mới'}
             </h3>
 
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
+            <ConfirmedForm confirmWhen={rooms.some(item => item.id === editingRoom?.id)} entityLabel="phòng học" onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Tên Phòng Học *</label>
                 <input
@@ -254,7 +258,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                   <Save className="w-4 h-4 text-slate-950" /> Lưu Phòng Học
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

@@ -1,23 +1,39 @@
 import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { Teacher, UserAccount } from '../../types';
-import { hasStaffPermission } from '../../lib/permissions';
+import { canManageAcademic, hasStaffPermission } from '../../lib/permissions';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
 type Context = Pick<
   CenterStore,
-  'teachers' | 'setTeachers' | 'classes' | 'timetableSlots' | 'scheduleChanges'
+  'teachers' | 'setTeachers' | 'classes' | 'setClasses' | 'timetableSlots' | 'scheduleChanges'
 > & { currentUser: UserAccount | null; addLog: ActivityLogger };
 export function createTeacherActions({
   teachers,
   setTeachers,
   classes,
+  setClasses,
   timetableSlots,
   scheduleChanges,
   currentUser,
   addLog,
 }: Context) {
+  const handleSaveTeacher = (teacher: Teacher): string | null => {
+    const exists = teachers.some(item => item.id === teacher.id);
+    if (!hasStaffPermission(currentUser, 'teacher', exists ? 'edit' : 'add')) return 'Bạn chưa có quyền thực hiện thao tác này với giáo viên.';
+    if (!teacher.name.trim()) return 'Nhập họ tên giáo viên.';
+    const selected = new Set(teacher.assignedClassIds);
+    if ([...selected].some(id => !classes.some(item => item.id === id))) return 'Lớp được chọn không còn tồn tại.';
+    const changed = classes.some(item => selected.has(item.id) !== (item.teacherId === teacher.id));
+    if (changed && !canManageAcademic(currentUser, 'classes', 'edit')) return 'Cần quyền sửa lớp học để thay đổi phân công giáo viên.';
+    const normalized = { ...teacher, name: teacher.name.trim(), assignedClassIds: [...selected] };
+    setTeachers(previous => exists ? previous.map(item => item.id === teacher.id ? normalized : item) : [...previous, normalized]);
+    if (changed) setClasses(previous => previous.map(item => selected.has(item.id) ? { ...item, teacherId: teacher.id } : item.teacherId === teacher.id ? { ...item, teacherId: '' } : item));
+    addLog(exists ? 'SỬA' : 'THÊM', 'Giáo viên', `${exists ? 'Cập nhật' : 'Thêm'} giáo viên ${normalized.name}`);
+    toast.success(`${exists ? 'Cập nhật' : 'Thêm'} giáo viên ${normalized.name} thành công!`);
+    return null;
+  };
   // Teacher CRUD Handlers
   const handleAddTeacher = (t: Teacher) => {
     if (!hasStaffPermission(currentUser, 'teacher', 'add')) return;
@@ -44,6 +60,7 @@ export function createTeacherActions({
       return;
     }
     const t = teachers.find((item) => item.id === id);
+    if (!t) { showAlert('Giáo viên không còn tồn tại.'); return; }
     const managedClasses = classes.filter((classroom) => classroom.teacherId === id);
     if (managedClasses.length > 0 || timetableSlots.some((s) => s.teacherId === id)) {
       const msg = `Không thể xóa giáo viên ${t?.name || ''} vì đang phụ trách ${managedClasses.length} lớp. Hãy phân công giáo viên khác cho các lớp trước.`;
@@ -55,5 +72,5 @@ export function createTeacherActions({
     toast.success(`Đã xóa giáo viên ${t?.name || ''} thành công!`);
   };
 
-  return { handleAddTeacher, handleUpdateTeacher, handleDeleteTeacher };
+  return { handleSaveTeacher, handleAddTeacher, handleUpdateTeacher, handleDeleteTeacher };
 }

@@ -1,3 +1,4 @@
+import { canManageAcademic } from '../lib/permissions';
 import { lazy, Suspense } from 'react';
 import type { CenterActions } from '../modules/center/createCenterActions';
 import type { CenterStore } from '../modules/center/useCenterStore';
@@ -101,6 +102,7 @@ export function WorkspaceScreens({
     handleDropStudent,
     handleReEnrollStudent,
     handleAddTeacher,
+    handleSaveTeacher,
     handleUpdateTeacher,
     handleDeleteTeacher,
     handleAddClass,
@@ -161,7 +163,7 @@ export function WorkspaceScreens({
             setTaskRequest(destination);
             if (destination.tab === 'students')
               setSearchQuery(students.find((s) => s.id === destination.studentId)?.code || '');
-            if (destination.tab === 'classes' && (currentUser.role === 'owner' || currentUser.permissions.academic?.classes === true))
+            if (destination.tab === 'classes' && canManageAcademic(currentUser, 'classes', 'edit'))
               setClassEditRequest(classes.find((c) => c.id === destination.classId) || null);
             navigateTo(destination.tab);
           }}
@@ -203,6 +205,7 @@ export function WorkspaceScreens({
           isOwner={currentUser.role === 'owner'}
           searchQuery={searchQuery}
           onAddTeacher={handleAddTeacher}
+          onSaveTeacher={handleSaveTeacher}
           onUpdateTeacher={handleUpdateTeacher}
           onDeleteTeacher={handleDeleteTeacher}
           onEditClass={(classroom) => {
@@ -281,7 +284,7 @@ export function WorkspaceScreens({
           classes={classes}
           rooms={rooms}
           isOwner={currentUser.role === 'owner'}
-          canManage={currentUser.permissions?.academic?.classes === true}
+          permissions={currentUser.permissions}
           onAddSlot={handleAddSlot}
           onSaveSlots={handleSaveSlots}
           onUpdateSlot={handleUpdateSlot}

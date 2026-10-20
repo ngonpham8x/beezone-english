@@ -44,8 +44,8 @@ export function createClassActions({
 }: Context) {
   // Class CRUD Handlers
   const handleAddClass = (c: ClassRoom) => {
-    if (!canManageAcademic(currentUser, 'classes')) {
-      toast.error('Bạn chưa được cấp quyền xóa lớp học.');
+    if (!canManageAcademic(currentUser, 'classes', 'add')) {
+      toast.error('Bạn chưa được cấp quyền thêm lớp học.');
       return;
     }
     const error = validateCourse(c);
@@ -53,15 +53,33 @@ export function createClassActions({
       showAlert(error);
       return;
     }
+    if (c.studentIds.length && !hasStaffPermission(currentUser, 'student', 'edit')) {
+      showAlert('Cần quyền sửa học viên để xếp học viên vào lớp mới.'); return;
+    }
+    if (c.studentIds.some(id => !students.some(student => student.id === id))) {
+      showAlert('Học viên được chọn không còn tồn tại.'); return;
+    }
+    if (c.capacity > 0 && students.filter(student => student.status === 'active' && c.studentIds.includes(student.id)).length > c.capacity) {
+      showAlert('Số học viên được chọn vượt sĩ số tối đa của lớp.'); return;
+    }
     if (c.courseStatus === 'completed')
       c = { ...c, completedDate: c.completedDate || centerDate() };
     setClasses((prev) => [...prev, c]);
+    if (c.studentIds.length) {
+      const updated = students.filter(student => c.studentIds.includes(student.id)).map(student => ({
+        ...student, classId: student.classId || c.id,
+        programId: student.classId ? student.programId : c.programId,
+        additionalClassIds: student.classId ? [...new Set([...(student.additionalClassIds || []), c.id])] : [],
+      }));
+      setStudents(previous => previous.map(student => updated.find(item => item.id === student.id) || student));
+      setEnrollments(previous => updated.reduce((history, student) => updateEnrollmentHistory(history, students.find(item => item.id === student.id), student, centerDate()), previous));
+    }
     addLog('THÊM', 'Lớp học', `Tạo lớp học mới ${c.name} (${c.code})`);
     toast.success(`Tạo lớp học mới ${c.name} (${c.code}) thành công!`);
   };
 
   const handleUpdateClass = (c: ClassRoom) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
+    if (!canManageAcademic(currentUser, 'classes', 'edit')) return;
     const previous = classes.find(item => item.id === c.id);
     if (students.some(student => isStudentInClass(student, c.id)) &&
         (previous?.programId !== c.programId || previous?.courseStatus !== c.courseStatus) &&
@@ -120,7 +138,7 @@ export function createClassActions({
   };
 
   const handleDeleteClass = (id: string) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
+    if (!canManageAcademic(currentUser, 'classes', 'delete')) return;
     if (grades.some(grade => grade.classId === id) || attendanceSessions.some(session => session.classId === id)) {
       const msg = 'Lớp có lịch sử điểm hoặc điểm danh. Hãy kết thúc đợt học để giữ hồ sơ.';
       showAlert(msg);
@@ -135,6 +153,7 @@ export function createClassActions({
       return;
     }
     const c = classes.find((item) => item.id === id);
+    if (!c) { showAlert('Lớp học không còn tồn tại.'); return; }
     const classStudents = students.filter((student) => isStudentInClass(student, id));
     const classReceipts = receipts.filter((receipt) => receipt.classId === id);
     if (classStudents.length > 0 || classReceipts.length > 0) {

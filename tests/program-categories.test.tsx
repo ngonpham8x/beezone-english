@@ -25,5 +25,6 @@ it('preserves categories through editing and closes the category popup before th
   expect(screen.getByRole('dialog')).toBeTruthy();
   expect(document.activeElement).toBe(trigger);
   fireEvent.click(screen.getByRole('button', { name: /Lưu Thay Đổi/i }));
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
   expect(onUpdateProgram).toHaveBeenCalledWith(expect.objectContaining({ category: program.category }));
 });

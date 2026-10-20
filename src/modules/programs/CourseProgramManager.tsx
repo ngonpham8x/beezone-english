@@ -1,3 +1,5 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
+import { academicPermission } from '../../lib/permissions';
 import { askConfirmation } from '../../lib/dialogs';
 import { showAlert } from '../../lib/dialogs';
 import {
@@ -64,7 +66,9 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   isOwner,
   permissions
 }) => {
-  const canEdit = isOwner || permissions?.academic?.programs === true;
+  const canEdit = isOwner || academicPermission(permissions, 'programs', 'edit');
+  const canAdd = isOwner || academicPermission(permissions, 'programs', 'add');
+  const canDelete = isOwner || academicPermission(permissions, 'programs', 'delete');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<CourseProgram | null>(null);
   const [programToDelete, setProgramToDelete] = useState<CourseProgram | null>(null);
@@ -120,7 +124,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   }, [programs, customCategories]);
 
   const openCreateModal = () => {
-    if (!canEdit) return;
+    if (!canAdd) return;
     setEditingProgram(null);
     setFormCode(`ENG-${Date.now().toString().slice(-4)}`);
     setFormName('');
@@ -150,7 +154,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit) return;
+    if (editingProgram ? !canEdit : !canAdd) return;
     if (!formName.trim() || !formCode.trim()) {
       showAlert('Vui lòng nhập đầy đủ mã và tên chương trình học');
       return;
@@ -249,7 +253,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
           </p>
         </div>
 
-        {canEdit && (
+        {canAdd && (
           <button
             type="button"
             onClick={openCreateModal}
@@ -477,9 +481,9 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                   <Users className="w-3.5 h-3.5" /> Chi tiết học viên
                 </button>
 
-                {canEdit && (
+                {(canEdit || canDelete) && (
                   <div className="flex items-center gap-1">
-                    <button
+                    <button hidden={!canEdit}
                       type="button"
                       onClick={() => openEditModal(prog)}
                       className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition cursor-pointer"
@@ -487,7 +491,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button
+                    <button hidden={!canDelete}
                       type="button"
                       onClick={() => handleDelete(prog)}
                       className="p-1.5 text-slate-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
@@ -521,7 +525,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <ConfirmedForm confirmWhen={programs.some(item => item.id === editingProgram?.id)} entityLabel="chương trình học" onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -776,7 +780,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                   {editingProgram ? 'Lưu Thay Đổi' : 'Tạo Khóa Học'}
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

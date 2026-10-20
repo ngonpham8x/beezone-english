@@ -20,8 +20,8 @@ export function createRoomActions({
 }: Context) {
   // Room CRUD Handlers
   const handleAddRoom = (r: Room) => {
-    if (!canManageAcademic(currentUser, 'rooms')) {
-      toast.error('Bạn chưa được cấp quyền xóa phòng học.');
+    if (!canManageAcademic(currentUser, 'rooms', 'add')) {
+      toast.error('Bạn chưa được cấp quyền thêm phòng học.');
       return;
     }
     setRooms((prev) => [...prev, r]);
@@ -30,20 +30,21 @@ export function createRoomActions({
   };
 
   const handleUpdateRoom = (r: Room) => {
-    if (!canManageAcademic(currentUser, 'rooms')) return;
+    if (!canManageAcademic(currentUser, 'rooms', 'edit')) return;
     setRooms((prev) => prev.map((item) => (item.id === r.id ? r : item)));
     addLog('SỬA', 'Phòng học', `Cập nhật phòng học ${r.name}`);
     toast.success(`Cập nhật phòng học ${r.name} thành công!`);
   };
 
   const handleDeleteRoom = (id: string) => {
-    if (!canManageAcademic(currentUser, 'rooms')) return;
+    if (!canManageAcademic(currentUser, 'rooms', 'delete')) return;
     if (scheduleChanges.some((c) => c.roomId === id)) {
       const msg = 'Phòng có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ phòng.';
       showAlert(msg);
       return;
     }
     const room = rooms.find((item) => item.id === id);
+    if (!room) { showAlert('Phòng học không còn tồn tại.'); return; }
     const roomClasses = classes.filter((classroom) => classroom.roomId === id);
     if (roomClasses.length > 0 || timetableSlots.some((slot) => slot.roomId === id)) {
       const msg = `Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${roomClasses.length} lớp. Hãy đổi phòng cho các lớp trước.`;

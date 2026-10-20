@@ -1,3 +1,6 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
+import { nextStudentCode } from '../../lib/identifiers';
+import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass, classProgramIds, classMatchesProgram } from '../../lib/studentClasses';
 import {
@@ -184,10 +187,12 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const [newStudentParent, setNewStudentParent] = useState('');
   const [newStudentPhone, setNewStudentPhone] = useState('');
 
-  const canEdit = isOwner || permissions.academic?.classes === true;
-  const canCreateProgram = isOwner || permissions.academic?.programs === true;
-  const canCreateRoom = isOwner || permissions.academic?.rooms === true;
-  const canCreateTeacher = isOwner || permissions.teacher?.edit === true;
+  const canEdit = isOwner || academicPermission(permissions, 'classes', 'edit');
+  const canAdd = isOwner || academicPermission(permissions, 'classes', 'add');
+  const canDelete = isOwner || academicPermission(permissions, 'classes', 'delete');
+  const canCreateProgram = isOwner || academicPermission(permissions, 'programs', 'add');
+  const canCreateRoom = isOwner || academicPermission(permissions, 'rooms', 'add');
+  const canCreateTeacher = isOwner || (permissions.teacher.add ?? permissions.teacher.edit) === true;
 
   useEffect(() => {
     if (!editRequest) return;
@@ -196,7 +201,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   }, [editRequest]);
 
   const handleOpenAdd = () => {
-    if (!canEdit) return;
+    if (!canAdd) return;
     setEditingClass({
       id: `CLASS_${crypto.randomUUID()}`,
       code: `LOP-0${classes.length + 1}`,
@@ -275,31 +280,32 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   };
 
   const handleCreateStudentQuick = () => {
+    if (!onAddStudent || (!isOwner && (!permissions.student.add || !permissions.student.edit))) return;
     if (!newStudentName.trim()) {
       showAlert('Vui lòng nhập họ tên học sinh');
       return;
     }
     const studentId = `ST_${Date.now()}`;
-    const code = `HS${String(students.length + 1).padStart(3, '0')}`;
+    const code = nextStudentCode(students);
     const newStudent: Student = {
       id: studentId,
       code,
       name: newStudentName.trim(),
-      parentName: newStudentParent.trim() || undefined,
-      parentPhone: newStudentPhone.trim() || undefined,
-      phone: newStudentPhone.trim() || undefined,
-      status: 'active',
-      classId: editingClass?.id || '',
+      parentName: newStudentParent.trim(),
+      parentPhone: newStudentPhone.trim(),
+      phone: newStudentPhone.trim(),
+      status: 'registered',
+      classId: classes.some(item => item.id === editingClass?.id) ? editingClass!.id : '',
       additionalClassIds: [],
       enrollDate: centerDate(),
-      programId: editingClass?.programId || programs[0]?.id || '',
+      programId: editingClass?.programId || '',
       address: '',
       email: '',
       school: '',
       gradeLevel: 'Khác',
       feeStatus: 'unpaid',
       gender: 'Chưa xác định',
-      dob: '2016-01-01',
+      dob: '',
     };
     onAddStudent?.(newStudent);
     setSelectedStudentIds((prev) => [...prev, studentId]);
@@ -311,7 +317,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit || !editingClass || !editingClass.name.trim()) return;
+    if ((classes.some(item => item.id === editingClass?.id) ? !canEdit : !canAdd) || !editingClass || !editingClass.name.trim()) return;
     const courseError = validateCourse(editingClass);
     if (courseError) { setScheduleError(courseError); return; }
     if (!editingClass.code.trim() || classes.some(c => c.id !== editingClass.id && c.code.trim().toLowerCase() === editingClass.code.trim().toLowerCase())) { setScheduleError('Mã lớp không được bỏ trống hoặc trùng với lớp khác.'); return; }
@@ -329,6 +335,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       return;
     }
     const validEntries = normalisedEntries as Array<ScheduleDraft & { startTime: string; endTime: string }>;
+    if (validEntries.length && (!teachers.some(item => item.id === editingClass.teacherId) || !rooms.some(item => item.id === editingClass.roomId))) {
+      setScheduleError('Có thể tạo lớp trước và để trống lịch. Khi xếp buổi học, hãy chọn giáo viên và phòng học.'); return;
+    }
     const previousSlots = timetableSlots.filter(slot => slot.classId === editingClass.id);
     const candidateSlots = validEntries.map((entry, index) => ({ ...entry, id: previousSlots.find(slot => slot.dayOfWeek === entry.dayOfWeek)?.id || `draft-${index}`, classId: editingClass.id, teacherId: editingClass.teacherId, roomId: editingClass.roomId }));
     const datedError = validateRecurringChanges([...classes.filter(c => c.id !== editingClass.id), editingClass], [...timetableSlots.filter(slot => slot.classId !== editingClass.id), ...candidateSlots], scheduleChanges);
@@ -368,7 +377,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     }
     if (createdProgram) onCreateProgram(createdProgram);
 
-    if (onUpdateStudent) {
+    if (onUpdateStudent && classes.some(item => item.id === savedClass.id)) {
       for (const st of students) {
         const shouldBeInClass = selectedStudentIds.includes(st.id);
         const isCurrentlyIn = isStudentInClass(st, savedClass.id);
@@ -427,7 +436,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   };
 
   const handleCreateRoom = () => {
-    if (!canEdit || !canCreateRoom || !editingClass || !newRoomName.trim()) return;
+    if ((!canEdit && !canAdd) || !canCreateRoom || !editingClass || !newRoomName.trim()) return;
     const existingRoom = rooms.find((room) => room.name.trim().toLocaleLowerCase('vi-VN') === newRoomName.trim().toLocaleLowerCase('vi-VN'));
     const room = existingRoom || {
       id: `ROOM_${Date.now()}`,
@@ -457,7 +466,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
           </p>
         </div>
 
-        {canEdit && (
+        {canAdd && (
           <button
             onClick={handleOpenAdd}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
@@ -517,9 +526,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                     </div>
                   </div>
 
-                  {canEdit && (
+                  {(canEdit || canDelete) && (
                     <div className="flex shrink-0 items-center gap-1">
-                      <button
+                      <button hidden={!canEdit}
                         aria-label={`Sửa lớp ${cls.name}`}
                         onClick={() => {
                           handleOpenEdit(cls);
@@ -529,7 +538,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button
+                      <button hidden={!canDelete}
                         aria-label={`Xóa lớp ${cls.name}`}
                         onClick={() => setClassToDelete(cls)}
                         className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
@@ -705,7 +714,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
               {classes.some(c => c.id === editingClass.id) ? 'Cập Nhật Lớp Học' : 'Tạo Lớp Học Mới'}
             </h3>
 
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
+            <ConfirmedForm confirmWhen={classes.some(item => item.id === editingClass?.id)} entityLabel="lớp học" onSubmit={handleSave} className="space-y-3 text-xs">
               <fieldset className="rounded-xl border border-sky-200 bg-sky-50 p-3">
                 <legend className="px-1 font-bold text-sky-950">Đợt học</legend>
                 <p className="mb-3 text-slate-600">Tạo lớp với mã mới cho mỗi đợt để giữ điểm, học phí và điểm danh của đợt trước.</p>
@@ -1155,7 +1164,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                     <Users className="w-4 h-4 text-amber-600" />
                     <span>Học viên trong lớp ({selectedStudentIds.length}{editingClass.capacity > 0 ? ` / ${editingClass.capacity}` : ''})</span>
                   </legend>
-                  {onAddStudent && (
+                  {onAddStudent && (isOwner || (permissions.student.add && permissions.student.edit)) && (
                     <button
                       type="button"
                       onClick={() => setIsQuickStudentOpen((prev) => !prev)}
@@ -1326,7 +1335,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <Save className="w-4 h-4 text-slate-950" /> Lưu Lớp Học
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

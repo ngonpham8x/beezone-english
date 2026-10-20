@@ -1,3 +1,4 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
 import {
   AlertTriangle,
   CalendarCheck,
@@ -22,7 +23,8 @@ import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
 import { validateRecurringChanges } from '../../lib/operations';
-import type { AttendanceSession, ScheduleChange } from '../../types';
+import type { AttendanceSession, ScheduleChange, StaffPermissions } from '../../types';
+import { academicPermission } from '../../lib/permissions';
 import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
 
@@ -35,6 +37,7 @@ interface TeacherScheduleMatrixProps {
   rooms: Room[];
   isOwner?: boolean;
   canManage?: boolean;
+  permissions?: StaffPermissions;
   onAddSlot?: (slot: TimetableSlot) => void;
   onSaveSlots?: (slots: TimetableSlot[]) => string | null;
   onUpdateSlot?: (slot: TimetableSlot) => void;
@@ -64,6 +67,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   attendanceSessions = [],
   isOwner = false,
   canManage = false,
+  permissions,
   onAddSlot,
   onSaveSlots,
   onUpdateSlot,
@@ -79,7 +83,9 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   const [selectedDay, setSelectedDay] = useResponsiveView<string>(todayDay, 'all');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const canEdit = isOwner || canManage;
+  const canEdit = isOwner || (permissions ? academicPermission(permissions, 'classes', 'edit') : canManage);
+  const canAdd = isOwner || (permissions ? academicPermission(permissions, 'classes', 'add') : canManage);
+  const canDelete = isOwner || (permissions ? academicPermission(permissions, 'classes', 'delete') : canManage);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
@@ -203,7 +209,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
     const handleSaveSlot = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit || !editingSlot) return;
+    if (!editingSlot || (timetableSlots.some(item => item.id === editingSlot.id) ? !canEdit : !canAdd)) return;
     if (selectedDays.length === 0) {
       setConflictError('Vui lòng tích chọn ít nhất một ngày dạy trong tuần.');
       return;
@@ -330,6 +336,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             teachers={teachers}
             rooms={rooms}
             attendance={attendanceSessions}
+            permissions={permissions}
             isOwner={isOwner}
             canManage={canManage}
             onSave={onSaveChange || (() => 'Chỉ Chủ trung tâm được đổi lịch.')}
@@ -354,7 +361,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {canEdit && onAddSlot && (
+          {canAdd && onAddSlot && (
             <button
               onClick={() => handleOpenAdd()}
               className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs"
@@ -483,7 +490,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                         {slots.length === 0 ? (
                           <div className="min-h-[60px] flex flex-col items-center justify-center">
                             <span className="text-[10px] text-slate-300 italic group-hover/cell:hidden">-</span>
-                            {canEdit && onAddSlot && (
+                            {canAdd && onAddSlot && (
                               <button
                                 onClick={() => handleOpenAdd(teacher.id, day)}
                                 className="inline-flex items-center gap-1 px-2 py-2 text-[10px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition"
@@ -508,9 +515,9 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                     <div className="font-bold font-mono text-slate-900">
                                       {cls?.code || 'LỚP'} ({s.startTime}–{s.endTime})
                                     </div>
-                                    {canEdit && (
+                                    {(canEdit || canDelete) && (
                                       <div className="flex items-center gap-0.5 print:hidden">
-                                        {onUpdateSlot && (
+                                        {canEdit && onUpdateSlot && (
                                           <button
                                             onClick={() => handleOpenEdit(s)}
                                             className="p-2 text-amber-800 hover:bg-amber-200/60 rounded transition"
@@ -520,7 +527,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                             <Edit className="w-3 h-3" />
                                           </button>
                                         )}
-                                        {onDeleteSlot && (
+                                        {canDelete && onDeleteSlot && (
                                           <button
                                             onClick={() => setSlotToDelete(s)}
                                             className="p-2 text-rose-700 hover:bg-rose-100 rounded transition"
@@ -542,7 +549,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                               );
                             })}
 
-                            {canEdit && onAddSlot && (
+                            {canAdd && onAddSlot && (
                               <div className="text-center pt-1 print:hidden">
                                 <button
                                   onClick={() => handleOpenAdd(teacher.id, day)}
@@ -601,7 +608,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleSaveSlot} className="space-y-3 text-xs">
+            <ConfirmedForm confirmWhen={timetableSlots.some(item => item.id === editingSlot.id)} entityLabel="lịch học" onSubmit={handleSaveSlot} className="space-y-3 text-xs">
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <label className="font-semibold text-slate-700 text-xs">Lớp Học *</label>
@@ -882,7 +889,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                   <Save className="w-4 h-4" /> Lưu Ca Dạy
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

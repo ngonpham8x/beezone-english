@@ -1,3 +1,4 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { askConfirmation } from '../../lib/dialogs';
 import { LoaderCircle, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
 import React, { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
@@ -45,9 +46,11 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
   {
     title: 'Quản lý đào tạo (thêm, sửa, xóa)',
     options: [
-      { module: 'academic', action: 'programs', label: 'Thêm / sửa / xóa chương trình học' },
-      { module: 'academic', action: 'classes', label: 'Thêm / sửa / xóa lớp học & lịch học' },
-      { module: 'academic', action: 'rooms', label: 'Thêm / sửa / xóa phòng học' },
+      ...(['programs', 'classes', 'rooms'] as const).flatMap((scope) =>
+        (['Add', 'Edit', 'Delete'] as const).map((action, index) => ({
+          module: 'academic' as const, action: `${scope}${action}`,
+          label: `${['Thêm', 'Sửa', 'Xóa'][index]} ${scope === 'programs' ? 'chương trình học' : scope === 'classes' ? 'lớp học & lịch học' : 'phòng học'}`,
+        }))),
     ],
   },
   {
@@ -65,7 +68,8 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
     title: 'Học vụ & tệp dữ liệu',
     options: [
       { module: 'teacher', action: 'view', label: 'Xem giáo viên' },
-      { module: 'teacher', action: 'edit', label: 'Thêm / sửa giáo viên' },
+      { module: 'teacher', action: 'add', label: 'Thêm giáo viên' },
+      { module: 'teacher', action: 'edit', label: 'Sửa giáo viên' },
       { module: 'teacher', action: 'delete', label: 'Xóa giáo viên' },
       { module: 'grade', action: 'view', label: 'Xem điểm' },
       { module: 'grade', action: 'edit', label: 'Nhập / sửa điểm' },
@@ -598,7 +602,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
               </p>
             </div>
 
-            <form onSubmit={handleUpdateUserPermissions} className="mt-4 space-y-4">
+            <ConfirmedForm confirmWhen entityLabel="quyền nhân viên" onSubmit={handleUpdateUserPermissions} className="mt-4 space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Cấp bậc tài khoản</label>
                 <select
@@ -789,7 +793,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                   Cập nhật cấp quyền
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

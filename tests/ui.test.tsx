@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { submitForm } from './submitForm';
 import React from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -46,7 +47,7 @@ describe('workflow regressions', () => {
     const inputs = screen.getAllByRole('textbox');
     fireEvent.change(inputs[0], { target: { value: 'Test Account' } });
     fireEvent.change(inputs[1], { target: { value: 'demo@example.test' } });
-    fireEvent.submit(inputs[0].closest('form')!);
+    submitForm(inputs[0].closest('form')!);
     await screen.findByText('Không thể cấp quyền Google.');
     expect(screen.queryByText(/Đã cấp quyền\. Người này/)).toBeNull();
     vi.unstubAllGlobals();

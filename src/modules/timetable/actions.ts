@@ -35,7 +35,7 @@ export function createScheduleActions({
   addLog,
 }: Context) {
   const handleSaveSlots = (slots: TimetableSlot[]): string | null => {
-    if (!canManageAcademic(currentUser, 'classes')) return 'Bạn chưa được cấp quyền quản lý lớp và lịch học.';
+    if (slots.some(slot => !canManageAcademic(currentUser, 'classes', timetableSlots.some(item => item.id === slot.id) ? 'edit' : 'add'))) return 'Bạn chưa được cấp quyền thêm hoặc sửa lịch học tương ứng.';
     if (!slots.length || new Set(slots.map(slot => slot.id)).size !== slots.length)
       return 'Danh sách ca học trống hoặc trùng mã.';
     const ids = new Set(slots.map(slot => slot.id));
@@ -60,7 +60,7 @@ export function createScheduleActions({
   };
   // Timetable Handlers
   const handleAddSlot = (slot: TimetableSlot) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
+    if (!canManageAcademic(currentUser, 'classes', 'add')) return;
     const next = [...timetableSlots, slot];
     setTimetableSlots(next);
     setClasses((classrooms) =>
@@ -89,7 +89,7 @@ export function createScheduleActions({
   };
 
   const handleDeleteSlot = (id: string) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
+    if (!canManageAcademic(currentUser, 'classes', 'delete')) return;
     if (scheduleChanges.some((c) => c.sourceSlotId === id)) {
       showAlert('Ca học có lịch nghỉ/học bù liên quan. Giữ ca gốc hoặc hủy điều chỉnh trước.');
       return;
@@ -110,7 +110,9 @@ export function createScheduleActions({
   };
 
   const handleReplaceClassSchedule = (classId: string, slots: TimetableSlot[]) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
+    const previous = timetableSlots.filter(slot => slot.classId === classId);
+    if (slots.some(slot => !canManageAcademic(currentUser, 'classes', previous.some(item => item.id === slot.id) ? 'edit' : 'add')) ||
+        previous.some(slot => !slots.some(item => item.id === slot.id) && !canManageAcademic(currentUser, 'classes', 'delete'))) return;
     const next = [...timetableSlots.filter((slot) => slot.classId !== classId), ...slots];
     setTimetableSlots(next);
     setClasses((classrooms) =>
@@ -121,7 +123,7 @@ export function createScheduleActions({
   };
 
   const handleSaveScheduleChange = (change: ScheduleChange): string | null => {
-    if (!canManageAcademic(currentUser, 'classes')) return 'Bạn chưa được cấp quyền quản lý lớp và lịch học.';
+    if (!canManageAcademic(currentUser, 'classes', scheduleChanges.some(item => item.id === change.id) ? 'edit' : 'add')) return 'Bạn chưa được cấp quyền thêm hoặc sửa lịch học tương ứng.';
     const error = validateScheduleChange(
       change,
       classes,
@@ -142,7 +144,7 @@ export function createScheduleActions({
     return null;
   };
   const handleDeleteScheduleChange = (id: string): string | null => {
-    if (!canManageAcademic(currentUser, 'classes')) return 'Bạn chưa được cấp quyền quản lý lớp và lịch học.';
+    if (!canManageAcademic(currentUser, 'classes', 'delete')) return 'Bạn chưa được cấp quyền xóa điều chỉnh lịch học.';
     const change = scheduleChanges.find((item) => item.id === id);
     if (!change) return null;
     if (

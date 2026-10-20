@@ -1,3 +1,7 @@
+import { CheckboxMultiSelect } from '../../components/CheckboxMultiSelect';
+import { ConfirmedForm } from '../../components/ConfirmedForm';
+import { showAlert } from '../../lib/dialogs';
+import { academicPermission } from '../../lib/permissions';
 import {
   Award,
   BookOpen,
@@ -35,6 +39,7 @@ interface TeacherManagerProps {
   onUpdateTeacher: (t: Teacher) => void;
   onDeleteTeacher: (id: string) => void;
   onEditClass: (classroom: ClassRoom) => void;
+  onSaveTeacher?: (teacher: Teacher) => string | null;
 }
 
 export const TeacherManager: React.FC<TeacherManagerProps> = ({
@@ -46,7 +51,8 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   onAddTeacher,
   onUpdateTeacher,
   onDeleteTeacher,
-  onEditClass
+  onEditClass,
+  onSaveTeacher,
 }) => {
   const { t, language } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,10 +61,12 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const [viewingTeacherDetails, setViewingTeacherDetails] = useState<Teacher | null>(null);
 
   const canEdit = isOwner || permissions.teacher.edit;
+  const canAdd = isOwner || (permissions.teacher.add ?? permissions.teacher.edit);
+  const canAssign = isOwner || academicPermission(permissions, 'classes', 'edit');
   const canDelete = isOwner || permissions.teacher.delete;
 
   const handleOpenAdd = () => {
-    if (!canEdit) return;
+    if (!canAdd) return;
     setEditingTeacher({
       id: `TEACHER_${crypto.randomUUID()}`,
       name: '',
@@ -75,9 +83,13 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canEdit || !editingTeacher || !editingTeacher.name.trim()) return;
+    if (!editingTeacher || !editingTeacher.name.trim()) return;
+    if (teachers.some(item => item.id === editingTeacher.id) ? !canEdit : !canAdd) return;
 
-    if (teachers.some(t => t.id === editingTeacher.id)) {
+    if (onSaveTeacher) {
+      const issue = onSaveTeacher(editingTeacher);
+      if (issue) { showAlert(issue); return; }
+    } else if (teachers.some(t => t.id === editingTeacher.id)) {
       onUpdateTeacher(editingTeacher);
     } else {
       onAddTeacher(editingTeacher);
@@ -101,7 +113,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
           </p>
         </div>
 
-        {canEdit && (
+        {canAdd && (
           <button
             onClick={handleOpenAdd}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
@@ -142,7 +154,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                       {canEdit && <button
                         aria-label={`Sửa giáo viên ${teacher.name}`}
                         onClick={() => {
-                          setEditingTeacher(teacher);
+                          setEditingTeacher({ ...teacher, assignedClassIds: classes.filter(item => item.teacherId === teacher.id).map(item => item.id) });
                           setIsModalOpen(true);
                         }}
                         className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
@@ -302,7 +314,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                           <UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Sĩ số: <span className="font-bold text-slate-800">{cls.studentIds ? cls.studentIds.length : 0} / {cls.capacity > 0 ? cls.capacity : 'Chưa cập nhật'} học sinh</span>
                         </div>
                       </div>
-                      {(isOwner || permissions.academic?.classes === true) && (
+                      {canAssign && (
                         <button
                           type="button"
                           onClick={() => onEditClass(cls)}
@@ -360,7 +372,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
               {teachers.some(t => t.id === editingTeacher.id) ? 'Sửa Thông Tin Giáo Viên' : 'Thêm Giáo Viên Mới'}
             </h3>
 
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
+            <ConfirmedForm confirmWhen={teachers.some(item => item.id === editingTeacher?.id)} entityLabel="giáo viên" onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Họ Và Tên *</label>
                 <input
@@ -425,35 +437,13 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                 />
               </div>
 
-              {classes.length > 0 && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <label className="block font-bold text-slate-800 uppercase text-[11px]">
-                    Phân công lớp phụ trách (Chỉ giáo viên này mới được điểm danh & chấm điểm):
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
-                    {classes.map(cls => {
-                      const isChecked = editingTeacher.assignedClassIds?.includes(cls.id) || cls.teacherId === editingTeacher.id;
-                      return (
-                        <label key={cls.id} className="flex items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-red-300">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              const currentIds = editingTeacher.assignedClassIds || [];
-                              const nextIds = e.target.checked
-                                ? [...new Set([...currentIds, cls.id])]
-                                : currentIds.filter(id => id !== cls.id);
-                              setEditingTeacher({ ...editingTeacher, assignedClassIds: nextIds });
-                            }}
-                            className="rounded text-amber-600 focus:ring-amber-500"
-                          />
-                          <span className="font-semibold text-slate-800 text-xs truncate">{cls.name.replace(/\s*\([^)]*\)/g, '').trim()}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="space-y-2">
+                <CheckboxMultiSelect label="Chọn các lớp phụ trách"
+                  options={classes.map(item => ({ value: item.id, label: item.name + ' (' + item.code + ')' }))}
+                  values={editingTeacher.assignedClassIds || []} disabled={!canAssign}
+                  onChange={assignedClassIds => setEditingTeacher({ ...editingTeacher, assignedClassIds })} />
+                {!canAssign && <p className="text-slate-500">Cần quyền sửa lớp học để thay đổi phân công. Có thể lưu hồ sơ giáo viên trước.</p>}
+              </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
                 <button
@@ -473,7 +463,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                   <Save className="w-4 h-4 text-slate-950" /> Lưu Giáo Viên
                 </button>
               </div>
-            </form>
+            </ConfirmedForm>
           </div>
         </DialogFrame>
       )}

@@ -1,6 +1,9 @@
+import { ConfirmedForm } from '../../components/ConfirmedForm';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { academicPermission } from '../../lib/permissions';
+import type { StaffPermissions } from '../../types';
 import { centerDate } from '../../lib/dates';
 import { lessonsOn, validateScheduleChange } from '../../lib/operations';
 import type {
@@ -21,6 +24,7 @@ interface Props {
   attendance: AttendanceSession[];
   isOwner: boolean;
   canManage?: boolean;
+  permissions?: StaffPermissions;
   onSave: (change: ScheduleChange) => string | null;
   onDelete: (id: string) => string | null;
 }
@@ -35,10 +39,13 @@ export function ScheduleChangesManager({
   attendance,
   isOwner,
   canManage = false,
+  permissions,
   onSave,
   onDelete,
 }: Props) {
-  const canEdit = isOwner || canManage;
+  const canEdit = isOwner || (permissions ? academicPermission(permissions, 'classes', 'edit') : canManage);
+  const canAdd = isOwner || (permissions ? academicPermission(permissions, 'classes', 'add') : canManage);
+  const canDelete = isOwner || (permissions ? academicPermission(permissions, 'classes', 'delete') : canManage);
   const [date, setDate] = useState(centerDate);
   const [draft, setDraft] = useState<ScheduleChange | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +77,7 @@ export function ScheduleChangesManager({
   };
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft || !canEdit) return;
+    if (!draft || (changes.some(item => item.id === draft.id) ? !canEdit : !canAdd)) return;
     const source = originalLessons.find((slot) => slot.id === draft.sourceSlotId) || originalLessons[0];
     if (draft.kind !== 'extra' && !source) {
       setError('Không có buổi học định kỳ vào ngày đã chọn. Hãy chọn ngày có lịch học hoặc chọn Thêm buổi học.');
@@ -118,7 +125,7 @@ export function ScheduleChangesManager({
             }}
             className="rounded-lg border border-slate-300 p-2 text-sm"
           />
-          {canEdit && (
+          {canAdd && (
             <button
               onClick={open}
               disabled={!classes.length}
@@ -170,9 +177,10 @@ export function ScheduleChangesManager({
                       {c.date} · {c.reason}
                     </p>
                   </div>
-                  {canEdit && (
+                  {(canEdit || canDelete) && (
                     <div className="flex gap-2">
                       <button
+                        hidden={!canEdit}
                         className="rounded border border-slate-300 px-3 py-2"
                         onClick={() => {
                           setDraft(c);
@@ -182,6 +190,7 @@ export function ScheduleChangesManager({
                         Sửa
                       </button>
                       <button
+                        hidden={!canDelete}
                         className="rounded border border-red-200 px-3 py-2 text-red-700"
                         onClick={() => setChangeToDelete(c)}
                       >
@@ -205,7 +214,7 @@ export function ScheduleChangesManager({
           onClose={() => setDraft(null)}
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
         >
-          <form
+          <ConfirmedForm confirmWhen={changes.some(item => item.id === draft.id)} entityLabel="điều chỉnh lịch học"
             onSubmit={save}
             className="dialog-panel w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 text-sm"
           >
@@ -422,7 +431,7 @@ export function ScheduleChangesManager({
                 Lưu điều chỉnh
               </button>
             </div>
-          </form>
+          </ConfirmedForm>
         </DialogFrame>
       )}
       <ConfirmModal
