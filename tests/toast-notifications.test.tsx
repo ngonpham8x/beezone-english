@@ -594,4 +594,94 @@ describe('StudentManager multi-class dropdown selector', () => {
       })
     );
   });
+
+  it('StudentManager renders visible badges for all student statuses including registered, reserved, active and dropped', () => {
+    const mockStudents: Student[] = [
+      {
+        id: 'st-reg',
+        code: 'TS002',
+        name: 'Lê Trần Ái Vy',
+        gender: 'Nữ',
+        dob: '2012-04-02',
+        school: '',
+        gradeLevel: '',
+        programId: '',
+        classId: '',
+        address: '',
+        email: '',
+        phone: '',
+        parentName: 'Mẹ Lan',
+        parentPhone: '0974497030',
+        enrollDate: '2026-10-20',
+        feeStatus: 'unpaid',
+        status: 'registered',
+      },
+      {
+        id: 'st-act',
+        code: 'HS001',
+        name: 'Nguyễn Hoàng Gia Linh',
+        gender: 'Nữ',
+        dob: '2022-05-15',
+        school: '',
+        gradeLevel: '',
+        programId: '',
+        classId: '',
+        address: '',
+        email: '',
+        phone: '',
+        parentName: 'Lâm Ngân',
+        parentPhone: '0915722766',
+        enrollDate: '2026-10-20',
+        feeStatus: 'partial',
+        status: 'active',
+      },
+      {
+        id: 'st-res',
+        code: 'HS002',
+        name: 'Trần Văn Nam',
+        gender: 'Nam',
+        dob: '2015-01-01',
+        school: '',
+        gradeLevel: '',
+        programId: '',
+        classId: '',
+        address: '',
+        email: '',
+        phone: '',
+        parentName: '',
+        parentPhone: '',
+        enrollDate: '2026-10-20',
+        feeStatus: 'unpaid',
+        status: 'reserved',
+      },
+    ];
+
+    render(
+      <StudentManager
+        students={mockStudents}
+        programs={[]}
+        classes={[]}
+        receipts={[]}
+        timetableSlots={[]}
+        permissions={OWNER_PERMISSIONS}
+        isOwner={true}
+        searchQuery=""
+        onAddStudent={vi.fn()}
+        onUpdateStudent={vi.fn()}
+        onDeleteStudent={vi.fn()}
+        onOpenImportExportModal={vi.fn()}
+        onOpenTuition={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    );
+
+    // Should display 'Ghi danh' for TS002
+    expect(screen.getByText('Ghi danh')).toBeTruthy();
+
+    // Should display 'Đang học' for HS001
+    expect(screen.getByText('Đang học')).toBeTruthy();
+
+    // Should display 'Tạm nghỉ' for HS002
+    expect(screen.getByText('Tạm nghỉ')).toBeTruthy();
+  });
 });

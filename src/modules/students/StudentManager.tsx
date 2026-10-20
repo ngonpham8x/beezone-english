@@ -50,6 +50,7 @@ import {
   TuitionReceipt,
 } from '../../types';
 import { FeeStatusBadge } from './FeeStatusBadge';
+import { StudentStatusBadge } from './StudentStatusBadge';
 import { StudentProfileDialog } from './StudentProfileDialog';
 
 interface StudentManagerProps {
@@ -629,9 +630,10 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           {/* Status Filter */}
           <ResponsiveSelect label="Lọc trạng thái học viên" value={filterStatus} onChange={setFilterStatus} options={[
             { value: 'all', label: t('student.all_statuses') },
-            { value: 'active', label: t('actions.active') },
-            { value: 'reserved', label: t('actions.reserved') },
-            { value: 'dropped', label: t('actions.dropped') },
+            { value: 'active', label: 'Đang học' },
+            { value: 'reserved', label: 'Tạm nghỉ' },
+            { value: 'registered', label: 'Ghi danh' },
+            { value: 'dropped', label: 'Nghỉ học' },
           ]} />
         </div>
 
@@ -764,21 +766,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         </td>
 
                         <td className="py-3 px-4">
-                          {st.status === 'active' && (
-                            <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              {t('actions.active')}
-                            </span>
-                          )}
-                          {st.status === 'reserved' && (
-                            <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                              {t('actions.reserved')}
-                            </span>
-                          )}
-                          {st.status === 'dropped' && (
-                            <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-300">
-                              {t('actions.dropped')}
-                            </span>
-                          )}
+                          <StudentStatusBadge status={st.status} />
                         </td>
 
                         <td className="py-3 px-4 text-right">
@@ -811,7 +799,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                               </>
                             )}
 
-                            {canEdit && (st.status === 'reserved' || st.status === 'dropped') && (
+                            {canEdit && (st.status === 'reserved' || st.status === 'dropped' || st.status === 'registered') && (
                               <button
                                 onClick={() => handleOpenReEnroll(st)}
                                 className="px-2 py-1 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-300 flex items-center gap-1"
@@ -888,16 +876,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             <span className="px-2 py-0.5 rounded font-black text-[10px] bg-red-100 text-red-900 border border-red-200">
                               {st.code}
                             </span>
-                            {st.status === 'active' && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                Đang học
-                              </span>
-                            )}
-                            {st.status === 'reserved' && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                                Bảo lưu
-                              </span>
-                            )}
+                            <StudentStatusBadge status={st.status} />
                           </div>
                           <h3 className="font-bold text-slate-900 text-base mt-1">{st.name}</h3>
                           <div className="text-[11px] text-slate-500 font-medium">
@@ -1583,11 +1562,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <select
                     value={editingStudent.status}
                     onChange={(e) => setEditingStudent({ ...editingStudent, status: e.target.value as StudentStatus })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
                   >
                     <option value="active">Đang học</option>
-                    <option value="reserved">Bảo lưu</option>
+                    <option value="reserved">Tạm nghỉ</option>
+                    <option value="registered">Ghi danh</option>
                     <option value="dropped">Nghỉ học</option>
+                    <option value="trial">Học thử</option>
+                    <option value="lead">Tiềm năng</option>
                   </select>
                 </div>
 

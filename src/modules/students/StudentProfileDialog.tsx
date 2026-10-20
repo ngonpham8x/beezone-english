@@ -80,13 +80,27 @@ export function StudentProfileDialog({
               <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-900 border border-red-300">
                 MÃ HỌC SINH: {viewingStudent.code}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3 text-emerald-600" />
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border flex items-center gap-1 ${
+                viewingStudent.status === 'active'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : viewingStudent.status === 'reserved'
+                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                    : viewingStudent.status === 'registered'
+                      ? 'bg-blue-100 text-blue-800 border-blue-300'
+                      : 'bg-slate-100 text-slate-700 border-slate-300'
+              }`}>
+                <CheckCircle className="w-3 h-3 text-current" />
                 {viewingStudent.status === 'active'
                   ? 'Đang theo học'
                   : viewingStudent.status === 'reserved'
-                    ? 'Bảo lưu'
-                    : 'Nghỉ học'}
+                    ? 'Tạm nghỉ'
+                    : viewingStudent.status === 'registered'
+                      ? 'Ghi danh'
+                      : viewingStudent.status === 'trial'
+                        ? 'Học thử'
+                        : viewingStudent.status === 'lead'
+                          ? 'Tiềm năng'
+                          : 'Nghỉ học'}
               </span>
             </div>
             <h3 className="text-xl font-black text-slate-900 mt-1">{viewingStudent.name}</h3>
