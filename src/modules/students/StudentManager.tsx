@@ -20,9 +20,12 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { toast } from '../../lib/toast';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ConfirmModal, AlertModal } from '../../components/ConfirmModal';
+import { DateInput } from '../../components/DateInput';
+import { parseDateInput } from '../../lib/dates';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
@@ -133,6 +136,80 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [isQuickProgramOpen, setIsQuickProgramOpen] = useState(false);
   const [newProgramCode, setNewProgramCode] = useState('');
   const [newProgramName, setNewProgramName] = useState('');
+  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
+  const [classSearchQuery, setClassSearchQuery] = useState('');
+  const classDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isClassDropdownOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (classDropdownRef.current && !classDropdownRef.current.contains(event.target as Node)) {
+        setIsClassDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isClassDropdownOpen]);
+
+  const selectedClassIds = useMemo(() => {
+    if (!editingStudent) return [];
+    return [editingStudent.classId, ...(editingStudent.additionalClassIds || [])].filter(Boolean);
+  }, [editingStudent?.classId, editingStudent?.additionalClassIds]);
+
+  const selectedClasses = useMemo(() => {
+    return selectedClassIds
+      .map(id => classes.find(c => c.id === id))
+      .filter((c): c is typeof classes[0] => Boolean(c));
+  }, [selectedClassIds, classes]);
+
+  const filteredDropdownClasses = useMemo(() => {
+    if (!classSearchQuery.trim()) return classes;
+    const q = classSearchQuery.trim().toLowerCase();
+    return classes.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
+  }, [classes, classSearchQuery]);
+
+  const handleToggleClass = (classIdToToggle: string) => {
+    if (!editingStudent) return;
+    const isSelected = selectedClassIds.includes(classIdToToggle);
+    let nextIds: string[];
+    if (isSelected) {
+      nextIds = selectedClassIds.filter(id => id !== classIdToToggle);
+    } else {
+      nextIds = [...selectedClassIds, classIdToToggle];
+    }
+    const nextPrimaryId = nextIds[0] || '';
+    const nextAdditionalIds = nextIds.slice(1);
+    const nextPrimaryClass = classes.find(c => c.id === nextPrimaryId);
+    const nextProgramId = nextPrimaryClass?.programId || editingStudent.programId;
+
+    setEditingStudent({
+      ...editingStudent,
+      classId: nextPrimaryId,
+      additionalClassIds: nextAdditionalIds,
+      programId: nextProgramId,
+    });
+  };
+
+  const handleSetPrimaryClass = (classId: string) => {
+    if (!editingStudent || !selectedClassIds.includes(classId)) return;
+    const reordered = [classId, ...selectedClassIds.filter(id => id !== classId)];
+    const nextPrimaryClass = classes.find(c => c.id === classId);
+    setEditingStudent({
+      ...editingStudent,
+      classId: reordered[0],
+      additionalClassIds: reordered.slice(1),
+      programId: nextPrimaryClass?.programId || editingStudent.programId,
+    });
+  };
+
+  const handleClearAllClasses = () => {
+    if (!editingStudent) return;
+    setEditingStudent({
+      ...editingStudent,
+      classId: '',
+      additionalClassIds: [],
+    });
+  };
 
 
   const handleCreateClassQuick = () => {
@@ -342,7 +419,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
     if (editingStudent.status === 'active' && !selectedClass) { alert('Học viên đang học cần được xếp lớp.'); return; }
-    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
+    const dob = parseDateInput(editingStudent.dob || "");
+    let studentToSave = { ...editingStudent, dob, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
     const membershipError = validateStudentClasses(studentToSave, classes, students);
     if (membershipError) { alert(membershipError); return; }
     if (programEntryMode === 'manual') {
@@ -382,12 +460,16 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     const existing = students.find(s => s.id === studentToSave.id);
     if (existing) {
       onUpdateStudent(studentToSave);
+      toast.success(`Đã cập nhật học viên “${studentToSave.name}” thành công!`);
     } else {
       onAddStudent(studentToSave);
+      toast.success(`Đã thêm mới học viên “${studentToSave.name}” thành công!`);
     }
 
     setIsModalOpen(false);
     setEditingStudent(null);
+    setIsClassDropdownOpen(false);
+    setClassSearchQuery('');
   };
 
   return (
@@ -993,68 +1075,221 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   )}
                 </div>
 
-                <div>
+                <div className="relative" ref={classDropdownRef}>
                   <div className="flex items-center justify-between gap-2 mb-1">
-                      <label className="font-semibold text-slate-700 text-xs" htmlFor="student-primary-class">Lớp học chính</label>
-                      {onAddClass && (
-                        <button
-                          type="button"
-                          onClick={() => setIsQuickClassOpen(open => !open)}
-                          className="text-[11px] font-bold text-amber-700 hover:text-amber-900 cursor-pointer flex items-center gap-1"
-                        >
-                          + Tạo lớp mới
-                        </button>
+                    <label className="font-semibold text-slate-700 text-xs">
+                      Lớp học ({selectedClassIds.length > 0 ? `${selectedClassIds.length} lớp đã chọn` : 'Chưa xếp lớp'})
+                    </label>
+                    {onAddClass && (
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickClassOpen(true)}
+                        className="text-[11px] font-bold text-amber-700 hover:text-amber-900 cursor-pointer flex items-center gap-1"
+                      >
+                        + Tạo lớp mới
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Trigger Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
+                    className="w-full min-h-[42px] px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 bg-white text-left flex items-center justify-between gap-2 shadow-xs transition hover:border-amber-400"
+                    aria-expanded={isClassDropdownOpen}
+                    aria-haspopup="listbox"
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                      {selectedClasses.length === 0 ? (
+                        <span className="text-slate-400 font-normal text-xs">-- Nhấn vào đây để chọn / tìm kiếm lớp học --</span>
+                      ) : (
+                        selectedClasses.map((cls, idx) => (
+                          <span
+                            key={cls.id}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-semibold ${
+                              idx === 0
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-sky-50 text-sky-900 border border-sky-200'
+                            }`}
+                          >
+                            <span>{cls.name}</span>
+                            <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-black/10 font-bold">
+                              {cls.code}
+                            </span>
+                            {idx === 0 && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800 bg-amber-200/80 px-1 rounded">
+                                Chính
+                              </span>
+                            )}
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleClass(cls.id);
+                              }}
+                              className="ml-0.5 text-slate-400 hover:text-rose-600 cursor-pointer text-xs font-bold"
+                              title="Bỏ chọn lớp này"
+                            >
+                              ×
+                            </span>
+                          </span>
+                        ))
                       )}
                     </div>
-                  <div className="space-y-1.5">
-                    <select
-                      id="student-primary-class"
-                      value={editingStudent.classId}
-                      onChange={(e) => {
-                        if (e.target.value === '__NEW_CLASS__') {
-                          setIsQuickClassOpen(true);
-                        } else {
-                          setEditingStudent({ ...editingStudent, classId: e.target.value, additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== e.target.value) });
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold text-slate-900"
-                    >
-                      <option value="">Chưa xếp lớp</option>
-                        <option value="__NEW_CLASS__">➕ Tạo lớp học mới tại đây...</option>
-                      <optgroup label="Danh Sách Lớp Học Tại Trung Tâm">
-                        {classes.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </optgroup>
-                    </select>
-
-                    <div className="pt-1">
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">Hoặc nhập mã / tên lớp đã tạo:</label>
-                      <input
-                        type="text"
-                        value={editingStudent.classId}
-                        onChange={(e) => setEditingStudent({ ...editingStudent, classId: e.target.value })}
-                        placeholder="Ví dụ: L9-PPTE hoặc Lớp 9 - Global Success"
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-slate-800 font-semibold focus:ring-2 focus:ring-amber-500 bg-amber-50/30"
-                      />
-                      <p className="mt-1 text-[10px] text-slate-500">Chỉ nhận lớp đã tạo để học sinh, học phí, bảng điểm và Excel luôn liên kết đúng.</p>
+                    <div className="flex items-center gap-1 shrink-0 text-slate-400">
+                      <span className="text-xs font-medium">
+                        {selectedClasses.length > 0 ? `${selectedClasses.length} lớp` : ''}
+                      </span>
+                      <svg className={`w-4 h-4 transition-transform duration-200 ${isClassDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
-                    <fieldset className="mt-3 rounded-xl border border-slate-200 p-3">
-                      <legend className="px-1 font-bold text-slate-800">Đăng ký thêm lớp học</legend>
-                      <p className="mb-2 text-[11px] text-slate-500">Tích chọn nếu học viên học đồng thời hai, ba lớp hoặc nhiều hơn. Học phí và điểm số được ghi riêng theo lớp. Bỏ tích để ngừng riêng một lớp; bảo lưu/nghỉ học áp dụng cho tất cả lớp.</p>
-                      <div className="max-h-48 overflow-y-auto space-y-1">
-                        {classes.filter(c => c.id !== editingStudent.classId).map(c => {
-                          const checked = editingStudent.additionalClassIds?.includes(c.id) === true;
-                          return <label key={c.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-amber-50 cursor-pointer">
-                            <input type="checkbox" checked={checked} disabled={!checked && ['completed', 'paused'].includes(c.courseStatus || '')}
-                              onChange={event => setEditingStudent({ ...editingStudent, additionalClassIds: event.target.checked ? [...(editingStudent.additionalClassIds || []), c.id] : editingStudent.additionalClassIds?.filter(id => id !== c.id) })}
-                              className="mt-0.5 h-4 w-4 shrink-0 accent-amber-600" />
-                            <span className="min-w-0 break-words">{c.name} <span className="text-slate-500">({c.code}) · {programs.find(p => p.id === c.programId)?.name}{['completed', 'paused'].includes(c.courseStatus || '') ? ' · Đã kết thúc / tạm dừng' : ''}</span></span>
-                          </label>;
-                        })}
-                        {classes.length <= 1 && <p className="text-slate-500">Chưa có lớp khác để chọn.</p>}
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  <div className={`mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden transition-all ${isClassDropdownOpen ? 'block' : 'hidden'}`}>
+                    {/* Search and Quick Actions */}
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/80 space-y-2">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={classSearchQuery}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setClassSearchQuery(val);
+                            const matchedClass = classes.find(
+                              c => c.code.trim().toLocaleLowerCase('vi-VN') === val.trim().toLocaleLowerCase('vi-VN') ||
+                                   c.name.trim().toLocaleLowerCase('vi-VN') === val.trim().toLocaleLowerCase('vi-VN') ||
+                                   c.id === val.trim()
+                            );
+                            if (matchedClass) {
+                              if (!selectedClassIds.includes(matchedClass.id)) {
+                                handleToggleClass(matchedClass.id);
+                              }
+                            }
+                          }}
+                          placeholder="Ví dụ: L9-PPTE hoặc Lớp 9 - Global Success"
+                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                        />
+                        <svg className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
                       </div>
-                    </fieldset>
+
+                      <div className="flex items-center justify-between text-[11px] px-1">
+                        <span className="text-slate-500">
+                          {filteredDropdownClasses.length} lớp học phù hợp
+                        </span>
+                        {selectedClassIds.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearAllClasses()}
+                            className="text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                          >
+                            Bỏ chọn tất cả ({selectedClassIds.length})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Class List with Checkboxes */}
+                    <div className="max-h-56 overflow-y-auto p-1.5 space-y-1 divide-y divide-slate-100/60 custom-scrollbar">
+                      {filteredDropdownClasses.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-slate-500">
+                          Không tìm thấy lớp học nào khớp với "{classSearchQuery}"
+                        </div>
+                      ) : (
+                        filteredDropdownClasses.map((c) => {
+                          const isChecked = selectedClassIds.includes(c.id);
+                          const isPrimary = selectedClassIds[0] === c.id;
+                          const isCompletedOrPaused = ['completed', 'paused'].includes(c.courseStatus || '');
+                          const isFull = c.capacity > 0 && students.filter(s => s.id !== editingStudent.id && s.status === 'active' && isStudentInClass(s, c.id)).length >= c.capacity;
+                          const isDisabled = (!isChecked && isCompletedOrPaused) || (!isChecked && editingStudent.status === 'active' && isFull);
+
+                          return (
+                            <label
+                              key={c.id}
+                              className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition select-none ${
+                                isChecked
+                                  ? isPrimary
+                                    ? 'bg-amber-50/80 hover:bg-amber-100/80 border border-amber-200'
+                                    : 'bg-sky-50/70 hover:bg-sky-100/70 border border-sky-200'
+                                  : isDisabled
+                                  ? 'opacity-50 cursor-not-allowed bg-slate-50'
+                                  : 'hover:bg-slate-100/80'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                aria-label={`${c.name} (${c.code})`}
+                                disabled={isDisabled}
+                                onChange={() => {
+                                  if (!isDisabled) handleToggleClass(c.id);
+                                }}
+                                className="mt-1 h-4 w-4 shrink-0 rounded accent-amber-600 cursor-pointer"
+                              />
+
+                              <div className="min-w-0 flex-1 text-xs">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-800">{c.name}</span>
+                                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
+                                    {c.code}
+                                  </span>
+                                  {isChecked && isPrimary && (
+                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-200/90 px-1.5 py-0.2 rounded-full">
+                                      ★ Lớp chính
+                                    </span>
+                                  )}
+                                  {isChecked && !isPrimary && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleSetPrimaryClass(c.id);
+                                      }}
+                                      className="text-[10px] text-sky-700 hover:text-sky-900 hover:underline font-semibold cursor-pointer"
+                                      title="Đặt lớp này làm lớp học chính"
+                                    >
+                                      [Đặt làm lớp chính]
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
+                                  <span>Chương trình: <strong className="text-slate-600">{programs.find(p => p.id === c.programId)?.name || 'Chưa gán'}</strong></span>
+                                  {c.billingMode && (
+                                    <span>· Thu: {c.billingMode === 'session' ? 'Theo buổi' : c.billingMode === 'course' ? 'Theo khóa' : 'Hàng tháng'}</span>
+                                  )}
+                                  {isCompletedOrPaused && (
+                                    <span className="text-amber-600 font-bold">· Đã kết thúc / tạm dừng</span>
+                                  )}
+                                  {isFull && (
+                                    <span className="text-rose-600 font-bold">· Đã đủ sĩ số</span>
+                                  )}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Dropdown Footer */}
+                    <div className="p-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+                      <p className="text-[11px] text-slate-500">
+                        💡 Tích chọn nhiều lớp nếu học sinh học đồng thời. Mỗi lớp sẽ tách biệt học phí khi thu tiền.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsClassDropdownOpen(false)}
+                        className="px-3 py-1 bg-amber-600 text-white rounded-lg font-bold text-[11px] hover:bg-amber-700 shadow-xs cursor-pointer"
+                      >
+                        Đóng
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1463,10 +1698,13 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         onConfirm={() => {
           if (studentToDelete) {
             const id = studentToDelete.id;
+            const name = studentToDelete.name;
             setStudentToDelete(null);
             const res = (onDeleteStudent as (id: string) => string | null | void)(id);
             if (typeof res === 'string' && res) {
               setDeleteAlertMessage(res);
+            } else {
+              toast.success(`Đã xóa học viên “${name}” thành công!`);
             }
           }
         }}

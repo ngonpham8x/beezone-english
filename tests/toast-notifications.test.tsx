@@ -300,4 +300,106 @@ describe('TeacherScheduleMatrix multi-day teaching selection', () => {
   });
 });
 
+describe('Manual text DOB input and DateInput', () => {
+  afterEach(() => {
+    cleanup();
+  });
 
+  it('supports typing date in DD/MM/YYYY, DD-MM-YYYY, DDMMYYYY and YYYY-MM-DD formats', async () => {
+    const { parseDateInput, formatDateForDisplay } = await import('../src/lib/dates');
+    expect(parseDateInput('15/10/2016')).toBe('2016-10-15');
+    expect(parseDateInput('15-10-2016')).toBe('2016-10-15');
+    expect(parseDateInput('15.10.2016')).toBe('2016-10-15');
+    expect(parseDateInput('15102016')).toBe('2016-10-15');
+    expect(parseDateInput('2016-10-15')).toBe('2016-10-15');
+    expect(formatDateForDisplay('2016-10-15')).toBe('15/10/2016');
+  });
+
+  it('DateInput allows manual typing without requiring calendar picker popup', async () => {
+    const { DateInput } = await import('../src/components/DateInput');
+    const onChange = vi.fn();
+    render(<DateInput value="2016-10-15" onChange={onChange} aria-label="Ngày sinh" />);
+
+    const textInput = screen.getByRole('textbox', { name: 'Ngày sinh' });
+    expect((textInput as HTMLInputElement).value).toBe('15/10/2016');
+
+    fireEvent.change(textInput, { target: { value: '20/11/2015' } });
+    expect(onChange).toHaveBeenCalledWith('2015-11-20');
+  });
+});
+
+describe('StudentManager multi-class dropdown selector', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('displays class name and class code, removes raw UUID input, and shows multi-class in dropdown', async () => {
+    const { StudentManager } = await import('../src/modules/students/StudentManager');
+    const { LanguageProvider } = await import('../src/context/LanguageContext');
+    const onUpdateStudent = vi.fn();
+    const testClasses = [
+      { ...initial.initialClasses[0], id: 'c-01', code: 'LOP-01', name: 'Lớp Kiddy 1' },
+      { ...initial.initialClasses[1], id: 'c-02', code: 'LOP-02', name: 'Lớp Super Kids 2' },
+    ];
+    const testStudent = {
+      ...initial.initialStudents[0],
+      id: 'st-01',
+      name: 'Bé Lan Chi',
+      classId: 'c-01',
+      additionalClassIds: [],
+    };
+
+    render(
+      <LanguageProvider>
+        <StudentManager
+          students={[testStudent]}
+          classes={testClasses}
+          programs={initial.initialPrograms}
+          receipts={[]}
+          timetableSlots={[]}
+          permissions={OWNER_PERMISSIONS}
+          isOwner={true}
+          searchQuery=""
+          onAddStudent={vi.fn()}
+          onUpdateStudent={onUpdateStudent}
+          onDeleteStudent={vi.fn()}
+          onCreateProgram={vi.fn()}
+          onOpenImportExportModal={vi.fn()}
+          onOpenTuition={vi.fn()}
+        />
+      </LanguageProvider>
+    );
+
+    // Open edit student modal
+    fireEvent.click(screen.getAllByTitle(/Sửa/)[0]);
+
+    // Verify modal is open
+    expect(screen.getByText('Cập Nhật Thông Tin Học Sinh')).toBeTruthy();
+
+    // Verify the raw UUID text input "Hoặc nhập mã / tên lớp đã tạo:" is REMOVED
+    expect(screen.queryByText(/Hoặc nhập mã \/ tên lớp đã tạo/)).toBeNull();
+
+    // Verify the bottom fieldset "Đăng ký thêm lớp học" is REMOVED
+    expect(screen.queryByText('Đăng ký thêm lớp học')).toBeNull();
+
+    // Verify trigger button shows class name and class code LOP-01
+    expect(screen.getAllByText('Lớp Kiddy 1').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('LOP-01').length).toBeGreaterThanOrEqual(1);
+
+    // Toggle additional class LOP-02
+    const secondClassCheckbox = screen.getByRole('checkbox', { name: /LOP-02/ });
+    fireEvent.click(secondClassCheckbox);
+
+    // Submit form
+    fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+    // Expect update with both classes
+    expect(onUpdateStudent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'st-01',
+        classId: 'c-01',
+        additionalClassIds: ['c-02'],
+      })
+    );
+  });
+});
