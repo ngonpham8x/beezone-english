@@ -48,7 +48,13 @@ self.addEventListener('fetch', (event) => {
 
   // Network first, falling back to this app's cached shell only.
   event.respondWith(
-    fetch(event.request).then((response) => {
+    fetch(event.request).then(async (response) => {
+      // A deployment can remove a hashed chunk still referenced by an open tab.
+      // Reuse that exact cached asset; never substitute HTML for JavaScript.
+      if (!response.ok && requestUrl.pathname.startsWith('/assets/')) {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+      }
       if (response.ok && requestUrl.pathname.startsWith('/assets/')) {
         const copy = response.clone();
         event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)));
