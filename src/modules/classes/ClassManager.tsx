@@ -4,6 +4,8 @@ import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass, classProgramIds, classMatchesProgram } from '../../lib/studentClasses';
 import {
+  ArrowDown,
+  ArrowUp,
   BookOpen,
   CalendarDays,
   ChevronDown,
@@ -62,6 +64,7 @@ interface ClassManagerProps {
   onAddClass: (c: ClassRoom) => void;
   onUpdateClass: (c: ClassRoom) => void;
   onDeleteClass: (id: string) => void;
+  onReorderClasses?: (reorderedClasses: ClassRoom[]) => void;
   onReplaceClassSchedule: (classId: string, slots: TimetableSlot[]) => void;
   onCreateRoom: (room: Room) => void;
   onCreateProgram: (program: CourseProgram) => void;
@@ -110,6 +113,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   onAddClass,
   onUpdateClass,
   onDeleteClass,
+  onReorderClasses,
   onReplaceClassSchedule,
   onCreateRoom,
   onCreateProgram,
@@ -199,6 +203,16 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     handleOpenEdit(editRequest);
     onEditRequestHandled?.();
   }, [editRequest]);
+
+  const handleMoveClass = (originalIndex: number, direction: -1 | 1) => {
+    const targetIndex = originalIndex + direction;
+    if (targetIndex < 0 || targetIndex >= classes.length) return;
+    const next = [...classes];
+    const temp = next[originalIndex];
+    next[originalIndex] = next[targetIndex];
+    next[targetIndex] = temp;
+    onReorderClasses?.(next);
+  };
 
   const handleOpenAdd = () => {
     if (!canAdd) return;
@@ -528,6 +542,30 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
                   {(canEdit || canDelete) && (
                     <div className="flex shrink-0 items-center gap-1">
+                      {onReorderClasses && canEdit && (
+                        <div className="flex items-center gap-0.5 mr-1 border-r border-slate-200 pr-1">
+                          <button
+                            type="button"
+                            disabled={classes.findIndex(c => c.id === cls.id) === 0}
+                            onClick={() => handleMoveClass(classes.findIndex(c => c.id === cls.id), -1)}
+                            className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
+                            title="Di chuyển lên trước"
+                            aria-label={`Di chuyển lớp ${cls.name} lên trước`}
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={classes.findIndex(c => c.id === cls.id) === classes.length - 1}
+                            onClick={() => handleMoveClass(classes.findIndex(c => c.id === cls.id), 1)}
+                            className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
+                            title="Di chuyển xuống sau"
+                            aria-label={`Di chuyển lớp ${cls.name} xuống sau`}
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                       <button hidden={!canEdit}
                         aria-label={`Sửa lớp ${cls.name}`}
                         onClick={() => {

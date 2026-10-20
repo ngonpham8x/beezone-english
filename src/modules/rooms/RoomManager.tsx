@@ -2,7 +2,7 @@ import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { academicPermission } from '../../lib/permissions';
 import { formatRoomCode, nextRoomId } from '../../lib/identifiers';
 import { showAlert } from '../../lib/dialogs';
-import { CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ConfirmModal } from '../../components/ConfirmModal';
@@ -16,6 +16,7 @@ interface RoomManagerProps {
   onAddRoom: (r: Room) => void;
   onUpdateRoom: (r: Room) => void;
   onDeleteRoom: (id: string) => void;
+  onReorderRooms?: (reorderedRooms: Room[]) => void;
 }
 
 export const RoomManager: React.FC<RoomManagerProps> = ({
@@ -25,7 +26,8 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   isOwner,
   onAddRoom,
   onUpdateRoom,
-  onDeleteRoom
+  onDeleteRoom,
+  onReorderRooms
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
@@ -34,6 +36,16 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const canEdit = isOwner || academicPermission(permissions, 'rooms', 'edit');
   const canAdd = isOwner || academicPermission(permissions, 'rooms', 'add');
   const canDelete = isOwner || academicPermission(permissions, 'rooms', 'delete');
+
+  const handleMoveRoom = (originalIndex: number, direction: -1 | 1) => {
+    const targetIndex = originalIndex + direction;
+    if (targetIndex < 0 || targetIndex >= rooms.length) return;
+    const next = [...rooms];
+    const temp = next[originalIndex];
+    next[originalIndex] = next[targetIndex];
+    next[targetIndex] = temp;
+    onReorderRooms?.(next);
+  };
 
   const handleOpenAdd = () => {
     if (!canAdd) return;
@@ -108,6 +120,30 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
                   {(canEdit || canDelete) && (
                     <div className="flex shrink-0 items-center gap-1">
+                      {onReorderRooms && canEdit && (
+                        <div className="flex items-center gap-0.5 mr-1 border-r border-slate-200 pr-1">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => handleMoveRoom(index, -1)}
+                            className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
+                            title="Di chuyển lên trước"
+                            aria-label={`Di chuyển phòng ${room.name} lên trước`}
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === rooms.length - 1}
+                            onClick={() => handleMoveRoom(index, 1)}
+                            className="icon-button p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
+                            title="Di chuyển xuống sau"
+                            aria-label={`Di chuyển phòng ${room.name} xuống sau`}
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                       <button hidden={!canEdit}
                         aria-label={`Sửa phòng ${room.name}`}
                         onClick={() => {

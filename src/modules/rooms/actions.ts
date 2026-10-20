@@ -56,5 +56,12 @@ export function createRoomActions({
     toast.success(`Đã xóa phòng học ${room?.name || ''} thành công!`);
   };
 
-  return { handleAddRoom, handleUpdateRoom, handleDeleteRoom };
+  const handleReorderRooms = (reorderedRooms: Room[]) => {
+    if (!canManageAcademic(currentUser, 'rooms', 'edit')) return;
+    setRooms(reorderedRooms);
+    addLog('SỬA', 'Phòng học', 'Sắp xếp lại thứ tự các phòng học.');
+    toast.success('Đã cập nhật thứ tự phòng học thành công!');
+  };
+
+  return { handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleReorderRooms };
 }
