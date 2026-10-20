@@ -8,6 +8,8 @@ import { toast } from '../src/lib/toast';
 import { ClassManager } from '../src/modules/classes/ClassManager';
 import { TeacherManager } from '../src/modules/teachers/TeacherManager';
 import { RoomManager } from '../src/modules/rooms/RoomManager';
+import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
+import { StudentManager } from '../src/modules/students/StudentManager';
 import { TeacherScheduleMatrix } from '../src/modules/timetable/TeacherScheduleMatrix';
 import { ParentContactDialog } from '../src/modules/attendance/ParentContactDialog';
 import { parentZaloHref } from '../src/modules/attendance/parentContact';
@@ -456,5 +458,140 @@ describe('StudentManager multi-class dropdown selector', () => {
     // Badge should show GV-01, not raw TEACHER_1792406259385
     expect(screen.getByText('GV-01')).toBeTruthy();
     expect(screen.queryByText('TEACHER_1792406259385')).toBeNull();
+  });
+
+  it('AttendanceManager disables saving when class has no students and allows deleting an attendance session', () => {
+    const onDeleteSession = vi.fn();
+    const mockClass: ClassRoom = {
+      id: 'c-empty',
+      code: 'EMPTY-01',
+      name: 'Lớp Trống',
+      programId: 'p-1',
+      teacherId: 't-1',
+      roomId: 'r-1',
+      scheduleTime: '18:00 - 19:30',
+      days: ['Thứ 2'],
+      capacity: 15,
+      studentIds: [],
+      courseStatus: 'active',
+    };
+    const mockSession: AttendanceSession = {
+      id: 'att-test-1',
+      classId: 'c-empty',
+      date: '2026-10-20',
+      lessonTopic: 'Test lesson',
+      entries: [],
+    };
+
+    render(
+      <AttendanceManager
+        classes={[mockClass]}
+        students={[]}
+        teachers={[]}
+        attendanceSessions={[mockSession]}
+        onSaveSession={vi.fn()}
+        onDeleteSession={onDeleteSession}
+        isOwner={true}
+      />
+    );
+
+    // Save button should be disabled because class has 0 students
+    const saveButton = screen.getByRole('button', { name: /Lưu Điểm Danh/i }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+
+    // Mark all present button should also be disabled
+    const markAllButton = screen.getByRole('button', { name: /Tất Cả Có Mặt/i }) as HTMLButtonElement;
+    expect(markAllButton.disabled).toBe(true);
+
+    // History item should have a delete button
+    const deleteButton = screen.getByRole('button', { name: 'Xóa buổi điểm danh ngày 2026-10-20' });
+    expect(deleteButton).toBeTruthy();
+
+    // Click delete button -> opens ConfirmModal
+    fireEvent.click(deleteButton);
+    expect(screen.getByRole('heading', { name: 'Xóa buổi điểm danh' })).toBeTruthy();
+
+    // Confirm deletion
+    const confirmButton = screen.getByRole('button', { name: 'Xóa buổi điểm danh' });
+    fireEvent.click(confirmButton);
+
+    expect(onDeleteSession).toHaveBeenCalledWith('att-test-1');
+  });
+
+  it('StudentManager supports multi-program checkbox selection and saves multiple programs', () => {
+    const onAddStudent = vi.fn();
+    const mockPrograms: CourseProgram[] = [
+      { id: 'prog-01', code: 'P01', name: 'Tiếng Anh Mầm Non', category: 'Trẻ em', tuitionFee: 2000000, description: '' },
+      { id: 'prog-02', code: 'P02', name: 'Cambridge Starters', category: 'Cambridge', tuitionFee: 2500000, description: '' },
+      { id: 'prog-03', code: 'P03', name: 'Giao Tiếp Cơ Bản', category: 'Giao tiếp', tuitionFee: 3000000, description: '' },
+    ];
+    const mockClass: ClassRoom = {
+      id: 'cls-01',
+      code: 'KID-01',
+      name: 'Lớp Kiddy 1',
+      programId: 'prog-01',
+      teacherId: 'tea-01',
+      roomId: 'room-01',
+      scheduleTime: '18:00 - 19:30',
+      days: ['Thứ 2'],
+      capacity: 15,
+      studentIds: [],
+      courseStatus: 'active',
+    };
+
+    render(
+      <StudentManager
+        students={[]}
+        programs={mockPrograms}
+        classes={[mockClass]}
+        receipts={[]}
+        timetableSlots={[]}
+        permissions={OWNER_PERMISSIONS}
+        isOwner={true}
+        searchQuery=""
+        onAddStudent={onAddStudent}
+        onUpdateStudent={vi.fn()}
+        onDeleteStudent={vi.fn()}
+        onOpenImportExportModal={vi.fn()}
+        onOpenTuition={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    );
+
+    // Open Add Student modal
+    fireEvent.click(screen.getByRole('button', { name: /student\.add_new|Thêm Học Viên/i }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    // Fill student name
+    fireEvent.change(screen.getByPlaceholderText('Nguyễn Văn A'), { target: { value: 'Lâm Bảo Nhi' } });
+
+    // Open Program Dropdown
+    const programTrigger = screen.getByRole('button', { name: 'Chọn các chương trình học' });
+    expect(programTrigger).toBeTruthy();
+    fireEvent.click(programTrigger);
+
+    // Toggle Cambridge Starters
+    const startersCheckbox = screen.getByRole('checkbox', { name: 'Cambridge Starters' });
+    fireEvent.click(startersCheckbox);
+
+    // Toggle Giao Tiếp Cơ Bản
+    const commCheckbox = screen.getByRole('checkbox', { name: 'Giao Tiếp Cơ Bản' });
+    fireEvent.click(commCheckbox);
+
+    // Both should now be selected and shown as badges
+    expect(screen.getAllByText('Cambridge Starters').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Giao Tiếp Cơ Bản').length).toBeGreaterThanOrEqual(1);
+
+    // Submit form
+    submitForm(screen.getByRole('dialog').querySelector('form')!);
+
+    // Expect onAddStudent called with programId and additionalProgramIds
+    expect(onAddStudent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Lâm Bảo Nhi',
+        programId: 'prog-02',
+        additionalProgramIds: ['prog-03'],
+      })
+    );
   });
 });

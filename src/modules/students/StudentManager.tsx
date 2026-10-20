@@ -142,6 +142,20 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
   const [classSearchQuery, setClassSearchQuery] = useState('');
   const classDropdownRef = useRef<HTMLDivElement>(null);
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [programSearchQuery, setProgramSearchQuery] = useState('');
+  const programDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isProgramDropdownOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (programDropdownRef.current && !programDropdownRef.current.contains(event.target as Node)) {
+        setIsProgramDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProgramDropdownOpen]);
 
   useEffect(() => {
     if (!isClassDropdownOpen) return;
@@ -165,6 +179,60 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       .filter((c): c is typeof classes[0] => Boolean(c));
   }, [selectedClassIds, classes]);
 
+  const selectedProgramIds = useMemo(() => {
+    if (!editingStudent) return [];
+    return [editingStudent.programId, ...(editingStudent.additionalProgramIds || [])].filter(Boolean);
+  }, [editingStudent?.programId, editingStudent?.additionalProgramIds]);
+
+  const selectedPrograms = useMemo(() => {
+    return selectedProgramIds
+      .map(id => programs.find(p => p.id === id))
+      .filter((p): p is typeof programs[0] => Boolean(p));
+  }, [selectedProgramIds, programs]);
+
+  const filteredDropdownPrograms = useMemo(() => {
+    if (!programSearchQuery.trim()) return programs;
+    const q = programSearchQuery.trim().toLowerCase();
+    return programs.filter(p => p.name.toLowerCase().includes(q) || (p.code && p.code.toLowerCase().includes(q)));
+  }, [programs, programSearchQuery]);
+
+  const handleToggleProgram = (progId: string) => {
+    if (!editingStudent) return;
+    const isSelected = selectedProgramIds.includes(progId);
+    let nextIds: string[];
+    if (isSelected) {
+      nextIds = selectedProgramIds.filter(id => id !== progId);
+    } else {
+      nextIds = [...selectedProgramIds, progId];
+    }
+    const nextPrimaryId = nextIds[0] || '';
+    const nextAdditionalIds = nextIds.slice(1);
+    setEditingStudent({
+      ...editingStudent,
+      programId: nextPrimaryId,
+      additionalProgramIds: nextAdditionalIds,
+    });
+  };
+
+  const handleSetPrimaryProgram = (progId: string) => {
+    if (!editingStudent || !selectedProgramIds.includes(progId)) return;
+    const reordered = [progId, ...selectedProgramIds.filter(id => id !== progId)];
+    setEditingStudent({
+      ...editingStudent,
+      programId: reordered[0],
+      additionalProgramIds: reordered.slice(1),
+    });
+  };
+
+  const handleClearAllPrograms = () => {
+    if (!editingStudent) return;
+    setEditingStudent({
+      ...editingStudent,
+      programId: '',
+      additionalProgramIds: [],
+    });
+  };
+
   const filteredDropdownClasses = useMemo(() => {
     if (!classSearchQuery.trim()) return classes;
     const q = classSearchQuery.trim().toLowerCase();
@@ -183,13 +251,17 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     const nextPrimaryId = nextIds[0] || '';
     const nextAdditionalIds = nextIds.slice(1);
     const nextPrimaryClass = classes.find(c => c.id === nextPrimaryId);
-    const nextProgramId = nextPrimaryClass?.programId || editingStudent.programId;
+    const classProgIds = nextIds.map(cid => classes.find(c => c.id === cid)?.programId).filter(Boolean) as string[];
+    const combinedProgIds = [...new Set([...(editingStudent.programId ? [editingStudent.programId] : []), ...(editingStudent.additionalProgramIds || []), ...classProgIds])];
+    const nextProgramId = combinedProgIds[0] || nextPrimaryClass?.programId || editingStudent.programId;
+    const nextAdditionalProgIds = combinedProgIds.slice(1);
 
     setEditingStudent({
       ...editingStudent,
       classId: nextPrimaryId,
       additionalClassIds: nextAdditionalIds,
       programId: nextProgramId,
+      additionalProgramIds: nextAdditionalProgIds,
     });
   };
 
@@ -456,9 +528,20 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       studentToSave = { ...studentToSave, programId: program.id };
     }
 
-    if (selectedClass) {
-      studentToSave = { ...studentToSave, classId: selectedClass.id, programId: selectedClass.programId };
+    const studentSelectedProgIds = [editingStudent.programId, ...(editingStudent.additionalProgramIds || [])].filter(Boolean);
+    const primaryProgId = studentSelectedProgIds[0] || selectedClass?.programId || '';
+    const extraProgIds = studentSelectedProgIds.filter(id => id !== primaryProgId);
+    if (selectedClass?.programId && selectedClass.programId !== primaryProgId && !extraProgIds.includes(selectedClass.programId)) {
+      extraProgIds.push(selectedClass.programId);
     }
+    if (selectedClass) {
+      studentToSave = { ...studentToSave, classId: selectedClass.id };
+    }
+    studentToSave = {
+      ...studentToSave,
+      programId: primaryProgId,
+      additionalProgramIds: extraProgIds,
+    };
 
     // A registered prospect may be created before programs and classes exist.
 
@@ -1049,17 +1132,173 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     <button type="button" onClick={() => setProgramEntryMode('manual')} className={`rounded-lg px-2 py-1.5 transition ${programEntryMode === 'manual' ? 'bg-white text-amber-800 shadow-sm' : 'text-slate-500'}`}>Nhập tay</button>
                   </div>
                   {programEntryMode === 'catalog' ? (
-                    <>
-                      <select
-                        value={editingStudent.programId}
-                        onChange={(e) => setEditingStudent({ ...editingStudent, programId: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold"
+                    <div className="relative" ref={programDropdownRef}>
+                      {/* Trigger Button showing selected programs */}
+                      <button
+                        type="button"
+                        onClick={() => setIsProgramDropdownOpen(!isProgramDropdownOpen)}
+                        className="w-full min-h-[42px] px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 bg-white text-left flex items-center justify-between gap-2 shadow-xs transition hover:border-amber-400"
+                        aria-expanded={isProgramDropdownOpen}
+                        aria-label="Chọn các chương trình học"
                       >
-                        <option value="">Chọn chương trình đã nhập từ Excel / danh mục</option>
-                        {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                      <p className="mt-1 text-[10px] text-slate-500">Danh sách gồm cả chương trình đã nhập từ file Excel.</p>
-                    </>
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                          {selectedPrograms.length === 0 ? (
+                            <span className="text-slate-400 font-normal text-xs">-- Nhấn vào đây để chọn / tìm kiếm chương trình học --</span>
+                          ) : (
+                            selectedPrograms.map((prog, idx) => (
+                              <span
+                                key={prog.id}
+                                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-semibold ${
+                                  idx === 0
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                                }`}
+                              >
+                                <span>{prog.name}</span>
+                                {idx === 0 && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800 bg-amber-200/80 px-1 rounded">
+                                    Chính
+                                  </span>
+                                )}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleProgram(prog.id);
+                                  }}
+                                  className="ml-0.5 text-slate-400 hover:text-rose-600 cursor-pointer text-xs font-bold"
+                                  title="Bỏ chọn chương trình này"
+                                >
+                                  ×
+                                </span>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 text-slate-400">
+                          <span className="text-xs font-medium">
+                            {selectedPrograms.length > 0 ? `${selectedPrograms.length} CT` : ''}
+                          </span>
+                          <svg className={`w-4 h-4 transition-transform duration-200 ${isProgramDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </button>
+
+                      {/* Dropdown Popup */}
+                      {isProgramDropdownOpen && (
+                        <div className="absolute z-50 mt-1.5 w-full bg-white rounded-xl shadow-xl border border-slate-200 p-2 space-y-2 animate-in fade-in zoom-in-95 duration-100">
+                          <div className="space-y-1.5">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                autoFocus
+                                value={programSearchQuery}
+                                onChange={(e) => setProgramSearchQuery(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="Tìm kiếm chương trình học..."
+                                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                              />
+                              <svg className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] px-1">
+                              <span className="text-slate-500">
+                                {filteredDropdownPrograms.length} chương trình học phù hợp
+                              </span>
+                              {selectedProgramIds.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleClearAllPrograms()}
+                                  className="text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                                >
+                                  Bỏ chọn tất cả ({selectedProgramIds.length})
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="max-h-56 overflow-y-auto p-1 space-y-1 divide-y divide-slate-100/60 custom-scrollbar">
+                            {filteredDropdownPrograms.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-slate-500">
+                                Không tìm thấy chương trình nào khớp với "{programSearchQuery}"
+                              </div>
+                            ) : (
+                              filteredDropdownPrograms.map((prog) => {
+                                const isChecked = selectedProgramIds.includes(prog.id);
+                                const isPrimary = selectedProgramIds[0] === prog.id;
+
+                                return (
+                                  <label
+                                    key={prog.id}
+                                    className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition select-none ${
+                                      isChecked
+                                        ? isPrimary
+                                          ? 'bg-amber-50/80 hover:bg-amber-100/80 border border-amber-200'
+                                          : 'bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200'
+                                        : 'hover:bg-slate-100/80'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      aria-label={prog.name}
+                                      onChange={() => handleToggleProgram(prog.id)}
+                                      className="mt-1 h-4 w-4 shrink-0 rounded accent-amber-600 cursor-pointer"
+                                    />
+                                    <div className="min-w-0 flex-1 text-xs">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold text-slate-800">{prog.name}</span>
+                                        {prog.code && (
+                                          <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">
+                                            {prog.code}
+                                          </span>
+                                        )}
+                                        {isChecked && isPrimary && (
+                                          <span className="text-[10px] font-bold text-amber-800 bg-amber-200/90 px-1.5 py-0.2 rounded-full">
+                                            ★ CT chính
+                                          </span>
+                                        )}
+                                        {isChecked && !isPrimary && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleSetPrimaryProgram(prog.id);
+                                            }}
+                                            className="text-[10px] text-amber-700 hover:text-amber-900 underline font-semibold ml-auto"
+                                            title="Đặt làm chương trình chính"
+                                          >
+                                            Đặt làm chính
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center justify-between">
+                                        <span>Học phí: {prog.tuitionFee?.toLocaleString('vi-VN')} đ</span>
+                                        <span className="text-[10px] text-slate-400">{prog.category}</span>
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                          <div className="flex justify-end pt-1 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => setIsProgramDropdownOpen(false)}
+                              className="px-3 py-1 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:bg-slate-700 cursor-pointer"
+                            >
+                              Đóng
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <p className="mt-1 text-[10px] text-slate-500">Tích chọn một hoặc nhiều chương trình học cho học viên.</p>
+                    </div>
                   ) : (
                     <>
                       <input

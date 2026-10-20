@@ -123,6 +123,7 @@ export function WorkspaceScreens({
     handleUpdateReceipt,
     handleDeleteReceipt,
     handleSaveAttendanceSession,
+    handleDeleteAttendanceSession,
     handleRecordParentContact,
     handleCreateProgram,
     handleAddProgram,
@@ -306,6 +307,7 @@ export function WorkspaceScreens({
           request={taskRequest?.tab === 'attendance' ? taskRequest : null}
           onRequestHandled={() => setTaskRequest(null)}
           onSaveSession={handleSaveAttendanceSession}
+          onDeleteSession={handleDeleteAttendanceSession}
           onRecordParentContact={handleRecordParentContact}
           centerName={settings.name}
           isOwner={currentUser.role === 'owner'}

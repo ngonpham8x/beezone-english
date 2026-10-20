@@ -117,5 +117,22 @@ export function createAttendanceActions({
     return null;
   };
 
-  return { handleSaveAttendanceSession, handleRecordParentContact };
+  const handleDeleteAttendanceSession = (sessionId: string): boolean => {
+    const session = attendanceSessions.find((item) => item.id === sessionId);
+    if (!session) return false;
+    const hasBilledReceipt = receipts.some(
+      (r) => r.paymentKind === 'session' && r.sessionLines?.some((l) => l.attendanceSessionId === sessionId)
+    );
+    if (hasBilledReceipt) {
+      showAlert('Không thể xóa buổi điểm danh này vì đã có phiếu thu học phí theo buổi liên quan.');
+      return false;
+    }
+    setAttendanceSessions((prev) => prev.filter((item) => item.id !== sessionId));
+    const className = classes.find((c) => c.id === session.classId)?.name || session.classId;
+    addLog('XÓA', 'Điểm danh', `Xóa dữ liệu điểm danh buổi học ngày ${session.date} của lớp ${className}.`);
+    toast.success('Đã xóa dữ liệu điểm danh thành công!');
+    return true;
+  };
+
+  return { handleSaveAttendanceSession, handleRecordParentContact, handleDeleteAttendanceSession };
 }

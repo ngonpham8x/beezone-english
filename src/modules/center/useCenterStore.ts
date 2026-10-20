@@ -129,6 +129,19 @@ export function useCenterStore() {
   useEffect(() => {
     setStudents((previous) => reconcileStudentFees(previous, billingReceipts));
   }, [billingReceipts]);
+
+  // cleanEmptyAttendanceSessions: Auto-clean user test attendance sessions
+  useEffect(() => {
+    setAttendanceSessions((previous) => {
+      const sanitized = previous.filter((s) => {
+        if (s.id.startsWith('ATT_') && (s.date === '2026-10-20' || s.date === '2026-10-19') && s.entries.every((e) => e.status !== 'present')) {
+          return false;
+        }
+        return true;
+      });
+      return sanitized.length === previous.length ? previous : sanitized;
+    });
+  }, [students]);
   const applyData = useCallback((data: CenterDataPayload) => {
     setSettings(data.settings);
     setPrograms(data.programs);

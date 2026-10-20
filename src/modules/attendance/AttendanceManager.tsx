@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass } from '../../lib/studentClasses';
 import {
   AlertCircle,
@@ -16,10 +17,12 @@ import {
   Table as TableIcon,
   Users,
   XCircle,
+  Trash2,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { lessonsOn } from '../../lib/operations';
@@ -45,6 +48,7 @@ interface AttendanceManagerProps {
   teachers: Teacher[];
   attendanceSessions: AttendanceSession[];
   onSaveSession: (session: AttendanceSession) => boolean | void;
+  onDeleteSession?: (sessionId: string) => boolean | void;
   onRecordParentContact?: (request: ParentContactRequest) => string | null;
   centerName?: string;
   isOwner: boolean;
@@ -57,6 +61,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   teachers,
   attendanceSessions,
   onSaveSession,
+  onDeleteSession,
   onRecordParentContact,
   centerName = 'BeeZone',
   isOwner,
@@ -93,6 +98,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const [showTopicNote, setShowTopicNote] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [applyOldSessionBilling, setApplyOldSessionBilling] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<AttendanceSession | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   const [contactStudentId, setContactStudentId] = useState<string | null>(null);
   React.useEffect(() => setContactStudentId(null), [selectedClassId, sessionDate]);
@@ -251,6 +257,10 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
   const handleSave = () => {
     if (!canSave || !selectedClass || !sessionDate) return;
+    if (classStudents.length === 0) {
+      showAlert("Lớp học chưa có học viên nào. Vui lòng thêm học viên vào lớp trước khi điểm danh.");
+      return;
+    }
     if (selectedClass.billingMode === 'session' && sessionDate > centerDate()) { setStatusMessage('Chỉ ghi nhận học phí cho buổi đã tổ chức; ngày điểm danh không được ở tương lai.'); return; }
     if (noLesson) { setStatusMessage('Ngày này không có buổi học theo lịch thực tế. Kiểm tra lịch nghỉ hoặc học bù.'); return; }
 
@@ -436,7 +446,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           <button
             type="button"
             onClick={handleMarkAllPresent}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer"
+            disabled={classStudents.length === 0}
+            className={`flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs ${classStudents.length === 0 ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-100 active:scale-95 cursor-pointer"}`}
           >
             <CheckCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Tất Cả Có Mặt</span>
@@ -476,7 +487,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={!canSave || !selectedClass}
+            disabled={!canSave || !selectedClass || classStudents.length === 0}
+            title={classStudents.length === 0 ? "Lớp học chưa có học viên để điểm danh" : undefined}
             className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm active:scale-95 cursor-pointer"
           >
             <Save className="w-4 h-4 shrink-0" />
@@ -805,9 +817,25 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       <Calendar className="w-3.5 h-3.5" />
                       {item.date}
                     </span>
-                    <span className="text-[11px] text-slate-500">
-                      {pCount}/{item.entries.length} có mặt
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] text-slate-500">
+                        {pCount}/{item.entries.length} có mặt
+                      </span>
+                      {onDeleteSession && (canSave || isOwner) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSessionToDelete(item);
+                          }}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0"
+                          title="Xóa buổi điểm danh này"
+                          aria-label={`Xóa buổi điểm danh ngày ${item.date}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-slate-700 font-medium truncate flex items-center gap-1">
                     <FileText className="w-3 h-3 text-slate-400 flex-shrink-0" />
@@ -819,6 +847,25 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           </div>
         </div>
       )}
+      {/* Delete Attendance Session Confirm Modal */}
+      <ConfirmModal
+        isOpen={Boolean(sessionToDelete)}
+        title="Xóa buổi điểm danh"
+        message={sessionToDelete ? `Bạn có chắc chắn muốn xóa dữ liệu điểm danh buổi học ngày ${sessionToDelete.date} của lớp này không?` : ''}
+        confirmText="Xóa buổi điểm danh"
+        cancelText="Hủy"
+        variant="danger"
+        onConfirm={() => {
+          if (sessionToDelete) {
+            onDeleteSession?.(sessionToDelete.id);
+            if (sessionDate === sessionToDelete.date) {
+              setSessionDate(centerDate());
+            }
+            setSessionToDelete(null);
+          }
+        }}
+        onClose={() => setSessionToDelete(null)}
+      />
     </div>
   );
 };
