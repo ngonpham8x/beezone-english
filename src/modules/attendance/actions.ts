@@ -118,8 +118,14 @@ export function createAttendanceActions({
   };
 
   const handleDeleteAttendanceSession = (sessionId: string): boolean => {
+    if (!currentUser?.active || currentUser.role !== 'owner') {
+      showAlert('Chỉ Chủ trung tâm được xóa buổi điểm danh trống.'); return false;
+    }
     const session = attendanceSessions.find((item) => item.id === sessionId);
     if (!session) return false;
+    if (session.entries.length > 0) {
+      showAlert('Buổi học đã có lịch sử điểm danh. Hãy sửa dữ liệu điểm danh để giữ hồ sơ học tập và học phí.'); return false;
+    }
     const hasBilledReceipt = receipts.some(
       (r) => r.paymentKind === 'session' && r.sessionLines?.some((l) => l.attendanceSessionId === sessionId)
     );

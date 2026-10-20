@@ -821,7 +821,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       <span className="text-[11px] text-slate-500">
                         {pCount}/{item.entries.length} có mặt
                       </span>
-                      {onDeleteSession && (canSave || isOwner) && (
+                      {onDeleteSession && isOwner && item.entries.length === 0 && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -850,14 +850,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       {/* Delete Attendance Session Confirm Modal */}
       <ConfirmModal
         isOpen={Boolean(sessionToDelete)}
-        title="Xóa buổi điểm danh"
-        message={sessionToDelete ? `Bạn có chắc chắn muốn xóa dữ liệu điểm danh buổi học ngày ${sessionToDelete.date} của lớp này không?` : ''}
+        title="Xóa buổi điểm danh trống"
+        message={sessionToDelete ? `Bạn có muốn xóa buổi điểm danh trống ngày ${sessionToDelete.date}? Buổi có lịch sử học viên cần được giữ lại và chỉnh sửa.` : ''}
         confirmText="Xóa buổi điểm danh"
         cancelText="Hủy"
         variant="danger"
         onConfirm={() => {
           if (sessionToDelete) {
-            onDeleteSession?.(sessionToDelete.id);
+            if (onDeleteSession?.(sessionToDelete.id) === false) return;
             if (sessionDate === sessionToDelete.date) {
               setSessionDate(centerDate());
             }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { centerDate, isCalendarDate } from '../src/lib/dates';
-import { nextReceiptCode } from '../src/lib/identifiers';
+import { nextReceiptCode, nextStudentCode } from '../src/lib/identifiers';
 import { parseCenterData, parseBackupArchive } from '../src/lib/centerData';
 import { getReceiptInstallments, getReceiptPaymentEntries, feeStatusForReceipts } from '../src/lib/tuition';
 import { mergePermissions } from '../src/lib/auth';
@@ -35,6 +35,9 @@ describe('calendar and identifiers', () => {
   });
   it('does not reuse receipt codes after deletions or gaps', () => {
     expect(nextReceiptCode([{ code: 'PT-2026-0010' }, { code: 'PT-2026-002' }, { code: 'PT-2025-9999' }], 2026)).toBe('PT-2026-0011');
+  });
+  it('does not duplicate a student code after deletion and accepts legacy hyphenated codes', () => {
+    expect(nextStudentCode([{ code: 'HS001' }, { code: 'HS-010' }, { code: 'HS003' }])).toBe('HS011');
   });
 });
 describe('backup and cloud validation', () => {

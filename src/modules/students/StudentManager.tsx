@@ -530,7 +530,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     }
 
     const studentSelectedProgIds = [editingStudent.programId, ...(editingStudent.additionalProgramIds || [])].filter(Boolean);
-    const primaryProgId = studentSelectedProgIds[0] || selectedClass?.programId || '';
+    const primaryProgId = studentToSave.programId || studentSelectedProgIds[0] || selectedClass?.programId || '';
     const extraProgIds = studentSelectedProgIds.filter(id => id !== primaryProgId);
     if (selectedClass?.programId && selectedClass.programId !== primaryProgId && !extraProgIds.includes(selectedClass.programId)) {
       extraProgIds.push(selectedClass.programId);

@@ -71,6 +71,10 @@ Thông báo nghiệp vụ dùng `lib/dialogs.ts` (`showAlert`, `askConfirmation`
 
 Form chọn nhiều ngày dạy dùng `handleSaveSlots`: kiểm tra cả nhóm rồi cập nhật lịch và tóm tắt lớp một lần. Không gọi nhiều lệnh ghi danh sách từ cùng một snapshot trong vòng lặp, vì ca ghi sau có thể thay mất ca ghi trước.
 
+Quyền thêm/sửa/xóa đào tạo dùng `academicPermission`/`canManageAcademic` với action cụ thể, tương ứng migration 013. Các khóa cũ chỉ làm mặc định khi khóa mới chưa tồn tại; giá trị `false` mới phải thu hồi được quyền cũ. `teacher.add` tách riêng khỏi `teacher.edit`. `handleSaveTeacher` ghi phân công qua `class.teacherId`, sau đó store suy ra danh sách lớp phụ trách. `ConfirmedForm` xác nhận trước khi ghi form đang sửa; danh sách nhiều lớp dùng checkbox, giữ dữ liệu nháp khi hủy.
+
+Không tự xóa điểm danh theo ngày cố định, ID hoặc trạng thái vắng/đi muộn khi cập nhật học viên. Buổi đã có entries là lịch sử học tập; chỉ chủ trung tâm đang hoạt động được xóa buổi trống chưa liên kết phiếu thu. Dữ liệu sai trong buổi có lịch sử được chỉnh sửa theo các kiểm tra học phí hiện có.
+
 1. Tạo hoặc mở thư mục module phù hợp. Đặt giao diện trong file `.tsx`, quy tắc không phụ thuộc giao diện trong `lib`/model và thao tác thay dữ liệu trong `actions.ts`.
 2. Khai báo type và `Context` rõ ràng; tái sử dụng dialog/bảng cuộn/thẻ thống kê dùng chung. Nạp màn hình nặng bằng `lazy` để giữ kích thước khởi động.
 3. Nếu thêm trang: khai báo ID/nhãn/icon tại `navigation.ts`, quyền tại `canAccessTab` và case tại `WorkspaceScreens`. Nếu thêm thao tác: ghép trong `createCenterActions` và nối callback của màn hình.
