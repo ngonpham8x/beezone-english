@@ -7,6 +7,7 @@ import { hasStaffPermission } from '../../lib/permissions';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
 import { isStudentInClass, validateStudentClasses } from '../../lib/studentClasses';
+import { toast } from '../../lib/toast';
 import { feeStatusFromReceipts } from '../center/model';
 
 type Context = Pick<
@@ -57,6 +58,7 @@ export function createStudentActions({
       ...prev,
     ]);
     addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${newStudent.name} (${newStudent.code})`);
+    toast.success(`Thêm mới học sinh ${newStudent.name} (${newStudent.code}) thành công!`);
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
@@ -80,29 +82,31 @@ export function createStudentActions({
       feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts, attendanceSessions),
     };
     setStudents((prev) => prev.map((s) => (s.id === updatedStudent.id ? normalizedStudent : s)));
-    addLog(
-      'SỬA',
-      'Học sinh',
-      `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`,
-    );
+    addLog('SỬA', 'Học sinh', `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`);
+    toast.success(`Cập nhật thông tin học sinh ${updatedStudent.name} thành công!`);
   };
 
   const handleDeleteStudent = (id: string) => {
-    if (!hasStaffPermission(currentUser, 'student', 'delete')) return;
+    if (!hasStaffPermission(currentUser, 'student', 'delete')) {
+      toast.error('Bạn chưa được cấp quyền xóa học sinh.');
+      return;
+    }
     const st = students.find((s) => s.id === id);
     if (
       attendanceSessions.some(
         (session) => session.billing && session.entries.some((entry) => entry.studentId === id),
       )
     ) {
-      alert('Học viên có lịch sử học phí theo buổi. Hãy chuyển trạng thái học để giữ hồ sơ.');
+      const msg = 'Học viên có lịch sử học phí theo buổi. Hãy chuyển trạng thái học để giữ hồ sơ.';
+      toast.error(msg);
+      alert(msg);
       return;
     }
     const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
     if (linkedReceipts.length > 0) {
-      alert(
-        `Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`,
-      );
+      const msg = `Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`;
+      toast.error(msg);
+      alert(msg);
       return;
     }
     if (
@@ -112,9 +116,9 @@ export function createStudentActions({
           session.entries.some((entry) => entry.studentId === id),
         ))
     ) {
-      alert(
-        'Học viên có lịch sử điểm hoặc điểm danh. Hãy chuyển trạng thái học hoặc liên hệ Chủ trung tâm.',
-      );
+      const msg = 'Học viên có lịch sử điểm hoặc điểm danh. Hãy chuyển trạng thái học hoặc liên hệ Chủ trung tâm.';
+      toast.error(msg);
+      alert(msg);
       return;
     }
     setStudents((prev) => prev.filter((s) => s.id !== id));
@@ -122,11 +126,8 @@ export function createStudentActions({
     setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
     setClasses((prev) => prev.map((c) => c.studentIds.includes(id) ? { ...c, studentIds: c.studentIds.filter((sid) => sid !== id) } : c));
     if (st)
-      addLog(
-        'XÓA',
-        'Học sinh',
-        `Xóa học sinh ${st.name} (${st.code}) và dữ liệu điểm liên quan khỏi hệ thống`,
-      );
+      addLog('XÓA', 'Học sinh', `Xóa học sinh ${st.name} (${st.code}) và dữ liệu điểm liên quan khỏi hệ thống`);
+    toast.success(`Đã xóa học sinh ${st ? st.name : ''} thành công!`);
   };
 
   const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
@@ -259,6 +260,8 @@ export function createStudentActions({
       'Tuyển sinh',
       `Xác nhận nhập học chính thức học viên ${student.name} (${student.code}) vào lớp ${targetClass?.name || classId}`,
     );
+    
+    toast.success(`Nhập học thành công cho học viên ${student.name}!`);
     return true;
   };
 
@@ -286,11 +289,8 @@ export function createStudentActions({
         return s;
       }),
     );
-    addLog(
-      'SỬA',
-      'Học sinh',
-      `Bảo lưu học tập học sinh ${student.name} (${student.code}) từ ${reserveDate}`,
-    );
+    addLog('SỬA', 'Học sinh', `Bảo lưu học tập học sinh ${student.name} (${student.code}) từ ${reserveDate}`);
+    toast.success(`Đã cập nhật bảo lưu cho học sinh ${student.name}!`);
   };
 
   const handleDropStudent = (studentId: string, dropDate: string, reason: string) => {
@@ -312,11 +312,8 @@ export function createStudentActions({
         return s;
       }),
     );
-    addLog(
-      'SỬA',
-      'Học sinh',
-      `Học sinh ${student.name} (${student.code}) nghỉ học từ ngày ${dropDate}`,
-    );
+    addLog('SỬA', 'Học sinh', `Học sinh ${student.name} (${student.code}) nghỉ học từ ngày ${dropDate}`);
+    toast.success(`Đã cập nhật trạng thái nghỉ học cho học sinh ${student.name}!`);
   };
 
   const handleReEnrollStudent = (
@@ -391,6 +388,8 @@ export function createStudentActions({
       'Học sinh',
       `Học sinh ${student.name} (${student.code}) quay lại học lớp ${targetClass?.name || targetClassId}`,
     );
+    
+    toast.success(`Học sinh ${student.name} đã quay lại học thành công!`);
     return true;
   };
 

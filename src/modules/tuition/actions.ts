@@ -1,3 +1,4 @@
+import { toast } from '../../lib/toast';
 import type { TuitionReceipt, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -39,6 +40,8 @@ export function createTuitionActions({
       'Học phí',
       `Lập phiếu thu ${r.code} số tiền ${r.paidAmount.toLocaleString('vi-VN')} đ`,
     );
+    
+    toast.success(`Lập phiếu thu ${r.code} thành công!`);
     return true;
   };
 
@@ -58,6 +61,8 @@ export function createTuitionActions({
       'Học phí',
       `Cập nhật phiếu thu ${updatedReceipt.code} (${updatedReceipt.paymentKind === 'course' ? 'học phí khóa' : updatedReceipt.paymentKind === 'session' ? 'học phí buổi' : 'học phí tháng'})`,
     );
+  
+    toast.success(`Cập nhật phiếu thu ${updatedReceipt.code} thành công!`);
   };
 
   const handleDeleteReceipt = (id: string) => {
@@ -71,6 +76,8 @@ export function createTuitionActions({
         'Học phí',
         `Xóa phiếu thu ${receipt.code} (${receipt.paymentKind === 'course' ? 'học phí khóa' : receipt.paymentKind === 'session' ? 'học phí buổi' : 'học phí tháng'})`,
       );
+  
+    toast.success(`Đã xóa phiếu thu ${receipt ? receipt.code : ''} thành công!`);
   };
 
   return { handleAddReceipt, handleUpdateReceipt, handleDeleteReceipt };

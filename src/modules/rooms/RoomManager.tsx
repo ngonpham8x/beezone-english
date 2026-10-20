@@ -257,6 +257,31 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
           </div>
         </DialogFrame>
       )}
+      {/* CONFIRM DELETE ROOM MODAL */}
+      <ConfirmModal
+        isOpen={!!roomToDelete}
+        title="Xác nhận xóa phòng học"
+        message={
+          roomToDelete ? (
+            <>
+              Bạn có chắc chắn muốn xóa phòng học <strong>{roomToDelete.name}</strong>?
+              <span className="block mt-2 text-xs text-slate-500">
+                Thao tác này sẽ xóa phòng học khỏi danh sách. Lưu ý: Chỉ xóa được phòng không còn xếp lịch lớp nào.
+              </span>
+            </>
+          ) : null
+        }
+        confirmText="Xác nhận xóa"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        onConfirm={() => {
+          if (roomToDelete) {
+            onDeleteRoom(roomToDelete.id);
+            setRoomToDelete(null);
+          }
+        }}
+        onClose={() => setRoomToDelete(null)}
+      />
     </div>
   );
 };

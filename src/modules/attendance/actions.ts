@@ -1,3 +1,4 @@
+import { toast } from '../../lib/toast';
 import type { AttendanceSession, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -62,11 +63,8 @@ export function createAttendanceActions({
       }
       return [sessionData, ...prev];
     });
-    addLog(
-      'THÊM',
-      'Điểm danh',
-      `Điểm danh buổi học ngày ${sessionData.date} lớp ${classes.find((c) => c.id === sessionData.classId)?.name || sessionData.classId}`,
-    );
+    addLog('THÊM', 'Điểm danh', `Điểm danh buổi học ngày ${sessionData.date} lớp ${classes.find((c) => c.id === sessionData.classId)?.name || sessionData.classId}`);
+    toast.success('Đã lưu dữ liệu điểm danh thành công!');
     return true;
   };
 
@@ -113,11 +111,8 @@ export function createAttendanceActions({
           : item,
       ),
     );
-    addLog(
-      'SỬA',
-      'Liên hệ phụ huynh',
-      `Ghi nhận liên hệ qua ${request.channel} cho ${student.code}, lớp ${classroom!.name}, buổi ${session.date}.`,
-    );
+    addLog('SỬA', 'Liên hệ phụ huynh', `Ghi nhận liên hệ qua ${request.channel} cho ${student.code}, lớp ${classroom!.name}, buổi ${session.date}.`);
+    toast.success('Đã ghi nhận liên hệ phụ huynh thành công!');
     return null;
   };
 

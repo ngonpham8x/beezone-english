@@ -202,3 +202,4 @@ it('StudentManager renders ConfirmModal when clicking delete', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Xác nhận xóa' }));
   expect(onDeleteStudent).toHaveBeenCalledWith('st-1');
 });
+

@@ -4,6 +4,7 @@ import { DialogFrame } from '../../components/DialogFrame';
 import { ActiveSession, getActiveSessions, removeActiveSession } from '../../lib/activeSessions';
 import { readApiJson } from '../../lib/http';
 import { isLocalPreview } from '../../lib/supabase';
+import { toast } from '../../lib/toast';
 import { createStaffPermissions, normalizeStaffPermissions } from '../../lib/permissions';
 import { ClassRoom, StaffPermissions, Teacher, UserAccount, UserRole } from '../../types';
 
@@ -210,6 +211,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       setRole('staff');
       setStaffPermissions(createEmptyPermissions());
       setMessage('Đã cấp quyền. Người này chỉ cần đăng nhập Google bằng đúng email để sử dụng hệ thống.');
+      toast.success('Đã cấp quyền truy cập thành công!');
       await loadMembers();
       onAccountChanged?.();
     } catch (requestError) {
@@ -249,6 +251,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       await loadMembers();
       onAccountChanged?.();
       setMessage(`Cập nhật cấp quyền thành công cho tài khoản "${targetName}"!`);
+      toast.success(`Cập nhật cấp quyền thành công cho tài khoản "${targetName}"!`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Không thể cập nhật cấp quyền.');
     } finally {
@@ -267,6 +270,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       await readApiJson(response, 'Không thể cập nhật trạng thái tài khoản.');
       await loadMembers(); onAccountChanged?.();
       setMessage(member.is_active ? 'Đã khóa tài khoản.' : 'Đã mở khóa tài khoản.');
+      toast.success(member.is_active ? 'Đã khóa tài khoản.' : 'Đã mở khóa tài khoản.');
     } catch (error) { setError(error instanceof Error ? error.message : 'Không thể cập nhật tài khoản.'); }
     finally { setIsSubmitting(false); }
   };
@@ -299,6 +303,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       refreshActiveSessions();
       onAccountChanged?.();
       setMessage(`Đã xóa vĩnh viễn tài khoản "${nameOrEmail}".`);
+      toast.success(`Đã xóa vĩnh viễn tài khoản "${nameOrEmail}".`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Không thể xóa tài khoản.');
     } finally {

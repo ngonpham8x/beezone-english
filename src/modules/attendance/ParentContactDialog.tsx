@@ -7,6 +7,7 @@ import {
   absenceMessage,
   CONTACT_CHANNELS,
   parentPhoneHref,
+  parentZaloHref,
   splitAttendanceNote,
 } from './parentContact';
 import type { ContactChannel, ParentContactRequest } from './parentContact';
@@ -77,6 +78,22 @@ export function ParentContactDialog({
     session.entries.find((entry) => entry.studentId === student.id)?.note,
   ).history;
   const phoneHref = parentPhoneHref(student.parentPhone);
+  const zaloHref = parentZaloHref(student.parentPhone || student.phone);
+  const openZalo = async () => {
+    if (!zaloHref) return;
+    try {
+      if (message.trim()) {
+        await navigator.clipboard.writeText(message);
+      }
+    } catch {
+      // fallback
+    }
+    window.open(zaloHref, '_blank', 'noopener,noreferrer');
+    setFeedback('Đã sao chép nội dung và mở Zalo của phụ huynh. Bạn chỉ cần nhấn Dán (Ctrl+V) trong khung chat Zalo để gửi.');
+    if (!details.trim()) {
+      setDetails('Đã gửi tin nhắn Zalo cho phụ huynh');
+    }
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(message);
@@ -146,6 +163,19 @@ export function ParentContactDialog({
                 khi bạn đã liên hệ.
               </p>
               <div className="flex flex-wrap gap-2">
+                {zaloHref && (
+                  <button
+                    type="button"
+                    onClick={openZalo}
+                    aria-label={`Mở Zalo phụ huynh ${student.name}`}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0068FF] px-4 font-bold text-white hover:bg-[#0057D9] shadow-sm active:scale-95 transition"
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-black text-[#0068FF]">
+                      Zalo
+                    </span>
+                    <span>Gửi qua Zalo</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={copy}
@@ -174,6 +204,31 @@ export function ParentContactDialog({
                   setRecorded(false);
                 }}
               />
+
+              {channel === 'Zalo' && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-sky-950">Gửi trực tiếp qua Zalo phụ huynh</p>
+                    <p className="text-[11px] text-sky-700 truncate">
+                      Số Zalo phụ huynh: <strong className="font-semibold text-sky-900">{student.parentPhone || student.phone || 'Chưa cập nhật'}</strong>
+                    </p>
+                  </div>
+                  {zaloHref ? (
+                    <button
+                      type="button"
+                      onClick={openZalo}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#0068FF] px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#0057D9] active:scale-95 transition cursor-pointer"
+                    >
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[8px] font-black text-[#0068FF]">
+                        Z
+                      </span>
+                      Mở Zalo gửi ngay
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-amber-700 italic">Chưa có số Zalo hợp lệ</span>
+                  )}
+                </div>
+              )}
               <label className="block font-semibold text-slate-700">
                 Kết quả liên hệ / phản hồi
                 <textarea

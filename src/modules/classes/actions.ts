@@ -1,3 +1,4 @@
+import { toast } from '../../lib/toast';
 import { isStudentInClass } from '../../lib/studentClasses';
 import type { ClassRoom, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
@@ -42,7 +43,10 @@ export function createClassActions({
 }: Context) {
   // Class CRUD Handlers
   const handleAddClass = (c: ClassRoom) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
+    if (!canManageAcademic(currentUser, 'classes')) {
+      toast.error('Bạn chưa được cấp quyền xóa lớp học.');
+      return;
+    }
     const error = validateCourse(c);
     if (error) {
       alert(error);
@@ -52,6 +56,7 @@ export function createClassActions({
       c = { ...c, completedDate: c.completedDate || centerDate() };
     setClasses((prev) => [...prev, c]);
     addLog('THÊM', 'Lớp học', `Tạo lớp học mới ${c.name} (${c.code})`);
+    toast.success(`Tạo lớp học mới ${c.name} (${c.code}) thành công!`);
   };
 
   const handleUpdateClass = (c: ClassRoom) => {
@@ -110,21 +115,24 @@ export function createClassActions({
       ),
     );
     addLog('SỬA', 'Lớp học', `Cập nhật lớp học ${c.name} (${c.code})`);
+    toast.success(`Cập nhật lớp học ${c.name} (${c.code}) thành công!`);
   };
 
   const handleDeleteClass = (id: string) => {
     if (!canManageAcademic(currentUser, 'classes')) return;
     if (grades.some(grade => grade.classId === id) || attendanceSessions.some(session => session.classId === id)) {
-      alert('Lớp có lịch sử điểm hoặc điểm danh. Hãy kết thúc đợt học để giữ hồ sơ.');
+      const msg = 'Lớp có lịch sử điểm hoặc điểm danh. Hãy kết thúc đợt học để giữ hồ sơ.';
+      toast.error(msg);
+      alert(msg);
       return;
     }
     if (
       enrollments.some((item) => item.classId === id) ||
       scheduleChanges.some((item) => item.classId === id)
     ) {
-      alert(
-        'Đợt học có lịch sử đăng ký hoặc lịch nghỉ/học bù. Hãy giữ hồ sơ và chuyển trạng thái kết thúc.',
-      );
+      const msg = 'Đợt học có lịch sử đăng ký hoặc lịch nghỉ/học bù. Hãy giữ hồ sơ và chuyển trạng thái kết thúc.';
+      toast.error(msg);
+      alert(msg);
       return;
     }
     const c = classes.find((item) => item.id === id);
@@ -137,9 +145,9 @@ export function createClassActions({
       ]
         .filter(Boolean)
         .join(' và ');
-      alert(
-        `Không thể xóa lớp ${c?.name || ''} vì còn ${dependencies}. Hãy chuyển học sinh và xử lý phiếu thu trước để giữ liên kết dữ liệu.`,
-      );
+      const msg = `Không thể xóa lớp ${c?.name || ''} vì còn ${dependencies}. Hãy chuyển học sinh và xử lý phiếu thu trước để giữ liên kết dữ liệu.`;
+      toast.error(msg);
+      alert(msg);
       return;
     }
     setClasses((prev) => prev.filter((item) => item.id !== id));
@@ -147,11 +155,8 @@ export function createClassActions({
     setGrades((prev) => prev.filter((grade) => grade.classId !== id));
     setAttendanceSessions((prev) => prev.filter((session) => session.classId !== id));
     if (c)
-      addLog(
-        'XÓA',
-        'Lớp học',
-        `Xóa lớp học ${c.name} (${c.code}) cùng lịch và điểm không còn liên kết`,
-      );
+      addLog('XÓA', 'Lớp học', `Xóa lớp học ${c.name} (${c.code}) cùng lịch và điểm không còn liên kết`);
+    toast.success(`Đã xóa lớp học ${c?.name || ''} thành công!`);
   };
 
   return { handleAddClass, handleUpdateClass, handleDeleteClass };

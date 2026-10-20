@@ -1,3 +1,4 @@
+import { toast } from '../../lib/toast';
 import type { ScheduleChange, TimetableSlot, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -42,11 +43,8 @@ export function createScheduleActions({
         classroom.id === slot.classId ? withClassScheduleSummary(classroom, next) : classroom,
       ),
     );
-    addLog(
-      'THÊM',
-      'Thời khóa biểu',
-      `Thêm ca học mới vào ${slot.dayOfWeek} (${slot.startTime}-${slot.endTime})`,
-    );
+    addLog('THÊM', 'Thời khóa biểu', `Thêm ca học mới vào ${slot.dayOfWeek} (${slot.startTime}-${slot.endTime})`);
+    toast.success(`Thêm ca học mới vào ${slot.dayOfWeek} (${slot.startTime}-${slot.endTime}) thành công!`);
   };
 
   const handleUpdateSlot = (slot: TimetableSlot) => {
@@ -62,6 +60,7 @@ export function createScheduleActions({
       ),
     );
     addLog('SỬA', 'Thời khóa biểu', `Cập nhật ca học vào ${slot.dayOfWeek}`);
+    toast.success(`Cập nhật ca học vào ${slot.dayOfWeek} thành công!`);
   };
 
   const handleDeleteSlot = (id: string) => {
@@ -82,6 +81,7 @@ export function createScheduleActions({
         ),
       );
     addLog('XÓA', 'Thời khóa biểu', `Xóa ca học khỏi thời khóa biểu`);
+    toast.success('Đã xóa ca học khỏi thời khóa biểu thành công!');
   };
 
   const handleReplaceClassSchedule = (classId: string, slots: TimetableSlot[]) => {
@@ -113,6 +113,7 @@ export function createScheduleActions({
       return 'Giáo viên hoặc phòng không còn sẵn sàng.';
     setScheduleChanges((prev) => [...prev.filter((item) => item.id !== change.id), change]);
     addLog('SỬA', 'Lịch theo ngày', change.kind + ': ' + change.date + ' · ' + change.reason);
+    toast.success('Đã lưu thay đổi lịch học thành công!');
     return null;
   };
   const handleDeleteScheduleChange = (id: string): string | null => {
@@ -133,6 +134,7 @@ export function createScheduleActions({
     }
     setScheduleChanges(next);
     addLog('XÓA', 'Lịch theo ngày', 'Hủy điều chỉnh ngày ' + change.date);
+    toast.success('Đã hủy điều chỉnh lịch học thành công!');
     return null;
   };
 

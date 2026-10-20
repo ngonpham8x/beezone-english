@@ -1329,6 +1329,31 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
           </div>
         </DialogFrame>
       )}
+      {/* CONFIRM DELETE CLASS MODAL */}
+      <ConfirmModal
+        isOpen={!!classToDelete}
+        title="Xác nhận xóa lớp học"
+        message={
+          classToDelete ? (
+            <>
+              Bạn có chắc chắn muốn xóa lớp học <strong>{classToDelete.name}</strong> ({classToDelete.code})?
+              <span className="block mt-2 text-xs text-slate-500">
+                Thao tác này sẽ xóa lớp học khỏi danh sách. Lưu ý: Chỉ xóa được lớp chưa có lịch sử điểm, điểm danh hoặc phiếu thu.
+              </span>
+            </>
+          ) : null
+        }
+        confirmText="Xác nhận xóa"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        onConfirm={() => {
+          if (classToDelete) {
+            onDeleteClass(classToDelete.id);
+            setClassToDelete(null);
+          }
+        }}
+        onClose={() => setClassToDelete(null)}
+      />
     </div>
   );
 };

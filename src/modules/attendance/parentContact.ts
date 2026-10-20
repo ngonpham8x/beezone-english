@@ -87,6 +87,12 @@ export function parentPhoneHref(phone: string): string | null {
   return /^\+?\d{8,15}$/.test(clean) ? `tel:${clean}` : null;
 }
 
+export function parentZaloHref(phone?: string): string | null {
+  if (!phone) return null;
+  const clean = phone.replace(/[^0-9]/g, '');
+  return clean.length >= 9 ? `https://zalo.me/${clean}` : null;
+}
+
 export function absenceMessage(
   student: Student,
   className: string,

@@ -10,4 +10,5 @@ coverage/
 *DaChuanHoa.xlsx
 
 .vercel
+.vscode/
 .env*

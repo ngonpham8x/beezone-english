@@ -1,3 +1,4 @@
+import { toast } from '../../lib/toast';
 import type { Room, UserAccount } from '../../types';
 import { canManageAcademic } from '../../lib/permissions';
 import type { CenterStore } from '../center/useCenterStore';
@@ -18,33 +19,41 @@ export function createRoomActions({
 }: Context) {
   // Room CRUD Handlers
   const handleAddRoom = (r: Room) => {
-    if (!canManageAcademic(currentUser, 'rooms')) return;
+    if (!canManageAcademic(currentUser, 'rooms')) {
+      toast.error('Bạn chưa được cấp quyền xóa phòng học.');
+      return;
+    }
     setRooms((prev) => [...prev, r]);
     addLog('THÊM', 'Phòng học', `Thêm phòng học ${r.name}`);
+    toast.success(`Thêm phòng học ${r.name} thành công!`);
   };
 
   const handleUpdateRoom = (r: Room) => {
     if (!canManageAcademic(currentUser, 'rooms')) return;
     setRooms((prev) => prev.map((item) => (item.id === r.id ? r : item)));
     addLog('SỬA', 'Phòng học', `Cập nhật phòng học ${r.name}`);
+    toast.success(`Cập nhật phòng học ${r.name} thành công!`);
   };
 
   const handleDeleteRoom = (id: string) => {
     if (!canManageAcademic(currentUser, 'rooms')) return;
     if (scheduleChanges.some((c) => c.roomId === id)) {
-      alert('Phòng có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ phòng.');
+      const msg = 'Phòng có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ phòng.';
+      toast.error(msg);
+      alert(msg);
       return;
     }
     const room = rooms.find((item) => item.id === id);
     const roomClasses = classes.filter((classroom) => classroom.roomId === id);
     if (roomClasses.length > 0 || timetableSlots.some((slot) => slot.roomId === id)) {
-      alert(
-        `Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${roomClasses.length} lớp. Hãy đổi phòng cho các lớp trước.`,
-      );
+      const msg = `Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${roomClasses.length} lớp. Hãy đổi phòng cho các lớp trước.`;
+      toast.error(msg);
+      alert(msg);
       return;
     }
     setRooms((prev) => prev.filter((item) => item.id !== id));
     addLog('XÓA', 'Phòng học', `Xóa phòng học ${room?.name || ''}`);
+    toast.success(`Đã xóa phòng học ${room?.name || ''} thành công!`);
   };
 
   return { handleAddRoom, handleUpdateRoom, handleDeleteRoom };

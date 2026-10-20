@@ -477,6 +477,31 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
           </div>
         </DialogFrame>
       )}
+      {/* CONFIRM DELETE TEACHER MODAL */}
+      <ConfirmModal
+        isOpen={!!teacherToDelete}
+        title="Xác nhận xóa giáo viên"
+        message={
+          teacherToDelete ? (
+            <>
+              Bạn có chắc chắn muốn xóa giáo viên <strong>{teacherToDelete.name}</strong>?
+              <span className="block mt-2 text-xs text-slate-500">
+                Thao tác này sẽ xóa hồ sơ giáo viên. Lưu ý: Chỉ xóa được giáo viên không còn phụ trách lớp hay có lịch dạy/đổi lịch.
+              </span>
+            </>
+          ) : null
+        }
+        confirmText="Xác nhận xóa"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        onConfirm={() => {
+          if (teacherToDelete) {
+            onDeleteTeacher(teacherToDelete.id);
+            setTeacherToDelete(null);
+          }
+        }}
+        onClose={() => setTeacherToDelete(null)}
+      />
     </div>
   );
 };

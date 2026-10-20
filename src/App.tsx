@@ -15,6 +15,7 @@ export { sanitizeClassName } from './modules/center/model';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { ToastContainer } from './components/Toast';
 import { isLocalPreview } from './lib/supabase';
 
 export default function App() {
@@ -158,6 +159,8 @@ export default function App() {
         currentUser={currentUser}
         addLog={addLog}
       />
+
+      <ToastContainer />
     </div>
   );
 }

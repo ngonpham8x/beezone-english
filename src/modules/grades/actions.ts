@@ -1,3 +1,4 @@
+import { toast } from '../../lib/toast';
 import type { Grade, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -21,6 +22,7 @@ export function createGradeActions({ setGrades, currentUser, addLog }: Context) 
       return [...prev, updatedGrade];
     });
     addLog('SỬA', 'Điểm', `Cập nhật bảng điểm cho học sinh ID ${updatedGrade.studentId}`);
+    toast.success('Cập nhật bảng điểm thành công!');
   };
 
   return { handleUpdateGrade };
