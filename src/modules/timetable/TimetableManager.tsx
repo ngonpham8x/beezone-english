@@ -67,6 +67,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
+  const [selectedDays, setSelectedDays] = useState<string[]>(['Thứ 2']);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [isQuickClassOpen, setIsQuickClassOpen] = useState(false);
   const [newClassName, setNewClassName] = useState('');
@@ -124,7 +125,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         }
       }
     }
-    return validateRecurringChanges(classes, [...existing, targetSlot], scheduleChanges);
+    return validateRecurringChanges(classes, [...existing, targetSlot], scheduleChanges || []);
   };
 
 
@@ -193,37 +194,81 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
       startTime: '18:00',
       endTime: '19:30'
     });
+    setSelectedDays([selectedDay]);
     setConflictError(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (slot: TimetableSlot) => {
     setEditingSlot(slot);
+    setSelectedDays([slot.dayOfWeek]);
     setConflictError(null);
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+    const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit || !editingSlot) return;
+    if (selectedDays.length === 0) {
+      setConflictError('Vui lòng tích chọn ít nhất một ngày trong tuần.');
+      return;
+    }
     const startTime = normaliseTime(editingSlot.startTime);
     const endTime = normaliseTime(editingSlot.endTime);
     if (!startTime || !endTime || startTime >= endTime) {
       setConflictError('Nhập giờ dạng HH:MM; giờ kết thúc phải sau giờ bắt đầu.');
       return;
     }
-    const normalizedSlot = { ...editingSlot, startTime, endTime };
 
-    const conflict = checkConflict(normalizedSlot);
-    if (conflict) {
-      setConflictError(conflict);
-      return;
-    }
+    const isExisting = timetableSlots.some(s => s.id === editingSlot.id);
 
-    if (timetableSlots.some(s => s.id === normalizedSlot.id)) {
+    if (isExisting) {
+      const firstDay = selectedDays[0];
+      const normalizedSlot = { ...editingSlot, startTime, endTime, dayOfWeek: firstDay };
+      const conflict = checkConflict(normalizedSlot);
+      if (conflict) {
+        setConflictError(`Trùng lịch vào ${firstDay}: ${conflict}`);
+        return;
+      }
+
+      const additionalSlots: TimetableSlot[] = [];
+      for (let i = 1; i < selectedDays.length; i++) {
+        const extraDay = selectedDays[i];
+        const extraSlot: TimetableSlot = {
+          ...normalizedSlot,
+          id: `TT_${Date.now()}_${i}`,
+          dayOfWeek: extraDay,
+        };
+        const extraConflict = checkConflict(extraSlot);
+        if (extraConflict) {
+          setConflictError(`Trùng lịch vào ${extraDay}: ${extraConflict}`);
+          return;
+        }
+        additionalSlots.push(extraSlot);
+      }
+
       onUpdateSlot(normalizedSlot);
+      additionalSlots.forEach(slot => onAddSlot(slot));
     } else {
-      onAddSlot(normalizedSlot);
+      const slotsToAdd: TimetableSlot[] = [];
+      for (let i = 0; i < selectedDays.length; i++) {
+        const d = selectedDays[i];
+        const newSlot: TimetableSlot = {
+          ...editingSlot,
+          id: `TT_${Date.now()}_${i}`,
+          dayOfWeek: d,
+          startTime,
+          endTime,
+        };
+        const conflict = checkConflict(newSlot);
+        if (conflict) {
+          setConflictError(`Trùng lịch vào ${d}: ${conflict}`);
+          return;
+        }
+        slotsToAdd.push(newSlot);
+      }
+
+      slotsToAdd.forEach(slot => onAddSlot(slot));
     }
 
     setIsModalOpen(false);
@@ -514,30 +559,86 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Thứ Trong Tuần</label>
-                  <select
-                    value={editingSlot.dayOfWeek}
-                    onChange={(e) => setEditingSlot({ ...editingSlot, dayOfWeek: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  >
-                    {daysOfWeek.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+              <div>
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                  <label className="font-semibold text-slate-700 text-xs flex items-center gap-1.5">
+                    <span>Tích chọn các ngày học trong tuần *</span>
+                    <span className="text-[11px] font-normal text-slate-500">
+                      ({selectedDays.length} ngày đã chọn)
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDays(['Thứ 2', 'Thứ 4', 'Thứ 6'])}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      2-4-6
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDays(['Thứ 3', 'Thứ 5', 'Thứ 7'])}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      3-5-7
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDays(['Thứ 7', 'Chủ Nhật'])}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      T7-CN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDays([...daysOfWeek])}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
+                    >
+                      Tất cả
+                    </button>
+                  </div>
                 </div>
 
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  {daysOfWeek.map((d) => {
+                    const isChecked = selectedDays.includes(d);
+                    return (
+                      <label
+                        key={d}
+                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition border select-none ${
+                          isChecked
+                            ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedDays(selectedDays.filter((item) => item !== d));
+                            } else {
+                              setSelectedDays([...selectedDays, d]);
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                        />
+                        <span className="text-xs">{d}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Giờ Bắt Đầu</label>
                   <input type="text" inputMode="numeric" value={editingSlot.startTime} onChange={(e) => setEditingSlot({ ...editingSlot, startTime: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-xl" placeholder="Ví dụ: 17:00" required />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Giờ Kết Thúc</label>
-                <input type="text" inputMode="numeric" value={editingSlot.endTime} onChange={(e) => setEditingSlot({ ...editingSlot, endTime: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-xl" placeholder="Ví dụ: 19:00" required />
-                <p className="mt-1 text-[11px] text-slate-500">Tự gõ mọi khung giờ theo dạng HH:MM, ví dụ Chủ Nhật 07:00–09:00.</p>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Giờ Kết Thúc</label>
+                  <input type="text" inputMode="numeric" value={editingSlot.endTime} onChange={(e) => setEditingSlot({ ...editingSlot, endTime: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-xl" placeholder="Ví dụ: 19:00" required />
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">

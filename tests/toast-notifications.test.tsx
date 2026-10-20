@@ -7,6 +7,7 @@ import { toast } from '../src/lib/toast';
 import { ClassManager } from '../src/modules/classes/ClassManager';
 import { TeacherManager } from '../src/modules/teachers/TeacherManager';
 import { RoomManager } from '../src/modules/rooms/RoomManager';
+import { TeacherScheduleMatrix } from '../src/modules/timetable/TeacherScheduleMatrix';
 import { ParentContactDialog } from '../src/modules/attendance/ParentContactDialog';
 import { parentZaloHref } from '../src/modules/attendance/parentContact';
 import { OWNER_PERMISSIONS } from '../src/lib/auth';
@@ -250,4 +251,53 @@ describe('Parent contact Zalo direct button', () => {
     expect(windowOpenSpy).toHaveBeenCalledWith('https://zalo.me/0987654321', '_blank', 'noopener,noreferrer');
   });
 });
+
+describe('TeacherScheduleMatrix multi-day teaching selection', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('allows checkbox selection of multiple days and creates slots for all selected days', () => {
+    const onAddSlot = vi.fn();
+    const mockClass = { ...initial.initialClasses[0], id: 'c-test-1', name: 'Lớp Kiddy 3A' };
+    const mockTeacher = { ...initial.initialTeachers[0], id: 't-test-1', name: 'Co A' };
+    const mockRoom = { ...initial.initialRooms[0], id: 'r-test-1', name: '01' };
+
+    render(
+      <TeacherScheduleMatrix
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        rooms={[mockRoom]}
+        timetableSlots={[]}
+        isOwner={true}
+        canManage={true}
+        onAddSlot={onAddSlot}
+      />
+    );
+
+    // Click "Thêm Ca Dạy"
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm Ca Dạy' }));
+
+    // Expect modal "Tạo Ca Dạy Mới" to appear
+    expect(screen.getByText('Tạo Ca Dạy Mới')).toBeTruthy();
+    expect(screen.getByText(/Tích chọn các ngày dạy trong tuần/)).toBeTruthy();
+
+    // Click quick preset button "2-4-6"
+    fireEvent.click(screen.getByRole('button', { name: '2-4-6' }));
+
+    // Check count indicates 3 days selected
+    expect(screen.getByText('(3 ngày đã chọn)')).toBeTruthy();
+
+    // Click save
+    fireEvent.click(screen.getByRole('button', { name: /Lưu Ca Dạy/ }));
+
+    // Verify onAddSlot called 3 times (for Thứ 2, Thứ 4, Thứ 6)
+    expect(onAddSlot).toHaveBeenCalledTimes(3);
+    const addedDays = onAddSlot.mock.calls.map((call) => call[0].dayOfWeek);
+    expect(addedDays).toContain('Thứ 2');
+    expect(addedDays).toContain('Thứ 4');
+    expect(addedDays).toContain('Thứ 6');
+  });
+});
+
 
