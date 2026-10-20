@@ -26,3 +26,11 @@ export function validateStudentClasses(student: Student, classes: ClassRoom[], s
   }
   return null;
 }
+
+export function classProgramIds(c: Pick<ClassRoom, 'programId' | 'additionalProgramIds'>): string[] {
+  return [...new Set([c.programId, ...(c.additionalProgramIds || [])].filter(Boolean))];
+}
+export function classMatchesProgram(c: Pick<ClassRoom, 'programId' | 'additionalProgramIds'>, programId: string): boolean {
+  if (!programId) return false;
+  return classProgramIds(c).includes(programId);
+}

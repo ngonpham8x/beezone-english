@@ -330,6 +330,7 @@ export function WorkspaceScreens({
           onAddProgram={handleAddProgram}
           onUpdateProgram={handleUpdateProgram}
           onDeleteProgram={handleDeleteProgram}
+          onUpdateStudent={handleUpdateStudent}
           isOwner={currentUser.role === 'owner'}
         />
       );

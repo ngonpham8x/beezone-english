@@ -45,6 +45,7 @@ export interface Student {
   school: string;
   gradeLevel: string; // Khối 1..12
   programId: string;
+  additionalProgramIds?: string[];
   classId: string;
   /** Optional extra memberships; classId remains the primary class for legacy backups. */
   additionalClassIds?: string[];
@@ -94,6 +95,7 @@ export interface ClassRoom {
   code: string;
   name: string;
   programId: string;
+  additionalProgramIds?: string[];
   teacherId: string;
   roomId: string;
   scheduleTime: string; // e.g., "18:00 - 19:30"

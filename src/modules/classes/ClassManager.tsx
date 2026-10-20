@@ -1,19 +1,21 @@
-import { isStudentInClass } from '../../lib/studentClasses';
+import { isStudentInClass, classProgramIds, classMatchesProgram } from '../../lib/studentClasses';
 import {
   BookOpen,
   CalendarDays,
+  ChevronDown,
   Clock,
   DoorOpen,
   Edit,
   Eye,
   Plus,
   Save,
+  Search,
   Trash2,
   UserCheck,
   Users,
   X,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { StatCard } from '../../components/StatCard';
@@ -121,6 +123,53 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleDraft[]>([]);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [programInput, setProgramInput] = useState('');
+  const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+  const [isProgramDropdownOpen, setIsProgramDropdownOpen] = useState(false);
+  const [isQuickProgramOpen, setIsQuickProgramOpen] = useState(false);
+  const [newProgramName, setNewProgramName] = useState('');
+  const [newProgramTuition, setNewProgramTuition] = useState<number | ''>('');
+  const programDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isProgramDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (programDropdownRef.current && !programDropdownRef.current.contains(e.target as Node)) {
+        setIsProgramDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProgramDropdownOpen]);
+
+  const handleCreateQuickProgram = () => {
+    if (!canCreateProgram) return;
+    const trimmed = newProgramName.trim();
+    if (!trimmed) return;
+    const existing = programs.find(p => p.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      if (!selectedProgramIds.includes(existing.id)) {
+        const next = [...selectedProgramIds, existing.id];
+        setSelectedProgramIds(next);
+        setProgramInput(next.map(id => programs.find(p => p.id === id)?.name || id).join(', '));
+      }
+    } else {
+      const newProg: CourseProgram = {
+        id: `PROG_${Date.now()}`,
+        code: `CT-${String(programs.length + 1).padStart(3, '0')}`,
+        name: trimmed,
+        category: 'Khác',
+        tuitionFee: Number(newProgramTuition) || 0,
+        description: 'Tạo trực tiếp khi lập lớp học.',
+      };
+      onCreateProgram(newProg);
+      const next = [...selectedProgramIds, newProg.id];
+      setSelectedProgramIds(next);
+      setProgramInput(next.map(id => (id === newProg.id ? newProg.name : programs.find(p => p.id === id)?.name || id)).join(', '));
+    }
+    setNewProgramName('');
+    setNewProgramTuition('');
+    setIsQuickProgramOpen(false);
+  };
   const [isQuickRoomOpen, setIsQuickRoomOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState(0);
@@ -450,7 +499,21 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                       {cls.code}
                     </span>
                     <h3 className="font-bold text-slate-900 text-base mt-1.5 leading-snug">{cls.name}</h3>
-                    <div className="text-xs text-amber-700 font-semibold mt-0.5">{program?.name}</div>
+                    <div className="text-xs text-amber-700 font-semibold mt-0.5 flex flex-wrap gap-1">
+                      {(() => {
+                        const pIds = classProgramIds(cls);
+                        const names = pIds.map(id => programs.find(p => p.id === id)?.name || id).filter(Boolean);
+                        return names.length > 0 ? (
+                          names.map((pName, idx) => (
+                            <span key={idx} className="bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 text-[11px] font-semibold">
+                              {pName}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-400 italic">Chưa chọn chương trình</span>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   {canEdit && (
@@ -705,20 +768,219 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Chương Trình Học</label>
-                <input
-                  type="text"
-                  value={programInput}
-                  onChange={(e) => setProgramInput(e.target.value)}
-                  list="program-options"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  placeholder={canCreateProgram ? 'Chọn chương trình đã import hoặc nhập mới' : 'Chọn chương trình có sẵn'}
-                />
-                <datalist id="program-options">
-                  {programs.map((program) => <option key={program.id} value={program.name}>{program.code}</option>)}
-                </datalist>
-                <p className="mt-1 text-[10px] text-slate-500">{canCreateProgram ? 'Có thể chọn chương trình từ Excel hoặc gõ tên mới; tên mới sẽ được lưu để dùng cho các lớp sau.' : 'Chọn chương trình đã có trong danh mục. Tạo chương trình mới cần được cấp thêm quyền.'}</p>
+              <div className="relative" ref={programDropdownRef}>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700">Chương Trình Học *</label>
+                  {selectedProgramIds.length > 0 && (
+                    <span className="text-[11px] font-bold text-amber-700">
+                      Đã chọn {selectedProgramIds.length} chương trình
+                    </span>
+                  )}
+                </div>
+
+                {/* Display tags for already selected programs */}
+                {selectedProgramIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {selectedProgramIds.map((pId) => {
+                      const p = programs.find((prog) => prog.id === pId);
+                      return (
+                        <span
+                          key={pId}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold shadow-2xs"
+                        >
+                          <span>{p?.name || pId}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextIds = selectedProgramIds.filter((id) => id !== pId);
+                              setSelectedProgramIds(nextIds);
+                              setProgramInput(nextIds.map(id => programs.find(p => p.id === id)?.name || id).join(', '));
+                            }}
+                            className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full"
+                            title="Bỏ chọn chương trình này"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={programInput}
+                    onChange={(e) => {
+                      setProgramInput(e.target.value);
+                      setIsProgramDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsProgramDropdownOpen(true)}
+                    className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden text-xs"
+                    placeholder={canCreateProgram ? 'Chọn chương trình đã import hoặc nhập mới' : 'Chọn chương trình có sẵn'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsProgramDropdownOpen((prev) => !prev)}
+                    className="absolute right-2 top-2 p-1 text-slate-400 hover:text-amber-700 transition cursor-pointer"
+                    title="Sổ danh sách chương trình"
+                  >
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        isProgramDropdownOpen ? 'rotate-180 text-amber-600' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Dropdown Menu with Checkboxes */}
+                {isProgramDropdownOpen && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 space-y-2 max-h-72 flex flex-col">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 pb-1 border-b border-slate-100">
+                      <span>Tích chọn một hoặc nhiều chương trình cho lớp:</span>
+                      {selectedProgramIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProgramIds([]);
+                            setProgramInput('');
+                          }}
+                          className="text-rose-600 hover:underline"
+                        >
+                          Xóa chọn
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="overflow-y-auto space-y-1 flex-1 pr-1 custom-scrollbar">
+                      {programs.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-400">
+                          Chưa có chương trình học nào trong hệ thống
+                        </div>
+                      ) : (
+                        programs
+                          .filter((p) => {
+                            if (!programInput.trim()) return true;
+                            const q = programInput.trim().toLowerCase();
+                            return (
+                              p.name.toLowerCase().includes(q) ||
+                              p.code.toLowerCase().includes(q) ||
+                              (p.category && p.category.toLowerCase().includes(q))
+                            );
+                          })
+                          .map((prog) => {
+                            const isChecked = selectedProgramIds.includes(prog.id);
+                            return (
+                              <label
+                                key={prog.id}
+                                className={`flex items-start gap-2.5 p-2 rounded-xl cursor-pointer transition text-xs ${
+                                  isChecked
+                                    ? 'bg-amber-50 border border-amber-200 text-amber-950 font-semibold'
+                                    : 'hover:bg-slate-50 border border-transparent text-slate-700'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const nextIds = isChecked
+                                      ? selectedProgramIds.filter((id) => id !== prog.id)
+                                      : [...selectedProgramIds, prog.id];
+                                    setSelectedProgramIds(nextIds);
+                                    setProgramInput(
+                                      nextIds.map((id) => programs.find((p) => p.id === id)?.name || id).join(', ')
+                                    );
+                                  }}
+                                  className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-bold truncate">{prog.name}</span>
+                                    <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                                      {prog.code}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                    {prog.tuitionFee > 0 && (
+                                      <span className="text-emerald-700 font-bold">
+                                        {prog.tuitionFee.toLocaleString('vi-VN')} đ
+                                      </span>
+                                    )}
+                                    {prog.category && (
+                                      <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">
+                                        {prog.category}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })
+                      )}
+                    </div>
+
+                    {/* Quick Create Program */}
+                    {canCreateProgram && (
+                      <div className="pt-2 border-t border-slate-100 shrink-0">
+                        {!isQuickProgramOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => setIsQuickProgramOpen(true)}
+                            className="w-full py-1.5 text-center text-xs font-bold text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Tạo thêm chương trình mới...
+                          </button>
+                        ) : (
+                          <div className="space-y-1.5 p-2 bg-amber-50/60 rounded-xl border border-amber-200">
+                            <div className="text-[11px] font-bold text-amber-900">Tạo nhanh chương trình mới</div>
+                            <input
+                              type="text"
+                              value={newProgramName}
+                              onChange={(e) => setNewProgramName(e.target.value)}
+                              placeholder="Tên chương trình (VD: Tiếng Anh Giao Tiếp)"
+                              className="w-full px-2 py-1 text-xs border border-amber-200 rounded-lg bg-white"
+                            />
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={handleCreateQuickProgram}
+                                className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 cursor-pointer"
+                              >
+                                Tạo & Chọn
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsQuickProgramOpen(false)}
+                                className="px-2 py-1 text-slate-600 hover:text-slate-800 text-xs cursor-pointer"
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 shrink-0 text-xs">
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Đã chọn: <strong className="text-amber-700">{selectedProgramIds.length}</strong> chương trình
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsProgramDropdownOpen(false)}
+                        className="px-3 py-1 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:bg-slate-700 cursor-pointer"
+                      >
+                        Xong
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {canCreateProgram
+                    ? 'Có thể tích chọn một hoặc nhiều chương trình học cho lớp, hoặc nhập tên mới.'
+                    : 'Tích chọn chương trình học có sẵn trong danh mục.'}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -884,6 +1146,160 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <p className="mt-2 text-[11px] leading-4 text-slate-600">Tự gõ bất kỳ khung giờ nào theo dạng HH:MM, ví dụ Thứ 6: 17:00–19:00 và Chủ Nhật: 07:00–09:00. Lịch sẽ tự xuất hiện trong Thời khóa biểu.</p>
                 </div>
               )}
+
+              {/* DANH SÁCH HỌC VIÊN TRONG LỚP (TÍCH CHỌN) */}
+              <fieldset className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <legend className="px-1 font-bold text-slate-800 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-amber-600" />
+                    <span>Học viên trong lớp ({selectedStudentIds.length}{editingClass.capacity > 0 ? ` / ${editingClass.capacity}` : ''})</span>
+                  </legend>
+                  {onAddStudent && (
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickStudentOpen((prev) => !prev)}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Tạo học sinh mới
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Tích chọn các học viên tham gia lớp này. Có thể tìm kiếm theo tên hoặc mã học sinh.
+                </p>
+
+                {/* Quick Student Create Form */}
+                {isQuickStudentOpen && (
+                  <div className="mb-3 p-3 bg-amber-50/80 rounded-xl border border-amber-200">
+                    <div className="text-xs font-bold text-amber-950 mb-1.5">Thêm nhanh học sinh mới</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={newStudentName}
+                        onChange={(e) => setNewStudentName(e.target.value)}
+                        placeholder="Họ tên học sinh *"
+                        className="px-2 py-1.5 text-xs bg-white border border-amber-200 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        value={newStudentParent}
+                        onChange={(e) => setNewStudentParent(e.target.value)}
+                        placeholder="Tên phụ huynh"
+                        className="px-2 py-1.5 text-xs bg-white border border-amber-200 rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        value={newStudentPhone}
+                        onChange={(e) => setNewStudentPhone(e.target.value)}
+                        placeholder="Số điện thoại"
+                        className="px-2 py-1.5 text-xs bg-white border border-amber-200 rounded-lg"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCreateStudentQuick}
+                        className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 cursor-pointer"
+                      >
+                        Tạo & Thêm vào lớp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickStudentOpen(false)}
+                        className="px-2 py-1.5 text-slate-600 text-xs cursor-pointer"
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Search Students */}
+                <div className="relative mb-2">
+                  <input
+                    type="text"
+                    value={studentSearchQuery}
+                    onChange={(e) => setStudentSearchQuery(e.target.value)}
+                    placeholder="Tìm học sinh theo tên, mã HS hoặc số điện thoại..."
+                    className="w-full px-3 py-1.5 pl-8 text-xs border border-slate-300 rounded-lg bg-white"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  {studentSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Student Checkbox List */}
+                <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                  {students.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400">Chưa có học sinh nào trong hệ thống</div>
+                  ) : (
+                    students
+                      .filter((s) => {
+                        if (!studentSearchQuery) return true;
+                        const q = studentSearchQuery.toLowerCase();
+                        return (
+                          s.name.toLowerCase().includes(q) ||
+                          s.code.toLowerCase().includes(q) ||
+                          (s.phone && s.phone.toLowerCase().includes(q)) ||
+                          (s.parentPhone && s.parentPhone.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((st) => {
+                        const isChecked = selectedStudentIds.includes(st.id);
+                        const otherClasses = classes.filter((c) => c.id !== editingClass.id && isStudentInClass(st, c.id));
+                        return (
+                          <label
+                            key={st.id}
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer transition text-xs ${
+                              isChecked
+                                ? 'bg-amber-100/70 border border-amber-300/80 font-bold text-slate-900'
+                                : 'hover:bg-slate-100/80 border border-transparent text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleStudent(st.id)}
+                                className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer shrink-0"
+                              />
+                              <TeacherAvatar teacher={{ name: st.name, avatar: st.avatar }} className="w-6 h-6 rounded-full text-[10px] shrink-0" />
+                              <div className="min-w-0 truncate">
+                                <span className="font-semibold">{st.name}</span>
+                                <span className="text-slate-400 font-mono text-[11px] ml-1.5">({st.code})</span>
+                                {otherClasses.length > 0 && (
+                                  <span className="text-[10px] text-slate-500 ml-1.5 truncate">
+                                    • Lớp khác: {otherClasses.map((c) => c.name).join(', ')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 flex items-center gap-1.5 text-[10px]">
+                              <span
+                                className={`px-1.5 py-0.5 rounded font-medium ${
+                                  st.status === 'active'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                {st.status === 'active' ? 'Đang học' : st.status === 'reserved' ? 'Bảo lưu' : st.status}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })
+                  )}
+                </div>
+              </fieldset>
 
               {scheduleError && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">{scheduleError}</p>}
 

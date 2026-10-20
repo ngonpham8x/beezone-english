@@ -1444,6 +1444,41 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           </div>
         </DialogFrame>
       )}
+      <ConfirmModal
+        isOpen={!!studentToDelete}
+        title="Xác nhận xóa học sinh"
+        message={
+          studentToDelete ? (
+            <>
+              Bạn có chắc chắn muốn xóa học sinh <strong>{studentToDelete.name}</strong> ({studentToDelete.code}) khỏi hệ thống?
+              <span className="block mt-2 text-xs text-slate-500">
+                Lưu ý: Chỉ xóa được học viên chưa có lịch sử đóng học phí hoặc điểm danh.
+              </span>
+            </>
+          ) : null
+        }
+        confirmText="Xác nhận xóa"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        onConfirm={() => {
+          if (studentToDelete) {
+            const id = studentToDelete.id;
+            setStudentToDelete(null);
+            const res = (onDeleteStudent as (id: string) => string | null | void)(id);
+            if (typeof res === 'string' && res) {
+              setDeleteAlertMessage(res);
+            }
+          }
+        }}
+        onClose={() => setStudentToDelete(null)}
+      />
+
+      <AlertModal
+        isOpen={!!deleteAlertMessage}
+        title="Không thể xóa học sinh"
+        message={deleteAlertMessage}
+        onClose={() => setDeleteAlertMessage(null)}
+      />
     </div>
   );
 };

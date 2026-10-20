@@ -120,6 +120,7 @@ export function createStudentActions({
     setStudents((prev) => prev.filter((s) => s.id !== id));
     setEnrollments((prev) => prev.filter((item) => item.studentId !== id));
     setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
+    setClasses((prev) => prev.map((c) => c.studentIds.includes(id) ? { ...c, studentIds: c.studentIds.filter((sid) => sid !== id) } : c));
     if (st)
       addLog(
         'XÓA',
