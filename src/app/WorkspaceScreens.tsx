@@ -108,11 +108,9 @@ export function WorkspaceScreens({
     handleAddClass,
     handleUpdateClass,
     handleDeleteClass,
-    handleReorderClasses,
     handleAddRoom,
     handleUpdateRoom,
     handleDeleteRoom,
-    handleReorderRooms,
     handleAddSlot,
     handleSaveSlots,
     handleUpdateSlot,
@@ -236,7 +234,6 @@ export function WorkspaceScreens({
           onAddClass={handleAddClass}
           onUpdateClass={handleUpdateClass}
           onDeleteClass={handleDeleteClass}
-          onReorderClasses={handleReorderClasses}
           onReplaceClassSchedule={handleReplaceClassSchedule}
           onCreateRoom={handleAddRoom}
           onCreateProgram={handleCreateProgram}
@@ -257,7 +254,6 @@ export function WorkspaceScreens({
           onAddRoom={handleAddRoom}
           onUpdateRoom={handleUpdateRoom}
           onDeleteRoom={handleDeleteRoom}
-          onReorderRooms={handleReorderRooms}
         />
       );
     case 'timetable':

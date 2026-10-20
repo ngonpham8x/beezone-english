@@ -176,12 +176,5 @@ export function createClassActions({
     toast.success(`Đã xóa lớp học ${c?.name || ''} thành công!`);
   };
 
-  const handleReorderClasses = (reorderedClasses: ClassRoom[]) => {
-    if (!canManageAcademic(currentUser, 'classes', 'edit')) return;
-    setClasses(reorderedClasses);
-    addLog('SỬA', 'Lớp học', 'Sắp xếp lại thứ tự các lớp học.');
-    toast.success('Đã cập nhật thứ tự lớp học thành công!');
-  };
-
-  return { handleAddClass, handleUpdateClass, handleDeleteClass, handleReorderClasses };
+  return { handleAddClass, handleUpdateClass, handleDeleteClass };
 }
