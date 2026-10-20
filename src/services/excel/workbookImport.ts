@@ -5,6 +5,16 @@ import { importFinance } from './importFinance';
 import { importGrades, importTimetable } from './importGrades';
 import { importStudents } from './importStudents';
 import type { CenterWorkbookImportResult } from './types';
+export async function parseAcademicCatalogFile(file: File): Promise<CenterWorkbookImportResult> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await file.arrayBuffer());
+  const sheet = workbook.getWorksheet('LỚP HỌC');
+  if (!sheet) return { errors: [{ row: 0, field: 'Danh mục lớp', message: 'Không có sheet LỚP HỌC.' }] };
+  const result = importAcademics(sheet);
+  if (result.errors) return { errors: result.errors };
+  const { programs, teachers, rooms, classes } = result.data;
+  return { errors: [], data: { programs, teachers, rooms, classes, timetableSlots: importTimetable(classes), students: [], grades: [], receipts: [] } };
+}
 export async function parseCenterWorkbookFile(file: File): Promise<CenterWorkbookImportResult> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await file.arrayBuffer());

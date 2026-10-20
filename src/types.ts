@@ -46,6 +46,8 @@ export interface Student {
   gradeLevel: string; // Khối 1..12
   programId: string;
   classId: string;
+  /** Optional extra memberships; classId remains the primary class for legacy backups. */
+  additionalClassIds?: string[];
   address: string;
   email: string;
   phone: string;

@@ -1,4 +1,5 @@
 import { ClassRoom, CourseProgram, FeeStatus, Student, TuitionInstallment, TuitionReceipt } from '../types';
+import { studentClassIds } from './studentClasses';
 
 export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 
@@ -52,34 +53,38 @@ export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
 };
 
 export const isStudentOwingTuition = (
-  student: Pick<Student, 'id' | 'status' | 'feeStatus'>,
+  student: Pick<Student, 'id' | 'status' | 'feeStatus'> & Partial<Pick<Student, 'classId' | 'additionalClassIds'>>,
   receipts: TuitionReceipt[] = [],
+  classes: Pick<ClassRoom, 'id' | 'billingMode'>[] = [],
 ): boolean => {
   const studentReceipts = receipts.filter((receipt) => receipt.studentId === student.id);
   const debt = debtBreakdown(studentReceipts).total;
   if (debt > 0) return true;
+  const ids = studentClassIds({ classId: student.classId || '', additionalClassIds: student.additionalClassIds });
+  if (student.status === 'active' && ids.length > 1 && ids.some(id => classes.find(c => c.id === id)?.billingMode !== 'session' && !studentReceipts.some(r => r.classId === id))) return true;
   return student.status === 'active' && student.feeStatus !== 'paid';
 };
 
 export const unbilledTuitionForStudents = (
-  students: Pick<Student, 'id' | 'status' | 'feeStatus' | 'programId' | 'classId'>[],
+  students: Pick<Student, 'id' | 'status' | 'feeStatus' | 'programId' | 'classId' | 'additionalClassIds'>[],
   receipts: TuitionReceipt[] = [],
   programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[] = [],
-  classes: Pick<ClassRoom, 'id' | 'billingMode'>[] = [],
+  classes: (Pick<ClassRoom, 'id' | 'billingMode'> & Partial<Pick<ClassRoom, 'programId'>>)[] = [],
 ): number => {
   const programFeeMap = new Map(programs.map((p) => [p.id, p.tuitionFee || 0]));
   const classMap = new Map(classes.map((c) => [c.id, c]));
 
-  return students
-    .filter((s) => {
-      if (s.status !== 'active' || s.feeStatus === 'paid') return false;
-      const studentReceipts = receipts.filter((r) => r.studentId === s.id);
-      if (studentReceipts.length > 0) return false;
-      const cls = classMap.get(s.classId);
-      if (cls?.billingMode === 'session') return false;
-      return true;
-    })
-    .reduce((sum, s) => sum + (programFeeMap.get(s.programId) || 0), 0);
+  return students.reduce((sum, student) => {
+    if (student.status !== 'active') return sum;
+    const ids = studentClassIds(student);
+    if (ids.length <= 1 && student.feeStatus === 'paid') return sum;
+    return sum + (ids.length ? ids : ['']).reduce((amount, classId) => {
+      if (receipts.some(r => r.studentId === student.id && r.classId === classId)) return amount;
+      const cls = classMap.get(classId);
+      if (cls?.billingMode === 'session') return amount;
+      return amount + (programFeeMap.get(cls?.programId || student.programId) || 0);
+    }, 0);
+  }, 0);
 };
 
 export interface ReceiptPaymentEntry {

@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { StatCard } from '../../components/StatCard';
 import { splitProgramCategories } from '../../lib/programCategories';
+import { isStudentInClass } from '../../lib/studentClasses';
 import { ClassRoom, CourseProgram, StaffPermissions, Student } from '../../types';
 
 const DEFAULT_CATEGORIES = [
@@ -55,6 +57,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
   const canEdit = isOwner || permissions?.academic?.programs === true;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<CourseProgram | null>(null);
+  const [programToDelete, setProgramToDelete] = useState<CourseProgram | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchKeyword, setSearchKeyword] = useState<string>('');
 
@@ -174,9 +177,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       return;
     }
 
-    if (window.confirm(`Bạn có chắc chắn muốn xóa chương trình đào tạo "${prog.name}"?`)) {
-      onDeleteProgram(prog.id);
-    }
+    setProgramToDelete(prog);
   };
 
   // Filter categories list
@@ -282,7 +283,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       <div className="entity-grid">
         {filteredPrograms.map(prog => {
           const classCount = classes.filter(c => c.programId === prog.id).length;
-          const studentCount = students.filter(s => s.programId === prog.id).length;
+          const studentCount = students.filter(s => s.programId === prog.id || classes.some(c => c.programId === prog.id && isStudentInClass(s, c.id))).length;
 
           return (
             <div

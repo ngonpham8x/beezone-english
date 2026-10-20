@@ -82,3 +82,19 @@ Các biến này đã được cấu hình trong đợt deploy 14/10/2026. Integ
 `center_data` lưu chung một tài liệu: user active có thể đọc toàn bộ tài liệu theo RLS. Ẩn tài chính/lọc lớp ở giao diện chưa cách ly quyền đọc database. Đọc [SECURITY.md](SECURITY.md) trước khi cấp tài khoản cho người không được phép đọc toàn bộ dữ liệu trung tâm.
 
 Trạng thái deployment và các phần chưa hoàn tất: [DEPLOYMENT_STATUS.md](DEPLOYMENT_STATUS.md).
+
+## Đăng ký một học viên vào nhiều lớp (migration 012)
+
+Trước khi triển khai giao diện học nhiều lớp, áp dụng trọn tệp `supabase/migrations/012_student_multiple_classes.sql` trên staging đã có migration 001–011, kiểm tra bằng tài khoản owner và staff, rồi áp dụng trên đúng dự án production. Tệp chỉ cập nhật quy tắc kiểm tra; không sửa hồ sơ, danh sách lớp hay dữ liệu học viên hiện có. Không chạy lại toàn bộ bộ khởi tạo trên dự án đang sử dụng.
+
+Kiểm tra chỉ đọc sau khi áp dụng:
+
+```sql
+select to_regprocedure('public.center_student_class_ids(jsonb)') is not null as multiple_classes_ready;
+```
+
+Trong Học viên → Sửa/Thêm, giữ lớp chính và tích các lớp học thêm. Khi bỏ một lớp, lịch sử đăng ký lớp đó được đóng, phiếu thu và điểm cũ vẫn giữ. Bảo lưu/nghỉ học áp dụng cho toàn bộ hồ sơ; muốn ngừng riêng một lớp thì bỏ tích lớp đó. Thu phí phải chọn đúng lớp trong hộp lập phiếu; điểm số và điểm danh lưu theo từng cặp học viên–lớp.
+
+Khôi phục danh mục cũ: Chủ trung tâm mở Excel → Nhập File Excel, chọn báo cáo rồi dùng **Chỉ bổ sung danh mục lớp học**. Mặc định chỉ thêm các mã lớp chưa có, không thay thế lớp hiện có hoặc học viên/phiếu thu/lịch sử. Lớp mới chờ xếp lịch. Chỉ tích **Nhập cả lịch học cũ** sau khi đã đối chiếu; trùng giờ giáo viên/phòng hoặc lịch học bù sẽ bị từ chối trước khi thay state. Báo cáo lỗi học viên/học phí vẫn có thể cung cấp riêng danh mục lớp nếu sheet LỚP HỌC hợp lệ.
+
+Excel giữ nguyên các cột cũ và bổ sung cột AA **Mã lớp học thêm** (mảng JSON mã lớp, hoặc danh sách phân cách bằng dấu chấm phẩy khi nhập). JSON sao lưu giữ nguyên schemaVersion và thêm trường tùy chọn `additionalClassIds`. Client cũ không được xóa trường này khỏi hồ sơ đã có.

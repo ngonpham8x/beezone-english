@@ -1,3 +1,4 @@
+import { isStudentInClass } from '../../lib/studentClasses';
 import type { ClassRoom, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -56,7 +57,7 @@ export function createClassActions({
   const handleUpdateClass = (c: ClassRoom) => {
     if (!canManageAcademic(currentUser, 'classes')) return;
     const previous = classes.find(item => item.id === c.id);
-    if (students.some(student => student.classId === c.id) &&
+    if (students.some(student => isStudentInClass(student, c.id)) &&
         (previous?.programId !== c.programId || previous?.courseStatus !== c.courseStatus) &&
         !hasStaffPermission(currentUser, 'student', 'edit')) {
       alert('Cần thêm quyền sửa học viên để đổi chương trình hoặc trạng thái của lớp đang có học viên.');
@@ -74,7 +75,7 @@ export function createClassActions({
       c = { ...c, completedDate: c.completedDate || centerDate() };
       setEnrollments((prev) => {
         let history = prev;
-        for (const student of students.filter((s) => s.classId === c.id))
+        for (const student of students.filter((s) => isStudentInClass(s, c.id)))
           history = updateEnrollmentHistory(
             history,
             student,
@@ -92,10 +93,10 @@ export function createClassActions({
       if (classes.find((item) => item.id === c.id)?.courseStatus === 'completed')
         setEnrollments((prev) =>
           students
-            .filter((s) => s.classId === c.id && ['active', 'reserved'].includes(s.status))
+            .filter((s) => isStudentInClass(s, c.id) && ['active', 'reserved'].includes(s.status))
             .reduce(
               (history, student) =>
-                updateEnrollmentHistory(history, undefined, student, centerDate()),
+                updateEnrollmentHistory(history, undefined, { ...student, classId: c.id, additionalClassIds: [] }, centerDate()),
               prev,
             ),
         );
@@ -127,7 +128,7 @@ export function createClassActions({
       return;
     }
     const c = classes.find((item) => item.id === id);
-    const classStudents = students.filter((student) => student.classId === id);
+    const classStudents = students.filter((student) => isStudentInClass(student, id));
     const classReceipts = receipts.filter((receipt) => receipt.classId === id);
     if (classStudents.length > 0 || classReceipts.length > 0) {
       const dependencies = [

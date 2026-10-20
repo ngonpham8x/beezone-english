@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useLanguage } from '../../context/LanguageContext';
 import { matchesSearch } from '../../lib/search';
@@ -50,6 +51,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const { t, language } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
   const [viewingTeacherDetails, setViewingTeacherDetails] = useState<Teacher | null>(null);
 
   const canEdit = isOwner || permissions.teacher.edit;
@@ -152,11 +154,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                       {canDelete && (
                         <button
                           aria-label={`Xóa giáo viên ${teacher.name}`}
-                          onClick={() => {
-                            if (confirm(`Xóa giáo viên ${teacher.name}?`)) {
-                              onDeleteTeacher(teacher.id);
-                            }
-                          }}
+                          onClick={() => setTeacherToDelete(teacher)}
                           className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                           title="Xóa"
                         >

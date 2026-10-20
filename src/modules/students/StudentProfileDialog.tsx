@@ -1,3 +1,4 @@
+import { studentClassIds } from '../../lib/studentClasses';
 import {
   BookOpen,
   Calendar,
@@ -108,31 +109,31 @@ export function StudentProfileDialog({
         </div>
 
         {/* SECTION: INDIVIDUAL TIMETABLE / LỊCH HỌC CÁ NHÂN */}
-        {(() => {
-          const cls = classes.find((c) => c.id === viewingStudent.classId);
-          const program = programs.find((p) => p.id === viewingStudent.programId);
+        {studentClassIds(viewingStudent).map(classId => {
+          const cls = classes.find((c) => c.id === classId);
+          const program = programs.find((p) => p.id === (cls?.programId || viewingStudent.programId));
           const teacher = teachers.find((t) => t.id === cls?.teacherId);
           const room = rooms.find((r) => r.id === cls?.roomId);
           const classSlots = timetableSlots
-            .filter((slot) => slot.classId === viewingStudent.classId)
+            .filter((slot) => slot.classId === classId)
             .sort((left, right) => left.startTime.localeCompare(right.startTime));
 
           const activeDays = classSlots.length
             ? [...new Set(classSlots.map((slot) => slot.dayOfWeek))]
             : cls
               ? cls.days
-              : ['Thứ 2', 'Thứ 4', 'Thứ 6'];
+              : [];
           const scheduleSummary = classSlots.length
             ? classSlots
                 .map((slot) => `${slot.dayOfWeek}: ${slot.startTime}–${slot.endTime}`)
                 .join(' · ')
-            : cls?.scheduleTime || '18:00 - 19:30';
+            : cls?.scheduleTime || 'Chưa xếp lịch';
           const className = cls ? cls.name : viewingStudent.classId || 'Chưa xếp lớp';
 
           const daysOfWeek = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
 
           return (
-            <div className="my-5 space-y-3">
+            <div key={classId} className="my-5 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <CalendarDays className="w-4 h-4 text-purple-700" /> Lịch Học Cá Nhân Học Viên
@@ -150,7 +151,7 @@ export function StudentProfileDialog({
                     <span>
                       Chương trình:{' '}
                       <strong className="text-slate-900">
-                        {program?.name || 'Anh Văn Phổ Thông'}
+                        {program?.name || 'Chưa xác định'}
                       </strong>
                     </span>
                   </div>
@@ -165,7 +166,7 @@ export function StudentProfileDialog({
                     <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>
                       Lịch trong tuần:{' '}
-                      <strong className="text-emerald-800">{activeDays.join(', ')}</strong>
+                      <strong className="text-emerald-800">{activeDays.join(', ') || 'Chưa xếp lịch'}</strong>
                     </span>
                   </div>
                 </div>
@@ -176,7 +177,7 @@ export function StudentProfileDialog({
                     <span>
                       Giáo viên phụ trách:{' '}
                       <strong className="text-indigo-900">
-                        {teacher ? teacher.name : 'Thầy Mark Harrison'}
+                        {teacher ? teacher.name : 'Chưa phân công'}
                       </strong>
                     </span>
                   </div>
@@ -185,7 +186,7 @@ export function StudentProfileDialog({
                     <span>
                       Phòng học cố định:{' '}
                       <strong className="text-rose-900">
-                        {room ? room.name : 'Phòng P102 (Tầng 1)'}
+                        {room ? room.name : 'Chưa xếp phòng'}
                       </strong>
                     </span>
                   </div>
@@ -221,7 +222,7 @@ export function StudentProfileDialog({
                         <div className="text-[10px] uppercase font-bold opacity-80">{day}</div>
                         {isStudyDay ? (
                           <div className="text-[11px] mt-1 font-extrabold text-amber-300">
-                            {daySlots[0]?.startTime || '18:00'}
+                            {daySlots[0]?.startTime || cls?.scheduleTime || 'Chưa xếp giờ'}
                             {daySlots[0] && (
                               <div className="text-[9px] font-medium text-white/90">
                                 đến {daySlots[0].endTime}
@@ -243,7 +244,7 @@ export function StudentProfileDialog({
               </div>
             </div>
           );
-        })()}
+        })}
 
         {/* SECTION: PARENT & CONTACT */}
         <div className="space-y-3 my-5 pt-3 border-t border-slate-200">
@@ -281,7 +282,7 @@ export function StudentProfileDialog({
             <div>
               <div className="text-slate-400 text-[10px] font-bold uppercase">Địa chỉ nhà</div>
               <div className="font-bold text-slate-800 mt-0.5">
-                {viewingStudent.address || 'TP. Tây Ninh'}
+                {viewingStudent.address || 'Chưa cập nhật'}
               </div>
             </div>
           </div>

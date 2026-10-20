@@ -1,4 +1,5 @@
 import React from 'react';
+import { isStudentInClass } from '../../lib/studentClasses';
 import { centerDate } from '../../lib/dates';
 import { addDays, lessonsOn, tuitionDueStatus } from '../../lib/operations';
 import type {
@@ -75,11 +76,11 @@ export function TodayTasks({
     ? students.filter(
         (s) =>
           s.status === 'active' &&
-          visible.some((c) => c.id === s.classId) &&
+          visible.some((c) => isStudentInClass(s, c.id) &&
           attendance
             .filter(
               (a) =>
-                a.classId === s.classId &&
+                a.classId === c.id &&
                 a.date <= today &&
                 a.entries.some((e) => e.studentId === s.id),
             )
@@ -89,7 +90,7 @@ export function TodayTasks({
               a.entries.some(
                 (e) => e.studentId === s.id && ['absent', 'excused'].includes(e.status),
               ),
-            ).length === 2,
+            ).length === 2),
       )
     : [];
   const tile = (title: string, body: React.ReactNode) => (

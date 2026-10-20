@@ -1,3 +1,4 @@
+import { isStudentInClass } from '../../lib/studentClasses';
 import {
   CheckCheck,
   CheckCircle2,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
 import { useResponsiveView } from '../../hooks/useResponsive';
@@ -64,6 +66,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   // Modal states
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<Partial<Student> | null>(null);
+  const [candidateToDelete, setCandidateToDelete] = useState<Student | null>(null);
 
   // Enrollment modal state
   const [enrollingCandidate, setEnrollingCandidate] = useState<Student | null>(null);
@@ -189,7 +192,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
     e.preventDefault();
     if (!enrollingCandidate || !enrollClassId) return;
     const classroom = classes.find(c => c.id === enrollClassId);
-    if (!classroom || (classroom.capacity > 0 && students.filter(s => s.classId === enrollClassId && s.status === 'active').length >= classroom.capacity)) { setStatusMessage('Lớp không còn chỗ. Vui lòng chọn lớp khác.'); return; }
+    if (!classroom || (classroom.capacity > 0 && students.filter(s => isStudentInClass(s, enrollClassId) && s.status === 'active').length >= classroom.capacity)) { setStatusMessage('Lớp không còn chỗ. Vui lòng chọn lớp khác.'); return; }
 
     if (!onEnrollStudent(enrollingCandidate.id, enrollClassId, enrollDate)) return;
     const targetClass = classes.find(c => c.id === enrollClassId);
@@ -495,11 +498,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
 
                             {canDelete && !isAlreadyActive && (
                               <button
-                                onClick={() => {
-                                  if (confirm(`Xác nhận xóa hồ sơ tuyển sinh ${candidate.name}?`)) {
-                                    onDeleteStudent(candidate.id);
-                                  }
-                                }}
+                                onClick={() => setCandidateToDelete(candidate)}
                                 className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                                 title="Xóa hồ sơ"
                               >
@@ -642,11 +641,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
                         {canDelete && !isAlreadyActive && (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm(`Xác nhận xóa hồ sơ tuyển sinh ${candidate.name}?`)) {
-                                onDeleteStudent(candidate.id);
-                              }
-                            }}
+                            onClick={() => setCandidateToDelete(candidate)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                             title="Xóa hồ sơ"
                           >

@@ -69,6 +69,7 @@ export function writeStudentSheet(context: ExportContext) {
     'Khóa lớp tự động',
     'Khóa học sinh/lớp tự động',
     'Nợ học phí buổi (VNĐ)',
+    'Mã lớp học thêm',
   ];
   studentsSheet.getRow(5).values = studentHeaders;
   styleHeader(studentsSheet.getRow(5));
@@ -105,6 +106,7 @@ export function writeStudentSheet(context: ExportContext) {
       {
         formula: `${receiptSumByStudentCodeAndIdFormula('M', `$B${rowNumber}`, `$W${rowNumber}`, 'session')}+SUMIF('BUỔI CHƯA THU'!$D:$D,$B${rowNumber},'BUỔI CHƯA THU'!$G:$G)`,
       },
+      student.additionalClassIds?.length ? JSON.stringify(student.additionalClassIds.map(id => classById.get(id)?.code || id)) : '',
     ];
     styleData(row, index);
     [13, 14, 19, 20, 21, 22].forEach((column) => {
@@ -136,7 +138,7 @@ export function writeStudentSheet(context: ExportContext) {
   [19, 20, 21, 22].forEach((column) => {
     studentsSheet.getCell(studentFooterRow, column).numFmt = moneyFormat;
   });
-  studentsSheet.autoFilter = { from: 'A5', to: `Z${studentFooterRow - 1}` };
+  studentsSheet.autoFilter = { from: 'A5', to: `AA${studentFooterRow - 1}` };
   studentsSheet.views = [{ state: 'frozen', ySplit: 5 }];
   studentsSheet.columns = [
     { width: 8 },
@@ -169,6 +171,7 @@ export function writeStudentSheet(context: ExportContext) {
   studentsSheet.getColumn(24).hidden = true;
   studentsSheet.getColumn(25).hidden = true;
   studentsSheet.getColumn(26).width = 24;
+  studentsSheet.getColumn(27).width = 36;
   studentsSheet.getColumn(26).numFmt = moneyFormat;
   studentsSheet.getCell(studentFooterRow, 26).value = {
     formula: `SUM(Z${STUDENT_DATA_START_ROW}:Z${studentFooterRow - 1})`,

@@ -1,3 +1,4 @@
+import { isStudentInClass } from '../../lib/studentClasses';
 import { BarChart3, BookOpen, DollarSign, Printer, Users, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
@@ -48,7 +49,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   const activeCount = students.filter(s => s.status === 'active').length;
   const reservedCount = students.filter(s => s.status === 'reserved').length;
   const selectedClass = classes.find((classroom) => classroom.id === selectedClassId) || null;
-  const selectedClassStudents = selectedClass ? students.filter((student) => student.classId === selectedClass.id) : [];
+  const selectedClassStudents = selectedClass ? students.filter((student) => isStudentInClass(student, selectedClass.id)) : [];
   const selectedClassReceipts = selectedClass ? receipts.filter((receipt) => receipt.classId === selectedClass.id) : [];
   const selectedClassDebt = debtBreakdown(selectedClassReceipts);
   const selectedClassPaid = periodPaymentEntries.filter((entry) => entry.classId === selectedClass?.id).reduce((sum, entry) => sum + entry.amount, 0);
@@ -148,7 +149,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
                 {classes.map((cls, idx) => {
-                  const classStudents = students.filter(s => s.classId === cls.id);
+                  const classStudents = students.filter(s => isStudentInClass(s, cls.id));
                   const classAllReceipts = receipts.filter((receipt) => receipt.classId === cls.id);
                   const paid = periodPaymentEntries.filter((entry) => entry.classId === cls.id).reduce((s, e) => s + e.amount, 0);
                   const debt = debtBreakdown(classAllReceipts);

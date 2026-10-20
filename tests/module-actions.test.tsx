@@ -64,6 +64,23 @@ afterEach(() => {
 });
 
 describe('domain command integration', () => {
+  it('adds a legacy class catalog without replacing existing academic or student/financial history and skips duplicate class codes', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const before = { students: result.current.store.students, receipts: result.current.store.receipts, grades: result.current.store.grades, classes: result.current.store.classes, slots: result.current.store.timetableSlots };
+    const incoming = { ...data, classes: [{ ...data.classes[0], id: 'old-new-id', code: 'RECOVERED', studentIds: ['do-not-import'] }], timetableSlots: [] };
+    act(() => expect(result.current.actions.handleImportAcademicCatalog(incoming)).toBe(true));
+    expect(result.current.store.classes).toHaveLength(before.classes.length + 1);
+    expect(result.current.store.classes.slice(0, -1)).toEqual(before.classes);
+    expect(result.current.store.classes.at(-1)).toMatchObject({ code: 'RECOVERED', courseStatus: 'planned', studentIds: [], days: [], scheduleTime: '' });
+    expect(result.current.store.students).toEqual(before.students);
+    expect(result.current.store.receipts).toEqual(before.receipts);
+    expect(result.current.store.grades).toEqual(before.grades);
+    expect(result.current.store.timetableSlots).toEqual(before.slots);
+    act(() => expect(result.current.actions.handleImportAcademicCatalog(incoming)).toBe(true));
+    expect(result.current.store.classes).toHaveLength(before.classes.length + 1);
+  });
   it.each(['grades', 'attendance'] as const)('preserves class %s history when an owner requests deletion', (history) => {
     const { result } = renderHook(() => useTestCenter());
     const data = dataset();
@@ -88,7 +105,7 @@ describe('domain command integration', () => {
     const room = { ...data.rooms[0], id: 'delegated-room' };
     const program = { ...data.programs[0], id: 'delegated-program' };
     const teacher = { ...data.teachers[0], id: 'delegated-teacher', assignedClassIds: [] };
-    const student = { ...data.students[0], id: 'delegated-student', classId: '', programId: program.id };
+    const student = { ...data.students[0], id: 'delegated-student', classId: '', programId: program.id, status: 'registered' as const };
     const create = () => {
       result.current.actions.handleAddRoom(room);
       result.current.actions.handleAddProgram(program);

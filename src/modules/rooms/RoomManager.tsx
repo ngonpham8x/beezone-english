@@ -1,6 +1,7 @@
 import { CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { ClassRoom, Room, StaffPermissions } from '../../types';
 
 interface RoomManagerProps {
@@ -24,6 +25,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
 
   const canEdit = isOwner || permissions.academic?.rooms === true;
 
@@ -112,9 +114,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
                       </button>
                       <button
                         aria-label={`Xóa phòng ${room.name}`}
-                        onClick={() => {
-                          if (confirm(`Xóa phòng ${room.name}?`)) onDeleteRoom(room.id);
-                        }}
+                        onClick={() => setRoomToDelete(room)}
                         className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                       >
                         <Trash2 className="w-4 h-4" />

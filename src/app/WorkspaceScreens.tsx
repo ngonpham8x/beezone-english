@@ -190,6 +190,7 @@ export function WorkspaceScreens({
           onOpenImportExportModal={() => setIsImportExportModalOpen(true)}
           onOpenTuition={() => navigateTo('tuition')}
           onCreateProgram={handleCreateProgram}
+          onAddClass={handleAddClass}
         />
       );
     case 'teachers':
@@ -232,6 +233,8 @@ export function WorkspaceScreens({
           onCreateRoom={handleAddRoom}
           onCreateProgram={handleCreateProgram}
           onCreateTeacher={handleAddTeacher}
+          onAddStudent={handleAddStudent}
+          onUpdateStudent={handleUpdateStudent}
           editRequest={classEditRequest}
           onEditRequestHandled={() => setClassEditRequest(null)}
         />
@@ -274,6 +277,13 @@ export function WorkspaceScreens({
           timetableSlots={timetableSlots}
           classes={classes}
           rooms={rooms}
+          isOwner={currentUser.role === 'owner'}
+          canManage={currentUser.permissions?.academic?.classes === true}
+          onAddSlot={handleAddSlot}
+          onUpdateSlot={handleUpdateSlot}
+          onDeleteSlot={handleDeleteSlot}
+          onSaveChange={handleSaveScheduleChange}
+          onDeleteChange={handleDeleteScheduleChange}
         />
       );
     case 'attendance':

@@ -1,3 +1,4 @@
+import { isStudentInClass } from '../../../lib/studentClasses';
 import {
   directSumByClassFormula,
   directSumByStudentIdFormula,
@@ -145,7 +146,7 @@ export function writeClassDetails(context: ExportContext) {
     sheet.getRow(11).values = headers;
     styleHeader(sheet.getRow(11));
     const firstDetailRow = 12;
-    const classStudents = data.students.filter((student) => student.classId === classroom.id);
+    const classStudents = data.students.filter((student) => isStudentInClass(student, classroom.id));
     const writeFinancialFormulas = (
       rowNumber: number,
       directPaid: string,
@@ -153,19 +154,20 @@ export function writeClassDetails(context: ExportContext) {
       directMonthlyDebt: string,
       directCourseDebt: string,
     ) => {
+      const classCriterion = `"${formulaText(classroom.code)}"`;
       const studentCode = `$B${rowNumber}`;
       const studentId = `$M${rowNumber}`;
       sheet.getCell(rowNumber, 7).value = {
-        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('L', studentCode, studentId)}+${directPaid})`,
+        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('L', studentCode, studentId, undefined, classCriterion)}+${directPaid})`,
       };
       sheet.getCell(rowNumber, 8).value = {
-        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('M', studentCode, studentId)}+${directDebt}+SUMIF('BUỔI CHƯA THU'!$D:$D,${studentCode},'BUỔI CHƯA THU'!$G:$G))`,
+        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('M', studentCode, studentId, undefined, classCriterion)}+${directDebt}+SUMIFS('BUỔI CHƯA THU'!$G:$G,'BUỔI CHƯA THU'!$D:$D,${studentCode},'BUỔI CHƯA THU'!$C:$C,${classCriterion}))`,
       };
       sheet.getCell(rowNumber, 9).value = {
-        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('M', studentCode, studentId, 'monthly')}+${directMonthlyDebt})`,
+        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('M', studentCode, studentId, 'monthly', classCriterion)}+${directMonthlyDebt})`,
       };
       sheet.getCell(rowNumber, 10).value = {
-        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('M', studentCode, studentId, 'course')}+${directCourseDebt})`,
+        formula: `IF($B${rowNumber}="","",${receiptSumByStudentCodeAndIdFormula('M', studentCode, studentId, 'course', classCriterion)}+${directCourseDebt})`,
       };
       [7, 8, 9, 10].forEach((column) => {
         sheet.getCell(rowNumber, column).numFmt = moneyFormat;
@@ -196,10 +198,10 @@ export function writeClassDetails(context: ExportContext) {
       styleData(sheet.getRow(rowNumber), index);
       writeFinancialFormulas(
         rowNumber,
-        directSumByStudentIdFormula('M', `$M${rowNumber}`),
-        directSumByStudentIdFormula('N', `$M${rowNumber}`),
-        directSumByStudentIdFormula('N', `$M${rowNumber}`, 'monthly'),
-        directSumByStudentIdFormula('N', `$M${rowNumber}`, 'course'),
+        directSumByStudentIdFormula('M', `$M${rowNumber}`, undefined, `"${formulaText(classroom.code)}"`),
+        directSumByStudentIdFormula('N', `$M${rowNumber}`, undefined, `"${formulaText(classroom.code)}"`),
+        directSumByStudentIdFormula('N', `$M${rowNumber}`, 'monthly', `"${formulaText(classroom.code)}"`),
+        directSumByStudentIdFormula('N', `$M${rowNumber}`, 'course', `"${formulaText(classroom.code)}"`),
       );
       sheet.getCell(rowNumber, 11).font = {
         name: 'Arial',

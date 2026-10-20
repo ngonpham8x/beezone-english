@@ -1,3 +1,4 @@
+import { isStudentInClass } from '../../lib/studentClasses';
 import {
   AlertCircle,
   BookOpen,
@@ -126,7 +127,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       if (recordedIds.includes(s.id)) return true;
       const history = enrollments.filter(item => item.studentId === s.id && item.classId === selectedClassId);
       if (history.length) return history.some(item => item.status !== 'reserved' && (!item.startDate || sessionDate >= item.startDate) && (item.endDate ? (item.status === 'transferred' || item.status === 'dropped' ? sessionDate < item.endDate : sessionDate <= item.endDate) : item.status === 'active'));
-      if (s.classId !== selectedClassId) return false;
+      if (!isStudentInClass(s, selectedClassId)) return false;
       if (s.status === 'active') return true;
       if (recordedIds.includes(s.id)) return true;
       return false;
@@ -288,7 +289,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   // Class session history
   const classHistory = useMemo(
     () => attendanceSessions
-      .filter(s => s.classId === selectedClassId)
+      .filter(s => isStudentInClass(s, selectedClassId))
       .sort((a, b) => b.date.localeCompare(a.date)),
     [attendanceSessions, selectedClassId]
   );

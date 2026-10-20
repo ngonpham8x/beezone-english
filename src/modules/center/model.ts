@@ -1,6 +1,7 @@
 import type { CenterDataPayload } from '../../lib/centerData';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import { feeStatusForReceipts } from '../../lib/tuition';
+import { studentClassIds } from '../../lib/studentClasses';
 import type {
   ActivityLog,
   AttendanceSession,
@@ -128,10 +129,12 @@ export const reconcileClassStudentIds = (classrooms: ClassRoom[], centerStudents
   const classIds = new Set(classrooms.map((classroom) => classroom.id));
   const studentIdsByClass = new Map<string, string[]>();
   centerStudents.forEach((student) => {
-    if (!classIds.has(student.classId)) return;
-    const ids = studentIdsByClass.get(student.classId) || [];
-    ids.push(student.id);
-    studentIdsByClass.set(student.classId, ids);
+    for (const classId of studentClassIds(student)) {
+      if (!classIds.has(classId)) continue;
+      const ids = studentIdsByClass.get(classId) || [];
+      ids.push(student.id);
+      studentIdsByClass.set(classId, ids);
+    }
   });
 
   let changed = false;

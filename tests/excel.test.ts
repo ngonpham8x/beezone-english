@@ -11,6 +11,21 @@ import { appendParentContact } from '../src/modules/attendance/parentContact';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('Excel export/import', () => {
+  it('round trips one student in three classes and scopes class financial formulas', async () => {
+    const classes = initial.initialClasses.slice(0, 3);
+    const student = { ...initial.initialStudents[0], classId: classes[0].id, programId: classes[0].programId, additionalClassIds: classes.slice(1).map(c => c.id) };
+    const blob = await generateMasterExcelWorkbook({ centerName: 'Test', programs: initial.initialPrograms, students: [student], classes, teachers: initial.initialTeachers, rooms: initial.initialRooms, grades: [], receipts: [] });
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(await blob.arrayBuffer());
+    expect(book.getWorksheet('HỌC SINH')!.getCell('AA6').value).toBe(JSON.stringify(classes.slice(1).map(c => c.code)));
+    const result = await parseCenterWorkbookFile(new File([await blob.arrayBuffer()], 'multi.xlsx'));
+    expect(result.errors).toEqual([]);
+    expect(result.data!.students).toHaveLength(1);
+    const codes = result.data!.students[0].additionalClassIds!.map(id => result.data!.classes.find(c => c.id === id)?.code);
+    expect(codes).toEqual(classes.slice(1).map(c => c.code));
+    const detail = book.worksheets.find(sheet => String(sheet.getCell('B12').value) === student.code && String(sheet.getCell('G12').formula).includes(classes[1].code));
+    expect(detail).toBeTruthy();
+    expect(detail!.getCell('G12').formula).toContain("'HỌC PHÍ'!$F$");
+  });
   it('round trips lesson prices, absences, grouped payments and unbilled debt', async () => {
     const classroom = {...initial.initialClasses[0],billingMode:'session' as const,sessionRate:200000,sessionAbsencePolicy:'attended' as const,sessionBillingStartDate:'2020-01-01'};
     const student = {...initial.initialStudents[0],classId:classroom.id};

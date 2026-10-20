@@ -6,6 +6,7 @@ import { centerDate, isCalendarDate } from '../../lib/dates';
 import { hasStaffPermission } from '../../lib/permissions';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
+import { isStudentInClass, validateStudentClasses } from '../../lib/studentClasses';
 import { feeStatusFromReceipts } from '../center/model';
 
 type Context = Pick<
@@ -42,6 +43,8 @@ export function createStudentActions({
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
     if (!hasStaffPermission(currentUser, 'student', 'add')) return;
+    const error = validateStudentClasses(newStudent, classes, students);
+    if (error) { alert(error); return; }
     if (newStudent.classId)
       setEnrollments((prev) =>
         updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()),
@@ -58,6 +61,12 @@ export function createStudentActions({
 
   const handleUpdateStudent = (updatedStudent: Student) => {
     if (!hasStaffPermission(currentUser, 'student', 'edit')) return;
+    const previous = students.find(student => student.id === updatedStudent.id);
+    if (!previous) return;
+    if (previous.classId !== updatedStudent.classId || previous.status !== updatedStudent.status || JSON.stringify(previous.additionalClassIds) !== JSON.stringify(updatedStudent.additionalClassIds)) {
+      const error = validateStudentClasses(updatedStudent, classes, students);
+      if (error) { alert(error); return; }
+    }
     setEnrollments((prev) =>
       updateEnrollmentHistory(
         prev,
@@ -90,10 +99,6 @@ export function createStudentActions({
       return;
     }
     const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
-    if (enrollments.some((item) => item.studentId === id)) {
-      alert('Học viên có lịch sử đăng ký khóa học. Hãy chuyển trạng thái học để giữ hồ sơ.');
-      return;
-    }
     if (linkedReceipts.length > 0) {
       alert(
         `Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`,
@@ -113,6 +118,7 @@ export function createStudentActions({
       return;
     }
     setStudents((prev) => prev.filter((s) => s.id !== id));
+    setEnrollments((prev) => prev.filter((item) => item.studentId !== id));
     setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
     if (st)
       addLog(
@@ -146,7 +152,7 @@ export function createStudentActions({
     }
     if (
       targetClass.capacity > 0 &&
-      students.filter((s) => s.classId === classId && s.status === 'active').length >=
+      students.filter((s) => isStudentInClass(s, classId) && s.status === 'active').length >=
         targetClass.capacity
     ) {
       alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
@@ -162,7 +168,7 @@ export function createStudentActions({
       updateEnrollmentHistory(
         prev,
         student,
-        { ...student, classId, status: 'active' },
+        { ...student, classId, additionalClassIds: student.additionalClassIds?.filter(id => id !== classId), status: 'active' },
         enrollDate || centerDate(),
       ),
     );
@@ -175,6 +181,7 @@ export function createStudentActions({
             ...s,
             status: 'active' as const,
             classId: classId,
+            additionalClassIds: s.additionalClassIds?.filter(id => id !== classId),
             programId: targetClass?.programId || s.programId,
             enrollDate: enrollDate || centerDate(),
           };
@@ -337,7 +344,7 @@ export function createStudentActions({
     if (
       targetClass.capacity > 0 &&
       students.filter(
-        (s) => s.id !== studentId && s.classId === targetClassId && s.status === 'active',
+        (s) => s.id !== studentId && isStudentInClass(s, targetClassId) && s.status === 'active',
       ).length >= targetClass.capacity
     ) {
       alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
@@ -348,7 +355,7 @@ export function createStudentActions({
       updateEnrollmentHistory(
         prev,
         student,
-        { ...student, classId: targetClassId, status: 'active' },
+        { ...student, classId: targetClassId, additionalClassIds: student.additionalClassIds?.filter(id => id !== targetClassId), status: 'active' },
         returnDate,
       ),
     );
@@ -359,6 +366,7 @@ export function createStudentActions({
             ...s,
             status: 'active' as const,
             classId: targetClassId,
+            additionalClassIds: s.additionalClassIds?.filter(id => id !== targetClassId),
             programId: targetClass.programId,
             notes: (s.notes || '') + reNote,
           };

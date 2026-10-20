@@ -10,6 +10,7 @@ import type {
 import { centerDate, isCalendarDate } from './dates';
 import { validSessionRate } from './sessionBilling';
 import { findScheduleConflict, timeMinutes } from './schedule';
+import { studentClassIds } from './studentClasses';
 
 export const courseStatusLabels = {
   planned: 'Sắp khai giảng',
@@ -188,6 +189,25 @@ export function updateEnrollmentHistory(
   next: Student,
   date: string,
 ): ClassEnrollment[] {
+  const before = previous ? studentClassIds(previous) : [];
+  const after = studentClassIds(next);
+  let result = records;
+  for (const classId of new Set([...before, ...after])) {
+    const scoped = result.filter(item => item.studentId === next.id && item.classId === classId);
+    const updated = updateSingleEnrollmentHistory(scoped,
+      previous && before.includes(classId) ? { ...previous, classId } : undefined,
+      { ...next, classId: after.includes(classId) ? classId : '' }, date);
+    const byId = new Map(updated.map(item => [item.id, item]));
+    result = result.map(item => byId.get(item.id) || item).concat(updated.filter(item => !result.some(existing => existing.id === item.id)));
+  }
+  return result;
+}
+function updateSingleEnrollmentHistory(
+  records: ClassEnrollment[],
+  previous: Student | undefined,
+  next: Student,
+  date: string,
+): ClassEnrollment[] {
   if (
     previous?.classId === next.classId &&
     previous.status === next.status &&
@@ -219,7 +239,7 @@ export function updateEnrollmentHistory(
   if (!next.classId)
     return result.map((item) =>
       item.studentId === next.id && ['active', 'reserved'].includes(item.status)
-        ? { ...item, status: 'transferred', endDate: date }
+        ? { ...item, status: 'transferred', endDate: item.startDate && item.startDate > date ? item.startDate : date }
         : item,
     );
   if (previous?.classId !== next.classId)

@@ -23,6 +23,7 @@ export function importStudents(
 }> {
   const students: Student[] = [];
   const masterDirectPayments = new Map<string, MasterDirectPaymentInput>();
+  const membershipErrors: { row: number; field: string; message: string }[] = [];
   const masterStudentsSheet = workbook.getWorksheet('HỌC SINH');
   if (masterStudentsSheet) {
     const masterRecords = readRecords(masterStudentsSheet, ['mahocsinh', 'hovaten']);
@@ -32,6 +33,23 @@ export function importStudents(
       const classCode = cellText(getByAliases(record, ['malop', 'classcode']));
       const classroom = classes.find((item) => item.code === classCode);
       if (!code || !name || !classroom) return;
+      const extraValue = cellText(getByAliases(record, ['malophocthem', 'additionalclasscodes']));
+      let additionalClassIds: string[] | undefined;
+      if (extraValue) {
+        try {
+          const codes: unknown = extraValue.startsWith('[') ? JSON.parse(extraValue) : extraValue.split(';').map(value => value.trim()).filter(Boolean);
+          if (!Array.isArray(codes) || codes.some(value => typeof value !== 'string')) throw new Error();
+          additionalClassIds = codes.map(value => {
+            const cls = classes.find(c => c.code === value);
+            if (!cls || cls.id === classroom.id) throw new Error();
+            return cls.id;
+          });
+          if (new Set(additionalClassIds).size !== additionalClassIds.length) throw new Error();
+        } catch {
+          membershipErrors.push({ row: index + 6, field: 'Mã lớp học thêm', message: 'Lớp học thêm phải tồn tại, không trùng nhau hoặc trùng lớp chính.' });
+          return;
+        }
+      }
       const programName = cellText(getByAliases(record, ['chuongtrinh', 'program', 'programname']));
       const program = programName ? ensureProgram(programName) : null;
       if (program) classroom.programId = program.id;
@@ -53,6 +71,7 @@ export function importStudents(
         gradeLevel: '',
         programId: program?.id || classroom.programId,
         classId: classroom.id,
+        ...(additionalClassIds ? { additionalClassIds } : {}),
         address: cellText(getByAliases(record, ['diachi', 'address'])),
         email: '',
         phone: cellText(getByAliases(record, ['sdthocsinh', 'phone'])),
@@ -134,6 +153,7 @@ export function importStudents(
         classroom.studentIds.push(id);
       });
     }
+  if (membershipErrors.length) return { errors: membershipErrors };
   if (!students.length) {
     return {
       errors: [

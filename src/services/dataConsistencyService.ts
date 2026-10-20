@@ -1,3 +1,4 @@
+import { isStudentInClass, studentClassIds } from '../lib/studentClasses';
 import { Student, ClassRoom, TuitionReceipt, CourseProgram } from '../types';
 
 export interface ConsistencyIssue {
@@ -45,6 +46,11 @@ export function checkDataConsistency(
     issues.push({ type, severity, studentId, studentCode: student?.code || '?', studentName: student?.name || '[Không tồn tại]', details, affectedIds });
   };
   for (const student of students) {
+    for (const classId of studentClassIds(student).filter(id => id !== student.classId)) {
+      const extra = classesById.get(classId);
+      if (!extra) add('student_not_in_class', 'critical', student.id, `Lớp học thêm ${classId} không tồn tại.`, { classId });
+      else if (!extra.studentIds.includes(student.id)) add('student_not_in_class', 'warning', student.id, `Danh sách lớp ${extra.code} thiếu học viên.`, { classId });
+    }
     const classroom = classesById.get(student.classId);
     if (student.classId && !classroom) add('student_not_in_class', 'critical', student.id, `Lớp ${student.classId} của học viên không tồn tại.`, { classId: student.classId });
     else if (classroom && !classroom.studentIds.includes(student.id)) add('student_not_in_class', 'warning', student.id, `Danh sách lớp ${classroom.code} thiếu học viên.`, { classId: classroom.id });
@@ -53,7 +59,7 @@ export function checkDataConsistency(
   for (const classroom of classrooms) {
     for (const studentId of classroom.studentIds) {
       const student = studentsById.get(studentId);
-      if (!student || student.classId !== classroom.id) add('class_not_enrolled', 'warning', studentId, `Danh sách lớp ${classroom.code} có học viên đã chuyển lớp hoặc không còn tồn tại.`, { classId: classroom.id });
+      if (!student || !isStudentInClass(student, classroom.id)) add('class_not_enrolled', 'warning', studentId, `Danh sách lớp ${classroom.code} có học viên đã chuyển lớp hoặc không còn tồn tại.`, { classId: classroom.id });
     }
   }
   for (const receipt of receipts) {
@@ -77,7 +83,7 @@ export function autoFixConsistency(
     return { ...student };
   });
   const fixedClassrooms = classrooms.map(classroom => {
-    const studentIds = fixedStudents.filter(student => student.classId === classroom.id).map(student => student.id);
+    const studentIds = fixedStudents.filter(student => isStudentInClass(student, classroom.id)).map(student => student.id);
     if (JSON.stringify(studentIds) !== JSON.stringify(classroom.studentIds)) fixedCount += 1;
     return { ...classroom, studentIds };
   });

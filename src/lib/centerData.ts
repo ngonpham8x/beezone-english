@@ -66,6 +66,7 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       }
       if (key === 'teachers' && !stringArray(record.assignedClassIds)) throw new Error('Phân công giáo viên không hợp lệ.');
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
+      if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');
       if (key === 'grades' && numbers.grades!.some((field) => (record[field] as number) > 10)) throw new Error('Điểm phải trong khoảng 0–10.');
       if (key === 'receipts') {
         if (record.paymentKind !== undefined && !['course','monthly','session'].includes(record.paymentKind as string)) throw new Error('Hình thức học phí không hợp lệ.');
@@ -83,6 +84,8 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
     }
     result[key] = records;
   }
+  const classIds = new Set((result.classes as { id: string }[]).map(c => c.id));
+  if ((result.students as { additionalClassIds?: string[] }[]).some(student => student.additionalClassIds?.some(id => !classIds.has(id)))) throw new Error('Lớp học thêm không tồn tại.');
   for (const session of result.attendanceSessions as AttendanceSession[]) {
     if (!session.billing) continue;
     if (session.date > centerDate() || !(result.classes as {id:string}[]).some(c => c.id === session.classId) || session.entries.some(entry => !(result.students as {id:string}[]).some(s => s.id === entry.studentId))) throw new Error('Buổi tính phí ở tương lai hoặc thiếu hồ sơ lớp/học viên.');

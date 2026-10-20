@@ -14,6 +14,8 @@ export const getByAliases = (record: Record<string, unknown>, aliases: string[])
     .map(([key, value]) => [normaliseHeader(key), value] as const)
     .find(([key]) => aliases.includes(key))?.[1];
 export const cellText = (value: unknown) => {
+  if (value && typeof value === 'object' && 'text' in value && typeof value.text === 'string') return value.text.trim();
+  if (value && typeof value === 'object' && 'richText' in value && Array.isArray(value.richText)) return value.richText.map(part => part.text || '').join('').trim();
   // ExcelJS represents calculated cells as { formula, result }.  Reading the
   // cached result prevents valid manual values from disappearing on import.
   if (value && typeof value === 'object' && 'formula' in value)

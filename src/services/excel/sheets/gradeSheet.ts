@@ -1,3 +1,4 @@
+import { studentClassIds } from '../../../lib/studentClasses';
 import {
   applyBackLink,
   STUDENT_DATA_START_ROW,
@@ -35,11 +36,10 @@ export function writeGradeSheet(context: ExportContext) {
   styleHeader(gradesSheet.getRow(5));
   const gradeRows = data.students.flatMap((student) => {
     const records = data.grades.filter((grade) => grade.studentId === student.id);
-    return records.length
-      ? records.map((grade) => ({ student, grade }))
-      : [{ student, grade: undefined }];
+    const ids = [...new Set([...studentClassIds(student), ...records.map(grade => grade.classId)])];
+    return (ids.length ? ids : ['']).map(classId => ({ student, grade: records.find(grade => grade.classId === classId), classId }));
   });
-  gradeRows.forEach(({ student, grade }, index) => {
+  gradeRows.forEach(({ student, grade, classId }, index) => {
     const rowNumber = STUDENT_DATA_START_ROW + index;
     const row = gradesSheet.getRow(rowNumber);
     const avgFormula = `IF(COUNT(E${rowNumber}:K${rowNumber})=0,"",ROUND((AVERAGE(E${rowNumber}:H${rowNumber})*0.4 + I${rowNumber}*0.2 + J${rowNumber}*0.3 + K${rowNumber}*0.1), 1))`;
@@ -48,7 +48,7 @@ export function writeGradeSheet(context: ExportContext) {
       index + 1,
       student.code,
       student.name,
-      classById.get(grade?.classId || student.classId)?.code || '',
+      classById.get(classId)?.code || '',
       grade?.listening ?? '',
       grade?.speaking ?? '',
       grade?.reading ?? '',

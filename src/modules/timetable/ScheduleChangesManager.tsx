@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { centerDate } from '../../lib/dates';
 import { lessonsOn, validateScheduleChange } from '../../lib/operations';
 import type {
@@ -41,6 +42,7 @@ export function ScheduleChangesManager({
   const [date, setDate] = useState(centerDate);
   const [draft, setDraft] = useState<ScheduleChange | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [changeToDelete, setChangeToDelete] = useState<ScheduleChange | null>(null);
   const lessons = lessonsOn(date, classes, slots, changes);
   const sourceDate = draft?.kind === 'move' ? draft.sourceDate || date : draft?.date || date;
   const originalLessons = draft
@@ -173,10 +175,7 @@ export function ScheduleChangesManager({
                       </button>
                       <button
                         className="rounded border border-red-200 px-3 py-2 text-red-700"
-                        onClick={() => {
-                          if (window.confirm('Hủy điều chỉnh này và khôi phục lịch gốc?'))
-                            setError(onDelete(c.id));
-                        }}
+                        onClick={() => setChangeToDelete(c)}
                       >
                         Hủy điều chỉnh
                       </button>
@@ -275,37 +274,50 @@ export function ScheduleChangesManager({
               />
             </label>
             {draft.kind !== 'extra' && (
-              <label className="block">
-                Buổi gốc
-                <select
-                  aria-label="Buổi gốc"
-                  required
-                  className={field}
-                  value={draft.sourceSlotId || ''}
-                  onChange={(e) => {
-                    const slot = originalLessons.find((item) => item.id === e.target.value);
-                    setDraft({
-                      ...draft,
-                      sourceSlotId: e.target.value,
-                      ...(slot
-                        ? {
-                            startTime: slot.startTime,
-                            endTime: slot.endTime,
-                            teacherId: slot.teacherId,
-                            roomId: slot.roomId,
-                          }
-                        : {}),
-                    });
-                  }}
-                >
-                  <option value="">Chọn buổi gốc</option>
-                  {originalLessons.map((slot) => (
-                    <option key={slot.id} value={slot.id}>
-                      {slot.startTime}–{slot.endTime}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="space-y-1">
+                <label className="block font-medium">
+                  Buổi gốc (Ca học định kỳ cần điều chỉnh)
+                  {originalLessons.length > 0 ? (
+                    <select
+                      aria-label="Buổi gốc"
+                      required
+                      className={field}
+                      value={draft.sourceSlotId || (originalLessons[0]?.id ?? '')}
+                      onChange={(e) => {
+                        const slot = originalLessons.find((item) => item.id === e.target.value);
+                        setDraft({
+                          ...draft,
+                          sourceSlotId: e.target.value,
+                          ...(slot
+                            ? {
+                                startTime: slot.startTime,
+                                endTime: slot.endTime,
+                                teacherId: slot.teacherId,
+                                roomId: slot.roomId,
+                              }
+                            : {}),
+                        });
+                      }}
+                    >
+                      {originalLessons.map((slot) => (
+                        <option key={slot.id} value={slot.id}>
+                          {slot.startTime}–{slot.endTime}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="mt-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                      <p className="font-bold">⚠️ Lớp này không có lịch học cố định vào ngày đã chọn.</p>
+                      <p className="mt-1 text-slate-700">
+                        Không có ca học gốc để {draft.kind === 'cancel' ? 'báo nghỉ' : 'chuyển lịch'}.
+                      </p>
+                      <p className="mt-1 text-slate-600">
+                        • Gợi ý: Hãy chọn đúng ngày trong tuần lớp có lịch học; hoặc đổi Loại điều chỉnh sang <strong>"Thêm buổi học"</strong> nếu bạn muốn xếp ca học mới ngoài lịch cố định.
+                      </p>
+                    </div>
+                  )}
+                </label>
+              </div>
             )}
             {draft.kind !== 'cancel' && (
               <>
@@ -405,6 +417,21 @@ export function ScheduleChangesManager({
           </form>
         </DialogFrame>
       )}
+      <ConfirmModal
+        isOpen={!!changeToDelete}
+        title="Xác nhận hủy điều chỉnh lịch"
+        message={changeToDelete ? `Hủy điều chỉnh ngày ${changeToDelete.date} và khôi phục lịch học gốc của lớp?` : null}
+        confirmText="Xác nhận hủy"
+        cancelText="Đóng"
+        variant="warning"
+        onConfirm={() => {
+          if (changeToDelete) {
+            setError(onDelete(changeToDelete.id));
+            setChangeToDelete(null);
+          }
+        }}
+        onClose={() => setChangeToDelete(null)}
+      />
     </section>
   );
 }

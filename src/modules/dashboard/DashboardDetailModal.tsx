@@ -1,3 +1,4 @@
+import { studentClassIds } from '../../lib/studentClasses';
 import { ArrowLeft, ArrowRight, ChevronRight, ReceiptText, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
@@ -81,7 +82,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     active: students.filter((student) => student.status === 'active'),
     reserved: students.filter((student) => student.status === 'reserved'),
     dropped: students.filter((student) => student.status === 'dropped'),
-    debt: students.filter((student) => isStudentOwingTuition(student, receipts)),
+    debt: students.filter((student) => isStudentOwingTuition(student, receipts, classes)),
     paid: students.filter((student) => student.feeStatus === 'paid')
   };
 
@@ -270,7 +271,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                         <div className="font-bold text-slate-900">{student.name}</div>
                         <div className="mt-0.5 text-[11px] text-slate-500">{student.phone}</div>
                       </td>
-                      <td className="px-3 py-3 text-slate-700">{classRoom?.code ?? 'Chưa xếp lớp'}</td>
+                      <td className="px-3 py-3 text-slate-700">{studentClassIds(student).map(id => classById.get(id)?.code || id).join(' · ') || 'Chưa xếp lớp'}</td>
                       <td className="px-3 py-3 text-slate-700">{program?.name ?? 'Chưa xác định'}</td>
                       <td className="px-3 py-3 text-slate-700">{statusLabel}</td>
                       <td className="px-3 py-3">

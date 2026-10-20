@@ -225,6 +225,7 @@ describe('per-lesson tuition', () => {
     const receiptA: TuitionReceipt = {
       ...invoice(),
       studentId: 'sA',
+      classId: 'cA',
       debtAmount: 0,
       paidAmount: 2400000,
       status: 'paid',

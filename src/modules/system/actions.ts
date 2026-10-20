@@ -13,12 +13,16 @@ import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from './activityLogger';
 
 import { parseCenterData } from '../../lib/centerData';
+import { mergeAcademicCatalog } from '../../lib/academicCatalog';
+import { validateRecurringChanges } from '../../lib/operations';
 import type { CenterWorkbookData } from '../../services/excelService';
 import { mergeActivityLogs } from '../center/model';
 
 type Context = Pick<
   CenterStore,
   | 'settings'
+  | 'programs' | 'teachers' | 'rooms' | 'classes' | 'timetableSlots'
+  | 'setPrograms' | 'setTeachers' | 'setRooms' | 'setTimetableSlots'
   | 'students'
   | 'activityLogs'
   | 'attendanceSessions'
@@ -33,6 +37,8 @@ type Context = Pick<
 > & { currentUser: UserAccount | null; addLog: ActivityLogger };
 export function createSystemActions({
   settings,
+  programs, teachers, rooms, classes, timetableSlots,
+  setPrograms, setTeachers, setRooms, setTimetableSlots,
   students,
   activityLogs,
   attendanceSessions,
@@ -47,6 +53,25 @@ export function createSystemActions({
   currentUser,
   addLog,
 }: Context) {
+  const handleImportAcademicCatalog = (data: CenterWorkbookData, includeSchedule = false) => {
+    if (!currentUser?.active || currentUser.role !== 'owner') return false;
+    try {
+      const catalog = mergeAcademicCatalog({ programs, teachers, rooms, classes, timetableSlots }, data, includeSchedule);
+      const scheduleError = validateRecurringChanges(catalog.classes, catalog.timetableSlots, scheduleChanges);
+      if (scheduleError) throw new Error(scheduleError);
+      parseCenterData({ ...catalog, settings }, settings);
+      setPrograms(catalog.programs);
+      setTeachers(catalog.teachers);
+      setRooms(catalog.rooms);
+      setClasses(catalog.classes);
+      setTimetableSlots(catalog.timetableSlots);
+      addLog('IMPORT', 'Lớp học', `Bổ sung ${catalog.classes.length - classes.length} lớp từ Excel; giữ nguyên học viên, phiếu thu và lịch sử.`);
+      return true;
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Danh mục lớp không hợp lệ.');
+      return false;
+    }
+  };
   const handleImportStudents = (newStudentsList: Student[]) => {
     const existingIds = new Set(students.map((s) => s.id));
     const existingCodes = new Set(students.map((s) => s.code.trim().toLowerCase()));
@@ -121,6 +146,7 @@ export function createSystemActions({
   };
 
   return {
+    handleImportAcademicCatalog,
     handleImportStudents,
     handleImportCenterData,
     handleBackupCreated,

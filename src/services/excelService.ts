@@ -8,4 +8,4 @@ export type {
 } from './excel/types';
 export { generateMasterExcelWorkbook } from './excel/exportWorkbook';
 export { parseExcelImportData, parseExcelStudentFile } from './excel/studentImport';
-export { parseCenterWorkbookFile } from './excel/workbookImport';
+export { parseCenterWorkbookFile, parseAcademicCatalogFile } from './excel/workbookImport';

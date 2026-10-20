@@ -43,7 +43,7 @@ export function writeClassSheet(context: ExportContext) {
       classroom.scheduleTime || classroom.days.join(', '),
       roomById.get(classroom.roomId)?.name || classroom.roomId || 'Chưa cập nhật',
       classroom.capacity || 'Chưa cập nhật',
-      { formula: `COUNTIF('HỌC SINH'!$G:$G,B${rowNumber})` },
+      { formula: `COUNTIF('HỌC SINH'!$G:$G,B${rowNumber})+COUNTIF('HỌC SINH'!$AA:$AA,"*"""&B${rowNumber}&"""*")` },
       {
         text: `→ ${classSheetNames.get(classroom.id)}`,
         hyperlink: `#'${classSheetNames.get(classroom.id)}'!A1`,

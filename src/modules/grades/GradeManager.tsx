@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useResponsiveView } from '../../hooks/useResponsive';
+import { isStudentInClass } from '../../lib/studentClasses';
 import {
   CenterSettings,
   ClassRoom,
@@ -86,13 +87,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
   const canEdit = isOwner || permissions.grade.edit;
 
-  const classStudents = students.filter(s => {
-    const isPermittedClass = isOwner || permittedClasses.some(c => c.id === s.classId);
-    if (!isPermittedClass) return false;
-    const matchesClass = selectedClassId === 'all' || s.classId === selectedClassId;
-    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesClass && matchesSearch;
-  });
+  const classStudents = students.flatMap(student => permittedClasses
+    .filter(c => isStudentInClass(student, c.id) && (selectedClassId === 'all' || c.id === selectedClassId))
+    .map(c => ({ ...student, classId: c.id, programId: c.programId })))
+    .filter(student => student.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const calculateAvg = (g: Grade): number => {
     // Weightings: Skills 40%, Midterm 20%, Final 30%, Attendance 10%
@@ -101,11 +99,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     return Math.round(avg * 10) / 10;
   };
 
-  const handleGradeChange = (studentId: string, field: keyof Grade, value: number) => {
+  const handleGradeChange = (studentId: string, classId: string, field: keyof Grade, value: number) => {
     const student = students.find(s => s.id === studentId);
-    if (!canEdit || !student || !Number.isFinite(value) || !classStudents.some(s => s.id === studentId)) return;
-    const existing = grades.find(g => g.studentId === studentId && g.classId === student.classId) || {
-      id: `GR_${crypto.randomUUID()}`, studentId, classId: student.classId,
+    if (!canEdit || !student || !Number.isFinite(value) || !classStudents.some(s => s.id === studentId && s.classId === classId)) return;
+    const existing = grades.find(g => g.studentId === studentId && g.classId === classId) || {
+      id: `GR_${crypto.randomUUID()}`, studentId, classId,
       listening: 0, speaking: 0, reading: 0, writing: 0, midterm: 0, finalExam: 0, attendance: 0, average: 0,
     };
 
@@ -213,24 +211,25 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
                 {classStudents.map((st) => {
-                  const grade = grades.find(g => g.studentId === st.id && g.classId === st.classId) || {
+                  const savedGrade = grades.find(g => g.studentId === st.id && g.classId === st.classId);
+                  const grade = savedGrade || {
                     id: `G_${st.id}`,
                     studentId: st.id,
                     classId: st.classId,
-                    listening: 7.0,
-                    speaking: 7.0,
-                    reading: 7.0,
-                    writing: 7.0,
-                    midterm: 7.0,
-                    finalExam: 7.0,
-                    attendance: 10,
-                    average: 7.0
+                    listening: 0,
+                    speaking: 0,
+                    reading: 0,
+                    writing: 0,
+                    midterm: 0,
+                    finalExam: 0,
+                    attendance: 0,
+                    average: 0
                   };
 
                   return (
-                    <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr key={`${st.id}:${st.classId}`} className="hover:bg-slate-50 transition-colors group">
                       <td className="py-3 px-3 w-28 min-w-[112px] max-w-[112px] font-bold font-mono text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">{st.code}</td>
-                      <td className="py-3 px-4 min-w-[170px] font-bold text-slate-900 sticky left-28 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-r whitespace-nowrap">{st.name}</td>
+                      <td className="py-3 px-4 min-w-[170px] font-bold text-slate-900 sticky left-28 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 shadow-r whitespace-nowrap">{st.name}<div className="max-w-[170px] truncate text-[10px] font-medium text-slate-500" title={classes.find(c => c.id === st.classId)?.name}>{classes.find(c => c.id === st.classId)?.name}</div></td>
 
                       {/* Listening */}
                       <td className="p-2 text-center bg-slate-50/50">
@@ -239,9 +238,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.listening}
+                          aria-label={`Nghe - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.listening : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'listening', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'listening', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -253,9 +253,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.speaking}
+                          aria-label={`Nói - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.speaking : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'speaking', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'speaking', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -267,9 +268,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.reading}
+                          aria-label={`Đọc - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.reading : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'reading', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'reading', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -281,9 +283,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.writing}
+                          aria-label={`Viết - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.writing : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'writing', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'writing', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -295,9 +298,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.midterm}
+                          aria-label={`Giữa kỳ - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.midterm : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'midterm', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'midterm', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -309,9 +313,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.finalExam}
+                          aria-label={`Cuối kỳ - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.finalExam : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'finalExam', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'finalExam', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -323,16 +328,17 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           step="0.1"
                           min="0"
                           max="10"
-                          value={grade.attendance}
+                          aria-label={`Chuyên cần - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.attendance : ''}
                           disabled={!canEdit}
-                          onChange={(e) => handleGradeChange(st.id, 'attendance', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleGradeChange(st.id, st.classId, 'attendance', parseFloat(e.target.value) || 0)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
 
                       {/* Average */}
                       <td className="py-3 px-4 text-center bg-amber-50 font-black text-sm text-slate-950 border-l border-amber-200">
-                        {grade.average}
+                        {savedGrade ? grade.average : '—'}
                       </td>
 
                       {/* Report Card Action */}
@@ -340,7 +346,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         <div className="inline-flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setReportingStudent(st)}
+                            disabled={!savedGrade} onClick={() => setReportingStudent(st)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 text-white rounded-lg text-[11px] font-bold hover:bg-slate-800 transition shadow-2xs cursor-pointer"
                             title="Xem và In Phiếu Báo Điểm"
                           >
@@ -349,7 +355,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setSharingStudent(st)}
+                            disabled={!savedGrade} onClick={() => setSharingStudent(st)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition shadow-2xs active:scale-95 cursor-pointer"
                             title="Gửi phiếu báo điểm qua Zalo, Messenger"
                           >
@@ -369,23 +375,24 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         /* Mobile Card View */
         <div className="entity-grid">
           {classStudents.map((st) => {
-            const grade = grades.find(g => g.studentId === st.id && g.classId === st.classId) || {
+            const savedGrade = grades.find(g => g.studentId === st.id && g.classId === st.classId);
+                  const grade = savedGrade || {
               id: `G_${st.id}`,
               studentId: st.id,
               classId: st.classId,
-              listening: 7.0,
-              speaking: 7.0,
-              reading: 7.0,
-              writing: 7.0,
-              midterm: 7.0,
-              finalExam: 7.0,
-              attendance: 10,
-              average: 7.0
+              listening: 0,
+              speaking: 0,
+              reading: 0,
+              writing: 0,
+              midterm: 0,
+              finalExam: 0,
+              attendance: 0,
+              average: 0
             };
 
             return (
               <div
-                key={st.id}
+                key={`${st.id}:${st.classId}`}
                 className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all space-y-3"
               >
                 {/* Header */}
@@ -401,7 +408,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   <div className="text-right shrink-0">
                     <span className="text-[10px] font-bold text-slate-500 uppercase block">ĐTB</span>
                     <span className="text-base font-black text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                      {grade.average}
+                      {savedGrade ? grade.average : '—'}
                     </span>
                   </div>
                 </div>
@@ -417,9 +424,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         step="0.1"
                         min="0"
                         max="10"
-                        value={grade.listening}
+                        aria-label={`Nghe - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.listening : ''}
                         disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'listening', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleGradeChange(st.id, st.classId, 'listening', parseFloat(e.target.value) || 0)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
                     </div>
@@ -430,9 +438,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         step="0.1"
                         min="0"
                         max="10"
-                        value={grade.speaking}
+                        aria-label={`Nói - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.speaking : ''}
                         disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'speaking', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleGradeChange(st.id, st.classId, 'speaking', parseFloat(e.target.value) || 0)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
                     </div>
@@ -443,9 +452,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         step="0.1"
                         min="0"
                         max="10"
-                        value={grade.reading}
+                        aria-label={`Đọc - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.reading : ''}
                         disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'reading', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleGradeChange(st.id, st.classId, 'reading', parseFloat(e.target.value) || 0)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
                     </div>
@@ -456,9 +466,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         step="0.1"
                         min="0"
                         max="10"
-                        value={grade.writing}
+                        aria-label={`Viết - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.writing : ''}
                         disabled={!canEdit}
-                        onChange={(e) => handleGradeChange(st.id, 'writing', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleGradeChange(st.id, st.classId, 'writing', parseFloat(e.target.value) || 0)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                       />
                     </div>
@@ -474,9 +485,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       step="0.1"
                       min="0"
                       max="10"
-                      value={grade.midterm}
+                      aria-label={`Giữa kỳ - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.midterm : ''}
                       disabled={!canEdit}
-                      onChange={(e) => handleGradeChange(st.id, 'midterm', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleGradeChange(st.id, st.classId, 'midterm', parseFloat(e.target.value) || 0)}
                       className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                     />
                   </div>
@@ -487,9 +499,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       step="0.1"
                       min="0"
                       max="10"
-                      value={grade.finalExam}
+                      aria-label={`Cuối kỳ - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.finalExam : ''}
                       disabled={!canEdit}
-                      onChange={(e) => handleGradeChange(st.id, 'finalExam', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleGradeChange(st.id, st.classId, 'finalExam', parseFloat(e.target.value) || 0)}
                       className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                     />
                   </div>
@@ -500,9 +513,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       step="0.1"
                       min="0"
                       max="10"
-                      value={grade.attendance}
+                      aria-label={`Chuyên cần - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="—" value={savedGrade ? grade.attendance : ''}
                       disabled={!canEdit}
-                      onChange={(e) => handleGradeChange(st.id, 'attendance', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleGradeChange(st.id, st.classId, 'attendance', parseFloat(e.target.value) || 0)}
                       className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                     />
                   </div>
@@ -512,7 +526,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={() => setReportingStudent(st)}
+                    disabled={!savedGrade} onClick={() => setReportingStudent(st)}
                     className="flex-1 py-1.5 px-3 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                   >
                     <FileText className="w-3.5 h-3.5 text-amber-400" />
@@ -520,7 +534,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSharingStudent(st)}
+                    disabled={!savedGrade} onClick={() => setSharingStudent(st)}
                     className="flex-1 py-1.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                   >
                     <Share2 className="w-3.5 h-3.5 text-slate-950" />
@@ -542,14 +556,14 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
               id: `G_${reportingStudent.id}`,
               studentId: reportingStudent.id,
               classId: reportingStudent.classId,
-              listening: 7.0,
-              speaking: 7.0,
-              reading: 7.0,
-              writing: 7.0,
-              midterm: 7.0,
-              finalExam: 7.0,
-              attendance: 10,
-              average: 7.0
+              listening: 0,
+              speaking: 0,
+              reading: 0,
+              writing: 0,
+              midterm: 0,
+              finalExam: 0,
+              attendance: 0,
+              average: 0
             }
           }
           classroom={classes.find(c => c.id === reportingStudent.classId)}
@@ -574,14 +588,14 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
               id: `G_${sharingStudent.id}`,
               studentId: sharingStudent.id,
               classId: sharingStudent.classId,
-              listening: 7.0,
-              speaking: 7.0,
-              reading: 7.0,
-              writing: 7.0,
-              midterm: 7.0,
-              finalExam: 7.0,
-              attendance: 10,
-              average: 7.0
+              listening: 0,
+              speaking: 0,
+              reading: 0,
+              writing: 0,
+              midterm: 0,
+              finalExam: 0,
+              attendance: 0,
+              average: 0
             }
           }
           classroom={classes.find(c => c.id === sharingStudent.classId)}

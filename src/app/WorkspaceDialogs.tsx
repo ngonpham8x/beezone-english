@@ -55,7 +55,7 @@ export function WorkspaceDialogs({
     enrollments,
     scheduleChanges,
   } = store;
-  const { handleImportStudents, handleImportCenterData, handleBackupCreated, handleRestoreBackup } =
+  const { handleImportStudents, handleImportCenterData, handleImportAcademicCatalog, handleBackupCreated, handleRestoreBackup } =
     actions;
   const {
     isLoginOpen,
@@ -118,6 +118,7 @@ export function WorkspaceDialogs({
             permissions={currentUser.permissions}
             onImportStudents={handleImportStudents}
             onImportCenterData={handleImportCenterData}
+              onImportAcademicCatalog={handleImportAcademicCatalog}
             onExportExcel={(filename) =>
               addLog('EXPORT', 'Excel', `Xuất báo cáo Excel ${filename}`)
             }

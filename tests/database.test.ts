@@ -34,6 +34,24 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('supports delegated multi-class registration and rejects stale clients, invalid references and forged rosters', async () => {
+    const classes = ['c1', 'c2', 'c3'].map(id => ({ id, studentIds: id === 'c1' ? ['s'] : [] }));
+    const student = { id: 's', classId: 'c1', status: 'active', feeStatus: 'unpaid' };
+    const original = { ...base, classes, students: [student], enrollments: [] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(original)]);
+    const next = { ...original, classes: classes.map(c => ({ ...c, studentIds: ['s'] })), students: [{ ...student, additionalClassIds: ['c2', 'c3'] }], enrollments: ['c1', 'c2', 'c3'].map(id => ({ id: 'e-' + id, studentId: 's', classId: id, status: 'active' })) };
+    await asStaff({ student: { edit: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(next)]);
+    for (const extras of [['c1'], ['missing'], ['c2', 'c2'], null, 'c2']) {
+      await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...next, students: [{ ...student, additionalClassIds: extras }] })])).rejects.toThrow();
+    }
+    await db.exec('reset role');
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...next, students: [student] })])).rejects.toThrow(/Client update required/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...next, classes })])).rejects.toThrow(/roster/);
+    await asStaff({ student: { view: true } });
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...next, students: [{ ...student, additionalClassIds: ['c2'] }], classes: next.classes.map(c => c.id === 'c3' ? { ...c, studentIds: [] } : c) })])).rejects.toThrow(/denied/);
+  });
   it('allows explicit academic delegation and keeps unrelated permissions denied', async () => {
     await asStaff({ academic: { classes: true, rooms: true, programs: true }, student: { add: true }, teacher: { edit: true } });
     const payload = {
@@ -79,6 +97,17 @@ describe('database migrations and permission enforcement', () => {
     expect((await db.query<{ payload: typeof payload }>('select payload from public.center_data')).rows[0].payload).toEqual(payload);
   });
   const sessionPayload = (billed=true) => ({...base,sessionBillingVersion:1,classes:[{id:'a',teacherId:'t',studentIds:['s'],billingMode:'session',sessionRate:150000,sessionBillingStartDate:'2020-01-01',sessionAbsencePolicy:'attended'}],students:[{id:'s',classId:'a',status:'active',feeStatus:billed?'debt':'unpaid'}],attendanceSessions:billed?[{id:'att',classId:'a',date:'2020-01-02',billing:{unitPrice:150000,absencePolicy:'attended'},entries:[{studentId:'s',status:'present'}]}]:[]});
+  it('allows priced attendance for an additional class but retains assigned-class enforcement', async () => {
+    const legacy = sessionPayload(false);
+    const payload = { ...legacy, classes: [...legacy.classes, { id: 'primary', teacherId: 'other', studentIds: ['s'] }], students: [{ ...legacy.students[0], classId: 'primary', additionalClassIds: ['a'] }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({ student: { edit: true }, assignedClassIds: ['a'] });
+    const next = { ...payload, students: [{ ...payload.students[0], feeStatus: 'debt' }], attendanceSessions: sessionPayload(true).attendanceSessions };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(next)]);
+    await db.exec('reset role');
+    await asStaff({ student: { edit: true }, assignedClassIds: ['primary'] });
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...next, attendanceSessions: next.attendanceSessions.map(session => ({ ...session, lessonTopic: 'Denied' })) })])).rejects.toThrow(/Attendance permission denied/);
+  });
   const sessionReceipt = {id:'r',studentId:'s',classId:'a',paymentKind:'session',courseFee:0,monthlyFee:0,sessionFee:150000,sessionLines:[{attendanceSessionId:'att',date:'2020-01-02',unitPrice:150000}],discount:0,paidAmount:50000,debtAmount:100000,paymentDate:'2020-01-10'};
   it('includes unbilled lessons in student debt when a teacher saves attendance',async()=>{
     await db.query('update public.center_data set payload=$1::jsonb',[JSON.stringify(sessionPayload(false))]);

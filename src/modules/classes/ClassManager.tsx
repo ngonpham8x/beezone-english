@@ -1,3 +1,4 @@
+import { isStudentInClass } from '../../lib/studentClasses';
 import {
   BookOpen,
   CalendarDays,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { StatCard } from '../../components/StatCard';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useLanguage } from '../../context/LanguageContext';
@@ -58,6 +60,8 @@ interface ClassManagerProps {
   onCreateRoom: (room: Room) => void;
   onCreateProgram: (program: CourseProgram) => void;
   onCreateTeacher?: (teacher: Teacher) => void;
+  onAddStudent?: (student: Student) => void;
+  onUpdateStudent?: (student: Student) => void;
   editRequest?: ClassRoom | null;
   onEditRequestHandled?: () => void;
 }
@@ -104,12 +108,15 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   onCreateRoom,
   onCreateProgram,
   onCreateTeacher,
+  onAddStudent,
+  onUpdateStudent,
   editRequest,
   onEditRequestHandled,
 }) => {
   const { t, language } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassRoom | null>(null);
+  const [classToDelete, setClassToDelete] = useState<ClassRoom | null>(null);
   const [viewingClassStudents, setViewingClassStudents] = useState<ClassRoom | null>(null);
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleDraft[]>([]);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
@@ -120,6 +127,12 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const [isQuickTeacherOpen, setIsQuickTeacherOpen] = useState(false);
   const [newTeacherName, setNewTeacherName] = useState('');
   const [newTeacherPhone, setNewTeacherPhone] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [isQuickStudentOpen, setIsQuickStudentOpen] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentParent, setNewStudentParent] = useState('');
+  const [newStudentPhone, setNewStudentPhone] = useState('');
 
   const canEdit = isOwner || permissions.academic?.classes === true;
   const canCreateProgram = isOwner || permissions.academic?.programs === true;
@@ -205,6 +218,47 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     setScheduleError(null);
   };
 
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleCreateStudentQuick = () => {
+    if (!newStudentName.trim()) {
+      alert('Vui lòng nhập họ tên học sinh');
+      return;
+    }
+    const studentId = `ST_${Date.now()}`;
+    const code = `HS${String(students.length + 1).padStart(3, '0')}`;
+    const newStudent: Student = {
+      id: studentId,
+      code,
+      name: newStudentName.trim(),
+      parentName: newStudentParent.trim() || undefined,
+      parentPhone: newStudentPhone.trim() || undefined,
+      phone: newStudentPhone.trim() || undefined,
+      status: 'active',
+      classId: editingClass?.id || '',
+      additionalClassIds: [],
+      enrollDate: centerDate(),
+      programId: editingClass?.programId || programs[0]?.id || '',
+      address: '',
+      email: '',
+      school: '',
+      gradeLevel: 'Khác',
+      feeStatus: 'unpaid',
+      gender: 'Chưa xác định',
+      dob: '2016-01-01',
+    };
+    onAddStudent?.(newStudent);
+    setSelectedStudentIds((prev) => [...prev, studentId]);
+    setNewStudentName('');
+    setNewStudentParent('');
+    setNewStudentPhone('');
+    setIsQuickStudentOpen(false);
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit || !editingClass || !editingClass.name.trim()) return;
@@ -214,7 +268,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     if (!Number.isInteger(editingClass.capacity) || editingClass.capacity < 0) { setScheduleError('Sĩ số tối đa phải là số nguyên không âm.'); return; }
     const room = rooms.find(r => r.id === editingClass.roomId);
     if (room?.status === 'maintenance') { setScheduleError('Phòng đang bảo trì. Hãy chọn phòng khác.'); return; }
-    if (editingClass.capacity > 0 && students.filter(s => s.classId === editingClass.id && s.status === 'active').length > editingClass.capacity) { setScheduleError('Sĩ số tối đa thấp hơn số học viên đang học.'); return; }
+    if (editingClass.capacity > 0 && students.filter(s => isStudentInClass(s, editingClass.id) && s.status === 'active').length > editingClass.capacity) { setScheduleError('Sĩ số tối đa thấp hơn số học viên đang học.'); return; }
     const normalisedEntries = scheduleEntries.map((entry) => ({
       ...entry,
       startTime: normaliseTime(entry.startTime),
@@ -251,17 +305,41 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     const savedClass: ClassRoom = {
       ...editingClass,
       programId: matchingProgram?.id || createdProgram?.id || editingClass.programId,
+      studentIds: selectedStudentIds,
       days: sortSchedule(validEntries).map((entry) => entry.dayOfWeek),
       scheduleTime: scheduleDescription(validEntries),
     };
     const previous = classes.find(c => c.id === savedClass.id);
-    if (previous && students.some(student => student.classId === savedClass.id) &&
+    if (previous && students.some(student => isStudentInClass(student, savedClass.id)) &&
         (previous.programId !== savedClass.programId || previous.courseStatus !== savedClass.courseStatus) &&
         !isOwner && !permissions.student.edit) {
       setScheduleError('Cần thêm quyền sửa học viên để đổi chương trình hoặc trạng thái của lớp đang có học viên.');
       return;
     }
     if (createdProgram) onCreateProgram(createdProgram);
+
+    if (onUpdateStudent) {
+      for (const st of students) {
+        const shouldBeInClass = selectedStudentIds.includes(st.id);
+        const isCurrentlyIn = isStudentInClass(st, savedClass.id);
+        if (shouldBeInClass && !isCurrentlyIn) {
+          const nextClassId = st.classId ? st.classId : savedClass.id;
+          const nextAddIds = st.classId && st.classId !== savedClass.id
+            ? [...(st.additionalClassIds || []), savedClass.id]
+            : (st.additionalClassIds || []);
+          onUpdateStudent({ ...st, classId: nextClassId, additionalClassIds: Array.from(new Set(nextAddIds)) });
+        } else if (!shouldBeInClass && isCurrentlyIn) {
+          if (st.classId === savedClass.id) {
+            const nextClassId = st.additionalClassIds?.[0] || '';
+            const nextAddIds = (st.additionalClassIds || []).slice(1);
+            onUpdateStudent({ ...st, classId: nextClassId, additionalClassIds: nextAddIds });
+          } else {
+            const nextAddIds = (st.additionalClassIds || []).filter(id => id !== savedClass.id);
+            onUpdateStudent({ ...st, additionalClassIds: nextAddIds });
+          }
+        }
+      }
+    }
 
     if (classes.some(c => c.id === savedClass.id)) {
       onUpdateClass(savedClass);
@@ -343,7 +421,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       <div className="stats-grid">
         <StatCard label="Tổng lớp mở" value={classes.length + ' lớp'} icon={BookOpen} />
         <StatCard label="Đã phân công giáo viên" value={classes.filter(c => c.teacherId).length + ' / ' + classes.length} icon={UserCheck} tone="emerald" />
-        <StatCard label="Học viên theo lớp" value={classes.reduce((sum,c) => sum+students.filter(s => s.classId === c.id).length,0) + ' bạn'} icon={Users} tone="sky" />
+        <StatCard label="Học viên theo lớp" value={classes.reduce((sum,c) => sum+students.filter(s => isStudentInClass(s, c.id)).length,0) + ' bạn'} icon={Users} tone="sky" />
         <StatCard label="Tổng sức chứa" value={classes.reduce((sum,c) => sum+(c.capacity || 0),0) + ' chỗ'} icon={DoorOpen} tone="violet" />
       </div>
 
@@ -355,7 +433,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
           const program = programs.find(p => p.id === cls.programId);
           const classSchedule = timetableSlots.filter((slot) => slot.classId === cls.id);
           const displaySchedule = classSchedule.length ? scheduleDescription(classSchedule) : (cls.scheduleTime || 'Chưa xếp lịch');
-          const classStudents = students.filter(s => s.classId === cls.id);
+          const classStudents = students.filter(s => isStudentInClass(s, cls.id));
           const currentCount = classStudents.length;
           const capacityKnown = cls.capacity > 0;
           const percentFull = capacityKnown ? Math.round((currentCount / cls.capacity) * 100) : 0;
@@ -389,11 +467,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                       </button>
                       <button
                         aria-label={`Xóa lớp ${cls.name}`}
-                        onClick={() => {
-                          if (confirm(`Xóa lớp ${cls.name}?`)) {
-                            onDeleteClass(cls.id);
-                          }
-                        }}
+                        onClick={() => setClassToDelete(cls)}
                         className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                         title="Xóa"
                       >
@@ -490,13 +564,13 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
             </p>
 
             <div className="divide-y divide-slate-100">
-              {students.filter(s => s.classId === viewingClassStudents.id).length === 0 ? (
+              {students.filter(s => isStudentInClass(s, viewingClassStudents.id)).length === 0 ? (
                 <div className="py-6 text-center text-xs text-slate-400">
                   Lớp học này hiện chưa có học sinh nào.
                 </div>
               ) : (
                 students
-                  .filter(s => s.classId === viewingClassStudents.id)
+                  .filter(s => isStudentInClass(s, viewingClassStudents.id))
                   .map((st, idx) => {
                     const debt = debtBreakdown(receipts.filter((receipt) => receipt.studentId === st.id));
                     return (

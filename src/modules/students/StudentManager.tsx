@@ -1,3 +1,4 @@
+import { isStudentInClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
 import {
   AlertCircle,
   BookOpen,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { ConfirmModal, AlertModal } from '../../components/ConfirmModal';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
@@ -65,6 +67,7 @@ interface StudentManagerProps {
   onOpenImportExportModal: () => void;
   onOpenTuition: () => void;
   onCreateProgram: (program: CourseProgram) => void;
+  onAddClass?: (c: ClassRoom) => void;
 }
 
 export const StudentManager: React.FC<StudentManagerProps> = ({
@@ -87,7 +90,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   onReEnrollStudent,
   onOpenImportExportModal,
   onOpenTuition,
-  onCreateProgram
+  onCreateProgram,
+  onAddClass,
 }) => {
   const { t, language } = useLanguage();
   const [filterProgram, setFilterProgram] = useState<string>('all');
@@ -120,6 +124,69 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [reEnrollClassId, setReEnrollClassId] = useState<string>('');
   const [reEnrollDate, setReEnrollDate] = useState<string>(centerDate());
   const [reEnrollNote, setReEnrollNote] = useState<string>('');
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [deleteAlertMessage, setDeleteAlertMessage] = useState<string | null>(null);
+  const [isQuickClassOpen, setIsQuickClassOpen] = useState(false);
+  const [newClassCode, setNewClassCode] = useState('');
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassTuition, setNewClassTuition] = useState<number>(0);
+  const [isQuickProgramOpen, setIsQuickProgramOpen] = useState(false);
+  const [newProgramCode, setNewProgramCode] = useState('');
+  const [newProgramName, setNewProgramName] = useState('');
+
+
+  const handleCreateClassQuick = () => {
+    if (!newClassName.trim()) {
+      alert('Vui lòng nhập tên lớp học');
+      return;
+    }
+    const code = newClassCode.trim() || `LOP-${String(classes.length + 1).padStart(2, '0')}`;
+    const newClass: ClassRoom = {
+      id: `CLASS_${Date.now()}`,
+      code,
+      name: newClassName.trim(),
+      capacity: 20,
+      programId: editingStudent?.programId || programs[0]?.id || '',
+      teacherId: '',
+      roomId: '',
+      days: [],
+      scheduleTime: '',
+      studentIds: editingStudent ? [editingStudent.id] : [],
+      courseStatus: 'active',
+      billingMode: 'course',
+    };
+    onAddClass?.(newClass);
+    if (editingStudent) {
+      setEditingStudent({ ...editingStudent, classId: newClass.id });
+    }
+    setNewClassCode('');
+    setNewClassName('');
+    setNewClassTuition(0);
+    setIsQuickClassOpen(false);
+  };
+
+  const handleCreateProgramQuick = () => {
+    if (!newProgramName.trim()) {
+      alert('Vui lòng nhập tên chương trình đào tạo');
+      return;
+    }
+    const code = newProgramCode.trim() || `CT-${String(programs.length + 1).padStart(3, '0')}`;
+    const newProg: CourseProgram = {
+      id: `PROG_${Date.now()}`,
+      code,
+      name: newProgramName.trim(),
+      category: 'Khác',
+      tuitionFee: 0,
+      description: 'Tạo trực tiếp từ quản lý học viên',
+    };
+    onCreateProgram?.(newProg);
+    if (editingStudent) {
+      setEditingStudent({ ...editingStudent, programId: newProg.id });
+    }
+    setNewProgramCode('');
+    setNewProgramName('');
+    setIsQuickProgramOpen(false);
+  };
 
   const handleOpenReserve = (st: Student) => {
     setReservingStudent(st);
@@ -204,10 +271,10 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   // Filtered list
   const filteredStudents = students.filter(s => {
     const matchesSearch =
-      matchesSearchText(searchQuery, s.name, s.code, s.phone, s.parentName, s.parentPhone, classes.find(c => c.id === s.classId)?.name, classes.find(c => c.id === s.classId)?.code);
+      matchesSearchText(searchQuery, s.name, s.code, s.phone, s.parentName, s.parentPhone, studentClassNames(s, classes), ...classes.filter(c => isStudentInClass(s, c.id)).map(c => c.code));
 
-    const matchesProgram = filterProgram === 'all' || s.programId === filterProgram;
-    const matchesClass = filterClass === 'all' || s.classId === filterClass;
+    const matchesProgram = filterProgram === 'all' || s.programId === filterProgram || classes.some(c => isStudentInClass(s, c.id) && c.programId === filterProgram);
+    const matchesClass = filterClass === 'all' || isStudentInClass(s, filterClass);
     const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
 
     return matchesSearch && matchesProgram && matchesClass && matchesStatus;
@@ -275,9 +342,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
     if (editingStudent.status === 'active' && !selectedClass) { alert('Học viên đang học cần được xếp lớp.'); return; }
-    if (selectedClass && selectedClass.capacity > 0 && editingStudent.status === 'active' && students.filter(s => s.id !== editingStudent.id && s.classId === selectedClass.id && s.status === 'active').length >= selectedClass.capacity) { alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.'); return; }
-
-    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '' };
+    let studentToSave = { ...editingStudent, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
+    const membershipError = validateStudentClasses(studentToSave, classes, students);
+    if (membershipError) { alert(membershipError); return; }
     if (programEntryMode === 'manual') {
       const name = manualProgramName.trim();
       if (!name) {
@@ -373,7 +440,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} />
         <StatCard label="Đang theo học" value={students.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
         <StatCard label="Đang bảo lưu" value={students.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
-        <StatCard label="Còn nợ học phí" value={students.filter(s => isStudentOwingTuition(s, receipts)).length + ' HS'} icon={AlertCircle} tone="rose" />
+        <StatCard label="Còn nợ học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
       </div>
 
       {/* Filters & View Mode Bar */}
@@ -489,6 +556,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-800">
                             {(() => {
+                                if (studentClassIds(st).length > 1) return studentClassNames(st, classes);
                               const cls = classes.find(c => c.id === st.classId);
                               if (cls) return cls.name;
                               if (st.classId === 'CLASS_G1') return 'Lớp 1 (Tiểu Học)';
@@ -603,11 +671,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                             {canDelete && (
                               <button
-                                onClick={() => {
-                                  if (confirm(`Xác nhận xóa học sinh ${st.name} (${st.code})?`)) {
-                                    onDeleteStudent(st.id);
-                                  }
-                                }}
+                                onClick={() => setStudentToDelete(st)}
                                 className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                                 title="Xóa học sinh"
                               >
@@ -637,8 +701,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               const cls = classes.find(c => c.id === st.classId);
               const debt = debtForStudent(st.id);
 
-              const classNameText = cls ? cls.name : (st.classId || 'Chưa xếp lớp');
-              const scheduleText = cls ? `${cls.scheduleTime} (${cls.days.join(', ')})` : 'T2-T4-T6 (18:00 - 19:30)';
+              const classNameText = studentClassNames(st, classes);
+              const scheduleText = classes.filter(c => isStudentInClass(st, c.id)).map(c => `${c.name}: ${c.scheduleTime} (${c.days.join(', ')})`).join(' · ') || 'Chưa xếp lịch';
 
               return (
                 <div key={st.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
@@ -770,11 +834,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                     {canDelete && (
                       <button
-                        onClick={() => {
-                          if (confirm(`Xác nhận xóa học sinh ${st.name}?`)) {
-                            onDeleteStudent(st.id);
-                          }
-                        }}
+                        onClick={() => setStudentToDelete(st)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                         title="Xóa"
                       >
@@ -934,13 +994,33 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Xếp Vào Lớp Học / Tên Lớp Học</label>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="font-semibold text-slate-700 text-xs" htmlFor="student-primary-class">Lớp học chính</label>
+                      {onAddClass && (
+                        <button
+                          type="button"
+                          onClick={() => setIsQuickClassOpen(open => !open)}
+                          className="text-[11px] font-bold text-amber-700 hover:text-amber-900 cursor-pointer flex items-center gap-1"
+                        >
+                          + Tạo lớp mới
+                        </button>
+                      )}
+                    </div>
                   <div className="space-y-1.5">
                     <select
+                      id="student-primary-class"
                       value={editingStudent.classId}
-                      onChange={(e) => setEditingStudent({ ...editingStudent, classId: e.target.value })}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW_CLASS__') {
+                          setIsQuickClassOpen(true);
+                        } else {
+                          setEditingStudent({ ...editingStudent, classId: e.target.value, additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== e.target.value) });
+                        }
+                      }}
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold text-slate-900"
                     >
+                      <option value="">Chưa xếp lớp</option>
+                        <option value="__NEW_CLASS__">➕ Tạo lớp học mới tại đây...</option>
                       <optgroup label="Danh Sách Lớp Học Tại Trung Tâm">
                         {classes.map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
@@ -959,6 +1039,22 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                       />
                       <p className="mt-1 text-[10px] text-slate-500">Chỉ nhận lớp đã tạo để học sinh, học phí, bảng điểm và Excel luôn liên kết đúng.</p>
                     </div>
+                    <fieldset className="mt-3 rounded-xl border border-slate-200 p-3">
+                      <legend className="px-1 font-bold text-slate-800">Đăng ký thêm lớp học</legend>
+                      <p className="mb-2 text-[11px] text-slate-500">Tích chọn nếu học viên học đồng thời hai, ba lớp hoặc nhiều hơn. Học phí và điểm số được ghi riêng theo lớp. Bỏ tích để ngừng riêng một lớp; bảo lưu/nghỉ học áp dụng cho tất cả lớp.</p>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {classes.filter(c => c.id !== editingStudent.classId).map(c => {
+                          const checked = editingStudent.additionalClassIds?.includes(c.id) === true;
+                          return <label key={c.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-amber-50 cursor-pointer">
+                            <input type="checkbox" checked={checked} disabled={!checked && ['completed', 'paused'].includes(c.courseStatus || '')}
+                              onChange={event => setEditingStudent({ ...editingStudent, additionalClassIds: event.target.checked ? [...(editingStudent.additionalClassIds || []), c.id] : editingStudent.additionalClassIds?.filter(id => id !== c.id) })}
+                              className="mt-0.5 h-4 w-4 shrink-0 accent-amber-600" />
+                            <span className="min-w-0 break-words">{c.name} <span className="text-slate-500">({c.code}) · {programs.find(p => p.id === c.programId)?.name}{['completed', 'paused'].includes(c.courseStatus || '') ? ' · Đã kết thúc / tạm dừng' : ''}</span></span>
+                          </label>;
+                        })}
+                        {classes.length <= 1 && <p className="text-slate-500">Chưa có lớp khác để chọn.</p>}
+                      </div>
+                    </fieldset>
                   </div>
                 </div>
 
@@ -1104,7 +1200,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80">
                 <div className="font-bold text-slate-900 text-sm">{reservingStudent.name} ({reservingStudent.code})</div>
                 <div className="text-[11px] text-slate-600 mt-0.5">
-                  Lớp: <span className="font-semibold text-amber-800">{classes.find(c => c.id === reservingStudent.classId)?.name || 'Chưa xếp lớp'}</span>
+                  Lớp: <span className="font-semibold text-amber-800">{studentClassNames(reservingStudent, classes)}</span>
                 </div>
               </div>
 
@@ -1201,7 +1297,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-200/80">
                 <div className="font-bold text-slate-900 text-sm">{droppingStudent.name} ({droppingStudent.code})</div>
                 <div className="text-[11px] text-slate-600 mt-0.5">
-                  Lớp: <span className="font-semibold text-amber-800">{classes.find(c => c.id === droppingStudent.classId)?.name || 'Chưa xếp lớp'}</span>
+                  Lớp: <span className="font-semibold text-amber-800">{studentClassNames(droppingStudent, classes)}</span>
                 </div>
               </div>
 

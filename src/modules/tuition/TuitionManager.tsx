@@ -24,6 +24,7 @@ import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
+import { isStudentInClass, studentClassIds } from '../../lib/studentClasses';
 import {
   debtBreakdown,
   getReceiptInstallments,
@@ -93,6 +94,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   >(null);
 
   const [collectingStudentId, setCollectingStudentId] = useState<string>(students[0]?.id || '');
+  const [collectingClassId, setCollectingClassId] = useState<string>(students[0]?.classId || '');
   const [courseFeeInput, setCourseFeeInput] = useState<number>(0);
   const [monthlyFeeInput, setMonthlyFeeInput] = useState<number>(0);
   const [paymentKind, setPaymentKind] = useState<'course' | 'monthly'>('monthly');
@@ -155,14 +157,13 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
   const pendingTuitionStudents = useMemo(() => {
     return students
-      .filter((s) => isStudentOwingTuition(s, receipts))
-      .map((s) => {
-        const cls = classes.find((c) => c.id === s.classId);
-        const prog = programs.find((p) => p.id === s.programId);
-        const studentReceipts = receipts.filter((r) => r.studentId === s.id);
+      .flatMap((s) => [...new Set([...studentClassIds(s), ...receipts.filter(r => r.studentId === s.id && r.debtAmount > 0).map(r => r.classId)])].map(classId => {
+        const cls = classes.find((c) => c.id === classId);
+        const prog = programs.find((p) => p.id === (cls?.programId || s.programId));
+        const studentReceipts = receipts.filter((r) => r.studentId === s.id && r.classId === classId);
         const debt = debtBreakdown(studentReceipts);
         const hasReceipt = studentReceipts.length > 0;
-        const expectedAmount = debt.total > 0 ? debt.total : (prog?.tuitionFee || 0);
+        const expectedAmount = debt.total > 0 ? debt.total : (!hasReceipt && s.status === 'active' && cls?.billingMode !== 'session' ? (prog?.tuitionFee || 0) : 0);
         return {
           student: s,
           classroom: cls,
@@ -171,7 +172,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           hasReceipt,
           expectedAmount,
         };
-      });
+      })).filter(item => item.debt.total > 0 || (!item.hasReceipt && item.classroom?.billingMode !== 'session' && item.student.status === 'active' && (studentClassIds(item.student).length > 1 || item.student.feeStatus !== 'paid')));
   }, [students, receipts, classes, programs]);
   const paymentEntries = useMemo(() => getReceiptPaymentEntries(receipts), [receipts]);
   const receiptMonths: string[] = useMemo(() => {
@@ -226,20 +227,21 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     if (preset === 'monthly' || preset === 'course' || preset === 'session') setFilterPaymentKind(preset);
   };
 
-  const handleOpenCollectForStudent = (student: Student) => {
-    const cls = classes.find((c) => c.id === student.classId);
+  const handleOpenCollectForStudent = (student: Student, classId = studentClassIds(student).find(id => classes.find(c => c.id === id)?.billingMode !== 'session') || student.classId) => {
+    const cls = classes.find((c) => c.id === classId);
     if (cls?.billingMode === 'session') {
       setSessionNotice(`Lớp ${cls.name} thu theo buổi học. Hãy chọn học viên và buổi học trong phần Học phí theo buổi để thu tiền.`);
       return;
     }
-    const prog = programs.find((p) => p.id === student.programId);
-    const studentReceipts = receipts.filter((r) => r.studentId === student.id);
+    const prog = programs.find((p) => p.id === (cls?.programId || student.programId));
+    const studentReceipts = receipts.filter((r) => r.studentId === student.id && r.classId === classId);
     const debt = debtBreakdown(studentReceipts);
     const fee = debt.total > 0 ? debt.total : (prog?.tuitionFee || 0);
     const kind = cls?.billingMode === 'course' ? 'course' : 'monthly';
 
     setEditingReceipt(null);
     setCollectingStudentId(student.id);
+    setCollectingClassId(classId);
     setCourseFeeInput(kind === 'course' ? fee : 0);
     setMonthlyFeeInput(kind === 'monthly' ? fee : 0);
     setPaymentKind(kind);
@@ -258,8 +260,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
   const handleOpenCollect = () => {
     const eligibleStudent =
-      students.find((s) => s.status === 'active' && s.feeStatus !== 'paid' && classes.find((c) => c.id === s.classId)?.billingMode !== 'session') ||
-      students.find((s) => classes.find((c) => c.id === s.classId)?.billingMode !== 'session');
+      students.find((s) => s.status === 'active' && studentClassIds(s).some(id => classes.find(c => c.id === id)?.billingMode !== 'session')) ||
+      students.find((s) => studentClassIds(s).some(id => classes.find(c => c.id === id)?.billingMode !== 'session'));
     if (!eligibleStudent) { setSessionNotice('Các lớp đang thu theo buổi. Chọn học viên và buổi học trong phần Học phí theo buổi để thu tiền.'); return; }
     handleOpenCollectForStudent(eligibleStudent);
   };
@@ -268,6 +270,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     if (receipt.paymentKind === 'session') { setDeadlineReceipt(receipt); setDeadlineValue(receipt.dueDate || ''); setDeadlineError(''); return; }
     setEditingReceipt(receipt);
     setCollectingStudentId(receipt.studentId);
+    setCollectingClassId(receipt.classId);
     setCourseFeeInput(receipt.courseFee || 0);
     setMonthlyFeeInput(receipt.monthlyFee || 0);
     const receiptKind = receipt.paymentKind === 'course' ? 'course' : 'monthly';
@@ -358,7 +361,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     if (dueDateInput && !isCalendarDate(dueDateInput)) { setCollectError('Hạn thanh toán không hợp lệ.'); return; }
     const student = students.find(s => s.id === collectingStudentId);
     if (!student) return;
-    if (!student.classId || !classes.some(c => c.id === student.classId)) { setCollectError('Học viên chưa được xếp vào lớp hợp lệ.'); return; }
+    const receiptClassId = editingReceipt?.classId || collectingClassId;
+    if (!receiptClassId || !classes.some(c => c.id === receiptClassId) || (!editingReceipt && !isStudentInClass(student, receiptClassId))) { setCollectError('Học viên chưa được xếp vào lớp hợp lệ.'); return; }
+    if (!editingReceipt && classes.find(c => c.id === receiptClassId)?.billingMode === 'session') { setCollectError('Lớp này thu học phí theo buổi. Hãy chọn buổi học để lập phiếu.'); return; }
     if ([courseFeeInput, monthlyFeeInput, paidAmountInput, discountInput].some(value => !Number.isFinite(value) || value < 0)) { setCollectError('Học phí, giảm giá và số tiền đóng phải là số không âm.'); return; }
 
     const selectedFee = paymentKind === 'monthly' ? monthlyFeeInput : courseFeeInput;
@@ -432,7 +437,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       id: editingReceipt?.id || `TR_${Date.now()}`,
       code: editingReceipt?.code || nextReceiptCode(receipts),
       studentId: student.id,
-      classId: editingReceipt?.classId || student.classId,
+      classId: receiptClassId,
       // An existing receipt retains the other fee field as readable audit
       // context when the operator switches monthly <-> course. New receipts
       // keep the unused field empty so reports remain uncluttered.
@@ -573,7 +578,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               </thead>
               <tbody className="divide-y divide-amber-100/70 font-medium">
                 {pendingTuitionStudents.map(({ student, classroom, program, debt, expectedAmount }) => (
-                  <tr key={student.id} className="hover:bg-amber-50/50 transition-colors">
+                  <tr key={`${student.id}:${classroom?.id}`} className="hover:bg-amber-50/50 transition-colors">
                     <td className="py-2.5 px-3 font-mono font-bold text-amber-950">{student.code}</td>
                     <td className="py-2.5 px-3">
                       <div className="font-bold text-slate-900">{student.name}</div>
@@ -597,7 +602,11 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                       {canCollect && (
                         <button
                           type="button"
-                          onClick={() => handleOpenCollectForStudent(student)}
+                          onClick={() => {
+                            const existing = receipts.find(r => r.studentId === student.id && r.classId === classroom?.id && r.debtAmount > 0);
+                            if (existing) handleOpenCollectInstallment(existing);
+                            else handleOpenCollectForStudent(student, classroom?.id);
+                          }}
                           className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-2xs transition active:scale-95 inline-flex items-center gap-1 cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" /> Thu học phí
@@ -817,6 +826,11 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                 <select
                   value={collectingStudentId}
                   onChange={(e) => {
+                    if (!editingReceipt) {
+                      const nextStudent = students.find(s => s.id === e.target.value);
+                      if (nextStudent) handleOpenCollectForStudent(nextStudent);
+                      return;
+                    }
                     setCollectingStudentId(e.target.value);
                     setCollectError(null);
                     const st = students.find(s => s.id === e.target.value);
@@ -835,14 +849,14 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                   required
                 >
                   {students
-                    .filter((s) => editingReceipt || classes.find((c) => c.id === s.classId)?.billingMode !== 'session')
+                    .filter((s) => editingReceipt || studentClassIds(s).some(id => classes.find(c => c.id === id)?.billingMode !== 'session'))
                     .sort((a, b) => {
-                      const aOwing = isStudentOwingTuition(a, receipts) ? 0 : 1;
-                      const bOwing = isStudentOwingTuition(b, receipts) ? 0 : 1;
+                      const aOwing = isStudentOwingTuition(a, receipts, classes) ? 0 : 1;
+                      const bOwing = isStudentOwingTuition(b, receipts, classes) ? 0 : 1;
                       return aOwing - bOwing || a.name.localeCompare(b.name, 'vi-VN');
                     })
                     .map((s) => {
-                      const owing = isStudentOwingTuition(s, receipts);
+                      const owing = isStudentOwingTuition(s, receipts, classes);
                       const tag = owing ? '⚠️ [Chưa đóng/còn nợ]' : '✓ [Đã đóng đủ]';
                       return (
                         <option key={s.id} value={s.id}>
@@ -850,6 +864,15 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                         </option>
                       );
                     })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1" htmlFor="receipt-class">Lớp thu học phí *</label>
+                <select id="receipt-class" value={collectingClassId} disabled={Boolean(editingReceipt)} required
+                  onChange={event => { const student = students.find(s => s.id === collectingStudentId); if (student) handleOpenCollectForStudent(student, event.target.value); }}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2">
+                  {classes.filter(c => editingReceipt ? c.id === editingReceipt.classId : students.some(s => s.id === collectingStudentId && isStudentInClass(s, c.id)) && c.billingMode !== 'session').map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
                 </select>
               </div>
 

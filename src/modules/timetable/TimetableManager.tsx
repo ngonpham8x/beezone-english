@@ -33,6 +33,9 @@ interface TimetableManagerProps {
   onAddSlot: (slot: TimetableSlot) => void;
   onUpdateSlot: (slot: TimetableSlot) => void;
   onDeleteSlot: (id: string) => void;
+  onCreateClass?: (c: ClassRoom) => void;
+  onCreateTeacher?: (t: Teacher) => void;
+  onCreateRoom?: (r: Room) => void;
 }
 
 const normaliseTime = (value: string) => {
@@ -54,7 +57,10 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   permissions,
   onAddSlot,
   onUpdateSlot,
-  onDeleteSlot
+  onDeleteSlot,
+  onCreateClass,
+  onCreateTeacher,
+  onCreateRoom,
 }) => {
   const [viewMode, setViewMode] = useResponsiveView('day', 'week');
   const [selectedDay, setSelectedDay] = useState<string>('Thứ 2');
@@ -62,6 +68,13 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
   const [conflictError, setConflictError] = useState<string | null>(null);
+  const [isQuickClassOpen, setIsQuickClassOpen] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [isQuickTeacherOpen, setIsQuickTeacherOpen] = useState(false);
+  const [newTeacherName, setNewTeacherName] = useState('');
+  const [newTeacherPhone, setNewTeacherPhone] = useState('');
+  const [isQuickRoomOpen, setIsQuickRoomOpen] = useState(false);
+  const [newRoomName, setNewRoomName] = useState('');
   const canEdit = isOwner || permissions?.academic?.classes === true;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +125,61 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
       }
     }
     return validateRecurringChanges(classes, [...existing, targetSlot], scheduleChanges);
+  };
+
+
+  const handleQuickCreateClass = () => {
+    if (!newClassName.trim()) return;
+    const newClass: ClassRoom = {
+      id: `CLASS_${Date.now()}`,
+      code: `LOP-${String(classes.length + 1).padStart(2, '0')}`,
+      name: newClassName.trim(),
+      capacity: 20,
+      programId: '',
+      teacherId: editingSlot?.teacherId || '',
+      roomId: editingSlot?.roomId || '',
+      days: [],
+      scheduleTime: '',
+      studentIds: [],
+      courseStatus: 'active',
+      billingMode: 'course',
+    };
+    onCreateClass?.(newClass);
+    if (editingSlot) setEditingSlot({ ...editingSlot, classId: newClass.id });
+    setNewClassName('');
+    setIsQuickClassOpen(false);
+  };
+
+  const handleQuickCreateTeacher = () => {
+    if (!newTeacherName.trim()) return;
+    const newTeacher: Teacher = {
+      id: `T_${Date.now()}`,
+      name: newTeacherName.trim(),
+      phone: newTeacherPhone.trim() || 'Chưa cập nhật',
+      address: '',
+      email: '',
+      specialty: 'Tiếng Anh',
+      assignedClassIds: [],
+    };
+    onCreateTeacher?.(newTeacher);
+    if (editingSlot) setEditingSlot({ ...editingSlot, teacherId: newTeacher.id });
+    setNewTeacherName('');
+    setNewTeacherPhone('');
+    setIsQuickTeacherOpen(false);
+  };
+
+  const handleQuickCreateRoom = () => {
+    if (!newRoomName.trim()) return;
+    const newRoom: Room = {
+      id: `R_${Date.now()}`,
+      name: newRoomName.trim(),
+      capacity: 20,
+      status: 'available',
+    };
+    onCreateRoom?.(newRoom);
+    if (editingSlot) setEditingSlot({ ...editingSlot, roomId: newRoom.id });
+    setNewRoomName('');
+    setIsQuickRoomOpen(false);
   };
 
   const handleOpenAdd = () => {

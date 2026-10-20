@@ -10,6 +10,7 @@ import {
   ImportedStudentRow,
   generateMasterExcelWorkbook,
   parseCenterWorkbookFile,
+  parseAcademicCatalogFile,
   parseExcelStudentFile,
 } from '../../services/excelService';
 import {
@@ -42,6 +43,7 @@ interface ImportExportModalProps {
   permissions: StaffPermissions;
   onImportStudents: (newStudents: Student[]) => void;
   onImportCenterData: (data: CenterWorkbookData) => boolean;
+  onImportAcademicCatalog?: (data: CenterWorkbookData, includeSchedule?: boolean) => boolean;
   onExportExcel: (filename: string) => void;
 }
 
@@ -62,6 +64,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   permissions,
   onImportStudents,
   onImportCenterData,
+  onImportAcademicCatalog,
   onExportExcel
 }) => {
   const canImport = isOwner || (permissions.excel.import && permissions.student.add);
@@ -73,6 +76,8 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const [fallbackClassId, setFallbackClassId] = useState(classes[0]?.id || '');
   const [fileName, setFileName] = useState('');
   const [centerImport, setCenterImport] = useState<CenterWorkbookData | null>(null);
+  const [catalogOnly, setCatalogOnly] = useState(false);
+  const [includeCatalogSchedule, setIncludeCatalogSchedule] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -114,6 +119,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const handleSelectedFile = async (file: File) => {
     if (!canImport) return;
     setCenterImport(null); setValidationResult(null); setIsImportingSuccess(false);
+    setCatalogOnly(false); setIncludeCatalogSchedule(false);
     if (file.size > 25 * 1024 * 1024) { setValidationResult({ validRows: [], errors: [{ row: 0, field: 'Tệp Excel', message: 'Tệp vượt quá giới hạn 25 MB.' }] }); return; }
     setFileName(file.name);
 
@@ -123,6 +129,10 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         setCenterImport(centerResult.data);
         setValidationResult(null);
         return;
+      }
+      if (isOwner && onImportAcademicCatalog) {
+        const catalog = await parseAcademicCatalogFile(file);
+        if (catalog.data) { setCenterImport(catalog.data); setCatalogOnly(true); return; }
       }
       if (classes.length === 0) {
         setCenterImport(null);
@@ -174,7 +184,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   };
 
   const handleConfirmCenterImport = () => {
-    if (!centerImport || (!canSyncCenterData && !isLocalPreview) || !isOwner || isImportingSuccess) return;
+    if (!centerImport || catalogOnly || (!canSyncCenterData && !isLocalPreview) || !isOwner || isImportingSuccess) return;
     if (onImportCenterData(centerImport)) setIsImportingSuccess(true);
   };
 
@@ -319,13 +329,19 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                 {centerImport && (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                     <div className="font-bold">Đã nhận diện báo cáo chuẩn hoá: {fileName}</div>
+                    {catalogOnly && <p className="mt-2 text-[11px]">Tệp có lỗi ở dữ liệu học viên hoặc học phí nên chỉ có thể dùng phần danh mục lớp. Không dùng tệp này để thay toàn bộ dữ liệu.</p>}
                     <div className="mt-1 text-[11px]">{centerImport.classes.length} lớp · {centerImport.students.length} học sinh · {centerImport.receipts.length} phiếu thu</div>
-                    <p className="mt-2 text-[11px]">Dữ liệu sẽ thay toàn bộ dữ liệu hiện có của trung tâm và đồng bộ vào Supabase theo quyền tài khoản đã đăng nhập.</p>
-                    {(canSyncCenterData || isLocalPreview) && isOwner ? (
+                    {onImportAcademicCatalog && (canSyncCenterData || isLocalPreview) && isOwner && <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3 text-emerald-950">
+                      <p className="text-[11px]">Bổ sung các mã lớp chưa có cùng chương trình, giáo viên và phòng liên quan. Giữ nguyên lớp đã có, học viên, phiếu thu và lịch sử hiện tại. Lớp mới ở trạng thái chờ xếp lịch.</p>
+                      <label className="mt-2 flex items-start gap-2 text-[11px]"><input type="checkbox" checked={includeCatalogSchedule} onChange={event => setIncludeCatalogSchedule(event.target.checked)} className="mt-0.5 shrink-0" />Nhập cả lịch học cũ (sẽ kiểm tra trùng giáo viên/phòng)</label>
+                      <button type="button" className="mt-2 w-full rounded-xl bg-emerald-700 py-2 font-bold text-white" onClick={() => { if (onImportAcademicCatalog(centerImport, includeCatalogSchedule)) setIsImportingSuccess(true); }}>Chỉ bổ sung danh mục lớp học</button>
+                    </div>}
+                    {!catalogOnly && <p className="mt-2 text-[11px]">Lựa chọn bên dưới sẽ thay toàn bộ dữ liệu hiện có của trung tâm.</p>}
+                    {!catalogOnly && (canSyncCenterData || isLocalPreview) && isOwner ? (
                       <button onClick={handleConfirmCenterImport} className="mt-3 w-full rounded-xl bg-amber-500 hover:bg-amber-600 py-2 font-bold text-slate-950 shadow-xs transition">
                         Xác nhận nhập toàn bộ dữ liệu
                       </button>
-                    ) : <p className="mt-3 rounded-lg bg-amber-100 p-2 text-[11px] font-semibold text-amber-900">{!isOwner ? 'Chỉ Chủ trung tâm được thay toàn bộ dữ liệu.' : 'Chưa kết nối được kho dữ liệu Supabase. Hãy chạy migration `003_center_data.sql`, sau đó tải lại trang.'}</p>}
+                    ) : !catalogOnly && <p className="mt-3 rounded-lg bg-amber-100 p-2 text-[11px] font-semibold text-amber-900">{!isOwner ? 'Chỉ Chủ trung tâm được thay toàn bộ dữ liệu.' : 'Chưa kết nối được kho dữ liệu Supabase. Hãy kiểm tra kết nối rồi tải lại trang.'}</p>}
                   </div>
                 )}
 
