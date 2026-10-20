@@ -1,3 +1,5 @@
+import { askConfirmation } from '../../lib/dialogs';
+import { showAlert } from '../../lib/dialogs';
 import {
   BookOpen,
   Check,
@@ -150,12 +152,12 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     e.preventDefault();
     if (!canEdit) return;
     if (!formName.trim() || !formCode.trim()) {
-      alert('Vui lòng nhập đầy đủ mã và tên chương trình học');
+      showAlert('Vui lòng nhập đầy đủ mã và tên chương trình học');
       return;
     }
-    if (programs.some(program => program.id !== editingProgram?.id && program.code.trim().toLowerCase() === formCode.trim().toLowerCase())) { alert('Mã chương trình đã tồn tại.'); return; }
+    if (programs.some(program => program.id !== editingProgram?.id && program.code.trim().toLowerCase() === formCode.trim().toLowerCase())) { showAlert('Mã chương trình đã tồn tại.'); return; }
     const parsedTuitionFee = formTuitionFee === '' ? 0 : Number(formTuitionFee);
-    if (!Number.isFinite(parsedTuitionFee) || parsedTuitionFee < 0) { alert('Học phí phải là số không âm.'); return; }
+    if (!Number.isFinite(parsedTuitionFee) || parsedTuitionFee < 0) { showAlert('Học phí phải là số không âm.'); return; }
 
     const finalCategory = formCategories.length > 0 ? formCategories.join(', ') : 'Giao Tiếp / Khác';
 
@@ -187,7 +189,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
     const linkedStudents = students.filter(s => s.programId === prog.id);
 
     if (linkedClasses.length > 0 || linkedStudents.length > 0) {
-      alert(
+      showAlert(
         `Không thể xóa chương trình "${prog.name}" vì đang có ${linkedClasses.length} lớp học và ${linkedStudents.length} học viên liên kết. Vui lòng chuyển lớp/học viên trước.`
       );
       return;
@@ -1161,8 +1163,8 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                                         {st.programId === progId && (
                                           <button
                                             type="button"
-                                            onClick={() => {
-                                              if (window.confirm(`Hủy liên kết học viên ${st.name} khỏi chương trình ${viewingProgramStudents.name}?`)) {
+                                            onClick={async () => {
+                                              if (await askConfirmation(`Hủy liên kết học viên ${st.name} khỏi chương trình ${viewingProgramStudents.name}?`)) {
                                                 onUpdateStudent({ ...st, programId: '' });
                                               }
                                             }}

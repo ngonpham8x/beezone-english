@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { useOverlay } from '../hooks/useOverlay';
+import { createPortal } from 'react-dom';
 
 // Keep popup portals in the owning dialog's focus and stacking context.
 export const DialogPortalContext = createContext<HTMLElement | null>(null);
@@ -29,7 +30,7 @@ export function DialogFrame({ children, onClose, label, className = '', ...props
     viewport.addEventListener('scroll', resize);
     return () => { viewport.removeEventListener('resize', resize); viewport.removeEventListener('scroll', resize); };
   }, []);
-  return <DialogPortalContext.Provider value={portalContainer}>
+  return createPortal(<DialogPortalContext.Provider value={portalContainer}>
     <div {...props} ref={attachRef} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} className={`dialog-viewport ${className}`}>{children}</div>
-  </DialogPortalContext.Provider>;
+  </DialogPortalContext.Provider>, document.body);
 }

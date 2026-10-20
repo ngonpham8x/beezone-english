@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as dialogs from '../src/lib/dialogs';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -19,7 +20,7 @@ it.each([
   ['teacher', 'Thêm Giáo Viên Mới'],
   ['student', 'Thêm Học Sinh Mới'],
 ] as const)('lets a granted staff member open and submit a new %s, and denies an ungranted staff member', (kind, label) => {
-  const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  const alert = vi.spyOn(dialogs, 'showAlert').mockImplementation(() => {});
   const add = vi.fn();
   const replaceSchedule = vi.fn();
   const props = { permissions: createStaffPermissions(), isOwner: false };

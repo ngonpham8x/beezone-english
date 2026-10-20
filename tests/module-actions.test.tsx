@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as dialogs from '../src/lib/dialogs';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NAVIGATION_GROUPS, canAccessTab, getNavigationGroups } from '../src/app/navigation';
@@ -56,7 +57,7 @@ function useTestCenter(user: UserAccount = DEV_OWNER_ACCOUNT) {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
+  vi.spyOn(dialogs, 'showAlert').mockImplementation(() => {});
 });
 afterEach(() => {
   cleanup();
@@ -64,6 +65,45 @@ afterEach(() => {
 });
 
 describe('domain command integration', () => {
+  it('saves all selected teaching days together, preserves an edited slot and rejects a conflicting batch atomically', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    data.timetableSlots = [];
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const base = { id: 'mon', classId: data.classes[0].id, teacherId: data.teachers[0].id, roomId: data.rooms[0].id, startTime: '18:00', endTime: '19:30', dayOfWeek: 'Thứ 2' };
+    act(() => expect(result.current.actions.handleSaveSlots([base, { ...base, id: 'wed', dayOfWeek: 'Thứ 4' }])).toBeNull());
+    expect(result.current.store.timetableSlots.map(slot => slot.dayOfWeek)).toEqual(['Thứ 2', 'Thứ 4']);
+    expect(result.current.store.classes[0].days).toEqual(['Thứ 2', 'Thứ 4']);
+    act(() => expect(result.current.actions.handleSaveSlots([{ ...base, startTime: '17:00', endTime: '18:30' }, { ...base, id: 'fri', dayOfWeek: 'Thứ 6' }])).toBeNull());
+    expect(result.current.store.timetableSlots).toHaveLength(3);
+    expect(result.current.store.timetableSlots.find(slot => slot.id === 'mon')?.startTime).toBe('17:00');
+    const before = result.current.store.timetableSlots;
+    act(() => expect(result.current.actions.handleSaveSlots([{ ...base, id: 'clash' }, { ...base, id: 'sun', dayOfWeek: 'Chủ Nhật' }])).toMatch(/trùng giờ/));
+    expect(result.current.store.timetableSlots).toBe(before);
+  });
+  it('deletes only unused student profiles and preserves registration, grade and attendance history for owners', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const student = { ...data.students[0], id: 'unused-student', classId: '', additionalClassIds: [], status: 'registered' as const };
+    data.students = [student];
+    data.grades = [];
+    data.receipts = [];
+    data.enrollments = [];
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    act(() => expect(result.current.actions.handleDeleteStudent(student.id)).toBeNull());
+    expect(result.current.store.students).toEqual([]);
+
+    for (const history of ['grades', 'attendance', 'enrollments'] as const) {
+      const historic = structuredClone(data);
+      if (history === 'grades') historic.grades = [{ ...initial.initialGrades[0], studentId: student.id }];
+      if (history === 'attendance') historic.attendanceSessions = [{ id: 'past-lesson', classId: data.classes[0].id, date: centerDate(), lessonTopic: '', entries: [{ studentId: student.id, status: 'present' }] }];
+      if (history === 'enrollments') historic.enrollments = [{ id: 'registration', studentId: student.id, classId: data.classes[0].id, startDate: '2026-01-01', status: 'active' }];
+      act(() => result.current.store.applyData(normalizeCenterData(historic)));
+      const before = result.current.store.students;
+      act(() => expect(result.current.actions.handleDeleteStudent(student.id)).toMatch(/lịch sử/));
+      expect(result.current.store.students).toBe(before);
+    }
+  });
   it('adds a legacy class catalog without replacing existing academic or student/financial history and skips duplicate class codes', () => {
     const { result } = renderHook(() => useTestCenter());
     const data = dataset();
@@ -94,7 +134,7 @@ describe('domain command integration', () => {
     expect(result.current.store.classes).toEqual(before.classes);
     expect(result.current.store.grades).toEqual(before.grades);
     expect(result.current.store.attendanceSessions).toEqual(before.attendance);
-    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('lịch sử'));
+    expect(dialogs.showAlert).toHaveBeenCalledWith(expect.stringContaining('lịch sử'));
   });
   it('creates academic records, teachers and students only with the corresponding active staff grants', () => {
     const user = { ...limitedStaff, permissions: createStaffPermissions() };

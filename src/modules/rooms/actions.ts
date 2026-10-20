@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { Room, UserAccount } from '../../types';
 import { canManageAcademic } from '../../lib/permissions';
@@ -39,16 +40,14 @@ export function createRoomActions({
     if (!canManageAcademic(currentUser, 'rooms')) return;
     if (scheduleChanges.some((c) => c.roomId === id)) {
       const msg = 'Phòng có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ phòng.';
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     const room = rooms.find((item) => item.id === id);
     const roomClasses = classes.filter((classroom) => classroom.roomId === id);
     if (roomClasses.length > 0 || timetableSlots.some((slot) => slot.roomId === id)) {
       const msg = `Không thể xóa phòng ${room?.name || ''} vì đang được dùng cho ${roomClasses.length} lớp. Hãy đổi phòng cho các lớp trước.`;
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     setRooms((prev) => prev.filter((item) => item.id !== id));

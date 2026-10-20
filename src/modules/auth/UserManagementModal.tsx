@@ -1,3 +1,4 @@
+import { askConfirmation } from '../../lib/dialogs';
 import { LoaderCircle, ShieldCheck, UserRoundCheck, X } from 'lucide-react';
 import React, { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
@@ -278,7 +279,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const deleteAccount = async (member: ManagedUser) => {
     if (isSubmitting || isLocalPreview || member.id === currentUser?.id) return;
     const nameOrEmail = member.full_name || member.email || 'tài khoản này';
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${nameOrEmail}" khỏi hệ thống không?\n\nLưu ý: Hành động này không thể hoàn tác.`)) {
+    if (!(await askConfirmation(`Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản "${nameOrEmail}" khỏi hệ thống không?\n\nLưu ý: Hành động này không thể hoàn tác.`))) {
       return;
     }
     setIsSubmitting(true);

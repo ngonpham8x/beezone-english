@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { TuitionReceipt, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
@@ -25,12 +26,12 @@ export function createTuitionActions({
       r.paymentKind !== 'session' &&
       classes.find((c) => c.id === r.classId)?.billingMode === 'session'
     ) {
-      alert('Lớp này thu theo buổi. Chọn các buổi đã điểm danh trong mục Học phí theo buổi.');
+      showAlert('Lớp này thu theo buổi. Chọn các buổi đã điểm danh trong mục Học phí theo buổi.');
       return false;
     }
     const issue = validateSessionReceipt(r, attendanceSessions, receipts);
     if (issue) {
-      alert(issue);
+      showAlert(issue);
       return false;
     }
     setReceipts((prev) => [r, ...prev]);
@@ -50,7 +51,7 @@ export function createTuitionActions({
       return false;
     const issue = validateSessionReceipt(updatedReceipt, attendanceSessions, receipts);
     if (issue) {
-      alert(issue);
+      showAlert(issue);
       return false;
     }
     setReceipts((prev) =>

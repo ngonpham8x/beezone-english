@@ -8,6 +8,8 @@ import { PRIVATE_ACCOUNT_LABEL } from '../src/lib/accountPrivacy';
 import { AuthScreen } from '../src/modules/auth/AuthScreen';
 import { LoginModal } from '../src/modules/auth/LoginModal';
 import { UserManagementModal } from '../src/modules/auth/UserManagementModal';
+import { NotificationDialogs } from '../src/components/NotificationDialogs';
+import { currentDialog, settleDialog } from '../src/lib/dialogs';
 
 const auth = vi.hoisted(() => ({ enabled: vi.fn(), signIn: vi.fn() }));
 vi.mock('../src/lib/supabase', () => ({
@@ -32,6 +34,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  while (currentDialog()) settleDialog(false);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -254,7 +257,7 @@ it('allows an owner to delete a managed account with confirmation and removes it
     permissions: DEFAULT_STAFF_PERMISSIONS,
   });
 
-  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  render(<NotificationDialogs />);
   const deletedIds = new Set<string>();
   const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : (input as any)?.url || '';
@@ -307,7 +310,9 @@ it('allows an owner to delete a managed account with confirmation and removes it
 
   // Click delete on staffMember
   fireEvent.click(deleteButtons[1]);
-  expect(confirmSpy).toHaveBeenCalledOnce();
+  expect(screen.getByRole('dialog', { name: 'Xác nhận thao tác' })).toBeTruthy();
+  expect(deletedIds.size).toBe(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
 
   await waitFor(() => {
     expect(fetcher).toHaveBeenCalledWith(
@@ -333,7 +338,7 @@ it('does not send delete request if confirmation is cancelled', async () => {
     role: 'staff' as const,
     is_active: true,
   };
-  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  render(<NotificationDialogs />);
   const fetcher = vi.fn(async () =>
     new Response(
       JSON.stringify({
@@ -358,7 +363,8 @@ it('does not send delete request if confirmation is cancelled', async () => {
   const deleteBtn = screen.getByRole('button', { name: 'Xóa' });
   fireEvent.click(deleteBtn);
 
-  expect(confirmSpy).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole('button', { name: 'Hủy bỏ' }));
+  await act(async () => {});
   expect(fetcher).toHaveBeenCalledTimes(1); // Only the initial GET
 });
 

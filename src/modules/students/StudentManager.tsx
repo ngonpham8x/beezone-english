@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
 import {
   AlertCircle,
@@ -31,7 +32,7 @@ import { StatCard } from '../../components/StatCard';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useResponsiveView } from '../../hooks/useResponsive';
-import { centerDate } from '../../lib/dates';
+import { centerDate, isCalendarDate } from '../../lib/dates';
 import { matchesSearch as matchesSearchText } from '../../lib/search';
 import { debtBreakdown, isStudentOwingTuition } from '../../lib/tuition';
 import {
@@ -63,7 +64,7 @@ interface StudentManagerProps {
   searchQuery: string;
   onAddStudent: (newStudent: Student) => void;
   onUpdateStudent: (updatedStudent: Student) => void;
-  onDeleteStudent: (id: string) => void;
+  onDeleteStudent: (id: string) => string | null | void;
   onReserveStudent?: (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => void;
   onDropStudent?: (studentId: string, dropDate: string, reason: string) => void;
   onReEnrollStudent?: (studentId: string, targetClassId: string, returnDate: string, note?: string) => boolean | void;
@@ -214,7 +215,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
   const handleCreateClassQuick = () => {
     if (!newClassName.trim()) {
-      alert('Vui lòng nhập tên lớp học');
+      showAlert('Vui lòng nhập tên lớp học');
       return;
     }
     const code = newClassCode.trim() || `LOP-${String(classes.length + 1).padStart(2, '0')}`;
@@ -244,7 +245,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
   const handleCreateProgramQuick = () => {
     if (!newProgramName.trim()) {
-      alert('Vui lòng nhập tên chương trình đào tạo');
+      showAlert('Vui lòng nhập tên chương trình đào tạo');
       return;
     }
     const code = newProgramCode.trim() || `CT-${String(programs.length + 1).padStart(3, '0')}`;
@@ -394,17 +395,17 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     if (isExisting ? !canEdit : !canAdd) return;
 
     if (!editingStudent.name.trim()) {
-      alert('Vui lòng nhập họ và tên học sinh');
+      showAlert('Vui lòng nhập họ và tên học sinh');
       return;
     }
 
     const code = editingStudent.code.trim();
     if (!code) {
-      alert('Vui lòng nhập mã học sinh.');
+      showAlert('Vui lòng nhập mã học sinh.');
       return;
     }
     if (students.some((student) => student.id !== editingStudent.id && student.code.trim().toLocaleUpperCase('vi-VN') === code.toLocaleUpperCase('vi-VN'))) {
-      alert(`Mã học sinh “${code}” đã tồn tại. Mỗi học sinh cần một mã duy nhất để đồng bộ chính xác với học phí, lớp học và Excel.`);
+      showAlert(`Mã học sinh “${code}” đã tồn tại. Mỗi học sinh cần một mã duy nhất để đồng bộ chính xác với học phí, lớp học và Excel.`);
       return;
     }
 
@@ -415,23 +416,27 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       || classroom.name.trim().toLocaleUpperCase('vi-VN') === classInput.toLocaleUpperCase('vi-VN')
     )) : undefined;
     if (classInput && !selectedClass) {
-      alert(`Không tìm thấy lớp “${classInput}”. Hãy tạo lớp tại Quản lý lớp học trước, rồi chọn hoặc nhập đúng mã/tên lớp để dữ liệu không bị đứt liên kết.`);
+      showAlert(`Không tìm thấy lớp “${classInput}”. Hãy tạo lớp tại Quản lý lớp học trước, rồi chọn hoặc nhập đúng mã/tên lớp để dữ liệu không bị đứt liên kết.`);
       return;
     }
-    if (editingStudent.status === 'active' && !selectedClass) { alert('Học viên đang học cần được xếp lớp.'); return; }
+    if (editingStudent.status === 'active' && !selectedClass) { showAlert('Học viên đang học cần được xếp lớp.'); return; }
     const dob = parseDateInput(editingStudent.dob || "");
+    if (dob && (!isCalendarDate(dob) || dob > centerDate())) {
+      showAlert('Ngày sinh không hợp lệ. Nhập ngày/tháng/năm có thật và không ở tương lai.');
+      return;
+    }
     let studentToSave = { ...editingStudent, dob, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
     const membershipError = validateStudentClasses(studentToSave, classes, students);
-    if (membershipError) { alert(membershipError); return; }
+    if (membershipError) { showAlert(membershipError); return; }
     if (programEntryMode === 'manual') {
       const name = manualProgramName.trim();
       if (!name) {
-        alert('Vui lòng nhập tên chương trình học.');
+        showAlert('Vui lòng nhập tên chương trình học.');
         return;
       }
       const classProgram = selectedClass ? programs.find((program) => program.id === selectedClass.programId) : undefined;
       if (classProgram && classProgram.name.trim().toLocaleUpperCase('vi-VN') !== name.toLocaleUpperCase('vi-VN')) {
-        alert(`Học sinh đã được xếp vào ${selectedClass.name}; chương trình phải là “${classProgram.name}” để đồng bộ với lớp.`);
+        showAlert(`Học sinh đã được xếp vào ${selectedClass.name}; chương trình phải là “${classProgram.name}” để đồng bộ với lớp.`);
         return;
       }
       const existingProgram = programs.find((program) => program.name.trim().toLocaleLowerCase('vi-VN') === name.toLocaleLowerCase('vi-VN'));
@@ -443,7 +448,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         tuitionFee: 0,
         description: 'Tạo thủ công tại hồ sơ học viên.'
       };
-      if (!existingProgram && !isOwner && permissions.academic?.programs !== true) { alert('Bạn chưa được cấp quyền tạo chương trình học mới.'); return; }
+      if (!existingProgram && !isOwner && permissions.academic?.programs !== true) { showAlert('Bạn chưa được cấp quyền tạo chương trình học mới.'); return; }
       if (!existingProgram) onCreateProgram(program);
       studentToSave = { ...studentToSave, programId: program.id };
     }
@@ -453,7 +458,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     }
 
     if (!studentToSave.programId) {
-      alert('Vui lòng chọn hoặc nhập chương trình học.');
+      showAlert('Vui lòng chọn hoặc nhập chương trình học.');
       return;
     }
 
@@ -1097,7 +1102,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
                     className="w-full min-h-[42px] px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 bg-white text-left flex items-center justify-between gap-2 shadow-xs transition hover:border-amber-400"
                     aria-expanded={isClassDropdownOpen}
-                    aria-haspopup="listbox"
+                    aria-label="Chọn các lớp học"
                   >
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
                       {selectedClasses.length === 0 ? (
@@ -1687,7 +1692,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             <>
               Bạn có chắc chắn muốn xóa học sinh <strong>{studentToDelete.name}</strong> ({studentToDelete.code}) khỏi hệ thống?
               <span className="block mt-2 text-xs text-slate-500">
-                Lưu ý: Chỉ xóa được học viên chưa có lịch sử đóng học phí hoặc điểm danh.
+                Chỉ xóa hồ sơ chưa có lịch sử đăng ký, học phí, điểm hoặc điểm danh. Với hồ sơ đã phát sinh lịch sử, hãy chọn Nghỉ học để giữ dữ liệu.
               </span>
             </>
           ) : null
@@ -1698,13 +1703,10 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         onConfirm={() => {
           if (studentToDelete) {
             const id = studentToDelete.id;
-            const name = studentToDelete.name;
             setStudentToDelete(null);
-            const res = (onDeleteStudent as (id: string) => string | null | void)(id);
+            const res = onDeleteStudent(id);
             if (typeof res === 'string' && res) {
               setDeleteAlertMessage(res);
-            } else {
-              toast.success(`Đã xóa học viên “${name}” thành công!`);
             }
           }
         }}

@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass, classProgramIds, classMatchesProgram } from '../../lib/studentClasses';
 import {
   BookOpen,
@@ -275,7 +276,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   const handleCreateStudentQuick = () => {
     if (!newStudentName.trim()) {
-      alert('Vui lòng nhập họ tên học sinh');
+      showAlert('Vui lòng nhập họ tên học sinh');
       return;
     }
     const studentId = `ST_${Date.now()}`;

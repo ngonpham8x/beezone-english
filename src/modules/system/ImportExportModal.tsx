@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { reportError } from '../../lib/diagnostics';
 import { CheckCircle2, Download, FileDown, FileSpreadsheet, FileUp, Upload, X } from 'lucide-react';
 import React, { useRef, useState } from 'react';
@@ -110,7 +111,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       onExportExcel(filename);
     } catch (err) {
       reportError('excel.file', err);
-      alert('Có lỗi xảy ra khi tạo file Excel');
+      showAlert('Có lỗi xảy ra khi tạo file Excel');
     } finally {
       setIsExporting(false);
     }

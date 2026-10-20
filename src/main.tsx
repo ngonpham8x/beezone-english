@@ -5,6 +5,7 @@ import App from './App.tsx';
 import './index.css';
 import { LanguageProvider } from './context/LanguageContext.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotificationDialogs } from './components/NotificationDialogs';
 
 // Register Service Worker for PWA installation
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
@@ -18,7 +19,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>
-      <ErrorBoundary><App /></ErrorBoundary>
+      <ErrorBoundary><App /><NotificationDialogs /></ErrorBoundary>
     </LanguageProvider>
   </StrictMode>,
 );

@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { AttendanceSession, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
@@ -34,7 +35,7 @@ export function createAttendanceActions({
   const handleSaveAttendanceSession = (sessionData: AttendanceSession) => {
     const issue = validateBilledAttendanceEdit(sessionData, receipts);
     if (issue) {
-      alert(issue);
+      showAlert(issue);
       return false;
     }
     setAttendanceSessions((prev) => {

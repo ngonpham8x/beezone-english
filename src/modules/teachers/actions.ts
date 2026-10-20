@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { Teacher, UserAccount } from '../../types';
 import { hasStaffPermission } from '../../lib/permissions';
@@ -39,16 +40,14 @@ export function createTeacherActions({
     }
     if (scheduleChanges.some((c) => c.teacherId === id)) {
       const msg = 'Giáo viên có lịch sử đổi lịch/học bù. Hãy giữ hồ sơ giáo viên.';
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     const t = teachers.find((item) => item.id === id);
     const managedClasses = classes.filter((classroom) => classroom.teacherId === id);
     if (managedClasses.length > 0 || timetableSlots.some((s) => s.teacherId === id)) {
       const msg = `Không thể xóa giáo viên ${t?.name || ''} vì đang phụ trách ${managedClasses.length} lớp. Hãy phân công giáo viên khác cho các lớp trước.`;
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     setTeachers((prev) => prev.filter((item) => item.id !== id));

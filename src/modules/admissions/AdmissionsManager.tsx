@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass } from '../../lib/studentClasses';
 import {
   CheckCheck,
@@ -143,7 +144,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
     if (!editingCandidate || !editingCandidate.name?.trim()) return;
     const exists = students.some(s => s.id === editingCandidate.id);
     if (exists ? !canEdit : !canAdd) return;
-    if (students.some(s => s.id !== editingCandidate.id && s.code.trim().toLowerCase() === editingCandidate.code?.trim().toLowerCase())) { alert('Mã học viên đã tồn tại.'); return; }
+    if (students.some(s => s.id !== editingCandidate.id && s.code.trim().toLowerCase() === editingCandidate.code?.trim().toLowerCase())) { showAlert('Mã học viên đã tồn tại.'); return; }
 
     const studentToSave: Student = {
       id: editingCandidate.id || `TS_${Date.now()}`,

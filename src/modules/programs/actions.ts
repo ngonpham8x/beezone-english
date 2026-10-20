@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { CourseProgram, UserAccount } from '../../types';
 import { canManageAcademic } from '../../lib/permissions';
@@ -45,8 +46,7 @@ export function createProgramActions({
     const p = programs.find((item) => item.id === id);
     if (students.some((s) => s.programId === id) || classes.some((c) => c.programId === id)) {
       const msg = 'Không thể xóa chương trình đang có học viên hoặc lớp học.';
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     setPrograms((prev) => prev.filter((item) => item.id !== id));

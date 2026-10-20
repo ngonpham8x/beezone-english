@@ -1,3 +1,4 @@
+import { askConfirmation } from '../../lib/dialogs';
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useRef, useState } from 'react';
 import { registerActiveSession, removeActiveSession } from '../../lib/activeSessions';
@@ -385,9 +386,9 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
   const handleLogout = async () => {
     if (
       (syncStatus !== 'saved' || storageError) &&
-      !window.confirm(
+      !(await askConfirmation(
         'Có dữ liệu chưa lưu. Hãy chọn Hủy để xuất bản sao lưu, hoặc OK để đăng xuất và bỏ thay đổi chưa lưu.',
-      )
+      ))
     )
       return;
     try {

@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
@@ -44,7 +45,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit || !editingRoom || !editingRoom.name.trim()) return;
-    if (!Number.isInteger(editingRoom.capacity) || editingRoom.capacity <= 0) { alert('Sức chứa phòng phải là số nguyên lớn hơn 0.'); return; }
+    if (!Number.isInteger(editingRoom.capacity) || editingRoom.capacity <= 0) { showAlert('Sức chứa phòng phải là số nguyên lớn hơn 0.'); return; }
 
     if (rooms.some(r => r.id === editingRoom.id)) {
       onUpdateRoom(editingRoom);

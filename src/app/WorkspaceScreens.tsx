@@ -110,6 +110,7 @@ export function WorkspaceScreens({
     handleUpdateRoom,
     handleDeleteRoom,
     handleAddSlot,
+    handleSaveSlots,
     handleUpdateSlot,
     handleDeleteSlot,
     handleReplaceClassSchedule,
@@ -265,6 +266,7 @@ export function WorkspaceScreens({
           onSaveChange={handleSaveScheduleChange}
           onDeleteChange={handleDeleteScheduleChange}
           onAddSlot={handleAddSlot}
+          onSaveSlots={handleSaveSlots}
           onUpdateSlot={handleUpdateSlot}
           onDeleteSlot={handleDeleteSlot}
         />
@@ -273,6 +275,7 @@ export function WorkspaceScreens({
       return (
         <TeacherScheduleMatrix
           scheduleChanges={scheduleChanges}
+          attendanceSessions={attendanceSessions}
           teachers={teachers}
           timetableSlots={timetableSlots}
           classes={classes}
@@ -280,6 +283,7 @@ export function WorkspaceScreens({
           isOwner={currentUser.role === 'owner'}
           canManage={currentUser.permissions?.academic?.classes === true}
           onAddSlot={handleAddSlot}
+          onSaveSlots={handleSaveSlots}
           onUpdateSlot={handleUpdateSlot}
           onDeleteSlot={handleDeleteSlot}
           onSaveChange={handleSaveScheduleChange}

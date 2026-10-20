@@ -1,9 +1,10 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import type { ScheduleChange, TimetableSlot, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
-import { lessonsOn, validateScheduleChange } from '../../lib/operations';
+import { lessonsOn, validateRecurringChanges, validateScheduleChange } from '../../lib/operations';
 import { findScheduleConflict } from '../../lib/schedule';
 import { canManageAcademic } from '../../lib/permissions';
 import { withClassScheduleSummary } from '../center/model';
@@ -33,6 +34,30 @@ export function createScheduleActions({
   currentUser,
   addLog,
 }: Context) {
+  const handleSaveSlots = (slots: TimetableSlot[]): string | null => {
+    if (!canManageAcademic(currentUser, 'classes')) return 'Bạn chưa được cấp quyền quản lý lớp và lịch học.';
+    if (!slots.length || new Set(slots.map(slot => slot.id)).size !== slots.length)
+      return 'Danh sách ca học trống hoặc trùng mã.';
+    const ids = new Set(slots.map(slot => slot.id));
+    const next = [...timetableSlots.filter(slot => !ids.has(slot.id)), ...slots];
+    for (const slot of slots) {
+      if (!classes.some(item => item.id === slot.classId) ||
+          !teachers.some(item => item.id === slot.teacherId) ||
+          !rooms.some(item => item.id === slot.roomId && item.status === 'available'))
+        return 'Chọn lớp, giáo viên và phòng học đang sử dụng trước khi lưu.';
+      if (!['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'].includes(slot.dayOfWeek))
+        return 'Ngày trong tuần không hợp lệ.';
+      if (findScheduleConflict(next, slot)) return 'Ca học trùng giờ lớp, giáo viên hoặc phòng; kiểm tra lại các ngày đã chọn.';
+    }
+    const issue = validateRecurringChanges(classes, next, scheduleChanges);
+    if (issue) return issue;
+    const classIds = new Set([...slots.map(slot => slot.classId), ...timetableSlots.filter(slot => ids.has(slot.id)).map(slot => slot.classId)]);
+    setTimetableSlots(next);
+    setClasses(previous => previous.map(classroom => classIds.has(classroom.id) ? withClassScheduleSummary(classroom, next) : classroom));
+    addLog('SỬA', 'Thời khóa biểu', `Lưu ${slots.length} ca học`);
+    toast.success(`Đã lưu ${slots.length} ca học.`);
+    return null;
+  };
   // Timetable Handlers
   const handleAddSlot = (slot: TimetableSlot) => {
     if (!canManageAcademic(currentUser, 'classes')) return;
@@ -66,7 +91,7 @@ export function createScheduleActions({
   const handleDeleteSlot = (id: string) => {
     if (!canManageAcademic(currentUser, 'classes')) return;
     if (scheduleChanges.some((c) => c.sourceSlotId === id)) {
-      alert('Ca học có lịch nghỉ/học bù liên quan. Giữ ca gốc hoặc hủy điều chỉnh trước.');
+      showAlert('Ca học có lịch nghỉ/học bù liên quan. Giữ ca gốc hoặc hủy điều chỉnh trước.');
       return;
     }
     const deletedSlot = timetableSlots.find((slot) => slot.id === id);
@@ -139,6 +164,7 @@ export function createScheduleActions({
   };
 
   return {
+    handleSaveSlots,
     handleAddSlot,
     handleUpdateSlot,
     handleDeleteSlot,

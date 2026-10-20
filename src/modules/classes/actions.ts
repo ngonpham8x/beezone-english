@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
 import { isStudentInClass } from '../../lib/studentClasses';
 import type { ClassRoom, UserAccount } from '../../types';
@@ -49,7 +50,7 @@ export function createClassActions({
     }
     const error = validateCourse(c);
     if (error) {
-      alert(error);
+      showAlert(error);
       return;
     }
     if (c.courseStatus === 'completed')
@@ -65,12 +66,12 @@ export function createClassActions({
     if (students.some(student => isStudentInClass(student, c.id)) &&
         (previous?.programId !== c.programId || previous?.courseStatus !== c.courseStatus) &&
         !hasStaffPermission(currentUser, 'student', 'edit')) {
-      alert('Cần thêm quyền sửa học viên để đổi chương trình hoặc trạng thái của lớp đang có học viên.');
+      showAlert('Cần thêm quyền sửa học viên để đổi chương trình hoặc trạng thái của lớp đang có học viên.');
       return;
     }
     const error = validateCourse(c);
     if (error) {
-      alert(error);
+      showAlert(error);
       return;
     }
     if (
@@ -122,8 +123,7 @@ export function createClassActions({
     if (!canManageAcademic(currentUser, 'classes')) return;
     if (grades.some(grade => grade.classId === id) || attendanceSessions.some(session => session.classId === id)) {
       const msg = 'Lớp có lịch sử điểm hoặc điểm danh. Hãy kết thúc đợt học để giữ hồ sơ.';
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     if (
@@ -131,8 +131,7 @@ export function createClassActions({
       scheduleChanges.some((item) => item.classId === id)
     ) {
       const msg = 'Đợt học có lịch sử đăng ký hoặc lịch nghỉ/học bù. Hãy giữ hồ sơ và chuyển trạng thái kết thúc.';
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     const c = classes.find((item) => item.id === id);
@@ -146,8 +145,7 @@ export function createClassActions({
         .filter(Boolean)
         .join(' và ');
       const msg = `Không thể xóa lớp ${c?.name || ''} vì còn ${dependencies}. Hãy chuyển học sinh và xử lý phiếu thu trước để giữ liên kết dữ liệu.`;
-      toast.error(msg);
-      alert(msg);
+      showAlert(msg);
       return;
     }
     setClasses((prev) => prev.filter((item) => item.id !== id));

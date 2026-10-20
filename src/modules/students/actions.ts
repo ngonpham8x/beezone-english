@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import type { Student, TuitionReceipt, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -45,7 +46,7 @@ export function createStudentActions({
   const handleAddStudent = (newStudent: Student) => {
     if (!hasStaffPermission(currentUser, 'student', 'add')) return;
     const error = validateStudentClasses(newStudent, classes, students);
-    if (error) { alert(error); return; }
+    if (error) { showAlert(error); return; }
     if (newStudent.classId)
       setEnrollments((prev) =>
         updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()),
@@ -67,7 +68,7 @@ export function createStudentActions({
     if (!previous) return;
     if (previous.classId !== updatedStudent.classId || previous.status !== updatedStudent.status || JSON.stringify(previous.additionalClassIds) !== JSON.stringify(updatedStudent.additionalClassIds)) {
       const error = validateStudentClasses(updatedStudent, classes, students);
-      if (error) { alert(error); return; }
+      if (error) { showAlert(error); return; }
     }
     setEnrollments((prev) =>
       updateEnrollmentHistory(
@@ -86,48 +87,43 @@ export function createStudentActions({
     toast.success(`Cập nhật thông tin học sinh ${updatedStudent.name} thành công!`);
   };
 
-  const handleDeleteStudent = (id: string) => {
+  const handleDeleteStudent = (id: string): string | null => {
     if (!hasStaffPermission(currentUser, 'student', 'delete')) {
-      toast.error('Bạn chưa được cấp quyền xóa học sinh.');
-      return;
+      return 'Bạn chưa được cấp quyền xóa học sinh.';
     }
     const st = students.find((s) => s.id === id);
+    if (!st) return 'Học viên không còn tồn tại. Hãy tải lại danh sách.';
     if (
       attendanceSessions.some(
         (session) => session.billing && session.entries.some((entry) => entry.studentId === id),
       )
     ) {
       const msg = 'Học viên có lịch sử học phí theo buổi. Hãy chuyển trạng thái học để giữ hồ sơ.';
-      toast.error(msg);
-      alert(msg);
-      return;
+      return msg;
     }
     const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
     if (linkedReceipts.length > 0) {
       const msg = `Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`;
-      toast.error(msg);
-      alert(msg);
-      return;
+      return msg;
     }
     if (
-      currentUser?.role !== 'owner' &&
       (grades.some((grade) => grade.studentId === id) ||
         attendanceSessions.some((session) =>
           session.entries.some((entry) => entry.studentId === id),
         ))
     ) {
       const msg = 'Học viên có lịch sử điểm hoặc điểm danh. Hãy chuyển trạng thái học hoặc liên hệ Chủ trung tâm.';
-      toast.error(msg);
-      alert(msg);
-      return;
+      return msg;
+    }
+    if (enrollments.some((item) => item.studentId === id)) {
+      return 'Học viên có lịch sử đăng ký lớp. Chọn Nghỉ học để giữ hồ sơ đăng ký và đối chiếu về sau.';
     }
     setStudents((prev) => prev.filter((s) => s.id !== id));
-    setEnrollments((prev) => prev.filter((item) => item.studentId !== id));
-    setGrades((previousGrades) => previousGrades.filter((grade) => grade.studentId !== id));
     setClasses((prev) => prev.map((c) => c.studentIds.includes(id) ? { ...c, studentIds: c.studentIds.filter((sid) => sid !== id) } : c));
     if (st)
-      addLog('XÓA', 'Học sinh', `Xóa học sinh ${st.name} (${st.code}) và dữ liệu điểm liên quan khỏi hệ thống`);
+      addLog('XÓA', 'Học sinh', `Xóa hồ sơ chưa có lịch sử của học sinh ${st.name} (${st.code})`);
     toast.success(`Đã xóa học sinh ${st ? st.name : ''} thành công!`);
+    return null;
   };
 
   const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
@@ -138,18 +134,18 @@ export function createStudentActions({
           (classes.find((c) => c.id === classId)?.billingMode !== 'session' &&
             !currentUser.permissions.tuition.collect)))
     ) {
-      alert('Cần quyền sửa học viên và thu học phí để xác nhận nhập học.');
+      showAlert('Cần quyền sửa học viên và thu học phí để xác nhận nhập học.');
       return false;
     }
     const student = students.find((s) => s.id === studentId);
     if (!student || student.status === 'active') return false;
     const targetClass = classes.find((c) => c.id === classId);
     if (!targetClass) {
-      alert('Lớp nhập học không tồn tại.');
+      showAlert('Lớp nhập học không tồn tại.');
       return false;
     }
     if (targetClass.courseStatus === 'completed' || targetClass.courseStatus === 'paused') {
-      alert('Chọn một đợt học đang mở.');
+      showAlert('Chọn một đợt học đang mở.');
       return false;
     }
     if (
@@ -157,12 +153,12 @@ export function createStudentActions({
       students.filter((s) => isStudentInClass(s, classId) && s.status === 'active').length >=
         targetClass.capacity
     ) {
-      alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
+      showAlert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
       return false;
     }
     const targetProgram = programs.find((p) => p.id === targetClass.programId);
     if (!targetProgram) {
-      alert('Lớp chưa có chương trình học hợp lệ.');
+      showAlert('Lớp chưa có chương trình học hợp lệ.');
       return false;
     }
     const tuitionAmount = targetProgram.tuitionFee;
@@ -325,18 +321,18 @@ export function createStudentActions({
     if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.student.edit))
       return false;
     if (!isCalendarDate(returnDate)) {
-      alert('Ngày đăng ký không hợp lệ.');
+      showAlert('Ngày đăng ký không hợp lệ.');
       return false;
     }
     const student = students.find((s) => s.id === studentId);
     if (!student) return false;
     const targetClass = classes.find((c) => c.id === targetClassId);
     if (!targetClass) {
-      alert('Lớp quay lại học không tồn tại.');
+      showAlert('Lớp quay lại học không tồn tại.');
       return false;
     }
     if (targetClass.courseStatus === 'completed' || targetClass.courseStatus === 'paused') {
-      alert('Chọn một đợt học đang mở.');
+      showAlert('Chọn một đợt học đang mở.');
       return false;
     }
     if (
@@ -345,7 +341,7 @@ export function createStudentActions({
         (s) => s.id !== studentId && isStudentInClass(s, targetClassId) && s.status === 'active',
       ).length >= targetClass.capacity
     ) {
-      alert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
+      showAlert('Lớp đã đủ sĩ số. Hãy chọn lớp khác.');
       return false;
     }
     const reNote = `\n[QUAY LẠI HỌC]: Ngày ${returnDate} tại lớp ${targetClass?.name || targetClassId}. ${note || ''}`;

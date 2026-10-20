@@ -71,18 +71,26 @@ export function ScheduleChangesManager({
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft || !canEdit) return;
-    const source = originalLessons.find((slot) => slot.id === draft.sourceSlotId);
+    const source = originalLessons.find((slot) => slot.id === draft.sourceSlotId) || originalLessons[0];
+    if (draft.kind !== 'extra' && !source) {
+      setError('Không có buổi học định kỳ vào ngày đã chọn. Hãy chọn ngày có lịch học hoặc chọn Thêm buổi học.');
+      return;
+    }
+    const selectedDraft = {
+      ...draft,
+      sourceSlotId: draft.kind === 'extra' ? undefined : source?.id,
+    };
     const next =
       draft.kind === 'cancel' && source
         ? {
-            ...draft,
+            ...selectedDraft,
             startTime: source.startTime,
             endTime: source.endTime,
             teacherId: source.teacherId,
             roomId: source.roomId,
             sourceDate: undefined,
           }
-        : draft;
+        : selectedDraft;
     const message =
       validateScheduleChange(next, classes, slots, changes, attendance) || onSave(next);
     if (message) {
@@ -276,7 +284,7 @@ export function ScheduleChangesManager({
             {draft.kind !== 'extra' && (
               <div className="space-y-1">
                 <label className="block font-medium">
-                  Buổi gốc (Ca học định kỳ cần điều chỉnh)
+                  Buổi học định kỳ cần điều chỉnh
                   {originalLessons.length > 0 ? (
                     <select
                       aria-label="Buổi gốc"

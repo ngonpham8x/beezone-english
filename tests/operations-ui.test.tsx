@@ -153,7 +153,8 @@ it('saves a dated cancellation with the actual source teacher and room', () => {
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: 'Nghỉ / đổi / học bù' }));
-  fireEvent.change(screen.getByLabelText('Buổi gốc'), { target: { value: 'slot' } });
+  // The visibly preselected lesson must also be used when saved without changing it.
+  expect((screen.getByLabelText('Buổi gốc') as HTMLSelectElement).value).toBe('slot');
   fireEvent.change(screen.getByLabelText('Lý do điều chỉnh'), { target: { value: 'Nghỉ lễ' } });
   fireEvent.click(screen.getByRole('button', { name: 'Lưu điều chỉnh' }));
   expect(onSave).toHaveBeenCalledWith(
@@ -274,7 +275,7 @@ it('saves a payment deadline without changing payments or installment history', 
     />,
   );
   fireEvent.change(screen.getByLabelText('Hạn thanh toán'), { target: { value: '2026-10-20' } });
-  fireEvent.submit(view.container.querySelector('form')!);
+  fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
   fireEvent.click(screen.getByRole('button', { name: 'Có, hoàn thành' }));
   expect(onUpdate).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -333,7 +334,7 @@ it('rejects an invalid course period before changing class or recurring schedule
     </LanguageProvider>,
   );
   fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2026-09-01' } });
-  fireEvent.submit(view.container.querySelector('form')!);
+  fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
   expect(onUpdate).not.toHaveBeenCalled();
   expect(onReplace).not.toHaveBeenCalled();
   expect(screen.getByRole('alert').textContent).toContain('Ngày kết thúc');

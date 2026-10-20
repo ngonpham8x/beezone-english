@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as dialogs from '../src/lib/dialogs';
 import React from 'react';
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -20,7 +21,7 @@ vi.mock('../src/lib/supabase', () => ({ isLocalPreview: true, isSupabaseConfigur
 const classes = initial.initialClasses.slice(0, 3).map(c => ({ ...c, capacity: 0, courseStatus: 'active' as const }));
 const student = { ...initial.initialStudents[0], classId: classes[0].id, programId: classes[0].programId, status: 'active' as const };
 const dataset = () => normalizeCenterData({ settings: initial.initialSettings, programs: initial.initialPrograms, students: [student], classes, teachers: initial.initialTeachers, rooms: initial.initialRooms, grades: [], receipts: [], timetableSlots: [], backups: [], activityLogs: [], attendanceSessions: [], enrollments: [], scheduleChanges: [] });
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); vi.spyOn(window, 'alert').mockImplementation(() => {}); });
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); vi.spyOn(dialogs, 'showAlert').mockImplementation(() => {}); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 it('adds two classes to one student, removes one without closing other enrollments, and round trips JSON', () => {
@@ -56,6 +57,7 @@ it('saves extra class checkboxes without creating duplicate student profiles', (
   const update = vi.fn();
   render(<LanguageProvider><StudentManager students={[student]} classes={classes} programs={initial.initialPrograms} receipts={[]} timetableSlots={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner searchQuery="" onAddStudent={vi.fn()} onUpdateStudent={update} onDeleteStudent={vi.fn()} onCreateProgram={vi.fn()} onOpenImportExportModal={vi.fn()} onOpenTuition={vi.fn()} /></LanguageProvider>);
   fireEvent.click(screen.getAllByTitle(/Sửa/)[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Chọn các lớp học' }));
   for (const cls of classes.slice(1)) fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(cls.code) }));
   fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
   expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: student.id, classId: classes[0].id, additionalClassIds: [classes[1].id, classes[2].id] }));

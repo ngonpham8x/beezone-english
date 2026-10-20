@@ -67,6 +67,10 @@ Các mũi tên thể hiện phụ thuộc sử dụng; tham chiếu type đượ
 
 ## Thêm một chức năng
 
+Thông báo nghiệp vụ dùng `lib/dialogs.ts` (`showAlert`, `askConfirmation`), hiển thị qua `NotificationDialogs` tại điểm ghép ứng dụng. Không gọi `window.alert`/`window.confirm` trong module; xác nhận là bất đồng bộ và phải chờ kết quả trước khi thay dữ liệu. `DialogFrame` portal ra `document.body` để tránh vùng cha có transform làm lệch vị trí; popup chọn bên trong vẫn portal vào chính dialog qua `DialogPortalContext` để giữ focus và thứ tự lớp. Hộp thoại căn theo visual viewport khi bàn phím mở.
+
+Form chọn nhiều ngày dạy dùng `handleSaveSlots`: kiểm tra cả nhóm rồi cập nhật lịch và tóm tắt lớp một lần. Không gọi nhiều lệnh ghi danh sách từ cùng một snapshot trong vòng lặp, vì ca ghi sau có thể thay mất ca ghi trước.
+
 1. Tạo hoặc mở thư mục module phù hợp. Đặt giao diện trong file `.tsx`, quy tắc không phụ thuộc giao diện trong `lib`/model và thao tác thay dữ liệu trong `actions.ts`.
 2. Khai báo type và `Context` rõ ràng; tái sử dụng dialog/bảng cuộn/thẻ thống kê dùng chung. Nạp màn hình nặng bằng `lazy` để giữ kích thước khởi động.
 3. Nếu thêm trang: khai báo ID/nhãn/icon tại `navigation.ts`, quyền tại `canAccessTab` và case tại `WorkspaceScreens`. Nếu thêm thao tác: ghép trong `createCenterActions` và nối callback của màn hình.

@@ -22,12 +22,13 @@ import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
 import { validateRecurringChanges } from '../../lib/operations';
-import type { ScheduleChange } from '../../types';
+import type { AttendanceSession, ScheduleChange } from '../../types';
 import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
 
 interface TeacherScheduleMatrixProps {
   scheduleChanges?: ScheduleChange[];
+  attendanceSessions?: AttendanceSession[];
   teachers: Teacher[];
   timetableSlots: TimetableSlot[];
   classes: ClassRoom[];
@@ -35,6 +36,7 @@ interface TeacherScheduleMatrixProps {
   isOwner?: boolean;
   canManage?: boolean;
   onAddSlot?: (slot: TimetableSlot) => void;
+  onSaveSlots?: (slots: TimetableSlot[]) => string | null;
   onUpdateSlot?: (slot: TimetableSlot) => void;
   onDeleteSlot?: (id: string) => void;
   onSaveChange?: (change: ScheduleChange) => string | null;
@@ -59,9 +61,11 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   classes,
   rooms,
   scheduleChanges,
+  attendanceSessions = [],
   isOwner = false,
   canManage = false,
   onAddSlot,
+  onSaveSlots,
   onUpdateSlot,
   onDeleteSlot,
   onSaveChange,
@@ -211,6 +215,20 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
       return;
     }
 
+    if (onSaveSlots) {
+      const existing = timetableSlots.some(slot => slot.id === editingSlot.id);
+      const slots = selectedDays.map((dayOfWeek, index) => ({
+        ...editingSlot, startTime, endTime, dayOfWeek,
+        id: existing && index === 0 ? editingSlot.id : 'TT_' + crypto.randomUUID(),
+      }));
+      const issue = onSaveSlots(slots);
+      if (issue) { setConflictError(issue); return; }
+      setIsModalOpen(false);
+      setEditingSlot(null);
+      setConflictError(null);
+      return;
+    }
+
     const isExisting = timetableSlots.some((slot) => slot.id === editingSlot.id);
 
     if (isExisting) {
@@ -311,7 +329,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             changes={scheduleChanges}
             teachers={teachers}
             rooms={rooms}
-            attendance={[]}
+            attendance={attendanceSessions}
             isOwner={isOwner}
             canManage={canManage}
             onSave={onSaveChange || (() => 'Chỉ Chủ trung tâm được đổi lịch.')}
@@ -425,14 +443,14 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             <h3 className="font-extrabold text-base uppercase tracking-wider text-amber-400">TRUNG TÂM NGOẠI NGỮ BEEZONE</h3>
             <p className="text-xs text-slate-200 font-medium">BẢNG LỊCH PHÂN CÔNG GIẢNG DẠY</p>
           </div>
-          <span className="text-xs text-amber-200/80 italic">Cập nhật: 2026</span>
+          <span className="text-xs text-amber-200/80 italic">Cập nhật: {centerDate().slice(0, 4)}</span>
         </div>
 
         <HorizontalScroll label="Lịch giáo viên" ref={scrollContainerRef} className="teacher-print-table-wrap overflow-x-auto custom-scrollbar">
           <table className={`teacher-print-table w-full text-xs text-left border-collapse border border-slate-300 ${selectedDay === 'all' ? 'min-w-[1100px]' : 'min-w-full'}`}>
             <thead>
               <tr className="bg-amber-400 text-slate-950 uppercase text-[11px] font-black border-b border-amber-500">
-                <th className="py-3 px-4 border-r border-amber-500 w-44 min-w-[150px] sticky left-0 z-30 bg-amber-400 text-slate-950 shadow-xs">
+                <th className="py-3 px-4 border-r border-amber-500 w-44 min-w-[150px] md:sticky left-0 z-20 bg-amber-400 text-slate-950 shadow-xs">
                   Giáo Viên
                 </th>
                 {displayedDays.map((d) => (
@@ -445,7 +463,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             <tbody className="divide-y divide-slate-300 font-medium">
               {teachers.map((teacher) => (
                 <tr key={teacher.id} className="teacher-print-row hover:bg-slate-50">
-                  <td className="py-3 px-4 bg-slate-100 font-bold text-slate-900 border-r border-slate-300 sticky left-0 z-20 shadow-xs whitespace-nowrap">
+                  <td className="py-3 px-4 bg-slate-100 font-bold text-slate-900 border-r border-slate-300 md:sticky left-0 z-10 shadow-xs whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <TeacherAvatar teacher={teacher} className="h-7 w-7 text-[9px]" />
                       <div>
@@ -468,7 +486,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                             {canEdit && onAddSlot && (
                               <button
                                 onClick={() => handleOpenAdd(teacher.id, day)}
-                                className="hidden group-hover/cell:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition"
+                                className="inline-flex items-center gap-1 px-2 py-2 text-[10px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition"
                                 title={`Thêm ca dạy cho ${teacher.name} vào ${day}`}
                               >
                                 <Plus className="w-3 h-3 text-amber-600" /> Ca dạy
@@ -486,7 +504,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                   key={s.id}
                                   className="group/slot relative teacher-print-slot p-2 bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 rounded-lg text-[10px] shadow-2xs transition-colors"
                                 >
-                                  <div className="flex items-start justify-between gap-1">
+                                  <div className="flex flex-wrap items-start justify-between gap-1">
                                     <div className="font-bold font-mono text-slate-900">
                                       {cls?.code || 'LỚP'} ({s.startTime}–{s.endTime})
                                     </div>
@@ -495,7 +513,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                         {onUpdateSlot && (
                                           <button
                                             onClick={() => handleOpenEdit(s)}
-                                            className="p-1 text-slate-400 hover:text-amber-800 hover:bg-amber-200/60 rounded transition"
+                                            className="p-2 text-amber-800 hover:bg-amber-200/60 rounded transition"
                                             title="Sửa ca dạy"
                                             aria-label="Sửa ca dạy"
                                           >
@@ -505,7 +523,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                         {onDeleteSlot && (
                                           <button
                                             onClick={() => setSlotToDelete(s)}
-                                            className="p-1 text-slate-400 hover:text-rose-700 hover:bg-rose-100 rounded transition"
+                                            className="p-2 text-rose-700 hover:bg-rose-100 rounded transition"
                                             title="Xóa ca dạy"
                                             aria-label="Xóa ca dạy"
                                           >
@@ -528,7 +546,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                               <div className="text-center pt-1 print:hidden">
                                 <button
                                   onClick={() => handleOpenAdd(teacher.id, day)}
-                                  className="opacity-0 group-hover/cell:opacity-100 text-[9px] font-semibold text-amber-700 hover:text-amber-900 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-dashed border-amber-300 transition"
+                                  className="text-[10px] font-semibold text-amber-700 hover:text-amber-900 hover:bg-amber-100 px-2 py-2 rounded border border-dashed border-amber-300 transition"
                                   title={`Thêm ca dạy tiếp cho ${teacher.name}`}
                                 >
                                   + Thêm ca

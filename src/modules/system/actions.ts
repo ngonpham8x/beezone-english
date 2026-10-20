@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/dialogs';
 import type { CenterDataPayload } from '../../lib/centerData';
 import type {
   ActivityLog,
@@ -68,7 +69,7 @@ export function createSystemActions({
       addLog('IMPORT', 'Lớp học', `Bổ sung ${catalog.classes.length - classes.length} lớp từ Excel; giữ nguyên học viên, phiếu thu và lịch sử.`);
       return true;
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Danh mục lớp không hợp lệ.');
+      showAlert(error instanceof Error ? error.message : 'Danh mục lớp không hợp lệ.');
       return false;
     }
   };
@@ -92,7 +93,7 @@ export function createSystemActions({
 
   const handleImportCenterData = (data: CenterWorkbookData) => {
     if (enrollments.length || scheduleChanges.length || attendanceSessions.some((s) => s.billing)) {
-      alert(
+      showAlert(
         'Đã có lịch sử đăng ký hoặc lịch nghỉ/học bù. Báo cáo Excel không thay thế bản sao lưu đầy đủ. Hãy dùng sao lưu JSON để khôi phục; vẫn có thể nhập thêm học viên bằng Excel.',
       );
       return false;
@@ -101,7 +102,7 @@ export function createSystemActions({
     try {
       payload = normalizeCenterData(parseCenterData({ ...data, settings }, settings));
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Dữ liệu nhập không hợp lệ.');
+      showAlert(error instanceof Error ? error.message : 'Dữ liệu nhập không hợp lệ.');
       return false;
     }
     applyData({ ...payload, backups: [], activityLogs });

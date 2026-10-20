@@ -31,6 +31,7 @@ interface TimetableManagerProps {
   isOwner: boolean;
   permissions?: StaffPermissions;
   onAddSlot: (slot: TimetableSlot) => void;
+  onSaveSlots?: (slots: TimetableSlot[]) => string | null;
   onUpdateSlot: (slot: TimetableSlot) => void;
   onDeleteSlot: (id: string) => void;
   onCreateClass?: (c: ClassRoom) => void;
@@ -56,6 +57,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   isOwner,
   permissions,
   onAddSlot,
+  onSaveSlots,
   onUpdateSlot,
   onDeleteSlot,
   onCreateClass,
@@ -217,6 +219,20 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
     const endTime = normaliseTime(editingSlot.endTime);
     if (!startTime || !endTime || startTime >= endTime) {
       setConflictError('Nhập giờ dạng HH:MM; giờ kết thúc phải sau giờ bắt đầu.');
+      return;
+    }
+
+    if (onSaveSlots) {
+      const existing = timetableSlots.some(slot => slot.id === editingSlot.id);
+      const slots = selectedDays.map((dayOfWeek, index) => ({
+        ...editingSlot, startTime, endTime, dayOfWeek,
+        id: existing && index === 0 ? editingSlot.id : 'TT_' + crypto.randomUUID(),
+      }));
+      const issue = onSaveSlots(slots);
+      if (issue) { setConflictError(issue); return; }
+      setIsModalOpen(false);
+      setEditingSlot(null);
+      setConflictError(null);
       return;
     }
 
