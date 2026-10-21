@@ -14,6 +14,8 @@ Email cấu hình thật chỉ nằm trong SQL được sinh tại `.vercel` (Gi
 
 `npm run check` đạt: TypeScript, 472/472 test (40 tệp), build production và kiểm tra CSP/loại mã đăng nhập xem thử.
 
+GitHub Actions sau lần đẩy đầu phát hiện advisory mới của launch-editor được đóng gói trong Vite 6.4.3. Cập nhật riêng Vite lên 6.4.5 trong cùng nhánh phiên bản; `npm audit --audit-level=high` trả 0 vulnerabilities. Nguồn đối chiếu: [advisory của launch-editor](https://github.com/vitejs/launch-editor/security/advisories/GHSA-587h-7wmj-h5pm) và [Vite 6.4.5](https://github.com/vitejs/vite/releases/tag/v6.4.5). Giữ nguyên bước kiểm tra bảo mật trên CI.
+
 - Kiểm thử giao diện: hủy xác nhận giữ cửa sổ sửa; xác nhận gửi đúng vai trò owner; thành công đóng cửa sổ và báo kết quả; API lỗi giữ cửa sổ và hiển thị lỗi tại đó.
 - Kiểm thử API: chỉ người xem được cấu hình nhận danh tính tài khoản; chặn cập nhật qua ID đoán được; giữ quota/xác thực; lỗi đọc quy tắc đóng truy cập; dữ liệu cũ trước migration 014 vẫn giữ quy tắc private cũ.
 - PGlite chạy toàn bộ migration và cấu hình mẫu: không đổi role/permissions, chạy lại cấu hình không tạo bản ghi trùng, tài khoản authenticated không được đọc hoặc sửa bảng quy tắc.
