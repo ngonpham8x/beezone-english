@@ -25,6 +25,11 @@ export function useOverlay(ref: RefObject<HTMLElement | null>, active: boolean, 
     const root = ref.current;
     if (!active || !root) return;
     const previousFocus = document.activeElement as HTMLElement | null;
+    const previousZIndex = root.style.zIndex;
+    // Portals are siblings under body. A nested confirmation must sit above
+    // every existing dialog, even when its parent's utility class uses z-60.
+    const topZIndex = overlays.reduce((max, overlay) => Math.max(max, Number.parseInt(getComputedStyle(overlay).zIndex, 10) || 0), 49);
+    root.style.zIndex = String(Math.max(Number.parseInt(getComputedStyle(root).zIndex, 10) || 0, topZIndex + 1));
     if (overlays.length === 0) {
       savedOverflow = document.body.style.overflow;
       savedPadding = document.body.style.paddingRight;
@@ -61,6 +66,7 @@ export function useOverlay(ref: RefObject<HTMLElement | null>, active: boolean, 
       const wasTopmost = topmost();
       const index = overlays.indexOf(root);
       if (index >= 0) overlays.splice(index, 1);
+      root.style.zIndex = previousZIndex;
       if (overlays.length === 0) {
         document.body.style.overflow = savedOverflow;
         document.body.style.paddingRight = savedPadding;

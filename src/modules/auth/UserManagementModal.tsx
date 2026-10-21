@@ -136,6 +136,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       const response = await fetch('/api/admin/users', {
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
       });
       const payload = await readApiJson<{ users: ManagedUser[]; hiddenAccountIds?: string[] }>(response, 'Không thể tải danh sách tài khoản.');
       if (requestId !== memberRequest.current || !dialogOpen.current) return;
@@ -242,6 +243,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     try {
       const response = await fetch('/api/admin/users', {
         method: 'PATCH',
+        signal: AbortSignal.timeout(30_000),
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
           action: 'updatePermissions',
@@ -253,12 +255,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       await readApiJson(response, 'Không thể cập nhật cấp quyền.');
       const targetName = editingUser.full_name || editingUser.email || 'tài khoản';
       setEditingUser(null);
-      await loadMembers();
-      onAccountChanged?.();
       setMessage(`Cập nhật cấp quyền thành công cho tài khoản "${targetName}"!`);
       toast.success(`Cập nhật cấp quyền thành công cho tài khoản "${targetName}"!`);
+      await loadMembers();
+      onAccountChanged?.();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Không thể cập nhật cấp quyền.');
+      const failure = requestError instanceof Error && (requestError.name === 'TimeoutError' || requestError.name === 'AbortError')
+        ? 'Chưa xác nhận được kết quả cập nhật. Hãy làm mới danh sách trước khi thử lại.'
+        : requestError instanceof Error ? requestError.message : 'Không thể cập nhật cấp quyền.';
+      setError(failure);
+      toast.error(failure);
     } finally {
       setIsSubmitting(false);
     }
@@ -450,7 +456,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           </div>
         </form>
 
-        {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-800">{error}</p>}
+        {error && !editingUser && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-800">{error}</p>}
         {message && <p role="status" className="mt-3 rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-800">{message}</p>}
 
         <div className="mt-6 flex items-center justify-between gap-3"><h3 className="text-sm font-bold">Tài khoản đã được cấp quyền</h3><button disabled={isLoading || isLocalPreview} onClick={() => void loadMembers()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold">{isLoading ? 'Đang tải…' : 'Làm mới'}</button></div>
@@ -603,6 +609,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
             </div>
 
             <ConfirmedForm confirmWhen entityLabel="quyền nhân viên" onSubmit={handleUpdateUserPermissions} className="mt-4 space-y-4">
+              {error && <p role="alert" className="rounded-lg bg-red-50 p-2.5 text-xs text-red-800">{error}</p>}
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Cấp bậc tài khoản</label>
                 <select

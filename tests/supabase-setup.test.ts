@@ -45,7 +45,11 @@ describe("new Supabase project setup", () => {
       count: number;
     }>(`select count(*)::int as count
         from pg_tables where schemaname='public' and rowsecurity`);
-    expect(tables.rows[0].count).toBe(5);
+    expect(tables.rows[0].count).toBe(6);
+    const visibilityPrivileges = await db.query(`select
+      has_table_privilege('authenticated', 'public.account_visibility_rules', 'select') as client,
+      has_table_privilege('service_role', 'public.account_visibility_rules', 'select') as server`);
+    expect(visibilityPrivileges.rows).toEqual([{ client: false, server: true }]);
     const quota = await db.query(`select
         has_function_privilege('authenticated', 'public.consume_admin_request_quota(uuid,text)', 'execute') as client,
         has_function_privilege('service_role', 'public.consume_admin_request_quota(uuid,text)', 'execute') as server`);

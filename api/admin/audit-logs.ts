@@ -1,8 +1,10 @@
 import { adminApi } from '../../server/admin.js';
+import { hiddenAccountsForViewer } from '../../server/accountVisibility.js';
 import { json } from '../../server/request.js';
 import { createAuditPrivacy } from '../../src/lib/auditPrivacy.js';
 
-export default adminApi(['GET'], async (_req, res, { client }) => {
+export default adminApi(['GET'], async (_req, res, { client, callerId }) => {
+  const hiddenAccountIds = await hiddenAccountsForViewer(client, callerId);
   const [accounts, audit, center] = await Promise.all([
     // Legacy profiles without is_private keep their existing visibility.
     client.from('profiles').select('*'),
@@ -18,7 +20,7 @@ export default adminApi(['GET'], async (_req, res, { client }) => {
   if (accounts.error || audit.error || center.error)
     return json(res, 500, { error: 'Chưa thể tải nhật ký hệ thống.' });
 
-  const privacy = createAuditPrivacy(accounts.data || []);
+  const privacy = createAuditPrivacy((accounts.data || []).map(profile => hiddenAccountIds.has(profile.id) ? { ...profile, is_private: true } : profile));
   return json(res, 200, {
     logs: privacy.accountLogs(audit.data || []),
     activityLogs: privacy.activityLogs(center.data?.payload?.activityLogs),

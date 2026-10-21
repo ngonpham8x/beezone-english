@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { DEFAULT_STAFF_PERMISSIONS, DEV_OWNER_ACCOUNT, profileToAccount } from '../src/lib/auth';
 import { getActiveSessions, registerActiveSession } from '../src/lib/activeSessions';
@@ -366,6 +366,34 @@ it('does not send delete request if confirmation is cancelled', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Hủy bỏ' }));
   await act(async () => {});
   expect(fetcher).toHaveBeenCalledTimes(1); // Only the initial GET
+});
+
+it.each([true, false])('confirms owner promotion above the editor and reports its result in the visible dialog: %s', async succeeds => {
+  const member = { id: 'staff-promote', full_name: 'Promotion Staff', email: 'promote@example.test', role: 'staff', is_active: true };
+  const fetcher = vi.fn(async (_url: unknown, init?: RequestInit) => new Response(JSON.stringify(
+    init?.method === 'PATCH' ? succeeds ? { success: true } : { error: 'Không thể cập nhật quyền.' } : { users: [member], hiddenAccountIds: [] }
+  ), { status: init?.method === 'PATCH' && !succeeds ? 500 : 200, headers: { 'Content-Type': 'application/json' } }));
+  vi.stubGlobal('fetch', fetcher);
+  render(<UserManagementModal isOpen onClose={vi.fn()} accessToken="test-token" currentUser={DEV_OWNER_ACCOUNT} />);
+  await screen.findByText('Promotion Staff');
+  fireEvent.click(screen.getByRole('button', { name: 'Sửa quyền' }));
+  const editor = screen.getByRole('dialog', { name: 'Sửa quyền Promotion Staff' });
+  fireEvent.change(within(editor).getByRole('combobox'), { target: { value: 'owner' } });
+  fireEvent.click(within(editor).getByRole('button', { name: 'Cập nhật cấp quyền' }));
+  const confirmation = screen.getByRole('dialog', { name: 'Xác nhận cập nhật' });
+  expect(Number(confirmation.style.zIndex)).toBeGreaterThan(Number(editor.style.zIndex));
+  expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH')).toHaveLength(0);
+  fireEvent.click(within(confirmation).getByRole('button', { name: 'Lưu thay đổi' }));
+  await waitFor(() => expect(fetcher.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true));
+  const body = JSON.parse(String(fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')![1]!.body));
+  expect(body.role).toBe('owner');
+  if (succeeds) {
+    expect(await screen.findByText(/Cập nhật cấp quyền thành công cho tài khoản "Promotion Staff"!/)).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Sửa quyền Promotion Staff' })).toBeNull();
+  } else {
+    expect(await within(editor).findByRole('alert')).toHaveProperty('textContent', 'Không thể cập nhật quyền.');
+    expect(screen.getByRole('dialog', { name: 'Sửa quyền Promotion Staff' })).toBeTruthy();
+  }
 });
 
 it('opens edit permissions dialog for a user, allows batch selection and updates permissions', async () => {

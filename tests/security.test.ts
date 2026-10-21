@@ -20,6 +20,8 @@ const state = vi.hoisted(() => ({
   auditRows: [] as any[],
   center: null as any,
   profileListError: false,
+  visibilityRules: [] as any[],
+  visibilityError: null as any,
 }));
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (...args: any[]) => {
@@ -50,6 +52,7 @@ vi.mock('@supabase/supabase-js', () => ({
           if (table === 'profiles') return { data: state.members, error: state.profileListError ? { message: 'private profile failure' } : null };
           if (table === 'account_audit_logs') return { data: state.auditRows, error: null };
           if (table === 'center_data') return { data: state.center, error: null };
+          if (table === 'account_visibility_rules') return { data: state.visibilityRules, error: state.visibilityError };
           return { data: [], error: null };
         };
         const builder: any = {
@@ -143,6 +146,8 @@ beforeEach(() => {
   state.auditRows = [];
   state.center = null;
   state.profileListError = false;
+  state.visibilityRules = [];
+  state.visibilityError = null;
   state.auth.mockResolvedValue({ data: { user: { id: callerId } }, error: null });
   state.rpc.mockResolvedValue({ data: [{ allowed: true, retry_after: 0 }], error: null });
   state.createUser.mockResolvedValue({
@@ -219,6 +224,57 @@ describe('request boundary', () => {
 });
 
 describe('authorization and durable quotas', () => {
+  it.each([true, false])('returns restricted identities only to their configured viewer: %s', async allowed => {
+    state.visibilityRules = [{ account_id: 'restricted-id', viewer_id: allowed ? callerId : 'another-owner' }];
+    state.members = [{ id: 'restricted-id', email: 'restricted@example.test', full_name: 'Restricted Account', role: 'staff' }];
+    const res = await call();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users).toHaveLength(allowed ? 1 : 0);
+    expect(res.body.hiddenAccountIds).toEqual(allowed ? [] : ['restricted-id']);
+    if (!allowed) expect(JSON.stringify(res.body)).not.toContain('restricted@example.test');
+  });
+  it('rejects guessed updates to an account hidden from the caller', async () => {
+    const id = '00000000-0000-4000-8000-000000000002';
+    state.visibilityRules = [{ account_id: id, viewer_id: 'another-owner' }];
+    state.target = { id, role: 'staff', is_active: true };
+    const res = await call('users', request('PATCH', { body: { action: 'updatePermissions', userId: id, role: 'owner' } }));
+    expect(res.statusCode).toBe(404);
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+  it('keeps existing private-profile restrictions before migration 014 is installed', async () => {
+    state.visibilityError = { code: 'PGRST205' };
+    state.members = [{ id: 'private-id', email: 'private@example.test', is_private: true }];
+    const res = await call();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.users).toEqual([]);
+    expect(res.body.hiddenAccountIds).toEqual(['private-id']);
+  });
+  it('promotes a visible staff member and records the owner role in the audit', async () => {
+    const id = '00000000-0000-4000-8000-000000000002';
+    state.target = { id, full_name: 'Staff Account', role: 'staff', is_active: true };
+    const res = await call('users', request('PATCH', { body: { action: 'updatePermissions', userId: id, role: 'owner' } }));
+    expect(res.statusCode).toBe(200);
+    expect(state.writes).toHaveBeenCalledWith('profiles', expect.objectContaining({ role: 'owner' }));
+    expect(state.writes).toHaveBeenCalledWith('account_audit_logs', expect.objectContaining({ target_id: id, target_role: 'owner' }));
+  });
+  it.each(['users', 'audit-logs'])('fails closed on visibility lookup failure at %s', async route => {
+    state.visibilityError = { code: '08006', message: 'internal connection details' };
+    const res = await call(route);
+    expect(res.statusCode).toBe(503);
+    expect(res.body.users).toBeUndefined();
+    expect(res.body.logs).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain('internal connection details');
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+  it('hides restricted account audit identities from other owners', async () => {
+    state.visibilityRules = [{ account_id: 'restricted-id', viewer_id: 'another-owner' }];
+    state.members = [{ id: 'restricted-id', email: 'restricted@example.test', full_name: 'Restricted Account' }];
+    state.auditRows = [{ id: 'log', occurred_at: '2026-10-21', action: 'ACCOUNT_UPDATED', actor_id: callerId, target_id: 'restricted-id', actor_name: 'Owner', target_name: 'Restricted Account', target_role: 'staff', details: 'Updated account' }];
+    const res = await call('audit-logs');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.logs).toEqual([]);
+    expect(state.writes).not.toHaveBeenCalled();
+  });
   it('excludes whole private activities and account entries from API responses without writing history', async () => {
     state.members = [{ id: 'private-id', email: 'private@example.test', full_name: 'Private Person', is_private: true }];
     const base = { id: 'account-log', occurred_at: '2026-10-14T08:00:00Z', action: 'ACCOUNT_UPDATED', actor_id: 'private-id', actor_name: 'Private Person', target_id: 'visible-id', target_name: 'Visible Person', target_role: 'staff', details: 'Changed by private@example.test' };

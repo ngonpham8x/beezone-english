@@ -15,6 +15,7 @@ function compiledServer(run: (directory: string) => void) {
     for (const file of [
       'api/admin/audit-logs.ts',
       'server/admin.ts',
+      'server/accountVisibility.ts',
       'server/request.ts',
       'server/rateLimit.ts',
       'src/lib/auditPrivacy.ts',

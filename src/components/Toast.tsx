@@ -31,7 +31,7 @@ export const ToastContainer: React.FC = () => {
     <div
       role="region"
       aria-label="Thông báo hệ thống"
-      className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-3 sm:px-0"
+      className="fixed top-4 left-4 right-4 z-[9999] flex flex-col gap-2.5 max-w-sm sm:left-auto sm:w-full pointer-events-none"
     >
       {toasts.map((item) => {
         const isSuccess = item.type === 'success';

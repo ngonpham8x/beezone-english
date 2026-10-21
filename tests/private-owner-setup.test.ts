@@ -2,6 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildPrivateOwnerSetup } from '../scripts/create-private-owner-setup.mjs';
+import { buildAccountVisibilitySetup } from '../scripts/create-account-visibility-setup.mjs';
 
 let db: PGlite | undefined;
 afterEach(async () => {
@@ -22,6 +23,24 @@ async function database() {
 }
 
 describe('private administrator configuration', () => {
+  it('restricts a staff account to one active owner without changing roles or permissions', async () => {
+    const db = await database();
+    await db.exec(`insert into auth.users(id,email) values
+      ('00000000-0000-4000-8000-000000000001','viewer@example.test'),
+      ('00000000-0000-4000-8000-000000000002','staff@example.test');
+      update public.profiles set role='owner',is_active=true where email='viewer@example.test';`);
+    const before = (await db.query('select * from public.profiles order by id')).rows;
+    const sql = buildAccountVisibilitySetup({ accountEmail: 'staff@example.test', viewerEmail: 'viewer@example.test' });
+    await db.exec(sql);
+    await db.exec(sql);
+    expect((await db.query('select * from public.profiles order by id')).rows).toEqual(before);
+    expect((await db.query('select account_id,viewer_id from public.account_visibility_rules')).rows).toEqual([
+      { account_id: '00000000-0000-4000-8000-000000000002', viewer_id: '00000000-0000-4000-8000-000000000001' },
+    ]);
+    await expect(db.exec('set role authenticated; select * from public.account_visibility_rules')).rejects.toThrow(/permission denied/);
+    await db.exec('reset role');
+    await expect(db.exec('set role authenticated; delete from public.account_visibility_rules')).rejects.toThrow(/permission denied/);
+  }, 60000);
   it('activates an existing account, keeps other profiles and does not duplicate audit entries on replay', async () => {
     const db = await database();
     await db.exec(

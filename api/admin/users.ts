@@ -1,4 +1,5 @@
 import { adminApi } from '../../server/admin.js';
+import { hiddenAccountsForViewer } from '../../server/accountVisibility.js';
 import { json } from '../../server/request.js';
 import { createStaffPermissions, normalizeStaffPermissions } from '../../src/lib/permissions.js';
 
@@ -87,6 +88,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default adminApi(
   ['GET', 'POST', 'PATCH', 'DELETE'],
   async (req, res, { client, callerId, callerName }, body) => {
+    const hiddenAccountIds = await hiddenAccountsForViewer(client, callerId);
     if (req.method === 'GET') {
       const { data, error } = await client
         .from('profiles')
@@ -94,8 +96,8 @@ export default adminApi(
         .order('created_at', { ascending: false });
       if (error || !data) return json(res, 500, { error: 'Không thể tải danh sách tài khoản.' });
       return json(res, 200, {
-        users: data.filter(user => user.is_private !== true).map(({ id, email, full_name, avatar_url, role, is_active, permissions }) => ({ id, email, full_name, avatar_url, role, is_active, permissions })),
-        hiddenAccountIds: data.filter(user => user.is_private === true).map(user => user.id),
+        users: data.filter(user => user.is_private !== true && !hiddenAccountIds.has(user.id)).map(({ id, email, full_name, avatar_url, role, is_active, permissions }) => ({ id, email, full_name, avatar_url, role, is_active, permissions })),
+        hiddenAccountIds: [...new Set([...hiddenAccountIds, ...data.filter(user => user.is_private === true).map(user => user.id)])],
       });
     }
 
@@ -126,7 +128,7 @@ export default adminApi(
         .eq('email', email)
         .maybeSingle();
       if (existingError) return json(res, 500, { error: 'Không thể kiểm tra tài khoản.' });
-      if (existing?.is_private === true) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+      if (existing?.is_private === true || (existing && hiddenAccountIds.has(existing.id))) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
       // A known Google user can be promoted without an email invitation or password.
       if (existing) {
@@ -255,7 +257,7 @@ export default adminApi(
         .eq('id', userId)
         .maybeSingle();
       if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
-      if (target.is_private === true) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+      if (target.is_private === true || hiddenAccountIds.has(target.id)) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
       if (target.role === 'owner' && target.is_active) {
         const { count, error: ownerCountError } = await client
@@ -320,7 +322,7 @@ export default adminApi(
         .eq('id', userId)
         .maybeSingle();
       if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
-      if (target.is_private === true)
+      if (target.is_private === true || hiddenAccountIds.has(target.id))
         return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
       const finalRole = newRole || target.role;
@@ -392,7 +394,7 @@ export default adminApi(
       .eq('id', userId)
       .maybeSingle();
     if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
-    if (target.is_private === true) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+    if (target.is_private === true || hiddenAccountIds.has(target.id)) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
     if (!active && target.role === 'owner' && target.is_active) {
       const { count, error: ownerCountError } = await client
