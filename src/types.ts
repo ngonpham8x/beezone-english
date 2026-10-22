@@ -126,7 +126,7 @@ export interface ClassEnrollment {
 export interface ScheduleChange {
   id: string;
   classId: string;
-  kind: 'cancel' | 'move' | 'extra';
+  kind: 'cancel' | 'move' | 'extra' | 'teacher_off';
   date: string;
   sourceDate?: string;
   sourceSlotId?: string;
@@ -135,6 +135,7 @@ export interface ScheduleChange {
   teacherId: string;
   roomId: string;
   reason: string;
+  substituteTeacherId?: string;
 }
 
 export interface TimetableSlot {

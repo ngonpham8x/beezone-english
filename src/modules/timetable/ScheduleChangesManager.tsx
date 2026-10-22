@@ -25,10 +25,17 @@ interface Props {
   isOwner: boolean;
   canManage?: boolean;
   permissions?: StaffPermissions;
+  selectedDate?: string;
+  onSelectDate?: (date: string) => void;
   onSave: (change: ScheduleChange) => string | null;
   onDelete: (id: string) => string | null;
 }
-const labels = { cancel: 'Nghỉ buổi học', move: 'Đổi lịch / học bù', extra: 'Thêm buổi học' };
+const labels: Record<ScheduleChange['kind'], string> = {
+  cancel: 'Nghỉ buổi học',
+  teacher_off: 'Giáo viên đăng ký nghỉ (off) / Dạy thay',
+  move: 'Đổi lịch / học bù',
+  extra: 'Thêm buổi học',
+};
 const field = 'mt-1 w-full rounded-lg border border-slate-300 bg-white p-2';
 export function ScheduleChangesManager({
   classes,
@@ -40,13 +47,17 @@ export function ScheduleChangesManager({
   isOwner,
   canManage = false,
   permissions,
+  selectedDate,
+  onSelectDate,
   onSave,
   onDelete,
 }: Props) {
   const canEdit = isOwner || (permissions ? academicPermission(permissions, 'classes', 'edit') : canManage);
   const canAdd = isOwner || (permissions ? academicPermission(permissions, 'classes', 'add') : canManage);
   const canDelete = isOwner || (permissions ? academicPermission(permissions, 'classes', 'delete') : canManage);
-  const [date, setDate] = useState(centerDate);
+  const [internalDate, setInternalDate] = useState(centerDate);
+  const date = selectedDate ?? internalDate;
+  const setDate = onSelectDate ?? setInternalDate;
   const [draft, setDraft] = useState<ScheduleChange | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [changeToDelete, setChangeToDelete] = useState<ScheduleChange | null>(null);
@@ -88,14 +99,15 @@ export function ScheduleChangesManager({
       sourceSlotId: draft.kind === 'extra' ? undefined : source?.id,
     };
     const next =
-      draft.kind === 'cancel' && source
+      (draft.kind === 'cancel' || draft.kind === 'teacher_off') && source
         ? {
             ...selectedDraft,
             startTime: source.startTime,
             endTime: source.endTime,
             teacherId: source.teacherId,
-            roomId: source.roomId,
+            roomId: draft.roomId || source.roomId,
             sourceDate: undefined,
+            substituteTeacherId: draft.substituteTeacherId || undefined,
           }
         : selectedDraft;
     const message =
@@ -142,7 +154,22 @@ export function ScheduleChangesManager({
             <strong>{classes.find((c) => c.id === lesson.classId)?.name}</strong>
             <div>
               {lesson.startTime}–{lesson.endTime} ·{' '}
-              {teachers.find((t) => t.id === lesson.teacherId)?.name || 'Chưa có giáo viên'}
+              {lesson.substituteTeacherId ? (
+                <span>
+                  <span className="font-bold text-indigo-700">
+                    {teachers.find((t) => t.id === lesson.substituteTeacherId)?.name} (Dạy thay)
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {' '}[GV chính: {teachers.find((t) => t.id === lesson.originalTeacherId)?.name || 'Chưa rõ'}]
+                  </span>
+                </span>
+              ) : lesson.changeKind === 'teacher_off' ? (
+                <span className="font-bold text-rose-700">
+                  {teachers.find((t) => t.id === lesson.teacherId)?.name} (Xin nghỉ - chưa xếp dạy thay)
+                </span>
+              ) : (
+                teachers.find((t) => t.id === lesson.teacherId)?.name || 'Chưa có giáo viên'
+              )}
             </div>
             <div className="text-xs text-slate-600">
               {rooms.find((r) => r.id === lesson.roomId)?.name || 'Chưa có phòng'}
@@ -174,7 +201,13 @@ export function ScheduleChangesManager({
                     </strong>
                     <p className="text-xs">
                       {c.sourceDate && c.kind === 'move' ? `${c.sourceDate} → ` : ''}
-                      {c.date} · {c.reason}
+                      {c.date}
+                      {c.kind === 'teacher_off' && c.substituteTeacherId && (
+                        <span className="font-semibold text-indigo-700">
+                          {' · '}Dạy thay: {teachers.find((t) => t.id === c.substituteTeacherId)?.name}
+                        </span>
+                      )}
+                      {' · '}{c.reason}
                     </p>
                   </div>
                   {(canEdit || canDelete) && (
@@ -336,7 +369,61 @@ export function ScheduleChangesManager({
                 </label>
               </div>
             )}
-            {draft.kind !== 'cancel' && (
+            {draft.kind === 'teacher_off' && (() => {
+              const currentSlot = originalLessons.find((s) => s.id === (draft.sourceSlotId || originalLessons[0]?.id));
+              const mainTeacher = teachers.find((t) => t.id === (currentSlot?.teacherId || draft.teacherId));
+              return (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-xs text-indigo-950">
+                    <div className="font-bold flex items-center justify-between">
+                      <span>Giáo viên phụ trách hiện tại:</span>
+                      <span className="text-sm font-black text-indigo-800">{mainTeacher?.name || 'Chưa rõ'}</span>
+                    </div>
+                    <p className="mt-1 text-slate-600">
+                      Giáo viên này đã đăng ký nghỉ (off) vào ca học này.
+                    </p>
+                  </div>
+                  <label className="block">
+                    <span className="font-semibold text-slate-800">Giáo viên dạy thay (tùy chọn)</span>
+                    <select
+                      aria-label="Giáo viên dạy thay"
+                      value={draft.substituteTeacherId || ''}
+                      className={field}
+                      onChange={(e) => setDraft({ ...draft, substituteTeacherId: e.target.value || undefined })}
+                    >
+                      <option value="">-- Chưa xếp giáo viên dạy thay --</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id} disabled={t.id === (currentSlot?.teacherId || draft.teacherId)}>
+                          {t.name} ({t.specialty || 'Giáo viên'}) {t.id === (currentSlot?.teacherId || draft.teacherId) ? '— (GV chính đang nghỉ)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Chọn giáo viên thay thế. Ca dạy thay sẽ tự động xuất hiện trên Lịch giáo viên và Thời khóa biểu.
+                    </span>
+                  </label>
+                  <label className="block">
+                    Phòng học
+                    <select
+                      aria-label="Phòng học"
+                      value={draft.roomId || currentSlot?.roomId || ''}
+                      className={field}
+                      onChange={(e) => setDraft({ ...draft, roomId: e.target.value })}
+                    >
+                      <option value="">Chọn phòng</option>
+                      {rooms
+                        .filter((r) => r.status === 'available')
+                        .map((r) => (
+                          <option value={r.id} key={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
+              );
+            })()}
+            {(draft.kind === 'move' || draft.kind === 'extra') && (
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <label>
@@ -390,12 +477,12 @@ export function ScheduleChangesManager({
                   >
                     <option value="">Chọn phòng</option>
                     {rooms
-                      .filter((r) => r.status === 'available')
-                      .map((r) => (
-                        <option value={r.id} key={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
+                        .filter((r) => r.status === 'available')
+                        .map((r) => (
+                          <option value={r.id} key={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
                   </select>
                 </label>
               </>

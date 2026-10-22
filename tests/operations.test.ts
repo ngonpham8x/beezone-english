@@ -8,6 +8,8 @@ import {
   validateScheduleChange,
   weekdayForDate,
   validateRecurringChanges,
+  weekDatesForDate,
+  formatShortDate,
 } from '../src/lib/operations';
 import { parseCenterData, parseBackupArchive } from '../src/lib/centerData';
 import {
@@ -192,5 +194,76 @@ describe('due dates and enrollment history', () => {
         initialSettings,
       ),
     ).toThrow(/Hạn/);
+  });
+  it('handles teacher off with substitute teacher and conflict detection', () => {
+    const teacherOff: ScheduleChange = {
+      id: 'off-1',
+      classId: 'a',
+      kind: 'teacher_off',
+      sourceSlotId: 'slot',
+      date: '2026-10-13',
+      startTime: '18:00',
+      endTime: '19:30',
+      teacherId: 't',
+      roomId: 'r',
+      substituteTeacherId: 'sub_t',
+      reason: 'Bận việc riêng, thầy sub_t dạy thay',
+    };
+
+    // Self-substitute should be rejected
+    expect(
+      validateScheduleChange(
+        { ...teacherOff, substituteTeacherId: 't' },
+        classes,
+        [slot],
+        [],
+        [],
+      ),
+    ).toMatch(/khác giáo viên chính/);
+
+    // Valid substitute teacher
+    expect(validateScheduleChange(teacherOff, classes, [slot], [], [])).toBeNull();
+
+    // Substitute teacher having overlapping slot on that date should be rejected
+    const subSlot: TimetableSlot = {
+      id: 'sub_slot',
+      classId: 'b',
+      dayOfWeek: 'Thứ 3',
+      startTime: '18:00',
+      endTime: '19:30',
+      teacherId: 'sub_t',
+      roomId: 'other',
+    };
+    expect(
+      validateScheduleChange(teacherOff, classes, [slot, subSlot], [], []),
+    ).toMatch(/trùng giờ/);
+
+    // lessonsOn reflects substitute teacher on that date
+    const lessons = lessonsOn('2026-10-13', classes, [slot], [teacherOff]);
+    expect(lessons).toHaveLength(1);
+    expect(lessons[0]).toMatchObject({
+      id: 'slot',
+      teacherId: 'sub_t',
+      originalTeacherId: 't',
+      substituteTeacherId: 'sub_t',
+      changeKind: 'teacher_off',
+    });
+
+    // lessonsOn next week still has original teacher
+    const nextWeek = lessonsOn('2026-10-20', classes, [slot], [teacherOff]);
+    expect(nextWeek).toHaveLength(1);
+    expect(nextWeek[0].teacherId).toBe('t');
+  });
+
+  it('calculates week dates and short date display correctly', () => {
+    const week = weekDatesForDate('2026-10-22'); // Thursday
+    expect(week['Thứ 2']).toBe('2026-10-19');
+    expect(week['Thứ 3']).toBe('2026-10-20');
+    expect(week['Thứ 4']).toBe('2026-10-21');
+    expect(week['Thứ 5']).toBe('2026-10-22');
+    expect(week['Thứ 6']).toBe('2026-10-23');
+    expect(week['Thứ 7']).toBe('2026-10-24');
+    expect(week['Chủ Nhật']).toBe('2026-10-25');
+    expect(formatShortDate('2026-10-22')).toBe('22/10');
   });
 });

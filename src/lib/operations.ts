@@ -54,7 +54,30 @@ export function classRunsOn(c: ClassRoom, date: string): boolean {
 export interface DatedLesson extends TimetableSlot {
   date: string;
   changeId?: string;
+  changeKind?: ScheduleChange['kind'];
   reason?: string;
+  substituteTeacherId?: string;
+  originalTeacherId?: string;
+}
+export function weekDatesForDate(date: string): Record<string, string> {
+  if (!isCalendarDate(date)) return {};
+  const d = new Date(`${date}T00:00:00Z`);
+  const diffToMonday = (d.getUTCDay() + 6) % 7;
+  const monday = addDays(date, -diffToMonday);
+  return {
+    'Thứ 2': monday,
+    'Thứ 3': addDays(monday, 1),
+    'Thứ 4': addDays(monday, 2),
+    'Thứ 5': addDays(monday, 3),
+    'Thứ 6': addDays(monday, 4),
+    'Thứ 7': addDays(monday, 5),
+    'Chủ Nhật': addDays(monday, 6),
+  };
+}
+export function formatShortDate(date: string): string {
+  if (!date || !isCalendarDate(date)) return '';
+  const [, month, day] = date.split('-');
+  return `${day}/${month}`;
 }
 export function lessonsOn(
   date: string,
@@ -77,8 +100,31 @@ export function lessonsOn(
         )
       );
     })
-    .map((slot) => ({ ...slot, date }));
-  for (const change of changes.filter((item) => item.kind !== 'cancel' && item.date === date)) {
+    .map((slot) => {
+      const teacherOff = changes.find(
+        (change) =>
+          change.kind === 'teacher_off' &&
+          change.sourceSlotId === slot.id &&
+          change.date === date,
+      );
+      if (teacherOff) {
+        return {
+          ...slot,
+          date,
+          changeId: teacherOff.id,
+          changeKind: 'teacher_off',
+          reason: teacherOff.reason,
+          originalTeacherId: slot.teacherId,
+          teacherId: teacherOff.substituteTeacherId || slot.teacherId,
+          substituteTeacherId: teacherOff.substituteTeacherId,
+          roomId: teacherOff.roomId || slot.roomId,
+        };
+      }
+      return { ...slot, date };
+    });
+  for (const change of changes.filter(
+    (item) => item.kind !== 'cancel' && item.kind !== 'teacher_off' && item.date === date,
+  )) {
     // Extra/moved sessions can finish a course after its original end date.
     if (classes.some((c) => c.id === change.classId))
       result.push({
@@ -87,6 +133,7 @@ export function lessonsOn(
         date,
         dayOfWeek: weekdayForDate(date),
         changeId: change.id,
+        changeKind: change.kind,
       });
   }
   return result.sort(
@@ -105,7 +152,7 @@ export function validateScheduleChange(
     (change.kind === 'move' && !isCalendarDate(change.sourceDate))
   )
     return 'Nhập ngày học hợp lệ.';
-  if (!change.reason.trim()) return 'Nhập lý do nghỉ, đổi lịch hoặc học bù.';
+  if (!change.reason.trim()) return 'Nhập lý do nghỉ, đổi lịch, dạy thay hoặc học bù.';
   if (!classes.some((c) => c.id === change.classId)) return 'Lớp học không tồn tại.';
   const before = changes.filter((item) => item.id !== change.id);
   const sourceDate = change.kind === 'move' ? change.sourceDate! : change.date;
@@ -120,6 +167,26 @@ export function validateScheduleChange(
       return 'Buổi gốc đã điểm danh; giữ lịch sử và chọn buổi khác.';
   }
   if (change.kind === 'cancel') return null;
+  if (change.kind === 'teacher_off') {
+    if (change.substituteTeacherId) {
+      if (change.substituteTeacherId === change.teacherId) {
+        return 'Giáo viên dạy thay phải khác giáo viên chính của buổi học.';
+      }
+      const candidates = lessonsOn(change.date, classes, slots, before).filter(
+        (item) => item.id !== change.sourceSlotId && item.changeId !== change.id,
+      );
+      const isOverlap = candidates.some((cand) => {
+        if (cand.teacherId !== change.substituteTeacherId) return false;
+        const s1 = timeMinutes(cand.startTime) ?? 0, e1 = timeMinutes(cand.endTime) ?? 0;
+        const s2 = timeMinutes(change.startTime) ?? 0, e2 = timeMinutes(change.endTime) ?? 0;
+        return s1 < e2 && e1 > s2;
+      });
+      if (isOverlap) {
+        return 'Giáo viên dạy thay bị trùng giờ với một ca dạy khác trong ngày.';
+      }
+    }
+    return null;
+  }
   if (attendance.some((item) => item.classId === change.classId && item.date === change.date))
     return 'Ngày mới đã có điểm danh của lớp này.';
   const start = timeMinutes(change.startTime),

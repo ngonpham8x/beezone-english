@@ -22,7 +22,8 @@ import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate } from '../../lib/dates';
-import { validateRecurringChanges } from '../../lib/operations';
+import { validateRecurringChanges, addDays, formatShortDate, weekDatesForDate } from '../../lib/operations';
+import { formatDateForDisplay } from '../../lib/dates';
 import type { AttendanceSession, ScheduleChange, StaffPermissions } from '../../types';
 import { academicPermission } from '../../lib/permissions';
 import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
@@ -81,6 +82,11 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
   const todayDay = days[(new Date(`${centerDate()}T12:00:00`).getDay() + 6) % 7];
   const [selectedDay, setSelectedDay] = useResponsiveView<string>(todayDay, 'all');
+  const [activeDate, setActiveDate] = useState<string>(centerDate);
+  const weekDates = weekDatesForDate(activeDate);
+  const handlePrevWeek = () => setActiveDate(addDays(activeDate, -7));
+  const handleNextWeek = () => setActiveDate(addDays(activeDate, 7));
+  const handleCurrentWeek = () => setActiveDate(centerDate());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const canEdit = isOwner || (permissions ? academicPermission(permissions, 'classes', 'edit') : canManage);
@@ -339,12 +345,60 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             permissions={permissions}
             isOwner={isOwner}
             canManage={canManage}
+            selectedDate={activeDate}
+            onSelectDate={setActiveDate}
             onSave={onSaveChange || (() => 'Chỉ Chủ trung tâm được đổi lịch.')}
             onDelete={onDeleteChange || (() => 'Chỉ Chủ trung tâm được đổi lịch.')}
           />
-          <p className="mt-2 text-xs text-slate-500">
-            Ma trận bên dưới là lịch tuần lặp lại; lịch thực tế phía trên đã tính buổi nghỉ và học bù.
-          </p>
+          {/* Week Navigator & Legend Bar */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs print:hidden">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-700">Tuần giảng dạy:</span>
+              <span className="text-xs font-black text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                {weekDates['Thứ 2'] ? `${formatDateForDisplay(weekDates['Thứ 2'])} – ${formatDateForDisplay(weekDates['Chủ Nhật'])}` : activeDate}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handlePrevWeek}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-600 transition"
+                  title="Tuần trước"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCurrentWeek}
+                  className="px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded border border-slate-300 transition"
+                  title="Về tuần hiện tại"
+                >
+                  Hôm nay
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextWeek}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-600 transition"
+                  title="Tuần sau"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold border border-indigo-200">
+                <span className="w-2 h-2 rounded-full bg-indigo-600" /> Dạy thay
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold border border-rose-200">
+                <span className="w-2 h-2 rounded-full bg-rose-600" /> Nghỉ dạy
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-600" /> Học bù / Thêm ca
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                <span className="w-2 h-2 rounded-full bg-purple-600" /> Đổi lịch
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -461,8 +515,13 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                   Giáo Viên
                 </th>
                 {displayedDays.map((d) => (
-                  <th key={d} className="py-3 px-3 border-r border-amber-500 text-center min-w-[135px]">
-                    {d}
+                  <th key={d} aria-label={d} className="py-3 px-3 border-r border-amber-500 text-center min-w-[135px]">
+                    <div>{d}</div>
+                    {weekDates[d] && (
+                      <div className="text-[10px] font-normal text-slate-900">
+                        {formatShortDate(weekDates[d])}
+                      </div>
+                    )}
                   </th>
                 ))}
               </tr>
@@ -481,13 +540,21 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                   </td>
 
                   {displayedDays.map((day) => {
+                    const currentDayDate = weekDates[day];
                     const slots = timetableSlots.filter(
                       (s) => s.teacherId === teacher.id && s.dayOfWeek === day,
                     );
+                    const substituteSessions = (scheduleChanges || []).filter(
+                      (c) => c.kind === 'teacher_off' && c.substituteTeacherId === teacher.id && c.date === currentDayDate,
+                    );
+                    const extraSessions = (scheduleChanges || []).filter(
+                      (c) => (c.kind === 'extra' || c.kind === 'move') && c.teacherId === teacher.id && c.date === currentDayDate,
+                    );
+                    const isEmpty = slots.length === 0 && substituteSessions.length === 0 && extraSessions.length === 0;
 
                     return (
                       <td key={day} className="group/cell p-2 border-r border-slate-300 align-top h-24 min-w-[135px]">
-                        {slots.length === 0 ? (
+                        {isEmpty ? (
                           <div className="min-h-[60px] flex flex-col items-center justify-center">
                             <span className="text-[10px] text-slate-300 italic group-hover/cell:hidden">-</span>
                             {canAdd && onAddSlot && (
@@ -502,9 +569,64 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                           </div>
                         ) : (
                           <div className="space-y-1.5">
+                            {/* Regular slots with exceptions */}
                             {slots.map((s) => {
                               const cls = classes.find((c) => c.id === s.classId);
                               const room = rooms.find((r) => r.id === s.roomId);
+                              const cancelChange = (scheduleChanges || []).find(
+                                (c) => c.sourceSlotId === s.id && c.kind === 'cancel' && c.date === currentDayDate,
+                              );
+                              const teacherOffChange = (scheduleChanges || []).find(
+                                (c) => c.sourceSlotId === s.id && c.kind === 'teacher_off' && c.date === currentDayDate,
+                              );
+                              const moveChange = (scheduleChanges || []).find(
+                                (c) => c.sourceSlotId === s.id && c.kind === 'move' && c.sourceDate === currentDayDate,
+                              );
+
+                              if (cancelChange) {
+                                return (
+                                  <div key={s.id} className="p-2 bg-rose-50 border border-rose-300 rounded-lg text-[10px] shadow-2xs">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="font-bold font-mono text-rose-900 line-through">{cls?.code || 'LỚP'} ({s.startTime}–{s.endTime})</span>
+                                      <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-rose-600 text-white shrink-0">Lớp nghỉ</span>
+                                    </div>
+                                    <div className="text-slate-600 truncate mt-0.5">{cls?.name}</div>
+                                    <div className="text-rose-700 italic mt-0.5 truncate text-[9px]">Lý do: {cancelChange.reason}</div>
+                                  </div>
+                                );
+                              }
+
+                              if (teacherOffChange) {
+                                const subTeacher = teachers.find((t) => t.id === teacherOffChange.substituteTeacherId);
+                                return (
+                                  <div key={s.id} className="p-2 bg-rose-50/80 border border-rose-300 rounded-lg text-[10px] shadow-2xs">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="font-bold font-mono text-rose-900 line-through">{cls?.code || 'LỚP'} ({s.startTime}–{s.endTime})</span>
+                                      <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-rose-600 text-white shrink-0">Nghỉ dạy</span>
+                                    </div>
+                                    <div className="text-slate-700 truncate mt-0.5">{cls?.name}</div>
+                                    {subTeacher ? (
+                                      <div className="text-indigo-800 font-semibold mt-0.5 text-[9px] truncate">Thay bởi: {subTeacher.name}</div>
+                                    ) : (
+                                      <div className="text-rose-700 font-medium mt-0.5 text-[9px]">Chưa xếp dạy thay</div>
+                                    )}
+                                    <div className="text-slate-500 italic mt-0.5 truncate text-[9px]">Lý do: {teacherOffChange.reason}</div>
+                                  </div>
+                                );
+                              }
+
+                              if (moveChange) {
+                                return (
+                                  <div key={s.id} className="p-2 bg-amber-50 border border-amber-300 rounded-lg text-[10px] shadow-2xs">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="font-bold font-mono text-amber-900 line-through">{cls?.code || 'LỚP'} ({s.startTime}–{s.endTime})</span>
+                                      <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-amber-600 text-white shrink-0">Đổi lịch</span>
+                                    </div>
+                                    <div className="text-slate-700 truncate mt-0.5">{cls?.name}</div>
+                                    <div className="text-amber-800 font-semibold mt-0.5 text-[9px] truncate">Chuyển sang: {formatDateForDisplay(moveChange.date)}</div>
+                                  </div>
+                                );
+                              }
 
                               return (
                                 <div
@@ -545,6 +667,72 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                     <DoorOpen className="w-3 h-3" />
                                     <span>{room?.name || 'Chưa xếp phòng'}</span>
                                   </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Substitute sessions for THIS teacher */}
+                            {substituteSessions.map((sub) => {
+                              const cls = classes.find((c) => c.id === sub.classId);
+                              const room = rooms.find((r) => r.id === sub.roomId);
+                              const origTeacher = teachers.find((t) => t.id === sub.teacherId);
+
+                              return (
+                                <div
+                                  key={sub.id}
+                                  className="group/slot relative p-2 bg-indigo-50/95 hover:bg-indigo-100/95 border border-indigo-400 rounded-lg text-[10px] shadow-2xs transition-colors"
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="font-bold font-mono text-indigo-950">
+                                      {cls?.code || 'LỚP'} ({sub.startTime}–{sub.endTime})
+                                    </div>
+                                    <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-indigo-700 text-white shrink-0">🔄 DẠY THAY</span>
+                                  </div>
+                                  <div className="text-indigo-950 font-bold truncate mt-0.5">{cls?.name || 'Lớp học'}</div>
+                                  <div className="text-indigo-900 font-semibold mt-0.5 text-[9px] truncate">
+                                    Thay cho: <span className="underline">{origTeacher?.name || 'GV chính'}</span>
+                                  </div>
+                                  <div className="text-blue-800 font-bold mt-0.5 flex items-center gap-1">
+                                    <DoorOpen className="w-3 h-3 text-blue-600" />
+                                    <span>{room?.name || 'Chưa xếp phòng'}</span>
+                                  </div>
+                                  <div className="text-slate-600 italic mt-0.5 text-[9px] truncate">Lý do: {sub.reason}</div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Extra / Makeup or Rescheduled sessions for THIS teacher */}
+                            {extraSessions.map((extra) => {
+                              const cls = classes.find((c) => c.id === extra.classId);
+                              const room = rooms.find((r) => r.id === extra.roomId);
+                              const isExtra = extra.kind === 'extra';
+
+                              return (
+                                <div
+                                  key={extra.id}
+                                  className={`group/slot relative p-2 rounded-lg text-[10px] shadow-2xs transition-colors border ${
+                                    isExtra ? 'bg-emerald-50/95 hover:bg-emerald-100/95 border-emerald-400 text-emerald-950' : 'bg-purple-50/95 hover:bg-purple-100/95 border-purple-400 text-purple-950'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="font-bold font-mono">
+                                      {cls?.code || 'LỚP'} ({extra.startTime}–{extra.endTime})
+                                    </div>
+                                    <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold text-white shrink-0 ${
+                                      isExtra ? 'bg-emerald-700' : 'bg-purple-700'
+                                    }`}>
+                                      {isExtra ? '✨ Học bù' : '✨ Đổi lịch'}
+                                    </span>
+                                  </div>
+                                  <div className="font-bold truncate mt-0.5">{cls?.name || 'Lớp học'}</div>
+                                  {!isExtra && extra.sourceDate && (
+                                    <div className="text-[9px] text-purple-800 truncate">Từ ngày: {formatDateForDisplay(extra.sourceDate)}</div>
+                                  )}
+                                  <div className="text-blue-800 font-bold mt-0.5 flex items-center gap-1">
+                                    <DoorOpen className="w-3 h-3 text-blue-600" />
+                                    <span>{room?.name || 'Chưa xếp phòng'}</span>
+                                  </div>
+                                  <div className="text-slate-600 italic mt-0.5 text-[9px] truncate">Lý do: {extra.reason}</div>
                                 </div>
                               );
                             })}

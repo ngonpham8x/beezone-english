@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TodayTasks } from '../src/modules/dashboard/TodayTasks';
 import { ScheduleChangesManager } from '../src/modules/timetable/ScheduleChangesManager';
+import { TimetableManager } from '../src/modules/timetable/TimetableManager';
+import { TeacherScheduleMatrix } from '../src/modules/timetable/TeacherScheduleMatrix';
 import { TuitionDuePanel } from '../src/modules/tuition/TuitionDuePanel';
 import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
 import { ClassManager } from '../src/modules/classes/ClassManager';
@@ -339,4 +341,95 @@ it('rejects an invalid course period before changing class or recurring schedule
   expect(onUpdate).not.toHaveBeenCalled();
   expect(onReplace).not.toHaveBeenCalled();
   expect(screen.getByRole('alert').textContent).toContain('Ngày kết thúc');
+});
+
+it('saves a teacher off adjustment with substitute teacher selection', () => {
+  const onSave = vi.fn(() => null);
+  const teachers = [
+    { id: slot.teacherId, name: 'Cô A', phone: '', address: '', email: '', specialty: 'Tiếng Anh', assignedClassIds: [] },
+    { id: 'sub_1', name: 'Thầy B', phone: '', address: '', email: '', specialty: 'Tiếng Anh', assignedClassIds: [] },
+  ];
+  render(
+    <ScheduleChangesManager
+      classes={[classroom]}
+      slots={[slot]}
+      changes={[]}
+      attendance={[]}
+      teachers={teachers}
+      rooms={initial.initialRooms}
+      isOwner
+      onSave={onSave}
+      onDelete={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Nghỉ / đổi / học bù' }));
+  fireEvent.change(screen.getByLabelText('Loại điều chỉnh'), { target: { value: 'teacher_off' } });
+  expect(screen.getByText('Cô A')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Giáo viên dạy thay'), { target: { value: 'sub_1' } });
+  fireEvent.change(screen.getByLabelText('Lý do điều chỉnh'), { target: { value: 'Cô A bận việc riêng' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu điều chỉnh' }));
+  expect(onSave).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'teacher_off',
+      date: '2026-10-13',
+      sourceSlotId: 'slot',
+      teacherId: slot.teacherId,
+      substituteTeacherId: 'sub_1',
+      reason: 'Cô A bận việc riêng',
+    }),
+  );
+});
+
+it('displays teacher off and substitute badges in TimetableManager and TeacherScheduleMatrix', () => {
+  const teachers = [
+    { id: slot.teacherId, name: 'Cô A', phone: '', address: '', email: '', specialty: 'Tiếng Anh', assignedClassIds: [] },
+    { id: 'sub_1', name: 'Thầy B', phone: '', address: '', email: '', specialty: 'Tiếng Anh', assignedClassIds: [] },
+  ];
+  const changes = [
+    {
+      id: 'sc-1',
+      classId: classroom.id,
+      kind: 'teacher_off' as const,
+      date: '2026-10-13',
+      sourceSlotId: slot.id,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      teacherId: slot.teacherId,
+      substituteTeacherId: 'sub_1',
+      roomId: slot.roomId,
+      reason: 'Cô A bận việc riêng',
+    },
+  ];
+
+  // 1. TimetableManager shows substitute teacher line and badge
+  const { unmount } = render(
+    <TimetableManager
+      timetableSlots={[slot]}
+      scheduleChanges={changes}
+      classes={[classroom]}
+      teachers={teachers}
+      rooms={initial.initialRooms}
+      isOwner
+      onAddSlot={vi.fn()}
+      onUpdateSlot={vi.fn()}
+      onDeleteSlot={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText(/Dạy thay/i).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Thầy B/)).toBeTruthy();
+  unmount();
+
+  // 2. TeacherScheduleMatrix shows substitute session under Thầy B's row
+  render(
+    <TeacherScheduleMatrix
+      teachers={teachers}
+      timetableSlots={[slot]}
+      classes={[classroom]}
+      rooms={initial.initialRooms}
+      scheduleChanges={changes}
+      isOwner
+    />,
+  );
+  expect(screen.getByText('🔄 DẠY THAY')).toBeTruthy();
+  expect(screen.getByText(/Thay cho:/)).toBeTruthy();
 });

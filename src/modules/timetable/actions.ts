@@ -138,6 +138,8 @@ export function createScheduleActions({
       (!teachers.some((t) => t.id === change.teacherId) || !room || room.status !== 'available')
     )
       return 'Giáo viên hoặc phòng không còn sẵn sàng.';
+    if (change.substituteTeacherId && !teachers.some((t) => t.id === change.substituteTeacherId))
+      return 'Giáo viên dạy thay không tồn tại.';
     setScheduleChanges((prev) => [...prev.filter((item) => item.id !== change.id), change]);
     addLog('SỬA', 'Lịch theo ngày', change.kind + ': ' + change.date + ' · ' + change.reason);
     toast.success('Đã lưu thay đổi lịch học thành công!');

@@ -18,7 +18,8 @@ import React, { useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { useResponsiveView } from '../../hooks/useResponsive';
-import { validateRecurringChanges } from '../../lib/operations';
+import { validateRecurringChanges, addDays, formatShortDate, weekDatesForDate } from '../../lib/operations';
+import { centerDate, formatDateForDisplay } from '../../lib/dates';
 import type { AttendanceSession, ScheduleChange, StaffPermissions } from '../../types';
 import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
@@ -69,6 +70,11 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 }) => {
   const [viewMode, setViewMode] = useResponsiveView('day', 'week');
   const [selectedDay, setSelectedDay] = useState<string>('Thứ 2');
+  const [activeDate, setActiveDate] = useState<string>(centerDate);
+  const weekDates = weekDatesForDate(activeDate);
+  const handlePrevWeek = () => setActiveDate(addDays(activeDate, -7));
+  const handleNextWeek = () => setActiveDate(addDays(activeDate, 7));
+  const handleCurrentWeek = () => setActiveDate(centerDate());
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
@@ -103,6 +109,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
     '18:00 - 19:30',
     '19:30 - 21:00',
     ...timetableSlots.map((slot) => `${slot.startTime} - ${slot.endTime}`),
+    ...scheduleChanges.map((change) => `${change.startTime} - ${change.endTime}`),
   ])].sort((left, right) => left.localeCompare(right));
 
   // Conflict Detection Engine
@@ -376,6 +383,11 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                 }`}
               >
                 <span>{day}</span>
+                {weekDates[day] && (
+                  <span className="text-[10px] text-slate-500 font-normal">(
+                    {formatShortDate(weekDates[day])}
+                  )</span>
+                )}
                 {count > 0 && (
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                     isSelected ? 'bg-slate-950 text-white' : 'bg-amber-100 text-amber-900'
@@ -411,7 +423,72 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         )}
       </div>
 
-      {onSaveChange && onDeleteChange && <ScheduleChangesManager classes={classes} slots={timetableSlots} changes={scheduleChanges} teachers={teachers} rooms={rooms} attendance={attendanceSessions} isOwner={isOwner} canManage={canEdit} permissions={permissions} onSave={onSaveChange} onDelete={onDeleteChange} />}
+      {onSaveChange && onDeleteChange && (
+        <ScheduleChangesManager
+          classes={classes}
+          slots={timetableSlots}
+          changes={scheduleChanges}
+          teachers={teachers}
+          rooms={rooms}
+          attendance={attendanceSessions}
+          isOwner={isOwner}
+          canManage={canEdit}
+          permissions={permissions}
+          selectedDate={activeDate}
+          onSelectDate={setActiveDate}
+          onSave={onSaveChange}
+          onDelete={onDeleteChange}
+        />
+      )}
+      {/* Dynamic Week Indicator & Legend */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-700">Tuần đang xem:</span>
+          <span className="text-xs font-black text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+            {weekDates['Thứ 2'] ? `${formatDateForDisplay(weekDates['Thứ 2'])} – ${formatDateForDisplay(weekDates['Chủ Nhật'])}` : activeDate}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handlePrevWeek}
+              className="p-1 hover:bg-slate-100 rounded text-slate-600 transition"
+              title="Tuần trước"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCurrentWeek}
+              className="px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded border border-slate-300 transition"
+              title="Về tuần hiện tại"
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={handleNextWeek}
+              className="p-1 hover:bg-slate-100 rounded text-slate-600 transition"
+              title="Tuần sau"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold border border-rose-200">
+            <span className="w-2 h-2 rounded-full bg-rose-600" /> Lớp nghỉ
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold border border-indigo-200">
+            <span className="w-2 h-2 rounded-full bg-indigo-600" /> Dạy thay
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-600" /> Học bù
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold border border-purple-200">
+            <span className="w-2 h-2 rounded-full bg-purple-600" /> Đổi lịch
+          </span>
+        </div>
+      </div>
       <p className="text-xs text-slate-500">Lịch tuần bên dưới là lịch lặp lại. Xem lịch thực tế phía trên để biết buổi nghỉ, đổi lịch và học bù.</p>
       {/* TIMETABLE GRID TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -423,8 +500,13 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                   Ca Học / Giờ
                 </th>
                 {(viewMode === 'week' ? daysOfWeek : [selectedDay]).map((day) => (
-                  <th key={day} className="py-3 px-2 border-b border-slate-700 text-center">
-                    {day}
+                  <th key={day} aria-label={day} className="py-3 px-2 border-b border-slate-700 text-center">
+                    <div>{day}</div>
+                    {weekDates[day] && (
+                      <div className="text-[10px] font-normal text-amber-300">
+                        {formatShortDate(weekDates[day])}
+                      </div>
+                    )}
                   </th>
                 ))}
               </tr>
@@ -443,22 +525,104 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                     </td>
 
                     {(viewMode === 'week' ? daysOfWeek : [selectedDay]).map((day) => {
+                      const currentDayDate = weekDates[day];
                       const matchedSlots = timetableSlots.filter(
                         s => s.dayOfWeek === day && s.startTime === start
                       );
+                      const incomingChanges = scheduleChanges.filter(
+                        c => (c.kind === 'extra' || c.kind === 'move') &&
+                             c.date === currentDayDate &&
+                             c.startTime === start
+                      );
+                      const isEmpty = matchedSlots.length === 0 && incomingChanges.length === 0;
 
                       return (
                         <td key={day} className="p-1.5 border-r border-slate-100 align-top h-28">
-                          {matchedSlots.length === 0 ? (
+                          {isEmpty ? (
                             <div className="h-full border border-dashed border-slate-200 rounded-xl flex items-center justify-center text-[10px] text-slate-300">
                               Trống ca
                             </div>
                           ) : (
                             <div className="space-y-1.5">
+                              {/* Regular recurring slots with exception handling */}
                               {matchedSlots.map((slot) => {
                                 const cls = classes.find(c => c.id === slot.classId);
                                 const teacher = teachers.find(t => t.id === slot.teacherId);
                                 const room = rooms.find(r => r.id === slot.roomId);
+
+                                const cancelChange = scheduleChanges.find(
+                                  c => c.sourceSlotId === slot.id && c.kind === 'cancel' && c.date === currentDayDate
+                                );
+                                const moveChange = scheduleChanges.find(
+                                  c => c.sourceSlotId === slot.id && c.kind === 'move' && c.sourceDate === currentDayDate
+                                );
+                                const teacherOffChange = scheduleChanges.find(
+                                  c => c.sourceSlotId === slot.id && c.kind === 'teacher_off' && c.date === currentDayDate
+                                );
+
+                                if (cancelChange) {
+                                  return (
+                                    <div key={slot.id} className="p-2 bg-rose-50 border border-rose-300 rounded-xl shadow-2xs relative text-[11px]">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="font-bold text-rose-900 line-through truncate">{cls?.name || 'Lớp học'}</span>
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-600 text-white shrink-0">Lớp nghỉ</span>
+                                      </div>
+                                      <div className="text-[10px] text-rose-700 mt-1 italic">
+                                        Lý do: {cancelChange.reason}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">
+                                        {teacher?.name} · {room?.name}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                if (moveChange) {
+                                  return (
+                                    <div key={slot.id} className="p-2 bg-amber-50 border border-amber-300 rounded-xl shadow-2xs relative text-[11px]">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="font-bold text-amber-900 line-through truncate">{cls?.name || 'Lớp học'}</span>
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-600 text-white shrink-0">Đổi lịch</span>
+                                      </div>
+                                      <div className="text-[10px] text-amber-900 font-semibold mt-1">
+                                        Chuyển sang: {formatDateForDisplay(moveChange.date)} ({moveChange.startTime}–{moveChange.endTime})
+                                      </div>
+                                      <div className="text-[10px] text-slate-600 mt-0.5 italic truncate">
+                                        Lý do: {moveChange.reason}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                if (teacherOffChange) {
+                                  const subTeacher = teachers.find(t => t.id === teacherOffChange.substituteTeacherId);
+                                  return (
+                                    <div key={slot.id} className="p-2 bg-indigo-50 border border-indigo-300 rounded-xl shadow-2xs relative text-[11px]">
+                                      <div className="flex items-center justify-between gap-1 font-bold text-indigo-950">
+                                        <span className="truncate">{cls?.name || 'Lớp học'}</span>
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-600 text-white shrink-0">
+                                          {subTeacher ? 'Dạy thay' : 'GV nghỉ'}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] mt-1 space-y-0.5">
+                                        {subTeacher ? (
+                                          <div className="text-indigo-900 font-bold flex items-center gap-1">
+                                            <UserCheck className="w-3 h-3 text-indigo-600 shrink-0" />
+                                            <span className="truncate">Dạy thay: {subTeacher.name}</span>
+                                          </div>
+                                        ) : (
+                                          <div className="text-rose-700 font-bold">Chưa xếp GV dạy thay</div>
+                                        )}
+                                        <div className="text-slate-500 text-[9px]">(GV chính: {teacher?.name} nghỉ)</div>
+                                        <div className="text-blue-800 font-semibold flex items-center gap-1">
+                                          <DoorOpen className="w-3 h-3 text-blue-600 shrink-0" />
+                                          <span className="truncate">{rooms.find(r => r.id === teacherOffChange.roomId)?.name || room?.name}</span>
+                                        </div>
+                                        <div className="text-slate-600 italic text-[9px] truncate">Lý do: {teacherOffChange.reason}</div>
+                                      </div>
+                                    </div>
+                                  );
+                                }
 
                                 return (
                                   <div
@@ -482,6 +646,43 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                                       <div className="flex items-center gap-1 font-semibold text-blue-800">
                                         <DoorOpen className="w-3 h-3 text-blue-600 flex-shrink-0" /> <span className="truncate">{room?.name}</span>
                                       </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Incoming extra / makeup or rescheduled sessions */}
+                              {incomingChanges.map((inc) => {
+                                const incCls = classes.find(c => c.id === inc.classId);
+                                const incTeacher = teachers.find(t => t.id === inc.teacherId);
+                                const incRoom = rooms.find(r => r.id === inc.roomId);
+                                const isExtra = inc.kind === 'extra';
+
+                                return (
+                                  <div
+                                    key={inc.id}
+                                    className={`p-2 rounded-xl shadow-2xs relative text-[11px] border ${
+                                      isExtra ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-purple-50 border-purple-300 text-purple-950'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-1 font-bold">
+                                      <span className="truncate">{incCls?.name || 'Lớp học'}</span>
+                                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold text-white shrink-0 ${
+                                        isExtra ? 'bg-emerald-600' : 'bg-purple-600'
+                                      }`}>
+                                        {isExtra ? 'Học bù' : 'Đổi lịch'}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] mt-1 space-y-0.5">
+                                      <div className="flex items-center gap-1 font-medium">
+                                        <UserCheck className="w-3 h-3 text-slate-600 shrink-0" />
+                                        <span className="truncate">{incTeacher?.name || 'Chưa có GV'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 font-semibold text-blue-800">
+                                        <DoorOpen className="w-3 h-3 text-blue-600 shrink-0" />
+                                        <span className="truncate">{incRoom?.name || 'Chưa xếp phòng'}</span>
+                                      </div>
+                                      <div className="text-slate-600 italic text-[9px] truncate">Lý do: {inc.reason}</div>
                                     </div>
                                   </div>
                                 );
