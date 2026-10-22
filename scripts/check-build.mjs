@@ -8,6 +8,11 @@ for (const filename of readdirSync(assets).filter(name => name.endsWith('.js')))
 }
 console.log('Production bundle: no preview authentication code.');
 const html = readFileSync(resolve('dist/index.html'), 'utf8');
+const worker = readFileSync(resolve('dist/sw.js'), 'utf8');
+if (worker.includes('beezone-english-v4-source') || worker.includes('const APP_ASSETS_TO_CACHE = [];')) throw new Error('Service worker asset manifest was not prepared.');
+for (const filename of readdirSync(assets).filter(name => /\.(js|css|png|jpe?g|svg|webp|woff2?)$/i.test(name))) {
+  if (!worker.includes(JSON.stringify(`/assets/${filename}`))) throw new Error(`Service worker missing release asset: ${filename}`);
+}
 for (const [, attributes, content] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
   if (!/\bsrc\s*=/.test(attributes) && content.trim()) throw new Error('CSP rejects executable inline scripts in the production shell.');
 }

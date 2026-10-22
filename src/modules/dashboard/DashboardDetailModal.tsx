@@ -1,9 +1,10 @@
-import { studentClassIds } from '../../lib/studentClasses';
+import { isStudentInClass, studentClassIds } from '../../lib/studentClasses';
 import { formatRoomCode } from '../../lib/identifiers';
 import { ArrowLeft, ArrowRight, ChevronRight, ReceiptText, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import {
+  classTuitionDebtBreakdown,
   debtBreakdown,
   getReceiptPaymentEntries,
   isStudentOwingTuition,
@@ -11,6 +12,7 @@ import {
   paymentKindOf,
   paymentMethodLabel,
   paymentPeriodLabel,
+  studentTuitionDebtBreakdown,
 } from '../../lib/tuition';
 import { ClassRoom, CourseProgram, Room, Student, Teacher, TuitionReceipt } from '../../types';
 
@@ -84,7 +86,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     reserved: students.filter((student) => student.status === 'reserved'),
     dropped: students.filter((student) => student.status === 'dropped'),
     debt: students.filter((student) => isStudentOwingTuition(student, receipts, classes)),
-    paid: students.filter((student) => student.feeStatus === 'paid')
+    paid: students.filter((student) => student.feeStatus === 'paid' && !isStudentOwingTuition(student, receipts, classes))
   };
 
   const detailStudentTitle: Partial<Record<DashboardDetailType, string>> = {
@@ -110,12 +112,11 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
   const revenueClassRows = useMemo(() => classes.map((classroom) => {
     const classEntries = visibleEntries.filter((entry) => entry.classId === classroom.id);
     const classReceipts = [...new Set(classEntries.map((e) => e.receipt))];
-    const allClassReceipts = receipts.filter((receipt) => receipt.classId === classroom.id);
     return {
       classroom,
       receipts: classReceipts,
       paidAmount: classEntries.reduce((sum, entry) => sum + entry.amount, 0),
-      debt: debtBreakdown(allClassReceipts),
+      debt: classTuitionDebtBreakdown(classroom, students, receipts, programs),
       studentCount: new Set(classEntries.map((entry) => entry.studentId)).size
     };
   }).filter((row) => row.receipts.length > 0 || row.paidAmount > 0).sort((a, b) => b.paidAmount - a.paidAmount), [classes, visibleEntries, receipts]);
@@ -137,7 +138,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     });
     return [...groupedStudents.values()].map((row) => ({
       ...row,
-      debt: debtBreakdown(receipts.filter(r => r.studentId === row.student?.id))
+      debt: row.student ? studentTuitionDebtBreakdown(row.student, receipts, programs, classes) : debtBreakdown(receipts.filter(r => r.studentId === row.student?.id))
     })).sort((a, b) => b.paidAmount - a.paidAmount);
   })() : [];
 
@@ -147,25 +148,33 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     : [], [debtKind, receipts]);
   const debtClassRows = useMemo(() => classes.map((classroom) => {
     const classReceipts = debtReceipts.filter((receipt) => receipt.classId === classroom.id);
+    const amountFor = (student: Student) => classTuitionDebtBreakdown(
+      classroom, [student], receipts.filter(receipt => receipt.studentId === student.id), programs,
+    )[debtKind!];
+    const unbilledStudents = students.filter(student => isStudentInClass(student, classroom.id) &&
+      !classReceipts.some(receipt => receipt.studentId === student.id) && amountFor(student) > 0);
     return {
       classroom,
       receipts: classReceipts,
-      debtAmount: classReceipts.reduce((sum, receipt) => sum + receipt.debtAmount, 0),
-      studentCount: new Set(classReceipts.map((receipt) => receipt.studentId)).size
+      debtAmount: debtKind ? classTuitionDebtBreakdown(classroom, students, receipts, programs)[debtKind] : 0,
+      studentCount: new Set([...classReceipts.map(receipt => receipt.studentId), ...unbilledStudents.map(student => student.id)]).size,
     };
-  }).filter((row) => row.receipts.length > 0).sort((a, b) => b.debtAmount - a.debtAmount), [classes, debtReceipts]);
+  }).filter((row) => row.debtAmount > 0).sort((a, b) => b.debtAmount - a.debtAmount), [classes, debtReceipts, debtKind, students, receipts, programs]);
   const selectedDebtClass = debtClassRows.find((row) => row.classroom.id === selectedDebtClassId) ?? null;
   const debtStudentRows = selectedDebtClass ? (() => {
-    const groupedStudents = new Map<string, { student: Student | undefined; receipts: TuitionReceipt[] }>();
-    selectedDebtClass.receipts.forEach((receipt) => {
-      const group = groupedStudents.get(receipt.studentId) ?? { student: studentById.get(receipt.studentId), receipts: [] };
-      group.receipts.push(receipt);
-      groupedStudents.set(receipt.studentId, group);
-    });
-    return [...groupedStudents.values()].map((row) => ({
-      ...row,
-      debtAmount: row.receipts.reduce((sum, receipt) => sum + receipt.debtAmount, 0)
-    })).sort((a, b) => b.debtAmount - a.debtAmount);
+    const classroom = selectedDebtClass.classroom;
+    const ids = new Set([
+      ...selectedDebtClass.receipts.map(receipt => receipt.studentId),
+      ...students.filter(student => isStudentInClass(student, classroom.id)).map(student => student.id),
+    ]);
+    return [...ids].map(id => {
+      const student = studentById.get(id);
+      const studentReceipts = selectedDebtClass.receipts.filter(receipt => receipt.studentId === id);
+      const debtAmount = student && debtKind
+        ? classTuitionDebtBreakdown(classroom, [student], receipts.filter(receipt => receipt.studentId === id), programs)[debtKind]
+        : studentReceipts.reduce((sum, receipt) => sum + receipt.debtAmount, 0);
+      return { student, receipts: studentReceipts, debtAmount };
+    }).filter(row => row.debtAmount > 0).sort((a, b) => b.debtAmount - a.debtAmount);
   })() : [];
 
   if (!detail) return null;
@@ -263,8 +272,8 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                   const classRoom = classById.get(student.classId);
                   const program = programById.get(student.programId);
                   const statusLabel = student.status === 'active' ? 'Đang học' : student.status === 'dropped' ? 'Nghỉ học' : 'Bảo lưu';
-                  const debt = debtBreakdown(receipts.filter((receipt) => receipt.studentId === student.id));
-                  const feeLabel = debt.total > 0 ? 'Đóng thiếu' : student.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa đóng';
+                  const debt = studentTuitionDebtBreakdown(student, receipts, programs, classes);
+                  const feeLabel = student.feeStatus === 'unpaid' ? 'Chưa đóng' : debt.total > 0 ? 'Đóng thiếu' : student.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa đóng';
                   return (
                     <tr key={student.id} className="hover:bg-slate-50">
                       <td className="px-3 py-3 font-semibold text-slate-700">{student.code}</td>
@@ -414,7 +423,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                   {debtStudentRows.map(({ student, receipts: studentReceipts, debtAmount }) => (
                     <article key={student?.id ?? studentReceipts[0]?.studentId} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0"><p className="truncate font-extrabold text-slate-900">{student?.name ?? 'Học sinh đã xóa'}</p><p className="mt-0.5 text-[11px] text-slate-500">{student?.code || 'Chưa có mã'} · {studentReceipts.length} khoản chưa đủ</p></div>
+                        <div className="min-w-0"><p className="truncate font-extrabold text-slate-900">{student?.name ?? 'Học sinh đã xóa'}</p><p className="mt-0.5 text-[11px] text-slate-500">{student?.code || 'Chưa có mã'} · {studentReceipts.length ? `${studentReceipts.length} khoản chưa đủ` : 'Chưa lập phiếu'}</p></div>
                         <p className="shrink-0 text-sm font-extrabold text-rose-700">{formatCurrency(debtAmount)}</p>
                       </div>
                       <div className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-100 text-xs">

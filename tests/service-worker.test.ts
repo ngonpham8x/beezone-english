@@ -22,6 +22,27 @@ it('keeps an open version working when a deployment removes its cached chunk', a
   const test = worker(new Response('Not found', { status: 404 }), cached);
   expect(await (await test.request('/assets/StudentManager-old.js'))!.text()).toBe('old version module');
 });
+it('uses the exact cached module when an SPA rewrite responds with HTML', async () => {
+  const cached = new Response('old version module', { headers: { 'Content-Type': 'application/javascript' } });
+  const test = worker(new Response('<html>new version</html>', { headers: { 'Content-Type': 'text/html' } }), cached);
+  expect(await (await test.request('/assets/StudentManager-old.js'))!.text()).toBe('old version module');
+});
+it('preloads every release chunk during installation, including unopened pages', async () => {
+  const listeners: Record<string, (event: any) => void> = {};
+  const addAll = vi.fn(async (_paths: string[]) => {});
+  const source = readFileSync('public/sw.js', 'utf8').replace('const APP_ASSETS_TO_CACHE = [];',
+    'const APP_ASSETS_TO_CACHE = ["/assets/Dashboard-old.js", "/assets/Tuition-old.js"];');
+  runInNewContext(source, {
+    self: { location: { origin: 'https://example.test' }, addEventListener: (type: string, fn: any) => { listeners[type] = fn; } },
+    caches: { open: async () => ({ addAll }), keys: async () => [] }, fetch: vi.fn(), URL, Response,
+  });
+  let pending: Promise<unknown> | undefined;
+  listeners.install({ waitUntil: (promise: Promise<unknown>) => { pending = promise; } });
+  await pending;
+  expect(addAll).toHaveBeenCalledOnce();
+  expect(addAll.mock.calls[0][0]).toContain('/assets/Dashboard-old.js');
+  expect(addAll.mock.calls[0][0]).toContain('/assets/Tuition-old.js');
+});
 it('preserves a missing asset response when that exact asset is not cached', async () => {
   const test = worker(new Response('Not found', { status: 404 }));
   expect((await test.request('/assets/StudentManager-old.js'))!.status).toBe(404);

@@ -397,6 +397,7 @@ export function WorkspaceScreens({
           students={students}
           teachers={teachers}
           classes={classes}
+          programs={programs}
           receipts={billingReceipts}
           onNavigateTab={navigateTo}
         />

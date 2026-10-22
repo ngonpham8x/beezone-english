@@ -27,7 +27,7 @@ import {
 } from 'recharts';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
-import { debtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition, unbilledTuitionForStudents } from '../../lib/tuition';
+import { classTuitionDebtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition, studentTuitionDebtBreakdown, totalTuitionDebtBreakdown, unbilledTuitionForStudents } from '../../lib/tuition';
 import type { AttendanceSession, ScheduleChange, TimetableSlot } from '../../types';
 import {
   ClassRoom,
@@ -90,12 +90,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   const activeStudents = students.filter((student) => student.status === 'active');
   const reservedStudents = students.filter((student) => student.status === 'reserved');
   const droppedStudents = students.filter((student) => student.status === 'dropped');
-  const paidStudents = students.filter((student) => student.feeStatus === 'paid');
+  const paidStudents = students.filter((student) => student.feeStatus === 'paid' && !isStudentOwingTuition(student, receipts, classes));
   const debtStudents = students.filter((student) => isStudentOwingTuition(student, receipts, classes));
   const unbilledActiveTuition = unbilledTuitionForStudents(students, receipts, programs, classes);
   const totalCollected = receipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0);
-  const totalDebtBreakdown = debtBreakdown(receipts);
-  const totalDebt = totalDebtBreakdown.total + unbilledActiveTuition;
+  const totalDebtBreakdown = totalTuitionDebtBreakdown(students, receipts, programs, classes);
+  const totalDebt = totalDebtBreakdown.total;
   const totalDue = totalCollected + totalDebt;
   const collectionRate = totalDue > 0
     ? Math.round((totalCollected / totalDue) * 100)
@@ -140,18 +140,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   ] : []);
   const classMonthlyData = (showRevenue ? classes : []).map((classroom) => {
     const monthClassEntries = paymentEntries.filter((entry) => entry.classId === classroom.id && entry.monthKey === latestReceiptMonth);
-    const classAllReceipts = receipts.filter((receipt) => receipt.classId === classroom.id);
     return {
       classroom,
       collected: monthClassEntries.reduce((sum, entry) => sum + entry.amount, 0),
-      debt: debtBreakdown(classAllReceipts)
+      debt: classTuitionDebtBreakdown(classroom, students, receipts, programs)
     };
   }).sort((a, b) => b.collected - a.collected || b.debt.total - a.debt.total);
   const studentRows = (canViewStudents ? students : []).slice(0, 8).map((student) => ({
     ...student,
     classroom: classById.get(student.classId),
     program: programById.get(student.programId),
-    debt: debtBreakdown(receipts.filter((receipt) => receipt.studentId === student.id))
+    debt: studentTuitionDebtBreakdown(student, receipts, programs, classes)
   }));
 
   const Card = ({ label, value, icon: Icon, color, detail, subtitle }: { label: string; value: string | number; icon: React.ElementType; color: string; detail: DashboardDetailType; subtitle?: string }) => {
@@ -314,7 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             value={currency(totalDebt)}
             tone="rose"
             subtitle={unbilledActiveTuition > 0
-              ? `${currency(unbilledActiveTuition)} chưa lập phiếu · Nợ cũ: ${currency(totalDebtBreakdown.total)}`
+              ? `${currency(unbilledActiveTuition)} chưa lập phiếu · Nợ trên phiếu: ${currency(totalDebt - unbilledActiveTuition)}`
               : 'Tháng: ' + currency(totalDebtBreakdown.monthly) + ' · Khóa: ' + currency(totalDebtBreakdown.course) + ' · Buổi: ' + currency(totalDebtBreakdown.session)
             }
           />

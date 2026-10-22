@@ -110,6 +110,7 @@ it('provides a focusable report action and returns focus after closing the detai
       students={[]}
       teachers={[]}
       classes={[classes[0]]}
+      programs={[]}
       receipts={[]}
       onNavigateTab={vi.fn()}
     />,

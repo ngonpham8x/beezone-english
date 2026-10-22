@@ -5,13 +5,14 @@ import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
 import { centerDate, localCalendarDate } from '../../lib/dates';
-import { debtBreakdown, getReceiptPaymentEntries, ReceiptPaymentEntry } from '../../lib/tuition';
-import { ClassRoom, Student, Teacher, TuitionReceipt } from '../../types';
+import { classTuitionDebtBreakdown, getReceiptPaymentEntries, ReceiptPaymentEntry, totalTuitionDebtBreakdown } from '../../lib/tuition';
+import { ClassRoom, CourseProgram, Student, Teacher, TuitionReceipt } from '../../types';
 
 interface ReportViewProps {
   students: Student[];
   teachers: Teacher[];
   classes: ClassRoom[];
+  programs: CourseProgram[];
   receipts: TuitionReceipt[];
   onNavigateTab: (tab: string) => void;
 }
@@ -20,6 +21,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   students,
   teachers,
   classes,
+  programs,
   receipts,
   onNavigateTab
 }) => {
@@ -44,14 +46,13 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
   const periodPaymentEntries = paymentEntries.filter(filterPaymentEntry);
   const totalRevenue = periodPaymentEntries.reduce((sum, entry) => sum + entry.amount, 0);
-  const totalDebtBreakdown = debtBreakdown(receipts);
+  const totalDebtBreakdown = totalTuitionDebtBreakdown(students, receipts, programs, classes);
   const totalDebt = totalDebtBreakdown.total;
   const activeCount = students.filter(s => s.status === 'active').length;
   const reservedCount = students.filter(s => s.status === 'reserved').length;
   const selectedClass = classes.find((classroom) => classroom.id === selectedClassId) || null;
   const selectedClassStudents = selectedClass ? students.filter((student) => isStudentInClass(student, selectedClass.id)) : [];
-  const selectedClassReceipts = selectedClass ? receipts.filter((receipt) => receipt.classId === selectedClass.id) : [];
-  const selectedClassDebt = debtBreakdown(selectedClassReceipts);
+  const selectedClassDebt = selectedClass ? classTuitionDebtBreakdown(selectedClass, students, receipts, programs) : { total: 0, monthly: 0, course: 0, session: 0 };
   const selectedClassPaid = periodPaymentEntries.filter((entry) => entry.classId === selectedClass?.id).reduce((sum, entry) => sum + entry.amount, 0);
 
   const handlePrint = () => {
@@ -150,9 +151,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
               <tbody className="divide-y divide-slate-200 font-medium">
                 {classes.map((cls, idx) => {
                   const classStudents = students.filter(s => isStudentInClass(s, cls.id));
-                  const classAllReceipts = receipts.filter((receipt) => receipt.classId === cls.id);
                   const paid = periodPaymentEntries.filter((entry) => entry.classId === cls.id).reduce((s, e) => s + e.amount, 0);
-                  const debt = debtBreakdown(classAllReceipts);
+                  const debt = classTuitionDebtBreakdown(cls, students, receipts, programs);
 
                   return (
                     <tr
@@ -207,9 +207,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Nợ tháng</th><th className="px-3 py-2.5 text-right">Nợ khóa</th><th className="px-3 py-2.5 text-right">Nợ buổi</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {selectedClassStudents.length === 0 ? <tr><td colSpan={6} className="px-3 py-7 text-center text-slate-500">Chưa có học viên trong lớp.</td></tr> : selectedClassStudents.map((student) => {
-                    const studentReceipts = selectedClassReceipts.filter((receipt) => receipt.studentId === student.id);
-                    const studentDebt = debtBreakdown(studentReceipts);
-                    const studentPaid = periodPaymentEntries.filter((entry) => entry.studentId === student.id).reduce((sum, entry) => sum + entry.amount, 0);
+                    const studentReceipts = receipts.filter((receipt) => receipt.studentId === student.id);
+                    const studentDebt = classTuitionDebtBreakdown(selectedClass, [student], studentReceipts, programs);
+                    const studentPaid = periodPaymentEntries.filter((entry) => entry.studentId === student.id && entry.classId === selectedClass.id).reduce((sum, entry) => sum + entry.amount, 0);
                     return <tr key={student.id}><td className="px-3 py-2.5 font-bold font-mono text-slate-900">{student.code}</td><td className="px-3 py-2.5 font-semibold text-slate-800">{student.name}</td><td className="px-3 py-2.5 text-right font-bold text-emerald-700">{studentPaid.toLocaleString('vi-VN')} đ</td><td className="px-3 py-2.5 text-right font-bold text-rose-700">{studentDebt.monthly > 0 ? `${studentDebt.monthly.toLocaleString('vi-VN')} đ` : '—'}</td><td className="px-3 py-2.5 text-right font-bold text-violet-700">{studentDebt.course > 0 ? `${studentDebt.course.toLocaleString('vi-VN')} đ` : '—'}</td><td className="px-3 py-2.5 text-right font-bold text-violet-700">{studentDebt.session > 0 ? `${studentDebt.session.toLocaleString('vi-VN')} đ` : '—'}</td></tr>;
                   })}
                 </tbody>

@@ -36,7 +36,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { matchesSearch as matchesSearchText } from '../../lib/search';
-import { debtBreakdown, isStudentOwingTuition } from '../../lib/tuition';
+import { isStudentOwingTuition, studentTuitionDebtBreakdown } from '../../lib/tuition';
 import {
   ClassEnrollment,
   ClassRoom,
@@ -421,7 +421,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const canDelete = isOwner || permissions.student.delete;
   // Báo cáo workbook có cả dữ liệu học phí, nên chỉ quyền Excel mới được mở.
   const canExport = isOwner || permissions.excel.import || permissions.excel.export;
-  const debtForStudent = (studentId: string) => debtBreakdown(receipts.filter((receipt) => receipt.studentId === studentId));
+  const debtForStudent = (student: Student) => studentTuitionDebtBreakdown(student, receipts, programs, classes);
 
   // Filtered list
   const filteredStudents = students.filter(s => {
@@ -694,7 +694,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 ) : (
                   filteredStudents.map((st) => {
                     const program = programs.find(p => p.id === st.programId);
-                    const debt = debtForStudent(st.id);
+                    const debt = debtForStudent(st);
 
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
@@ -855,7 +855,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             filteredStudents.map((st) => {
               const program = programs.find(p => p.id === st.programId);
               const cls = classes.find(c => c.id === st.classId);
-              const debt = debtForStudent(st.id);
+              const debt = debtForStudent(st);
 
               const classNameText = studentClassNames(st, classes);
               const scheduleText = classes.filter(c => isStudentInClass(st, c.id)).map(c => `${c.name}: ${c.scheduleTime} (${c.days.join(', ')})`).join(' · ') || 'Chưa xếp lịch';

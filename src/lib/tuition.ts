@@ -1,5 +1,5 @@
 import { ClassRoom, CourseProgram, FeeStatus, Student, TuitionInstallment, TuitionReceipt } from '../types';
-import { studentClassIds } from './studentClasses';
+import { isStudentInClass, studentClassIds } from './studentClasses';
 
 export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 
@@ -45,6 +45,95 @@ export const debtBreakdown = (receipts: TuitionReceipt[]): TuitionDebtBreakdown 
   return summary;
 }, { total: 0, monthly: 0, course: 0, session: 0 });
 
+const emptyDebt = (): TuitionDebtBreakdown => ({ total: 0, monthly: 0, course: 0, session: 0 });
+
+type DebtStudent = Pick<Student, 'id' | 'status' | 'feeStatus' | 'programId' | 'classId' | 'additionalClassIds'>;
+type DebtClass = Pick<ClassRoom, 'id' | 'billingMode'> & Partial<Pick<ClassRoom, 'programId'>>;
+
+const unbilledClassFee = (
+  student: DebtStudent,
+  classId: string,
+  receipts: TuitionReceipt[],
+  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  classroom?: DebtClass,
+): number => {
+  if (student.status !== 'active' || classroom?.billingMode === 'session') return 0;
+  // A paid legacy profile without any receipt may predate per-class billing.
+  // A receipt for a different (former) class must not waive the current class.
+  if (studentClassIds(student).length <= 1 && student.feeStatus === 'paid' &&
+      !receipts.some(receipt => receipt.studentId === student.id)) return 0;
+  if (receipts.some(receipt => receipt.studentId === student.id && receipt.classId === classId)) return 0;
+  return Math.max(programs.find(item => item.id === (classroom?.programId || student.programId))?.tuitionFee || 0, 0);
+};
+
+/** Current class tuition without a receipt. Existing receipts retain their own agreed prices. */
+export const unbilledDebtForStudent = (
+  student: DebtStudent,
+  receipts: TuitionReceipt[],
+  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  classes: DebtClass[],
+): TuitionDebtBreakdown => {
+  const result = emptyDebt();
+  const ids = studentClassIds(student);
+  for (const classId of ids.length ? ids : ['']) {
+    const classroom = classes.find(item => item.id === classId);
+    const amount = unbilledClassFee(student, classId, receipts, programs, classroom);
+    result.total += amount;
+    if (classroom?.billingMode === 'course') result.course += amount;
+    else result.monthly += amount;
+  }
+  return result;
+};
+
+export const classTuitionDebtBreakdown = (
+  classroom: DebtClass,
+  students: DebtStudent[],
+  receipts: TuitionReceipt[],
+  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+): TuitionDebtBreakdown => {
+  const result = debtBreakdown(receipts.filter(receipt => receipt.classId === classroom.id));
+  for (const student of students) {
+    if (!isStudentInClass(student, classroom.id)) continue;
+    const amount = unbilledClassFee(student, classroom.id, receipts, programs, classroom);
+    result.total += amount;
+    if (classroom.billingMode === 'course') result.course += amount;
+    else result.monthly += amount;
+  }
+  return result;
+};
+
+export const studentTuitionDebtBreakdown = (
+  student: DebtStudent,
+  receipts: TuitionReceipt[],
+  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  classes: DebtClass[],
+): TuitionDebtBreakdown => {
+  const recorded = debtBreakdown(receipts.filter(receipt => receipt.studentId === student.id));
+  const unbilled = unbilledDebtForStudent(student, receipts, programs, classes);
+  return {
+    total: recorded.total + unbilled.total,
+    monthly: recorded.monthly + unbilled.monthly,
+    course: recorded.course + unbilled.course,
+    session: recorded.session + unbilled.session,
+  };
+};
+
+export const totalTuitionDebtBreakdown = (
+  students: DebtStudent[],
+  receipts: TuitionReceipt[],
+  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  classes: DebtClass[],
+): TuitionDebtBreakdown => {
+  const result = debtBreakdown(receipts);
+  for (const student of students) {
+    const unbilled = unbilledDebtForStudent(student, receipts, programs, classes);
+    result.total += unbilled.total;
+    result.monthly += unbilled.monthly;
+    result.course += unbilled.course;
+  }
+  return result;
+};
+
 export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
   const debt = debtBreakdown(receipts).total;
   const paid = receipts.reduce((sum, receipt) => sum + Math.max(receipt.paidAmount || 0, 0), 0);
@@ -61,31 +150,17 @@ export const isStudentOwingTuition = (
   const debt = debtBreakdown(studentReceipts).total;
   if (debt > 0) return true;
   const ids = studentClassIds({ classId: student.classId || '', additionalClassIds: student.additionalClassIds });
-  if (student.status === 'active' && ids.length > 1 && ids.some(id => classes.find(c => c.id === id)?.billingMode !== 'session' && !studentReceipts.some(r => r.classId === id))) return true;
+  if (student.status === 'active' && (ids.length > 1 || studentReceipts.length > 0) &&
+      ids.some(id => classes.find(c => c.id === id)?.billingMode !== 'session' && !studentReceipts.some(r => r.classId === id))) return true;
   return student.status === 'active' && student.feeStatus !== 'paid';
 };
 
 export const unbilledTuitionForStudents = (
-  students: Pick<Student, 'id' | 'status' | 'feeStatus' | 'programId' | 'classId' | 'additionalClassIds'>[],
+  students: DebtStudent[],
   receipts: TuitionReceipt[] = [],
   programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[] = [],
-  classes: (Pick<ClassRoom, 'id' | 'billingMode'> & Partial<Pick<ClassRoom, 'programId'>>)[] = [],
-): number => {
-  const programFeeMap = new Map(programs.map((p) => [p.id, p.tuitionFee || 0]));
-  const classMap = new Map(classes.map((c) => [c.id, c]));
-
-  return students.reduce((sum, student) => {
-    if (student.status !== 'active') return sum;
-    const ids = studentClassIds(student);
-    if (ids.length <= 1 && student.feeStatus === 'paid') return sum;
-    return sum + (ids.length ? ids : ['']).reduce((amount, classId) => {
-      if (receipts.some(r => r.studentId === student.id && r.classId === classId)) return amount;
-      const cls = classMap.get(classId);
-      if (cls?.billingMode === 'session') return amount;
-      return amount + (programFeeMap.get(cls?.programId || student.programId) || 0);
-    }, 0);
-  }, 0);
-};
+  classes: DebtClass[] = [],
+): number => students.reduce((sum, student) => sum + unbilledDebtForStudent(student, receipts, programs, classes).total, 0);
 
 export interface ReceiptPaymentEntry {
   receiptId: string;

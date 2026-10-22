@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { DialogFrame } from '../../components/DialogFrame';
-import { debtBreakdown, paymentKindLabel, paymentPeriodLabel } from '../../lib/tuition';
+import { paymentKindLabel, paymentPeriodLabel, studentTuitionDebtBreakdown } from '../../lib/tuition';
 import type {
   ClassEnrollment,
   ClassRoom,
@@ -48,8 +48,7 @@ export function StudentProfileDialog({
   enrollments,
   onClose,
 }: Props) {
-  const debtForStudent = (studentId: string) =>
-    debtBreakdown(receipts.filter((receipt) => receipt.studentId === studentId));
+  const debtForStudent = studentTuitionDebtBreakdown(viewingStudent, receipts, programs, classes);
   return (
     <DialogFrame
       label="Hồ sơ học viên"
@@ -314,9 +313,9 @@ export function StudentProfileDialog({
               <div className="mt-1">
                 <FeeStatusBadge
                   feeStatus={viewingStudent.feeStatus}
-                  monthlyDebt={debtForStudent(viewingStudent.id).monthly}
-                  courseDebt={debtForStudent(viewingStudent.id).course}
-                  sessionDebt={debtForStudent(viewingStudent.id).session}
+                  monthlyDebt={debtForStudent.monthly}
+                  courseDebt={debtForStudent.course}
+                  sessionDebt={debtForStudent.session}
                 />
               </div>
             </div>

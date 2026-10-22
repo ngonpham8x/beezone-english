@@ -7,7 +7,7 @@ export const FeeStatusBadge: React.FC<{
   courseDebt?: number;
   sessionDebt?: number;
 }> = ({ feeStatus, monthlyDebt = 0, courseDebt = 0, sessionDebt = 0 }) => {
-  const isPaid = feeStatus === 'paid';
+  const isPaid = feeStatus === 'paid' && monthlyDebt + courseDebt + sessionDebt === 0;
   const isUnpaid = feeStatus === 'unpaid';
   const label = isPaid ? 'Đã đóng đủ' : isUnpaid ? 'Chưa đóng' : 'Đóng thiếu';
   const className = isPaid

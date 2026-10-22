@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SessionTuitionManager } from '../src/modules/tuition/SessionTuitionManager';
 import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
@@ -260,4 +260,20 @@ it('displays active unpaid students in TuitionManager with quick collect button'
 
   expect(screen.getByText('Lập Phiếu Thu Học Phí')).toBeTruthy();
   expect(screen.getByDisplayValue(/Trương Gia Bảo/)).toBeTruthy();
+});
+
+it('lists both classes in tuition debt and opens collection for the unpaid second class', () => {
+  const programs = initial.initialPrograms.slice(0, 2).map((program, index) => ({ ...program, tuitionFee: index ? 2400000 : 3400000 }));
+  const classes = initial.initialClasses.slice(0, 2).map((item, index) => ({ ...item, programId: programs[index].id, billingMode: 'course' as const }));
+  const learner = { ...initial.initialStudents[0], classId: classes[0].id, additionalClassIds: [classes[1].id], programId: programs[0].id, feeStatus: 'partial' as const };
+  const receipt = { ...initial.initialTuitionReceipts[0], studentId: learner.id, classId: classes[0].id, paymentKind: 'course' as const, debtAmount: 3400000, paidAmount: 0 };
+  render(<TuitionManager receipts={[receipt]} attendanceSessions={[]} students={[learner]} classes={classes} programs={programs}
+    settings={initial.initialSettings} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner
+    onAddReceipt={vi.fn()} onUpdateReceipt={vi.fn()} onDeleteReceipt={vi.fn()} />);
+  const pending = screen.getByRole('region', { name: 'Học viên cần thu học phí' });
+  expect(within(pending).getByText('5.800.000 đ')).toBeTruthy();
+  expect(within(pending).getByText('3.400.000 đ')).toBeTruthy();
+  expect(within(pending).getByText('2.400.000 đ')).toBeTruthy();
+  fireEvent.click(within(pending).getAllByRole('button', { name: 'Thu học phí' })[1]);
+  expect((screen.getByLabelText('Lớp thu học phí *') as HTMLSelectElement).value).toBe(classes[1].id);
 });

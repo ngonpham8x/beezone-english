@@ -1,5 +1,7 @@
 // Service Worker for Trung Tâm Ngoại Ngữ BeeZone PWA
-const CACHE_NAME = 'beezone-english-v3';
+const CACHE_NAME = 'beezone-english-v4-source';
+// The build replaces this list with the exact hashed assets of this release.
+const APP_ASSETS_TO_CACHE = [];
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -14,9 +16,7 @@ const ASSETS_TO_CACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll([...ASSETS_TO_CACHE, ...APP_ASSETS_TO_CACHE]))
   );
   // Do not take over an open application immediately. A waiting update is
   // activated on the next launch so active forms/tabs are never interrupted.
@@ -51,11 +51,16 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request).then(async (response) => {
       // A deployment can remove a hashed chunk still referenced by an open tab.
       // Reuse that exact cached asset; never substitute HTML for JavaScript.
-      if (!response.ok && requestUrl.pathname.startsWith('/assets/')) {
+      const invalidAsset = requestUrl.pathname.startsWith('/assets/') &&
+        (!response.ok || /text\/html/i.test(response.headers.get('Content-Type') || ''));
+      if (invalidAsset) {
         const cached = await caches.match(event.request);
         if (cached) return cached;
+        // The SPA rewrite may answer a removed JS chunk with HTTP 200 HTML.
+        // An HTML document must never be delivered as a JavaScript module.
+        if (response.ok) return new Response('Asset not found', { status: 404 });
       }
-      if (response.ok && requestUrl.pathname.startsWith('/assets/')) {
+      if (response.ok && requestUrl.pathname.startsWith('/assets/') && !invalidAsset) {
         const copy = response.clone();
         event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)));
       }

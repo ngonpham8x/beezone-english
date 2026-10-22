@@ -172,8 +172,10 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           hasReceipt,
           expectedAmount,
         };
-      })).filter(item => item.debt.total > 0 || (!item.hasReceipt && item.classroom?.billingMode !== 'session' && item.student.status === 'active' && (studentClassIds(item.student).length > 1 || item.student.feeStatus !== 'paid')));
+      })).filter(item => item.debt.total > 0 || (!item.hasReceipt && item.classroom?.billingMode !== 'session' && item.student.status === 'active' &&
+        (studentClassIds(item.student).length > 1 || item.student.feeStatus !== 'paid' || receipts.some(receipt => receipt.studentId === item.student.id))));
   }, [students, receipts, classes, programs]);
+  const pendingStudentCount = new Set(pendingTuitionStudents.map(item => item.student.id)).size;
   const paymentEntries = useMemo(() => getReceiptPaymentEntries(receipts), [receipts]);
   const receiptMonths: string[] = useMemo(() => {
     const months = new Set<string>();
@@ -508,7 +510,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           value={totalDebt.toLocaleString('vi-VN') + ' đ'}
           icon={AlertCircle}
           tone="rose"
-          subtitle={pendingTuitionStudents.length > 0 ? `${pendingTuitionStudents.length} HS cần thu / nợ phí` : 'Gồm buổi chưa lập phiếu'}
+          subtitle={pendingStudentCount > 0 ? `${pendingStudentCount} HS cần thu / nợ phí` : 'Gồm buổi chưa lập phiếu'}
           onClick={() => showReceiptDetail('debt')}
         />
         <StatCard label="Học phí tháng" value={monthlyCollected.toLocaleString('vi-VN') + ' đ'} icon={DollarSign} tone="sky" subtitle="Đã thu theo tháng" onClick={() => showReceiptDetail('monthly')} />
@@ -542,7 +544,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500 text-slate-950 font-black text-xs shadow-2xs">
-                {pendingTuitionStudents.length}
+                {pendingStudentCount}
               </span>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
