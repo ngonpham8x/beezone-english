@@ -253,6 +253,13 @@ describe('due dates and enrollment history', () => {
     const nextWeek = lessonsOn('2026-10-20', classes, [slot], [teacherOff]);
     expect(nextWeek).toHaveLength(1);
     expect(nextWeek[0].teacherId).toBe('t');
+
+    const pending = { ...teacherOff, substituteTeacherId: undefined };
+    expect(validateScheduleChange(pending, classes, [slot], [], [])).toBeNull();
+    expect(lessonsOn('2026-10-13', classes, [slot], [pending])).toEqual([]);
+    expect(validateScheduleChange({ ...teacherOff, id: 'another-off' }, classes, [slot], [pending], [])).toMatch(/đã có điều chỉnh/);
+    expect(validateRecurringChanges(classes, [{ ...slot, teacherId: 'other' }], [teacherOff])).toMatch(/giáo viên đăng ký nghỉ/);
+    expect(validateRecurringChanges(classes, [{ ...slot, startTime: '17:00' }], [teacherOff])).toMatch(/giáo viên đăng ký nghỉ/);
   });
 
   it('calculates week dates and short date display correctly', () => {

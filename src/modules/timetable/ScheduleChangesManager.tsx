@@ -62,6 +62,8 @@ export function ScheduleChangesManager({
   const [error, setError] = useState<string | null>(null);
   const [changeToDelete, setChangeToDelete] = useState<ScheduleChange | null>(null);
   const lessons = lessonsOn(date, classes, slots, changes);
+  const pendingTeacherOff = changes.filter((change) =>
+    change.kind === 'teacher_off' && change.date === date && !change.substituteTeacherId);
   const sourceDate = draft?.kind === 'move' ? draft.sourceDate || date : draft?.date || date;
   const originalLessons = draft
     ? lessonsOn(
@@ -71,10 +73,10 @@ export function ScheduleChangesManager({
         changes.filter((c) => c.id !== draft.id),
       ).filter((slot) => slot.classId === draft.classId && !slot.changeId)
     : [];
-  const open = () => {
+  const open = (kind: ScheduleChange['kind'] = 'cancel') => {
     setDraft({
       id: `SC_${crypto.randomUUID()}`,
-      kind: 'cancel',
+      kind,
       classId: classes[0]?.id || '',
       date,
       sourceDate: date,
@@ -107,7 +109,7 @@ export function ScheduleChangesManager({
             teacherId: source.teacherId,
             roomId: draft.roomId || source.roomId,
             sourceDate: undefined,
-            substituteTeacherId: draft.substituteTeacherId || undefined,
+            substituteTeacherId: draft.kind === 'teacher_off' ? draft.substituteTeacherId || undefined : undefined,
           }
         : selectedDraft;
     const message =
@@ -138,13 +140,22 @@ export function ScheduleChangesManager({
             className="rounded-lg border border-slate-300 p-2 text-sm"
           />
           {canAdd && (
-            <button
-              onClick={open}
-              disabled={!classes.length}
-              className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              Nghỉ / đổi / học bù
-            </button>
+            <>
+              <button
+                onClick={() => open('teacher_off')}
+                disabled={!classes.length}
+                className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-800 disabled:opacity-50"
+              >
+                Đăng ký giáo viên off
+              </button>
+              <button
+                onClick={() => open()}
+                disabled={!classes.length}
+                className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                Nghỉ / đổi / học bù
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -178,7 +189,15 @@ export function ScheduleChangesManager({
             {lesson.reason && <p className="mt-1 text-xs text-sky-800">{lesson.reason}</p>}
           </article>
         ))}
-        {!lessons.length && (
+        {pendingTeacherOff.map((change) => (
+          <article key={`pending:${change.id}`} className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm">
+            <strong>{classes.find((c) => c.id === change.classId)?.name}</strong>
+            <div>{change.startTime}–{change.endTime} · {teachers.find((t) => t.id === change.teacherId)?.name || 'Giáo viên'} đăng ký off</div>
+            <p className="font-semibold text-rose-700">Chưa xếp giáo viên thay thế; buổi này chưa có giáo viên dạy.</p>
+            {canEdit && <button type="button" className="mt-2 rounded-lg border border-rose-300 bg-white px-3 py-1 font-semibold text-rose-800" onClick={() => { setDraft(change); setError(null); }}>Xếp giáo viên thay thế</button>}
+          </article>
+        ))}
+        {!lessons.length && !pendingTeacherOff.length && (
           <p className="text-sm text-slate-500">Không có buổi học trong ngày đã chọn.</p>
         )}
       </div>
@@ -264,6 +283,7 @@ export function ScheduleChangesManager({
                     kind: e.target.value as ScheduleChange['kind'],
                     sourceSlotId: undefined,
                     sourceDate: draft.sourceDate || draft.date,
+                    substituteTeacherId: undefined,
                   })
                 }
               >
@@ -307,7 +327,7 @@ export function ScheduleChangesManager({
               </label>
             )}
             <label className="block">
-              {draft.kind === 'cancel' ? 'Ngày nghỉ' : 'Ngày học mới'}
+              {draft.kind === 'cancel' ? 'Ngày lớp nghỉ' : draft.kind === 'teacher_off' ? 'Ngày giáo viên nghỉ' : 'Ngày học mới'}
               <input
                 aria-label="Ngày điều chỉnh"
                 required

@@ -207,6 +207,36 @@ describe('database migrations and permission enforcement', () => {
     const change = { id: 'change', kind: 'extra', classId: 'a', date: '2026-10-13', startTime: '18:00', endTime: '19:00', reason: 'Makeup' };
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [change] })])).rejects.toThrow(/Entity creation denied: schedule/);
   });
+  it('stores teacher leave and substitution with matching original lessons and academic grants', async () => {
+    const payload = {
+      ...base,
+      teachers: [
+        { id: 't', name: 'Main teacher', assignedClassIds: ['a'] },
+        { id: 'sub', name: 'Substitute', assignedClassIds: [] },
+      ],
+      rooms: [{ id: 'r', name: 'Room' }],
+      classes: [{ id: 'a', teacherId: 't', roomId: 'r', studentIds: [] }],
+      timetableSlots: [{ id: 'slot', classId: 'a', teacherId: 't', roomId: 'r', dayOfWeek: 'Thứ 3', startTime: '18:00', endTime: '19:00' }],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    const change = { id: 'off', kind: 'teacher_off', classId: 'a', sourceSlotId: 'slot', date: '2026-10-13', startTime: '18:00', endTime: '19:00', teacherId: 't', roomId: 'r', substituteTeacherId: 'sub', reason: 'Leave' };
+    await asStaff();
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [change] })])).rejects.toThrow(/creation denied/);
+    await db.exec('reset role');
+    await asStaff({ academic: { classesAdd: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [change] })]);
+    await db.exec('reset role');
+    await asStaff({ academic: { classesEdit: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [{ ...change, reason: 'Approved leave' }] })]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [{ ...change, substituteTeacherId: 't' }] })])).rejects.toThrow(/Invalid substitute teacher/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [{ ...change, teacherId: 'sub' }] })])).rejects.toThrow(/original lesson/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [{ ...change, date: '2026-10-14' }] })])).rejects.toThrow(/original lesson/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [{ ...change, substituteTeacherId: 'missing' }] })])).rejects.toThrow(/Invalid substitute teacher/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [] })])).rejects.toThrow(/deletion denied/);
+    await db.exec('reset role');
+    await asStaff({ academic: { classesDelete: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [] })]);
+  });
   it('permits enrollment history for a student editor and denies a viewer', async () => {
     const payload = { ...base, students: [{ id: 's', classId: 'a', feeStatus: 'unpaid' }], classes: [{ id: 'a', teacherId: 't', studentIds: ['s'] }] };
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);

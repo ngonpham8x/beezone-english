@@ -362,8 +362,8 @@ it('saves a teacher off adjustment with substitute teacher selection', () => {
       onDelete={vi.fn()}
     />,
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Nghỉ / đổi / học bù' }));
-  fireEvent.change(screen.getByLabelText('Loại điều chỉnh'), { target: { value: 'teacher_off' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Đăng ký giáo viên off' }));
+  expect((screen.getByLabelText('Loại điều chỉnh') as HTMLSelectElement).value).toBe('teacher_off');
   expect(screen.getByText('Cô A')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Giáo viên dạy thay'), { target: { value: 'sub_1' } });
   fireEvent.change(screen.getByLabelText('Lý do điều chỉnh'), { target: { value: 'Cô A bận việc riêng' } });
@@ -378,6 +378,21 @@ it('saves a teacher off adjustment with substitute teacher selection', () => {
       reason: 'Cô A bận việc riêng',
     }),
   );
+});
+
+it('shows an unassigned teacher leave in the dated schedule and offers substitute assignment', () => {
+  const teachers = [{ id: slot.teacherId, name: 'Cô A', phone: '', address: '', email: '', specialty: 'Tiếng Anh', assignedClassIds: [] }];
+  render(
+    <ScheduleChangesManager
+      classes={[classroom]} slots={[slot]}
+      changes={[{ id: 'off', classId: classroom.id, kind: 'teacher_off', date: '2026-10-13', sourceSlotId: slot.id, startTime: slot.startTime, endTime: slot.endTime, teacherId: slot.teacherId, roomId: slot.roomId, reason: 'Xin nghỉ' }]}
+      attendance={[]} teachers={teachers} rooms={initial.initialRooms} isOwner
+      onSave={vi.fn(() => null)} onDelete={vi.fn(() => null)}
+    />,
+  );
+  expect(screen.getByText(/Chưa xếp giáo viên thay thế; buổi này chưa có giáo viên dạy/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Xếp giáo viên thay thế' }));
+  expect((screen.getByLabelText('Loại điều chỉnh') as HTMLSelectElement).value).toBe('teacher_off');
 });
 
 it('displays teacher off and substitute badges in TimetableManager and TeacherScheduleMatrix', () => {

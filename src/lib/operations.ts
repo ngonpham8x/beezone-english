@@ -96,7 +96,8 @@ export function lessonsOn(
         !changes.some(
           (change) =>
             change.sourceSlotId === slot.id &&
-            (change.kind === 'cancel' ? change.date : change.sourceDate) === date,
+            ((change.kind === 'cancel' || (change.kind === 'teacher_off' && !change.substituteTeacherId))
+              ? change.date : change.sourceDate) === date,
         )
       );
     })
@@ -156,6 +157,10 @@ export function validateScheduleChange(
   if (!classes.some((c) => c.id === change.classId)) return 'Lớp học không tồn tại.';
   const before = changes.filter((item) => item.id !== change.id);
   const sourceDate = change.kind === 'move' ? change.sourceDate! : change.date;
+  if (change.kind === 'teacher_off' && before.some((item) =>
+      item.sourceSlotId === change.sourceSlotId &&
+      (item.kind === 'move' ? item.sourceDate : item.date) === change.date))
+    return 'Buổi học này đã có điều chỉnh. Hãy sửa hoặc hủy điều chỉnh hiện tại.';
   if (change.kind !== 'extra') {
     if (
       !lessonsOn(sourceDate, classes, slots, before).some(
@@ -168,6 +173,10 @@ export function validateScheduleChange(
   }
   if (change.kind === 'cancel') return null;
   if (change.kind === 'teacher_off') {
+    const source = slots.find((slot) => slot.id === change.sourceSlotId);
+    if (!source || source.teacherId !== change.teacherId ||
+        source.startTime !== change.startTime || source.endTime !== change.endTime)
+      return 'Ca học gốc đã thay đổi. Hãy chọn lại buổi học trước khi đăng ký giáo viên nghỉ.';
     if (change.substituteTeacherId) {
       if (change.substituteTeacherId === change.teacherId) {
         return 'Giáo viên dạy thay phải khác giáo viên chính của buổi học.';
@@ -225,6 +234,9 @@ export function validateRecurringChanges(
           weekdayForDate(change.kind === 'move' ? change.sourceDate! : change.date)
       )
         return 'Ca học đang có lịch nghỉ/học bù liên quan. Giữ ngày học gốc hoặc hủy điều chỉnh trước.';
+      if (change.kind === 'teacher_off' &&
+          (source.teacherId !== change.teacherId || source.startTime !== change.startTime || source.endTime !== change.endTime))
+        return 'Ca học có giáo viên đăng ký nghỉ. Hãy hủy điều chỉnh đó trước khi đổi giáo viên hoặc giờ học gốc.';
     }
   }
   for (const date of new Set(changes.filter((c) => c.kind !== 'cancel').map((c) => c.date))) {

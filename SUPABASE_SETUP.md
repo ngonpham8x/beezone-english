@@ -98,3 +98,7 @@ Trong Học viên → Sửa/Thêm, giữ lớp chính và tích các lớp học
 Khôi phục danh mục cũ: Chủ trung tâm mở Excel → Nhập File Excel, chọn báo cáo rồi dùng **Chỉ bổ sung danh mục lớp học**. Mặc định chỉ thêm các mã lớp chưa có, không thay thế lớp hiện có hoặc học viên/phiếu thu/lịch sử. Lớp mới chờ xếp lịch. Chỉ tích **Nhập cả lịch học cũ** sau khi đã đối chiếu; trùng giờ giáo viên/phòng hoặc lịch học bù sẽ bị từ chối trước khi thay state. Báo cáo lỗi học viên/học phí vẫn có thể cung cấp riêng danh mục lớp nếu sheet LỚP HỌC hợp lệ.
 
 Excel giữ nguyên các cột cũ và bổ sung cột AA **Mã lớp học thêm** (mảng JSON mã lớp, hoặc danh sách phân cách bằng dấu chấm phẩy khi nhập). JSON sao lưu giữ nguyên schemaVersion và thêm trường tùy chọn `additionalClassIds`. Client cũ không được xóa trường này khỏi hồ sơ đã có.
+
+## Giáo viên nghỉ và dạy thay (migration 015)
+
+Sau khi áp dụng 001–014, chạy toàn bộ `supabase/migrations/015_teacher_off_substitution.sql` trong SQL Editor của đúng dự án trước khi dùng chức năng **Đăng ký giáo viên off**. Migration chỉ thay quy tắc kiểm tra `scheduleChanges` trên máy chủ; không tự sửa dữ liệu, quyền tài khoản hay lịch đã lưu. Kiểm tra bằng một ngày có ca học: đăng ký giáo viên nghỉ, chọn giáo viên thay thế, lưu rồi xem cùng buổi ở Thời khóa biểu và Lịch giáo viên. Trường hợp chưa chọn người thay sẽ hiện là chờ xếp và chưa tính là buổi đang dạy.
