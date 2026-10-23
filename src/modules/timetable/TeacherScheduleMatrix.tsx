@@ -200,6 +200,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
       dayOfWeek: defaultDay,
       startTime: '18:00',
       endTime: '19:30',
+      note: '',
     });
     setSelectedDays([defaultDay]);
     setConflictError(null);
@@ -227,10 +228,13 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
       return;
     }
 
+    const note = editingSlot.note?.trim() || undefined;
+
     if (onSaveSlots) {
       const existing = timetableSlots.some(slot => slot.id === editingSlot.id);
+
       const slots = selectedDays.map((dayOfWeek, index) => ({
-        ...editingSlot, startTime, endTime, dayOfWeek,
+        ...editingSlot, startTime, endTime, dayOfWeek, note,
         id: existing && index === 0 ? editingSlot.id : 'TT_' + crypto.randomUUID(),
       }));
       const issue = onSaveSlots(slots);
@@ -245,7 +249,8 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
     if (isExisting) {
       const firstDay = selectedDays[0];
-      const normalizedSlot = { ...editingSlot, startTime, endTime, dayOfWeek: firstDay };
+
+      const normalizedSlot = { ...editingSlot, startTime, endTime, dayOfWeek: firstDay, note };
       const conflict = checkConflict(normalizedSlot);
       if (conflict) {
         setConflictError(`Trùng lịch vào ${firstDay}: ${conflict}`);
@@ -280,6 +285,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
           dayOfWeek: d,
           startTime,
           endTime,
+          note,
         };
         const conflict = checkConflict(newSlot);
         if (conflict) {
@@ -667,6 +673,12 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                                     <DoorOpen className="w-3 h-3" />
                                     <span>{room?.name || 'Chưa xếp phòng'}</span>
                                   </div>
+                                  {s.note && (
+                                    <div className="text-[9px] text-amber-950 bg-amber-100/80 rounded px-1.5 py-0.5 mt-1 border border-amber-200/80 italic flex items-start gap-1">
+                                      <span className="font-bold not-italic shrink-0">📝</span>
+                                      <span className="truncate" title={s.note}>{s.note}</span>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1056,6 +1068,18 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ghi Chú / Lưu Ý (tùy chọn)</label>
+                <textarea
+                  rows={2}
+                  value={editingSlot.note || ''}
+                  onChange={(e) => setEditingSlot({ ...editingSlot, note: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs"
+                  placeholder="Nhập ghi chú hoặc lưu ý cho ca dạy này..."
+                  maxLength={500}
+                />
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">

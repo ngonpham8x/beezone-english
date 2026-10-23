@@ -26,6 +26,7 @@ import { StatCard } from '../../components/StatCard';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useLanguage } from '../../context/LanguageContext';
 import { centerDate } from '../../lib/dates';
+import { studentStatusLabel } from '../students/StudentStatusBadge';
 import { courseStatusLabels, validateCourse, validateRecurringChanges } from '../../lib/operations';
 import { findScheduleConflict } from '../../lib/schedule';
 import { matchesSearch } from '../../lib/search';
@@ -1298,10 +1299,16 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                                 className={`px-1.5 py-0.5 rounded font-medium ${
                                   st.status === 'active'
                                     ? 'bg-emerald-50 text-emerald-700'
+                                    : st.status === 'lead'
+                                    ? 'bg-sky-50 text-sky-700'
+                                    : st.status === 'trial'
+                                    ? 'bg-purple-50 text-purple-700'
+                                    : st.status === 'reserved'
+                                    ? 'bg-amber-50 text-amber-700'
                                     : 'bg-slate-100 text-slate-600'
                                 }`}
                               >
-                                {st.status === 'active' ? 'Đang học' : st.status === 'reserved' ? 'Bảo lưu' : st.status}
+                                {studentStatusLabel(st.status)}
                               </span>
                             </div>
                           </label>

@@ -64,6 +64,9 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
         const start = timeMinutes(record.startTime as string), end = timeMinutes(record.endTime as string);
         if (start === null || end === null || start >= end) throw new Error('Giờ học bù không hợp lệ.');
       }
+      if (key === 'timetableSlots' && record.note !== undefined && typeof record.note !== 'string') {
+        throw new Error('Ghi chú ca học không hợp lệ.');
+      }
       if (key === 'teachers' && !stringArray(record.assignedClassIds)) throw new Error('Phân công giáo viên không hợp lệ.');
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
       if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');

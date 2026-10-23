@@ -146,6 +146,7 @@ export interface TimetableSlot {
   dayOfWeek: string; // 'Thứ 2' | 'Thứ 3' | ... | 'Chủ Nhật'
   startTime: string; // "17:30"
   endTime: string;   // "19:00"
+  note?: string;
 }
 
 export interface Grade {

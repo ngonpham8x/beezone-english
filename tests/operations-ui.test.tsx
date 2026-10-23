@@ -433,3 +433,34 @@ it('displays teacher off and substitute badges in TimetableManager and TeacherSc
   expect(screen.getByText('🔄 DẠY THAY')).toBeTruthy();
   expect(screen.getByText(/Thay cho:/)).toBeTruthy();
 });
+
+it('displays slot notes in TimetableManager and TeacherScheduleMatrix', () => {
+  const teachers = [
+    { id: slot.teacherId, name: 'Cô A', phone: '', address: '', email: '', specialty: 'Tiếng Anh', assignedClassIds: [] },
+  ];
+  const { unmount } = render(
+    <TimetableManager
+      timetableSlots={[{ ...slot, note: 'Mang giáo trình Unit 3' }]}
+      classes={[classroom]}
+      teachers={teachers}
+      rooms={initial.initialRooms}
+      isOwner
+      onAddSlot={vi.fn()}
+      onUpdateSlot={vi.fn()}
+      onDeleteSlot={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(/Mang giáo trình Unit 3/)).toBeTruthy();
+  unmount();
+
+  render(
+    <TeacherScheduleMatrix
+      teachers={teachers}
+      timetableSlots={[{ ...slot, note: 'Mang giáo trình Unit 3' }]}
+      classes={[classroom]}
+      rooms={initial.initialRooms}
+      isOwner
+    />,
+  );
+  expect(screen.getByText(/Mang giáo trình Unit 3/)).toBeTruthy();
+});
