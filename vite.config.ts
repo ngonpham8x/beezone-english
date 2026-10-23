@@ -51,7 +51,9 @@ export default defineConfig(({ mode }) => {
       // Keep Vite's default private-file exclusions and protect deployment metadata.
       fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/.vercel/**'] },
       hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      watch: process.env.DISABLE_HMR === 'true' ? null : {
+        ignored: ['**/docs/**', '**/tmp/**', '**/.git/**'],
+      },
     },
     esbuild: { drop: mode === 'production' ? ['debugger'] : [] },
     build: {
