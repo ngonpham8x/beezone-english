@@ -155,7 +155,10 @@ export function BeeZoneWork({
     title: '',
     description: '',
     branch: 'admin',
-    assigned_uid: selectablePeople[0]?.user_id || '',
+    assigned_uid:
+      selectablePeople.find((p) => p.email === 'phonghanhchinh.beezone@gmail.com')?.user_id ||
+      selectablePeople[0]?.user_id ||
+      '',
     work_date: localISODate(),
     shift_label: 'Ca sáng',
     class_label: '',
@@ -423,11 +426,23 @@ export function BeeZoneWork({
       setEditorTask(null);
       setIsCustomShift(false);
       setCustomShiftNote('');
+      const targetBranch: Branch =
+        role === 'trainer' || role === 'teacher' ? 'training' : 'admin';
+      const targetAssignee =
+        targetBranch === 'admin'
+          ? selectablePeople.find((p) => p.email === 'phonghanhchinh.beezone@gmail.com')?.user_id ||
+            selectablePeople.find((p) => p.branch === 'admin')?.user_id ||
+            selectablePeople[0]?.user_id ||
+            ''
+          : selectablePeople.find((p) => p.email === 'phongdaotao.beezone@gmail.com')?.user_id ||
+            selectablePeople.find((p) => p.branch === 'training')?.user_id ||
+            selectablePeople[0]?.user_id ||
+            '';
       setForm({
         ...initialForm,
-        branch: role === 'trainer' || role === 'teacher' ? 'training' : 'admin',
+        branch: targetBranch,
         work_date: day || localISODate(),
-        assigned_uid: selectablePeople[0]?.user_id || '',
+        assigned_uid: targetAssignee,
       });
     }
   };
@@ -1672,12 +1687,33 @@ export function BeeZoneWork({
                   <select
                     id="m_branch"
                     value={form.branch}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newBranch = e.target.value as Branch;
+                      let nextAssignee = form.assigned_uid;
+                      const curPerson = selectablePeople.find(
+                        (p) => p.user_id === form.assigned_uid,
+                      );
+                      if (newBranch === 'admin' && curPerson?.branch !== 'admin') {
+                        nextAssignee =
+                          selectablePeople.find(
+                            (p) => p.email === 'phonghanhchinh.beezone@gmail.com',
+                          )?.user_id ||
+                          selectablePeople.find((p) => p.branch === 'admin')?.user_id ||
+                          nextAssignee;
+                      } else if (newBranch === 'training' && curPerson?.branch !== 'training') {
+                        nextAssignee =
+                          selectablePeople.find(
+                            (p) => p.email === 'phongdaotao.beezone@gmail.com',
+                          )?.user_id ||
+                          selectablePeople.find((p) => p.branch === 'training')?.user_id ||
+                          nextAssignee;
+                      }
                       setForm({
                         ...form,
-                        branch: e.target.value as Branch,
-                      })
-                    }
+                        branch: newBranch,
+                        assigned_uid: nextAssignee,
+                      });
+                    }}
                   >
                     <option value="admin">Hành chính</option>
                     <option value="training">Đào tạo / Giáo viên</option>

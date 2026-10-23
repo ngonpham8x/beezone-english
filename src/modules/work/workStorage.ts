@@ -99,7 +99,7 @@ export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
     user_id: 'acc-hanhchinh',
     display_name: 'BeeZone Hành Chính',
     email: 'phonghanhchinh.beezone@gmail.com',
-    department: 'Chủ trung tâm',
+    department: 'Hành chính',
     branch: 'admin',
     role: 'admin',
     active: true,
@@ -200,16 +200,22 @@ export function buildWorkPeople(
   for (const p of extraPeople) {
     if (!p.user_id || isHiddenWorkEmail(p.email)) continue;
     const existing = peopleMap.get(p.user_id);
+    const isSpecialHanhChinh =
+      p.user_id === 'acc-hanhchinh' || p.email === 'phonghanhchinh.beezone@gmail.com';
     if (existing) {
       peopleMap.set(p.user_id, {
         ...existing,
         ...p,
+        department: isSpecialHanhChinh ? 'Hành chính' : (p.department || existing.department),
         display_name: p.display_name || existing.display_name,
         email: p.email ?? existing.email,
         role: p.role || existing.role,
       });
     } else {
-      peopleMap.set(p.user_id, p);
+      peopleMap.set(p.user_id, {
+        ...p,
+        department: isSpecialHanhChinh ? 'Hành chính' : p.department,
+      });
     }
   }
 
