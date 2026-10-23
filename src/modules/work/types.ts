@@ -37,6 +37,7 @@ export interface WorkTask {
   email_sent_by?: string | null;
   email_sent_to: string | null;
   ack?: string;
+  sync_pending?: boolean;
   values?: Record<string, string>;
   created_at: string;
   updated_at: string;
@@ -71,6 +72,7 @@ export interface WorkHandoff {
   acknowledged_at: string | null;
   acknowledged_by?: string | null;
   ack_name?: string;
+  ack_note?: string;
 }
 
 export interface WorkEvent {

@@ -19,6 +19,17 @@ import type {
 export const WORK_LOCAL_STORAGE_KEY = 'BEEZONE_WORK_DATA_V2';
 export const WORK_SETTINGS_KEY = 'BEEZONE_WORK_SETTINGS_V2';
 
+export function newWorkId(): string {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+  else for (let index = 0; index < bytes.length; index++) bytes[index] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export const localISODate = () =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -228,6 +239,7 @@ export interface WorkStorageState {
   reasons: WorkReason[];
   handoffs: WorkHandoff[];
   source: 'supabase' | 'local';
+  people?: WorkPerson[];
 }
 
 export function defaultSettings(): WorkSettings {
@@ -299,12 +311,143 @@ export function loadLocalWorkData(today: string, currentUserId: string): Omit<Wo
 }
 
 export async function fetchWorkModuleData(
-  _supabase: SupabaseClient | null | undefined,
+  supabase: SupabaseClient | null | undefined,
   today: string,
   currentUserId: string,
 ): Promise<WorkStorageState> {
-  // Work writes currently use localStorage. Reading the server here would replace
-  // those unsynced edits on refresh or when the selected date changes.
+  if (supabase) {
+    const [peopleResult, tasksResult, notesResult, reasonsResult, handoffsResult] = await Promise.all([
+      supabase.rpc('bz_work_sync_people'),
+      supabase.from('bz_work_tasks').select('*').order('work_date', { ascending: false }),
+      supabase.from('bz_work_notes').select('*').order('created_at', { ascending: true }),
+      supabase.from('bz_work_reasons').select('*').order('created_at', { ascending: true }),
+      supabase.from('bz_work_handoffs').select('*').order('handed_at', { ascending: false }),
+    ]);
+    const error = peopleResult.error || tasksResult.error || notesResult.error || reasonsResult.error || handoffsResult.error;
+    if (error) throw error;
+    const rows = (peopleResult.data || []) as Array<Record<string, unknown>>;
+    const serverPeople = rows.map((p) => ({
+      user_id: String(p.user_id),
+      display_name: String(p.display_name || 'Nhân sự BeeZone'),
+      email: typeof p.email === 'string' ? p.email : null,
+      role: p.role as WorkRole,
+      active: Boolean(p.active),
+      department: String(p.department || ''),
+      branch: (p.branch === 'training' ? 'training' : 'admin') as Branch,
+      teacherId: typeof p.teacher_id === 'string' ? p.teacher_id : undefined,
+    }));
+    const mapTask = (row: Record<string, unknown>): WorkTask => ({
+      ...(row as unknown as WorkTask),
+      id: String(row.id), assigned_uid: String(row.assigned_uid),
+      email_sent_to: typeof row.email_sent_to === 'string'
+        ? (serverPeople.find((person) => person.user_id === row.email_sent_to)?.email || row.email_sent_to)
+        : null,
+      classId: typeof row.class_id === 'string' ? row.class_id : undefined,
+      is_teacher_off: Boolean(row.is_teacher_off),
+      substitute_teacher_id: typeof row.substitute_teacher_id === 'string' ? row.substitute_teacher_id : undefined,
+      schedule_change_id: typeof row.schedule_change_id === 'string' ? row.schedule_change_id : undefined,
+      values: (row.values && typeof row.values === 'object' ? row.values : undefined) as Record<string, string> | undefined,
+    });
+    const remote = {
+      tasks: ((tasksResult.data || []) as Array<Record<string, unknown>>).map(mapTask),
+      notes: ((notesResult.data || []) as WorkNote[]).map((note) => ({
+        ...note,
+        author_name: serverPeople.find((person) => person.user_id === note.author_uid)?.display_name || note.author_name,
+      })),
+      reasons: ((reasonsResult.data || []) as WorkReason[]).map((reason) => ({
+        ...reason,
+        author_name: serverPeople.find((person) => person.user_id === reason.author_uid)?.display_name || reason.author_name,
+      })),
+      handoffs: ((handoffsResult.data || []) as WorkHandoff[]),
+    };
+    return { ...remote, source: 'supabase', people: serverPeople };
+  }
   const local = loadLocalWorkData(today, currentUserId);
   return { ...local, source: 'local' };
+}
+
+export async function syncWorkModuleData(
+  supabase: SupabaseClient,
+  state: Omit<WorkStorageState, 'source'>,
+  expectedTasks: WorkTask[],
+): Promise<void> {
+  const pendingIds = new Set(state.tasks.filter((task) => task.sync_pending).map((task) => task.id));
+  const { error } = await supabase.rpc('bz_work_sync_snapshot', {
+    p_tasks: state.tasks.filter((task) => !task.sync_pending),
+    p_expected_tasks: expectedTasks,
+    p_notes: state.notes.filter((item) => !pendingIds.has(item.task_id)),
+    p_reasons: state.reasons.filter((item) => !pendingIds.has(item.task_id)),
+    p_handoffs: state.handoffs.filter((item) => !pendingIds.has(item.task_id)),
+  });
+  if (error) throw error;
+}
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+export function prepareLocalWorkSync(
+  remote: Omit<WorkStorageState, 'source' | 'people'>,
+  local: Omit<WorkStorageState, 'source' | 'people'>,
+  localPeople: WorkPerson[],
+  serverPeople: WorkPerson[],
+  currentUserId: string,
+): Omit<WorkStorageState, 'source' | 'people'> {
+  const serverIds = new Set(remote.tasks.map((task) => task.id));
+  const remoteById = new Map(remote.tasks.map((task) => [task.id, task]));
+  const serverByEmail = new Map(serverPeople.filter((person) => person.email).map((person) => [person.email!.toLowerCase(), person]));
+  const serverByTeacher = new Map(serverPeople.filter((person) => person.teacherId).map((person) => [person.teacherId!, person]));
+  const localById = new Map(localPeople.map((person) => [person.user_id, person]));
+  const actor = serverPeople.find((person) => person.user_id === currentUserId);
+  const personId = (id: string): string | null => {
+    if (serverPeople.some((person) => person.user_id === id)) return id;
+    const localPerson = localById.get(id);
+    if (!localPerson) return null;
+    const match = (localPerson.email && serverByEmail.get(localPerson.email.toLowerCase())) ||
+      (localPerson.teacherId && serverByTeacher.get(localPerson.teacherId));
+    return match?.user_id || null;
+  };
+  const taskIdMap = new Map<string, string>();
+  const imported: WorkTask[] = [];
+  const pending: WorkTask[] = [];
+  for (const task of local.tasks) {
+    const serverTask = remoteById.get(task.id);
+    if (serverTask) {
+      if (Date.parse(task.updated_at) > Date.parse(serverTask.updated_at)) {
+        const assignee = personId(task.assigned_uid);
+        const mayEdit = actor && (task.branch === 'admin'
+          ? actor.role === 'manager' || actor.role === 'admin'
+          : actor.role === 'manager' || actor.role === 'admin' || actor.role === 'trainer' || (actor.role === 'teacher' && assignee === currentUserId));
+        if (assignee && mayEdit) {
+          taskIdMap.set(task.id, task.id);
+          imported.push({ ...task, assigned_uid: assignee, sync_pending: false });
+        }
+      }
+      continue;
+    }
+    if (serverIds.has(task.id)) continue;
+    const assignee = personId(task.assigned_uid);
+    const mayImport = Boolean(actor && (task.branch === 'admin'
+      ? actor.role === 'manager' || actor.role === 'admin'
+      : actor.role === 'manager' || actor.role === 'admin' || actor.role === 'trainer'));
+    if (!assignee || !mayImport) {
+      pending.push({ ...task, sync_pending: true });
+      continue;
+    }
+    const nextId = isUuid(task.id) ? task.id : newWorkId();
+    taskIdMap.set(task.id, nextId);
+    imported.push({ ...task, id: nextId, assigned_uid: assignee, updated_at: task.updated_at || new Date().toISOString() });
+  }
+  const importedTaskIds = new Set(taskIdMap.keys());
+  const mapChildren = <T extends { id: string; task_id: string }>(items: T[]): T[] => items
+    .filter((item) => importedTaskIds.has(item.task_id))
+    .map((item) => ({ ...item, id: isUuid(item.id) ? item.id : newWorkId(), task_id: taskIdMap.get(item.task_id)! }));
+  const notes = mapChildren(local.notes).map((note) => ({ ...note, author_uid: personId(note.author_uid) || currentUserId }));
+  const reasons = mapChildren(local.reasons).map((reason) => ({ ...reason, author_uid: personId(reason.author_uid) || currentUserId }));
+  const handoffs = local.handoffs.filter((handoff) => importedTaskIds.has(handoff.task_id) && !handoff.acknowledged_at && personId(handoff.from_uid) && personId(handoff.to_uid))
+    .map((handoff) => ({ ...handoff, id: isUuid(handoff.id) ? handoff.id : newWorkId(), task_id: taskIdMap.get(handoff.task_id)!, from_uid: personId(handoff.from_uid)!, to_uid: personId(handoff.to_uid)! }));
+  return {
+    tasks: [...imported, ...remote.tasks, ...pending],
+    notes: [...remote.notes, ...notes],
+    reasons: [...remote.reasons, ...reasons],
+    handoffs: [...handoffs, ...remote.handoffs],
+  };
 }

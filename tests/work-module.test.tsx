@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BeeZoneWork } from '../src/modules/work/BeeZoneWork';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
-import type { WorkTask } from '../src/modules/work/types';
-import { buildWorkPeople, fetchWorkModuleData, localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
+import type { WorkPerson, WorkTask } from '../src/modules/work/types';
+import { buildWorkPeople, fetchWorkModuleData, localISODate, prepareLocalWorkSync, saveLocalWorkData, syncWorkModuleData } from '../src/modules/work/workStorage';
 
 const mockTeacher: Teacher = {
   id: 't-linh',
@@ -108,15 +108,44 @@ describe('BeeZoneWork Module', () => {
     vi.restoreAllMocks();
   });
 
-  it('keeps locally saved work when a server client is configured', async () => {
+  it('loads shared work and authorized people from Supabase when connected', async () => {
     seedTestTasks();
-    const serverClient = { auth: { getUser: vi.fn() }, from: vi.fn() };
+    const people = [{ user_id: DEV_OWNER_ACCOUNT.id, display_name: 'BeeZone Owner', email: DEV_OWNER_ACCOUNT.email, role: 'manager', active: true, branch: 'admin' }];
+    const from = vi.fn((table: string) => ({
+      select: () => ({ order: async () => ({ data: table === 'bz_work_tasks' ? [{ id: '11111111-1111-4111-8111-111111111111', title: 'Việc đã đồng bộ', branch: 'admin', assigned_uid: DEV_OWNER_ACCOUNT.id, work_date: localISODate(), status: 'todo', priority: 'normal', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }] : [], error: null }) }),
+    }));
+    const serverClient = { rpc: vi.fn(async () => ({ data: people, error: null })), from };
 
     const data = await fetchWorkModuleData(serverClient as never, localISODate(), DEV_OWNER_ACCOUNT.id);
 
-    expect(data.source).toBe('local');
-    expect(data.tasks.map((task) => task.id)).toEqual(['task-1', 'task-2']);
-    expect(serverClient.from).not.toHaveBeenCalled();
+    expect(data.source).toBe('supabase');
+    expect(data.tasks.map((task) => task.title)).toEqual(['Việc đã đồng bộ']);
+    expect(data.people?.[0].role).toBe('manager');
+    expect(from).toHaveBeenCalledTimes(4);
+  });
+
+  it('sends one atomic server sync with the expected task versions', async () => {
+    const rpc = vi.fn(async () => ({ error: null }));
+    const task: WorkTask = { id: '11111111-1111-4111-8111-111111111111', title: 'Cloud task', description: '', branch: 'admin', assigned_uid: DEV_OWNER_ACCOUNT.id, work_date: localISODate(), shift_label: 'Ca sáng', class_label: '', priority: 'normal', status: 'todo', needs_handover: false, completed_at: null, email_sent_at: null, email_sent_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    await syncWorkModuleData({ rpc } as never, { tasks: [task], notes: [], reasons: [], handoffs: [] }, []);
+    expect(rpc).toHaveBeenCalledWith('bz_work_sync_snapshot', expect.objectContaining({ p_tasks: [task], p_expected_tasks: [] }));
+  });
+
+  it('prepares legacy local tasks for upload while retaining tasks with no matching account', () => {
+    const legacyTask: WorkTask = { id: 'old-task-1', title: 'Công việc cũ', description: '', branch: 'admin', assigned_uid: 'acc-old-office', work_date: localISODate(), shift_label: 'Ca sáng', class_label: '', priority: 'normal', status: 'todo', needs_handover: false, completed_at: null, email_sent_at: null, email_sent_to: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    const unknownTask = { ...legacyTask, id: 'old-task-2', assigned_uid: 'unknown-user', title: 'Công việc cần giữ cục bộ' };
+    const serverPerson: WorkPerson = { user_id: DEV_OWNER_ACCOUNT.id, display_name: 'BeeZone Owner', email: 'office@beezone.vn', role: 'manager', active: true };
+    const prepared = prepareLocalWorkSync(
+      { tasks: [], notes: [], reasons: [], handoffs: [] },
+      { tasks: [legacyTask, unknownTask], notes: [], reasons: [], handoffs: [] },
+      [{ ...serverPerson, user_id: 'acc-old-office' }],
+      [serverPerson],
+      DEV_OWNER_ACCOUNT.id,
+    );
+    expect(prepared.tasks).toHaveLength(2);
+    expect(prepared.tasks[0].id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(prepared.tasks[0].assigned_uid).toBe(DEV_OWNER_ACCOUNT.id);
+    expect(prepared.tasks[1].sync_pending).toBe(true);
   });
 
   it('does not grant the administrative branch from an account email or display name', async () => {

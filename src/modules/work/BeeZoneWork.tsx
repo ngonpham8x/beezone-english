@@ -35,13 +35,16 @@ import {
   loadLocalWorkData,
   localISODate,
   mapUserToWorkRole,
+  newWorkId,
   saveLocalWorkData,
+  syncWorkModuleData,
   statusName,
   timeVN,
   validEmail,
   DEFAULT_AUTHORIZED_ACCOUNTS,
   isHiddenWorkEmail,
   loadLocalExtraPeople,
+  prepareLocalWorkSync,
   saveLocalExtraPeople,
   WORK_SETTINGS_KEY,
 } from './workStorage';
@@ -190,8 +193,15 @@ export function BeeZoneWork({
   const [customShiftNote, setCustomShiftNote] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingSyncCountRef = useRef(0);
+  const deferredToastRef = useRef('');
+  const syncErrorRef = useRef('');
 
   const showToast = (msg: string) => {
+    if (pendingSyncCountRef.current > 0) {
+      deferredToastRef.current = msg;
+      return;
+    }
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
   };
@@ -227,11 +237,34 @@ export function BeeZoneWork({
   const loadData = async () => {
     try {
       const data = await fetchWorkModuleData(supabase, day, uid);
-      setTasks(data.tasks);
-      setNotes(data.notes);
-      setReasons(data.reasons);
-      setHandoffs(data.handoffs);
-      setDataSource(data.source);
+      if (data.source === 'supabase' && data.people) {
+        const local = loadLocalWorkData(day, uid);
+        const localPeople = buildWorkPeople(currentUser, teachers, loadLocalExtraPeople());
+        const merged = prepareLocalWorkSync(data, local, localPeople, data.people, uid);
+        const migratedCount = merged.tasks.filter((task) => !task.sync_pending && data.tasks.find((remoteTask) => remoteTask.id === task.id)?.updated_at !== task.updated_at).length;
+        let synced = true;
+        if (migratedCount) {
+          try {
+            await syncWorkModuleData(supabase!, merged, data.tasks);
+          } catch (error) {
+            synced = false;
+            console.error('Legacy work migration failed:', error instanceof Error ? error.message : 'unknown error');
+          }
+        }
+        setTasks(merged.tasks);
+        setNotes(merged.notes);
+        setReasons(merged.reasons);
+        setHandoffs(merged.handoffs);
+        setPeople(data.people);
+        setDataSource(synced ? 'supabase' : 'local');
+        if (synced) saveLocalWorkData(merged);
+      } else {
+        setTasks(data.tasks);
+        setNotes(data.notes);
+        setReasons(data.reasons);
+        setHandoffs(data.handoffs);
+        setDataSource(data.source);
+      }
     } catch (e) {
       console.error('Error loading work module data:', e);
       const local = loadLocalWorkData(day, uid);
@@ -247,23 +280,79 @@ export function BeeZoneWork({
     loadData();
   }, [day, uid]);
 
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel('beezone-work-cross-device')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_tasks' }, () => void loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_notes' }, () => void loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_reasons' }, () => void loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_handoffs' }, () => void loadData())
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [supabase, day, uid]);
+
   // Persist locally
-  const syncStorage = (
+  const syncStorage = async (
     nextTasks: WorkTask[],
     nextNotes: WorkNote[],
     nextReasons: WorkReason[],
     nextHandoffs: WorkHandoff[],
   ) => {
-    setTasks(nextTasks);
-    setNotes(nextNotes);
-    setReasons(nextReasons);
-    setHandoffs(nextHandoffs);
-    saveLocalWorkData({
+    const nextState = {
       tasks: nextTasks,
       notes: nextNotes,
       reasons: nextReasons,
       handoffs: nextHandoffs,
-    });
+    };
+    if (supabase) {
+      pendingSyncCountRef.current += 1;
+      setBusy(true);
+      let syncError = '';
+      try {
+        await syncWorkModuleData(supabase, nextState, tasks);
+        setTasks(nextTasks);
+        setNotes(nextNotes);
+        setReasons(nextReasons);
+        setHandoffs(nextHandoffs);
+        setDataSource('supabase');
+        saveLocalWorkData(nextState);
+      } catch (error) {
+        console.error('Work sync failed:', error instanceof Error ? error.message : 'unknown error');
+        syncError = 'Không đồng bộ được lên máy chủ. Dữ liệu vẫn giữ trên thiết bị này; hãy tải lại sau khi kiểm tra kết nối.';
+        syncErrorRef.current = syncError;
+        setTasks(nextTasks);
+        setNotes(nextNotes);
+        setReasons(nextReasons);
+        setHandoffs(nextHandoffs);
+        setDataSource('local');
+        saveLocalWorkData(nextState);
+        setTasks(nextTasks);
+        setNotes(nextNotes);
+        setReasons(nextReasons);
+        setHandoffs(nextHandoffs);
+        setDataSource('local');
+        saveLocalWorkData(nextState);
+      } finally {
+        pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
+        if (pendingSyncCountRef.current === 0) {
+          setBusy(false);
+          const finalToast = syncErrorRef.current || deferredToastRef.current;
+          deferredToastRef.current = '';
+          syncErrorRef.current = '';
+          if (finalToast) {
+            setToastMsg(finalToast);
+            setTimeout(() => setToastMsg(''), 3000);
+          }
+        }
+      }
+      return;
+    }
+    setTasks(nextTasks);
+    setNotes(nextNotes);
+    setReasons(nextReasons);
+    setHandoffs(nextHandoffs);
+    saveLocalWorkData(nextState);
   };
 
   // Phân quyền nhánh:
@@ -467,6 +556,10 @@ export function BeeZoneWork({
   };
 
   const handleSaveQuickPerson = () => {
+    if (supabase) {
+      showToast('Hãy cấp quyền cho tài khoản trong mục Phân quyền nhân viên trước khi giao việc.');
+      return;
+    }
     const trimmedName = quickPersonName.trim();
     if (!trimmedName) {
       showToast('Vui lòng nhập họ và tên nhân sự / giáo viên.');
@@ -630,7 +723,7 @@ export function BeeZoneWork({
     } else {
       // Create
       const newTask: WorkTask = {
-        id: 't-' + Date.now(),
+        id: newWorkId(),
         title: form.title.trim(),
         description: form.description.trim(),
         branch: form.branch,
@@ -671,7 +764,7 @@ export function BeeZoneWork({
     if (!noteTask || !noteDraft.trim()) return;
     const authorName = currentUser?.name || 'Nhân sự';
     const newNote: WorkNote = {
-      id: 'n-' + Date.now(),
+      id: newWorkId(),
       task_id: noteTask.id,
       author_uid: uid,
       author_name: authorName,
@@ -703,7 +796,7 @@ export function BeeZoneWork({
     const now = new Date().toISOString();
     const authorName = currentUser?.name || getPerson(t.assigned_uid).display_name || 'Nhân sự';
     const newReason: WorkReason = {
-      id: 'r-' + Date.now(),
+      id: newWorkId(),
       task_id: t.id,
       author_uid: uid,
       author_name: authorName,
@@ -813,9 +906,13 @@ export function BeeZoneWork({
       showToast('Vui lòng chọn người nhận ca.');
       return;
     }
+    if (handoverNoteContent.trim().length < 2) {
+      showToast('Vui lòng nhập ghi chú bàn giao (ít nhất 2 ký tự).');
+      return;
+    }
     const now = new Date().toISOString();
     const newHandoff: WorkHandoff = {
-      id: 'h-' + Date.now(),
+      id: newWorkId(),
       task_id: handoverTask.id,
       from_uid: uid,
       to_uid: handoverToUid,
@@ -845,11 +942,14 @@ export function BeeZoneWork({
             acknowledged_at: now,
             acknowledged_by: uid,
             ack_name: ackName.trim() || 'Người nhận ca',
+            ack_note: ackNote.trim(),
           }
         : h,
     );
     const updatedTask: WorkTask = {
       ...ackTask,
+      assigned_uid: handoffs.find((h) => h.task_id === ackTask.id && !h.acknowledged_at)?.to_uid || ackTask.assigned_uid,
+      needs_handover: false,
       ack: `${ackName.trim() || 'Người nhận ca'} lúc ${timeVN(now)}`,
       updated_at: now,
     };
@@ -928,6 +1028,10 @@ export function BeeZoneWork({
 
   // Staff management
   const handleSaveStaff = () => {
+    if (supabase) {
+      showToast('Danh sách đồng bộ lấy từ tài khoản đang hoạt động trong mục Phân quyền nhân viên.');
+      return;
+    }
     if (!staffEditor?.display_name.trim()) {
       showToast('Vui lòng nhập họ tên nhân sự.');
       return;
@@ -1248,8 +1352,12 @@ export function BeeZoneWork({
         </div>
       </div>
 
-      <p role="status" style={{ margin: '12px 0', color: '#705000', fontSize: 13 }}>
-        Công việc và bàn giao hiện được lưu trên trình duyệt này; chưa đồng bộ giữa các thiết bị.
+      <p role="status" style={{ margin: '12px 0', color: dataSource === 'supabase' ? '#047857' : '#b45309', fontSize: 13 }}>
+        {tasks.some((task) => task.sync_pending)
+          ? `${tasks.filter((task) => task.sync_pending).length} công việc cũ chưa khớp tài khoản BeeZone nên vẫn chỉ có trên thiết bị này; hãy cấp tài khoản cho người phụ trách để đồng bộ.`
+          : dataSource === 'supabase'
+            ? 'Công việc và bàn giao đã kết nối đồng bộ giữa các thiết bị.'
+            : 'Đang dùng dữ liệu cục bộ trên thiết bị này. Hãy chạy migration đồng bộ và kiểm tra kết nối để chia sẻ công việc.'}
       </p>
 
       {/* STATS BAR */}
@@ -1794,9 +1902,7 @@ export function BeeZoneWork({
                         {p.display_name} ({p.department || (p.role === 'teacher' ? 'Giáo viên' : 'Nhân sự')}){p.email ? ` – ${p.email}` : ''}
                       </option>
                     ))}
-                    <option value="__add_new__">
-                      ➕ Thêm mới nhân sự / giáo viên...
-                    </option>
+                    {!supabase && <option value="__add_new__">➕ Thêm mới nhân sự / giáo viên...</option>}
                   </select>
 
                   {showQuickAddPerson && (
@@ -2919,7 +3025,9 @@ export function BeeZoneWork({
             </div>
             <div className="bzw-modal-content">
               <div className="bzw-hint">
-                Nhập <b>Gmail thật</b> cho từng người để nút gửi email sử dụng được.
+                {supabase
+                  ? 'Danh sách này đồng bộ từ các tài khoản hoạt động được cấp quyền trong mục Phân quyền nhân viên.'
+                  : <>Nhập <b>Gmail thật</b> cho từng người để nút gửi email sử dụng được.</>}
               </div>
 
               <div style={{ maxHeight: 320, overflow: 'auto' }}>
@@ -2934,13 +3042,13 @@ export function BeeZoneWork({
                         {p.department || 'Nhân sự'} • {p.email || 'Chưa có email'}
                       </small>
                     </div>
-                    <button
+                    {!supabase && <button
                       type="button"
                       className="bzw-btn bzw-sm"
                       onClick={() => setStaffEditor(p)}
                     >
                       ✎ Sửa
-                    </button>
+                    </button>}
                   </div>
                 ))}
               </div>
@@ -2953,7 +3061,7 @@ export function BeeZoneWork({
               >
                 Đóng
               </button>
-              <button
+              {!supabase && <button
                 type="button"
                 className="bzw-btn bzw-gold"
                 onClick={() =>
@@ -2969,7 +3077,7 @@ export function BeeZoneWork({
                 }
               >
                 ＋ Thêm nhân sự
-              </button>
+              </button>}
             </div>
           </div>
         </div>
