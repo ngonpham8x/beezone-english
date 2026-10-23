@@ -1666,7 +1666,7 @@ export function BeeZoneWork({
       {/* MODAL: TASK CREATE / EDIT */}
       {editorTask !== undefined && (
         <div className="bzw-overlay" onClick={() => setEditorTask(undefined)}>
-          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="bzw-modal bzw-wide" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>{editorTask ? 'Sửa công việc' : 'Tạo công việc mới'}</h2>
               <button
@@ -1701,6 +1701,7 @@ export function BeeZoneWork({
                   />
                 </div>
 
+                {/* HÀNG 3: NHÁNH CÔNG VIỆC & NGƯỜI THỰC HIỆN */}
                 <div className="bzw-field">
                   <label htmlFor="m_branch">Nhánh công việc *</label>
                   <select
@@ -1746,19 +1747,7 @@ export function BeeZoneWork({
                 </div>
 
                 <div className="bzw-field">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label htmlFor="m_assignee" style={{ margin: 0 }}>
-                      Người thực hiện *
-                    </label>
-                    <button
-                      type="button"
-                      className="bzw-quick-add-btn"
-                      onClick={() => setShowQuickAddPerson((prev) => !prev)}
-                      title="Thêm mới người thực hiện hoặc giáo viên cần bổ sung"
-                    >
-                      {showQuickAddPerson ? '✕ Đóng' : '＋ Thêm mới'}
-                    </button>
-                  </div>
+                  <label htmlFor="m_assignee">Người thực hiện *</label>
                   <select
                     id="m_assignee"
                     aria-label="Người thực hiện"
@@ -1885,6 +1874,7 @@ export function BeeZoneWork({
                   )}
                 </div>
 
+                {/* HÀNG 4: LỚP HỌC & CA / BUỔI */}
                 <div className="bzw-field">
                   <label htmlFor="m_class">Lớp (đồng bộ danh mục lớp & giáo viên)</label>
                   <select
@@ -2015,7 +2005,7 @@ export function BeeZoneWork({
                     );
                     const roomName = rooms.find((r) => r.id === cls.roomId)?.name;
                     return (
-                      <div className="bzw-sync-info">
+                      <div className="bzw-sync-info" style={{ marginTop: 6 }}>
                         📅 <b>Lịch học:</b> {cls.scheduleTime || 'Chưa cố định'}
                         {cls.days && cls.days.length > 0 ? ` · ${cls.days.join(', ')}` : ''}
                         {roomName ? ` · Phòng ${roomName}` : ''}
@@ -2044,30 +2034,7 @@ export function BeeZoneWork({
                 </div>
 
                 <div className="bzw-field">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <label htmlFor="m_shift" style={{ margin: 0 }}>
-                      Ca / Buổi (đồng bộ với thời khóa biểu & lịch dạy)
-                    </label>
-                    <button
-                      type="button"
-                      className="bzw-quick-add-btn"
-                      onClick={() => {
-                        setIsCustomShift((prev) => {
-                          const next = !prev;
-                          if (next) {
-                            const formatted = customShiftNote
-                              ? `${customShiftNote} (${customShiftStart} - ${customShiftEnd})`
-                              : `${customShiftStart} - ${customShiftEnd}`;
-                            setForm((f) => ({ ...f, shift_label: formatted }));
-                          }
-                          return next;
-                        });
-                      }}
-                      title="Tự nhập mốc thời gian / ca làm việc"
-                    >
-                      {isCustomShift ? '✕ Chọn ca có sẵn' : '＋ Tự nhập giờ'}
-                    </button>
-                  </div>
+                  <label htmlFor="m_shift">Ca / Buổi (đồng bộ với thời khóa biểu & lịch dạy)</label>
                   <select
                     id="m_shift"
                     aria-label="Ca / Buổi"
@@ -2474,15 +2441,15 @@ export function BeeZoneWork({
                   </div>
                 </div>
 
-                <div className="bzw-field">
-                  <label style={{ marginTop: 26, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="bzw-field bzw-span2">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: 0, fontWeight: 600 }}>
                     <input
                       type="checkbox"
-                      style={{ width: 18, height: 18 }}
+                      style={{ width: 18, height: 18, cursor: 'pointer' }}
                       checked={Boolean(form.needs_handover)}
                       onChange={(e) => setForm({ ...form, needs_handover: e.target.checked })}
                     />
-                    Đánh dấu cần bàn giao cuối ca
+                    <span>🔄 Đánh dấu cần bàn giao cuối ca</span>
                   </label>
                 </div>
               </div>

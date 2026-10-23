@@ -460,9 +460,9 @@ describe('BeeZoneWork Module', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
 
-    // Click "+ Thêm mới" button beside Người thực hiện
-    const quickAddBtn = screen.getByRole('button', { name: /＋ Thêm mới/i });
-    fireEvent.click(quickAddBtn);
+    // Select option "➕ Thêm mới nhân sự / giáo viên..." in Người thực hiện dropdown
+    const assigneeSelect = screen.getByLabelText(/Người thực hiện/i);
+    fireEvent.change(assigneeSelect, { target: { value: '__add_new__' } });
 
     expect(screen.getByText('➕ Thêm mới nhân sự / giáo viên')).toBeTruthy();
 
