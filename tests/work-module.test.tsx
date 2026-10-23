@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BeeZoneWork } from '../src/modules/work/BeeZoneWork';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
-import type { ClassRoom, CourseProgram, Teacher, UserAccount } from '../src/types';
+import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
 import type { WorkTask } from '../src/modules/work/types';
 import { localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
 
@@ -177,8 +177,8 @@ describe('BeeZoneWork Module', () => {
     fireEvent.change(assigneeSelect, { target: { value: 't-linh' } });
 
     // Select class: LOP-KINDY-01
-    const classInput = screen.getByPlaceholderText(/Chọn lớp có sẵn/i);
-    fireEvent.change(classInput, { target: { value: 'LOP-KINDY-01 - Tiếng Anh Mầm Non Kindy 1' } });
+    const classSelect = screen.getByLabelText(/Lớp/i);
+    fireEvent.change(classSelect, { target: { value: 'c-kindy' } });
 
     // Description
     const descInput = screen.getByPlaceholderText(/Mô tả các bước/i);
@@ -341,6 +341,127 @@ describe('BeeZoneWork Module', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Xác nhận đã nhận bàn giao')).toBeNull();
+    });
+  });
+
+  it('contains the 3 authorized accounts, excludes tayninhdoimoi@gmail.com, and only shows Hành chính branch', async () => {
+    const userWithHiddenEmail: UserAccount = {
+      ...DEV_OWNER_ACCOUNT,
+      id: 'usr-hidden',
+      name: 'Quản trị hệ thống',
+      email: 'tayninhdoimoi@gmail.com',
+      role: 'staff',
+    };
+
+    render(
+      <BeeZoneWork
+        currentUser={userWithHiddenEmail}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
+
+    expect(screen.getByText('Tạo công việc mới')).toBeTruthy();
+
+    // Check branch options: "Hành chính" only (no "Lễ tân")
+    const branchSelect = screen.getByLabelText(/Nhánh công việc/i) as HTMLSelectElement;
+    const branchOptionTexts = Array.from(branchSelect.options).map((o) => o.textContent);
+    expect(branchOptionTexts).toContain('Hành chính');
+    expect(branchOptionTexts).not.toContain('Hành chính / Lễ tân');
+
+    // Check assignee options
+    const assigneeSelect = screen.getByLabelText(/Người thực hiện/i) as HTMLSelectElement;
+    const assigneeOptionTexts = Array.from(assigneeSelect.options).map((o) => o.textContent || '');
+
+    // Must contain the 3 authorized accounts from Image 1
+    expect(assigneeOptionTexts.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('chauoaingua679@gmail.com'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('phonghanhchinh.beezone@gmail.com'))).toBe(true);
+
+    // Must NOT contain tayninhdoimoi@gmail.com
+    expect(assigneeOptionTexts.some((txt) => txt.includes('tayninhdoimoi@gmail.com'))).toBe(false);
+  });
+
+  it('allows quick adding a new person directly in the Task Editor modal and auto-selects them', async () => {
+    render(
+      <BeeZoneWork
+        currentUser={DEV_OWNER_ACCOUNT}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
+
+    // Click "+ Thêm mới" button beside Người thực hiện
+    const quickAddBtn = screen.getByRole('button', { name: /＋ Thêm mới/i });
+    fireEvent.click(quickAddBtn);
+
+    expect(screen.getByText('➕ Thêm mới nhân sự / giáo viên')).toBeTruthy();
+
+    const nameInput = screen.getByPlaceholderText(/Ví dụ: Cô Mai Anh/i);
+    const emailInput = screen.getByPlaceholderText(/name@gmail\.com/i);
+    fireEvent.change(nameInput, { target: { value: 'Thầy Tuấn Anh' } });
+    fireEvent.change(emailInput, { target: { value: 'tuananh@beezone.edu.vn' } });
+
+    // Click "✓ Lưu & Chọn người này"
+    fireEvent.click(screen.getByRole('button', { name: /Lưu & Chọn người này/i }));
+
+    await waitFor(() => {
+      // The quick-add box is closed
+      expect(screen.queryByText(/Bổ sung người thực hiện trực tiếp/i)).toBeNull();
+      // The assignee select now has the new person selected
+      const assigneeSelect = screen.getByLabelText(/Người thực hiện/i) as HTMLSelectElement;
+      const selectedOption = assigneeSelect.options[assigneeSelect.selectedIndex];
+      expect(selectedOption.textContent).toContain('Thầy Tuấn Anh');
+      expect(selectedOption.textContent).toContain('tuananh@beezone.edu.vn');
+    });
+  });
+
+  it('allows selecting "Thêm mới / Tự nhập mốc thời gian" in Ca / Buổi and entering custom time manually', async () => {
+    render(
+      <BeeZoneWork
+        currentUser={DEV_OWNER_ACCOUNT}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
+
+    const shiftSelect = screen.getByLabelText(/Ca \/ Buổi/i) as HTMLSelectElement;
+    // Check that "__custom_shift__" is in the options
+    const shiftOptions = Array.from(shiftSelect.options).map((o) => o.value);
+    expect(shiftOptions).toContain('__custom_shift__');
+
+    // Select "__custom_shift__"
+    fireEvent.change(shiftSelect, { target: { value: '__custom_shift__' } });
+
+    // Custom shift box should now be visible
+    expect(screen.getByText(/Tự nhập mốc thời gian \/ ca làm việc/i)).toBeTruthy();
+
+    // Type custom time manually
+    const customTimeInput = screen.getByPlaceholderText(/Mốc thời gian sẽ lưu vào công việc/i);
+    fireEvent.change(customTimeInput, { target: { value: 'Trực trưa (11:30 - 13:30)' } });
+
+    // Set task title
+    const titleInput = screen.getByPlaceholderText(/Nhập tên nhiệm vụ/i);
+    fireEvent.change(titleInput, { target: { value: 'Trực đón học viên ca trưa' } });
+
+    // Submit
+    fireEvent.click(screen.getByRole('button', { name: /Lưu công việc/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Trực đón học viên ca trưa')).toBeTruthy();
+      expect(screen.getAllByText(/Trực trưa \(11:30 - 13:30\)/i).length).toBeGreaterThan(0);
     });
   });
 });

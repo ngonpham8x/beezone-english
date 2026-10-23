@@ -184,6 +184,11 @@ export function WorkspaceScreens({
             teachers={teachers}
             classes={classes}
             programs={programs}
+            rooms={rooms}
+            timetableSlots={timetableSlots}
+            scheduleChanges={scheduleChanges}
+            onSaveScheduleChange={handleSaveScheduleChange}
+            onDeleteScheduleChange={handleDeleteScheduleChange}
           />
         </Suspense>
       );

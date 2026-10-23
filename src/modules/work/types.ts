@@ -26,6 +26,9 @@ export interface WorkTask {
   shift_label: string;
   class_label: string;
   classId?: string;
+  is_teacher_off?: boolean;
+  substitute_teacher_id?: string;
+  schedule_change_id?: string;
   priority: TaskPriority;
   status: TaskStatus;
   needs_handover: boolean;
@@ -87,6 +90,10 @@ export interface WorkFormState {
   work_date: string;
   shift_label: string;
   class_label: string;
+  classId?: string;
+  is_teacher_off?: boolean;
+  substitute_teacher_id?: string;
+  schedule_change_id?: string;
   priority: TaskPriority;
   status?: TaskStatus;
   needs_handover?: boolean;

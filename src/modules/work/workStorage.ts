@@ -69,6 +69,69 @@ export function mapUserToWorkRole(user: UserAccount): WorkRole {
   return 'admin';
 }
 
+export const HIDDEN_WORK_EMAILS = ['tayninhdoimoi@gmail.com'];
+
+export function isHiddenWorkEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return HIDDEN_WORK_EMAILS.includes(email.trim().toLowerCase());
+}
+
+export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
+  {
+    user_id: 'acc-daotao',
+    display_name: 'BeeZone Đào Tạo',
+    email: 'phongdaotao.beezone@gmail.com',
+    department: 'Nhân viên',
+    branch: 'training',
+    role: 'trainer',
+    active: true,
+  },
+  {
+    user_id: 'acc-chauoaingua',
+    display_name: 'Oai Ngua Châu',
+    email: 'chauoaingua679@gmail.com',
+    department: 'Chủ trung tâm',
+    branch: 'admin',
+    role: 'manager',
+    active: true,
+  },
+  {
+    user_id: 'acc-hanhchinh',
+    display_name: 'BeeZone Hành Chính',
+    email: 'phonghanhchinh.beezone@gmail.com',
+    department: 'Chủ trung tâm',
+    branch: 'admin',
+    role: 'admin',
+    active: true,
+  },
+];
+
+export const WORK_EXTRA_PEOPLE_KEY = 'BEEZONE_WORK_EXTRA_PEOPLE_V2';
+
+export function loadLocalExtraPeople(): WorkPerson[] {
+  try {
+    const raw = localStorage.getItem(WORK_EXTRA_PEOPLE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((p) => p && !isHiddenWorkEmail(p.email));
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading local extra people:', e);
+  }
+  return [];
+}
+
+export function saveLocalExtraPeople(extraPeople: WorkPerson[]) {
+  try {
+    const clean = extraPeople.filter((p) => p && !isHiddenWorkEmail(p.email));
+    localStorage.setItem(WORK_EXTRA_PEOPLE_KEY, JSON.stringify(clean));
+  } catch (e) {
+    console.warn('Cannot write extra people to localStorage:', e);
+  }
+}
+
 export function defaultDemoPeople(): WorkPerson[] {
   return [];
 }
@@ -80,8 +143,8 @@ export function buildWorkPeople(
 ): WorkPerson[] {
   const peopleMap = new Map<string, WorkPerson>();
 
-  // 1. Add current user
-  if (currentUser) {
+  // 1. Add current user (excluding hidden emails like tayninhdoimoi@gmail.com)
+  if (currentUser && !isHiddenWorkEmail(currentUser.email)) {
     const userRole = mapUserToWorkRole(currentUser);
     peopleMap.set(currentUser.id, {
       user_id: currentUser.id,
@@ -95,9 +158,27 @@ export function buildWorkPeople(
     });
   }
 
+  // 2. Add default authorized accounts from center management (BeeZone Đào Tạo, Oai Ngua Châu, BeeZone Hành Chính)
+  for (const acc of DEFAULT_AUTHORIZED_ACCOUNTS) {
+    if (!isHiddenWorkEmail(acc.email)) {
+      const existingByEmail = Array.from(peopleMap.values()).find(
+        (p) => p.email && p.email.toLowerCase() === acc.email?.toLowerCase(),
+      );
+      if (existingByEmail) {
+        peopleMap.set(existingByEmail.user_id, {
+          ...existingByEmail,
+          display_name: acc.display_name,
+          department: acc.department,
+        });
+      } else {
+        peopleMap.set(acc.user_id, acc);
+      }
+    }
+  }
+
   // 3. Add all teachers from center store
   for (const t of teachers) {
-    if (!t.id) continue;
+    if (!t.id || isHiddenWorkEmail(t.email)) continue;
     const existing = peopleMap.get(t.id);
     if (!existing) {
       peopleMap.set(t.id, {
@@ -115,9 +196,9 @@ export function buildWorkPeople(
     }
   }
 
-  // 4. Merge extraPeople from database if available
+  // 4. Merge extraPeople from database/localStorage if available
   for (const p of extraPeople) {
-    if (!p.user_id) continue;
+    if (!p.user_id || isHiddenWorkEmail(p.email)) continue;
     const existing = peopleMap.get(p.user_id);
     if (existing) {
       peopleMap.set(p.user_id, {
@@ -132,7 +213,7 @@ export function buildWorkPeople(
     }
   }
 
-  return Array.from(peopleMap.values());
+  return Array.from(peopleMap.values()).filter((p) => !isHiddenWorkEmail(p.email));
 }
 
 export interface WorkStorageState {
@@ -146,7 +227,7 @@ export interface WorkStorageState {
 export function defaultSettings(): WorkSettings {
   return {
     page: 'Giao việc & Bàn giao',
-    admin: 'Việc hôm nay · Hành chính / Lễ tân',
+    admin: 'Việc hôm nay · Hành chính',
     handover: 'Bàn giao cuối ca / cuối buổi',
     training: 'Việc giáo viên theo lớp',
     accent: '#ffc627',

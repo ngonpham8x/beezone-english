@@ -1,7 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as defaultSupabase } from '../../lib/supabase';
-import type { ClassRoom, CourseProgram, Teacher, UserAccount } from '../../types';
+import type {
+  ClassRoom,
+  CourseProgram,
+  Room,
+  ScheduleChange,
+  Teacher,
+  TimetableSlot,
+  UserAccount,
+} from '../../types';
+import { weekdayForDate } from '../../lib/operations';
 import './beezone-work.css';
 import type {
   Branch,
@@ -30,6 +39,10 @@ import {
   statusName,
   timeVN,
   validEmail,
+  DEFAULT_AUTHORIZED_ACCOUNTS,
+  isHiddenWorkEmail,
+  loadLocalExtraPeople,
+  saveLocalExtraPeople,
   WORK_SETTINGS_KEY,
 } from './workStorage';
 
@@ -38,6 +51,11 @@ export interface BeeZoneWorkProps {
   teachers?: Teacher[];
   classes?: ClassRoom[];
   programs?: CourseProgram[];
+  rooms?: Room[];
+  timetableSlots?: TimetableSlot[];
+  scheduleChanges?: ScheduleChange[];
+  onSaveScheduleChange?: (change: ScheduleChange) => string | null;
+  onDeleteScheduleChange?: (id: string) => string | null;
   supabaseClient?: SupabaseClient | null;
 }
 
@@ -46,6 +64,11 @@ export function BeeZoneWork({
   teachers = [],
   classes = [],
   programs = [],
+  rooms = [],
+  timetableSlots = [],
+  scheduleChanges = [],
+  onSaveScheduleChange,
+  onDeleteScheduleChange,
   supabaseClient,
 }: BeeZoneWorkProps) {
   const supabase = supabaseClient !== undefined ? supabaseClient : defaultSupabase;
@@ -55,8 +78,12 @@ export function BeeZoneWork({
     currentUser ? mapUserToWorkRole(currentUser) : 'manager',
   );
   const [people, setPeople] = useState<WorkPerson[]>(() =>
-    buildWorkPeople(currentUser, teachers),
+    buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()),
   );
+
+  const selectablePeople = useMemo(() => {
+    return people.filter((p) => p.active && !isHiddenWorkEmail(p.email));
+  }, [people]);
   const [tasks, setTasks] = useState<WorkTask[]>([]);
   const [notes, setNotes] = useState<WorkNote[]>([]);
   const [reasons, setReasons] = useState<WorkReason[]>([]);
@@ -87,7 +114,13 @@ export function BeeZoneWork({
   const [settings, setSettings] = useState<WorkSettings>(() => {
     try {
       const raw = localStorage.getItem(WORK_SETTINGS_KEY);
-      if (raw) return { ...defaultSettings(), ...JSON.parse(raw) };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.admin === 'Việc hôm nay · Hành chính / Lễ tân') {
+          parsed.admin = 'Việc hôm nay · Hành chính';
+        }
+        return { ...defaultSettings(), ...parsed };
+      }
     } catch {}
     return defaultSettings();
   });
@@ -122,15 +155,32 @@ export function BeeZoneWork({
     title: '',
     description: '',
     branch: 'admin',
-    assigned_uid: 'p1',
+    assigned_uid: selectablePeople[0]?.user_id || '',
     work_date: localISODate(),
     shift_label: 'Ca sáng',
     class_label: '',
+    classId: '',
+    is_teacher_off: false,
+    substitute_teacher_id: '',
+    schedule_change_id: '',
     priority: 'normal',
     status: 'todo',
     needs_handover: false,
   };
   const [form, setForm] = useState<WorkFormState>(initialForm);
+
+  // Quick-add person form state (inside Task Editor modal)
+  const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
+  const [quickPersonName, setQuickPersonName] = useState('');
+  const [quickPersonEmail, setQuickPersonEmail] = useState('');
+  const [quickPersonDept, setQuickPersonDept] = useState<string>('Đào tạo / Giáo viên');
+  const [quickPersonPhone, setQuickPersonPhone] = useState('');
+
+  // Custom shift form state (inside Task Editor modal)
+  const [isCustomShift, setIsCustomShift] = useState(false);
+  const [customShiftStart, setCustomShiftStart] = useState('08:00');
+  const [customShiftEnd, setCustomShiftEnd] = useState('11:30');
+  const [customShiftNote, setCustomShiftNote] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -141,16 +191,21 @@ export function BeeZoneWork({
 
   // Helper getters
   const getPerson = (userId: string): WorkPerson => {
-    return (
-      people.find((p) => p.user_id === userId) || {
-        user_id: userId,
-        display_name: 'Nhân sự chưa xác định',
-        email: '',
-        role: 'admin',
-        active: true,
-        department: 'Chưa phân công',
+    const found = people.find((p) => p.user_id === userId);
+    if (found) {
+      if (found.email && isHiddenWorkEmail(found.email)) {
+        return { ...found, email: null };
       }
-    );
+      return found;
+    }
+    return {
+      user_id: userId,
+      display_name: 'Nhân sự chưa xác định',
+      email: '',
+      role: 'admin',
+      active: true,
+      department: 'Chưa phân công',
+    };
   };
 
   const getInitials = (name?: string): string => {
@@ -342,8 +397,12 @@ export function BeeZoneWork({
 
   // Open Task Editor
   const handleOpenEditor = (t?: WorkTask) => {
+    setShowQuickAddPerson(false);
     if (t) {
       setEditorTask(t);
+      const isStd = ['Ca sáng', 'Ca chiều', 'Ca tối', 'Cuối buổi', 'Cả ngày'].includes(t.shift_label);
+      setIsCustomShift(!isStd && Boolean(t.shift_label));
+      setCustomShiftNote(t.shift_label || '');
       setForm({
         title: t.title,
         description: t.description || '',
@@ -352,19 +411,73 @@ export function BeeZoneWork({
         work_date: t.work_date,
         shift_label: t.shift_label,
         class_label: t.class_label || '',
+        classId: t.classId || classes.find((c) => c.name === t.class_label)?.id || '',
+        is_teacher_off: Boolean(t.is_teacher_off),
+        substitute_teacher_id: t.substitute_teacher_id || '',
+        schedule_change_id: t.schedule_change_id || '',
         priority: t.priority,
         status: t.status,
         needs_handover: t.needs_handover,
       });
     } else {
       setEditorTask(null);
+      setIsCustomShift(false);
+      setCustomShiftNote('');
       setForm({
         ...initialForm,
-        branch: role === 'trainer' ? 'training' : 'admin',
+        branch: role === 'trainer' || role === 'teacher' ? 'training' : 'admin',
         work_date: day || localISODate(),
-        assigned_uid: people[0]?.user_id || 'p1',
+        assigned_uid: selectablePeople[0]?.user_id || '',
       });
     }
+  };
+
+  const handleSaveQuickPerson = () => {
+    const trimmedName = quickPersonName.trim();
+    if (!trimmedName) {
+      showToast('Vui lòng nhập họ và tên nhân sự / giáo viên.');
+      return;
+    }
+    const trimmedEmail = quickPersonEmail.trim().toLowerCase();
+    if (trimmedEmail && isHiddenWorkEmail(trimmedEmail)) {
+      showToast('Email này không được phép sử dụng.');
+      return;
+    }
+    const branch: Branch =
+      quickPersonDept === 'Đào tạo / Giáo viên' ? 'training' : 'admin';
+    const role: WorkRole =
+      quickPersonDept === 'Đào tạo / Giáo viên'
+        ? 'teacher'
+        : quickPersonDept === 'Chủ trung tâm'
+          ? 'manager'
+          : 'admin';
+    const newPerson: WorkPerson = {
+      user_id: `person-${Date.now()}`,
+      display_name: trimmedName,
+      email: trimmedEmail || null,
+      department: quickPersonDept === 'Đào tạo / Giáo viên' ? 'Giáo viên' : quickPersonDept,
+      branch,
+      role,
+      phone: quickPersonPhone.trim() || undefined,
+      active: true,
+    };
+
+    const nextPeople = [...people, newPerson];
+    setPeople(nextPeople);
+    const extra = loadLocalExtraPeople().concat(newPerson);
+    saveLocalExtraPeople(extra);
+
+    setForm((prev) => ({
+      ...prev,
+      assigned_uid: newPerson.user_id,
+      branch: prev.branch || branch,
+    }));
+
+    setQuickPersonName('');
+    setQuickPersonEmail('');
+    setQuickPersonPhone('');
+    setShowQuickAddPerson(false);
+    showToast(`Đã thêm mới "${newPerson.display_name}" và chọn làm người thực hiện.`);
   };
 
   const handleSaveTask = () => {
@@ -376,7 +489,83 @@ export function BeeZoneWork({
       showToast('Vui lòng chọn người thực hiện.');
       return;
     }
+
+    let scheduleChangeId = form.schedule_change_id;
+
+    // Synchronize teacher leave / substitute if toggled
+    if (form.is_teacher_off) {
+      if (!form.classId && !form.class_label) {
+        showToast('⚠️ Vui lòng chọn lớp học để đăng ký cô nghỉ & xếp dạy thay.');
+        return;
+      }
+      if (!form.substitute_teacher_id) {
+        showToast('⚠️ Vui lòng chọn giáo viên dạy thay / dạy bù.');
+        return;
+      }
+
+      const selectedClass = classes.find(
+        (c) => c.id === form.classId || c.name === form.class_label,
+      );
+      if (!selectedClass) {
+        showToast('⚠️ Lớp học không tồn tại trong danh mục trung tâm.');
+        return;
+      }
+
+      const dayName = weekdayForDate(form.work_date);
+      const matchingSlot = timetableSlots.find(
+        (s) => s.classId === selectedClass.id && s.dayOfWeek === dayName,
+      );
+      const targetSlot =
+        matchingSlot || timetableSlots.find((s) => s.classId === selectedClass.id);
+
+      const timeMatch = form.shift_label.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
+      const startTime = timeMatch ? timeMatch[1] : targetSlot?.startTime || '18:00';
+      const endTime = timeMatch ? timeMatch[2] : targetSlot?.endTime || '19:30';
+
+      const targetRoom =
+        (targetSlot && rooms.find((r) => r.id === targetSlot.roomId)) ||
+        rooms.find((r) => r.id === selectedClass.roomId) ||
+        rooms[0];
+
+      const primaryTeacherId =
+        targetSlot?.teacherId || selectedClass.teacherId || teachers[0]?.id;
+
+      if (form.substitute_teacher_id === primaryTeacherId) {
+        showToast('⚠️ Giáo viên dạy thay phải khác giáo viên chính của buổi học.');
+        return;
+      }
+
+      if (onSaveScheduleChange && targetSlot) {
+        const changeId = scheduleChangeId || `SC_WORK_${Date.now()}`;
+        const changePayload: ScheduleChange = {
+          id: changeId,
+          classId: selectedClass.id,
+          kind: 'teacher_off',
+          date: form.work_date,
+          sourceSlotId: targetSlot.id,
+          startTime: targetSlot.startTime,
+          endTime: targetSlot.endTime,
+          teacherId: primaryTeacherId,
+          roomId: targetRoom?.id || rooms[0]?.id || '',
+          reason: `${form.title.trim()}${
+            form.description ? ` (${form.description.trim()})` : ''
+          }`,
+          substituteTeacherId: form.substitute_teacher_id,
+        };
+
+        const error = onSaveScheduleChange(changePayload);
+        if (error) {
+          showToast(`⚠️ Không thể đồng bộ lịch dạy: ${error}`);
+          return;
+        }
+        scheduleChangeId = changeId;
+      }
+    }
+
     const now = new Date().toISOString();
+    const finalClassLabel =
+      classes.find((c) => c.id === form.classId)?.name || form.class_label.trim();
+
     if (editorTask) {
       // Edit
       const updated: WorkTask = {
@@ -387,15 +576,23 @@ export function BeeZoneWork({
         assigned_uid: form.assigned_uid,
         work_date: form.work_date,
         shift_label: form.shift_label,
-        class_label: form.class_label.trim(),
-        priority: form.priority,
+        class_label: finalClassLabel,
+        classId: form.classId || undefined,
+        is_teacher_off: Boolean(form.is_teacher_off),
+        substitute_teacher_id: form.substitute_teacher_id || undefined,
+        schedule_change_id: scheduleChangeId || undefined,
+        priority: form.is_teacher_off ? 'high' : form.priority,
         status: form.status || editorTask.status,
-        needs_handover: Boolean(form.needs_handover),
+        needs_handover: form.is_teacher_off ? true : Boolean(form.needs_handover),
         updated_at: now,
       };
       const nextTasks = tasks.map((x) => (x.id === editorTask.id ? updated : x));
       syncStorage(nextTasks, notes, reasons, handoffs);
-      showToast('Đã cập nhật công việc.');
+      showToast(
+        form.is_teacher_off
+          ? '✨ Đã cập nhật công việc và đồng bộ sang Thời khóa biểu & Lịch giáo viên!'
+          : 'Đã cập nhật công việc.',
+      );
     } else {
       // Create
       const newTask: WorkTask = {
@@ -406,10 +603,14 @@ export function BeeZoneWork({
         assigned_uid: form.assigned_uid,
         work_date: form.work_date,
         shift_label: form.shift_label,
-        class_label: form.class_label.trim(),
-        priority: form.priority,
+        class_label: finalClassLabel,
+        classId: form.classId || undefined,
+        is_teacher_off: Boolean(form.is_teacher_off),
+        substitute_teacher_id: form.substitute_teacher_id || undefined,
+        schedule_change_id: scheduleChangeId || undefined,
+        priority: form.is_teacher_off ? 'high' : form.priority,
         status: form.status || 'todo',
-        needs_handover: Boolean(form.needs_handover),
+        needs_handover: form.is_teacher_off ? true : Boolean(form.needs_handover),
         completed_at: null,
         email_sent_at: null,
         email_sent_to: null,
@@ -417,7 +618,11 @@ export function BeeZoneWork({
         updated_at: now,
       };
       syncStorage([newTask, ...tasks], notes, reasons, handoffs);
-      showToast('Đã tạo công việc mới.');
+      showToast(
+        form.is_teacher_off
+          ? '✨ Đã tạo công việc và đồng bộ sang Thời khóa biểu & Lịch giáo viên!'
+          : 'Đã tạo công việc mới.',
+      );
     }
     setEditorTask(undefined);
   };
@@ -509,7 +714,7 @@ export function BeeZoneWork({
         `Trung tâm Anh ngữ BeeZone gửi đến anh/chị công việc sau:\n\n` +
         `• Công việc: ${t.title}\n` +
         `• Người thực hiện: ${p.display_name} (${p.email || 'Chưa có email'})\n` +
-        `• Bộ phận: ${t.branch === 'admin' ? 'Hành chính / Lễ tân' : 'Đào tạo / Giáo viên'}\n` +
+        `• Bộ phận: ${t.branch === 'admin' ? 'Hành chính' : 'Đào tạo / Giáo viên'}\n` +
         (t.class_label ? `• Lớp: ${t.class_label}\n` : '') +
         `• Ngày thực hiện: ${dateVN(t.work_date)} — ${t.shift_label}\n` +
         `• Trạng thái: ${statusName[t.status]}\n` +
@@ -693,6 +898,10 @@ export function BeeZoneWork({
       showToast('Vui lòng nhập họ tên nhân sự.');
       return;
     }
+    if (staffEditor.email && isHiddenWorkEmail(staffEditor.email)) {
+      showToast('Email này không được phép sử dụng.');
+      return;
+    }
     const exists = people.some(
       (p) => p.user_id === staffEditor.user_id,
     );
@@ -703,6 +912,13 @@ export function BeeZoneWork({
       nextPeople = [...people, staffEditor];
     }
     setPeople(nextPeople);
+    saveLocalExtraPeople(
+      nextPeople.filter(
+        (p) =>
+          !DEFAULT_AUTHORIZED_ACCOUNTS.some((a) => a.user_id === p.user_id) &&
+          !teachers.some((t) => t.id === p.user_id),
+      ),
+    );
     setStaffEditor(undefined);
     showToast('Đã cập nhật danh bạ nhân sự.');
   };
@@ -738,6 +954,11 @@ export function BeeZoneWork({
               <span className={`bzw-chip ${t.status}`}>{statusName[t.status]}</span>
               {t.priority === 'high' && <span className="bzw-chip high">Ưu tiên</span>}
               {t.needs_handover && <span className="bzw-chip handover">Cần bàn giao</span>}
+              {t.is_teacher_off && (
+                <span className="bzw-chip" style={{ background: '#ede9fe', color: '#5b21b6' }}>
+                  🔄 Dạy thay
+                </span>
+              )}
               {t.class_label && <span className="bzw-chip">Lớp {t.class_label}</span>}
               <span className={`bzw-chip ${t.email_sent_at ? 'done' : ''}`}>
                 {t.email_sent_at ? 'Đã gửi email' : 'Chưa gửi email'}
@@ -808,6 +1029,29 @@ export function BeeZoneWork({
         {t.ack && (
           <div className="bzw-handover-info">
             ✅ Đã nhận bàn giao: {t.ack}
+          </div>
+        )}
+
+        {/* Teacher Off & Substitute Sync Badge */}
+        {t.is_teacher_off && (
+          <div className="bzw-teacher-off-badge">
+            <div className="bzw-off-line">
+              👩‍🏫 <b>Cô đăng ký nghỉ:</b>{' '}
+              {teachers.find(
+                (x) =>
+                  x.id ===
+                  (classes.find((c) => c.id === t.classId)?.teacherId ||
+                    getPerson(t.assigned_uid).teacherId ||
+                    t.assigned_uid),
+              )?.name || 'Giáo viên'}
+            </div>
+            <div className="bzw-sub-line">
+              🔄 <b>GV dạy thay / dạy bù:</b>{' '}
+              {teachers.find((x) => x.id === t.substitute_teacher_id)?.name || 'Chưa xếp'}
+            </div>
+            <div className="bzw-sync-status">
+              ✓ Đã đồng bộ với Thời khóa biểu & Lịch giáo viên
+            </div>
           </div>
         )}
 
@@ -1122,7 +1366,7 @@ export function BeeZoneWork({
                 onChange={(e) => setHistoryBranch(e.target.value as any)}
               >
                 <option value="all">Tất cả được phép xem</option>
-                <option value="admin">Hành chính / Lễ tân</option>
+                <option value="admin">Hành chính</option>
                 <option value="training">Đào tạo / Giáo viên</option>
               </select>
             </div>
@@ -1155,7 +1399,7 @@ export function BeeZoneWork({
                   <div className="bzw-badges">
                     <span className="bzw-chip done">Hoàn thành</span>
                     <span className="bzw-chip">
-                      {t.branch === 'admin' ? 'Hành chính / Lễ tân' : 'Đào tạo / Giáo viên'}
+                      {t.branch === 'admin' ? 'Hành chính' : 'Đào tạo / Giáo viên'}
                     </span>
                     {t.class_label && <span className="bzw-chip">Lớp {t.class_label}</span>}
                   </div>
@@ -1203,7 +1447,7 @@ export function BeeZoneWork({
       {/* 3 WORKFLOW COLUMNS */}
       {!historyMode && (
         <div className="bzw-sections">
-          {/* Column 1: Hành chính / Lễ tân */}
+          {/* Column 1: Hành chính */}
           <section className="bzw-section">
             <div className="bzw-section-head">
               <div>
@@ -1435,52 +1679,699 @@ export function BeeZoneWork({
                       })
                     }
                   >
-                    <option value="admin">Hành chính / Lễ tân</option>
+                    <option value="admin">Hành chính</option>
                     <option value="training">Đào tạo / Giáo viên</option>
                   </select>
                 </div>
 
                 <div className="bzw-field">
-                  <label htmlFor="m_assignee">Người thực hiện *</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label htmlFor="m_assignee" style={{ margin: 0 }}>
+                      Người thực hiện *
+                    </label>
+                    <button
+                      type="button"
+                      className="bzw-quick-add-btn"
+                      onClick={() => setShowQuickAddPerson((prev) => !prev)}
+                      title="Thêm mới người thực hiện hoặc giáo viên cần bổ sung"
+                    >
+                      {showQuickAddPerson ? '✕ Đóng' : '＋ Thêm mới'}
+                    </button>
+                  </div>
                   <select
                     id="m_assignee"
+                    aria-label="Người thực hiện"
                     value={form.assigned_uid}
-                    onChange={(e) => setForm({ ...form, assigned_uid: e.target.value })}
+                    onChange={(e) => {
+                      const newUid = e.target.value;
+                      if (newUid === '__add_new__') {
+                        setShowQuickAddPerson(true);
+                        return;
+                      }
+                      const person = people.find((p) => p.user_id === newUid);
+                      const teacher = teachers.find(
+                        (t) =>
+                          t.id === person?.teacherId ||
+                          t.id === person?.user_id ||
+                          t.name === person?.display_name,
+                      );
+                      let nextClassId = form.classId;
+                      let nextClassLabel = form.class_label;
+                      if (!form.classId && teacher) {
+                        const tc = classes.find(
+                          (c) =>
+                            c.teacherId === teacher.id ||
+                            teacher.assignedClassIds?.includes(c.id),
+                        );
+                        if (tc) {
+                          nextClassId = tc.id;
+                          nextClassLabel = tc.name;
+                        }
+                      }
+                      setForm((prev) => ({
+                        ...prev,
+                        assigned_uid: newUid,
+                        classId: nextClassId,
+                        class_label: nextClassLabel,
+                      }));
+                    }}
                   >
-                    {people
-                      .filter((p) => p.active)
-                      .map((p) => (
-                        <option key={p.user_id} value={p.user_id}>
-                          {p.display_name} — {p.department || 'Nhân sự'} ({p.email || 'Chưa có email'})
-                        </option>
-                      ))}
+                    <option value="" disabled>
+                      — Chọn nhân sự / giáo viên —
+                    </option>
+                    {selectablePeople.map((p) => (
+                      <option key={p.user_id} value={p.user_id}>
+                        {p.display_name} ({p.department || (p.role === 'teacher' ? 'Giáo viên' : 'Nhân sự')}){p.email ? ` – ${p.email}` : ''}
+                      </option>
+                    ))}
+                    <option value="__add_new__">
+                      ➕ Thêm mới nhân sự / giáo viên...
+                    </option>
                   </select>
+
+                  {showQuickAddPerson && (
+                    <div className="bzw-quick-add-box">
+                      <div className="bzw-quick-add-header">
+                        <strong>➕ Thêm mới nhân sự / giáo viên</strong>
+                        <span style={{ fontSize: 11, color: '#92400e' }}>Bổ sung người thực hiện trực tiếp</span>
+                      </div>
+                      <div className="bzw-quick-add-grid">
+                        <div className="bzw-quick-field">
+                          <label htmlFor="qa_name">Họ và tên *</label>
+                          <input
+                            id="qa_name"
+                            type="text"
+                            placeholder="Ví dụ: Cô Mai Anh, Thầy Tuấn..."
+                            value={quickPersonName}
+                            onChange={(e) => setQuickPersonName(e.target.value)}
+                          />
+                        </div>
+                        <div className="bzw-quick-field">
+                          <label htmlFor="qa_email">Email liên hệ</label>
+                          <input
+                            id="qa_email"
+                            type="email"
+                            placeholder="name@gmail.com"
+                            value={quickPersonEmail}
+                            onChange={(e) => setQuickPersonEmail(e.target.value)}
+                          />
+                        </div>
+                        <div className="bzw-quick-field">
+                          <label htmlFor="qa_dept">Bộ phận / Vai trò</label>
+                          <select
+                            id="qa_dept"
+                            value={quickPersonDept}
+                            onChange={(e) => setQuickPersonDept(e.target.value)}
+                          >
+                            <option value="Đào tạo / Giáo viên">Đào tạo / Giáo viên</option>
+                            <option value="Hành chính">Hành chính</option>
+                            <option value="Chủ trung tâm">Chủ trung tâm / Quản lý</option>
+                          </select>
+                        </div>
+                        <div className="bzw-quick-field">
+                          <label htmlFor="qa_phone">Số điện thoại (tùy chọn)</label>
+                          <input
+                            id="qa_phone"
+                            type="tel"
+                            placeholder="0912..."
+                            value={quickPersonPhone}
+                            onChange={(e) => setQuickPersonPhone(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="bzw-quick-add-actions">
+                        <button
+                          type="button"
+                          className="bzw-btn-quick-save"
+                          onClick={handleSaveQuickPerson}
+                        >
+                          ✓ Lưu & Chọn người này
+                        </button>
+                        <button
+                          type="button"
+                          className="bzw-btn-quick-cancel"
+                          onClick={() => {
+                            setShowQuickAddPerson(false);
+                            setQuickPersonName('');
+                            setQuickPersonEmail('');
+                            setQuickPersonPhone('');
+                          }}
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bzw-field">
-                  <label htmlFor="m_class">Lớp (nếu là công việc giáo viên)</label>
-                  <input
+                  <label htmlFor="m_class">Lớp (đồng bộ danh mục lớp & giáo viên)</label>
+                  <select
                     id="m_class"
-                    type="text"
-                    placeholder="Chọn lớp có sẵn hoặc nhập mã lớp..."
-                    value={form.class_label}
-                    onChange={(e) => setForm({ ...form, class_label: e.target.value })}
-                  />
+                    aria-label="Lớp (nếu là công việc giáo viên)"
+                    value={form.classId || (form.class_label ? '__custom__' : '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__custom__') {
+                        setForm((prev) => ({
+                          ...prev,
+                          classId: '',
+                          class_label: prev.class_label || 'Toàn khối',
+                        }));
+                        return;
+                      }
+                      if (!val) {
+                        setForm((prev) => ({ ...prev, classId: '', class_label: '' }));
+                        return;
+                      }
+                      const cls = classes.find((c) => c.id === val);
+                      if (!cls) return;
+
+                      const dayName = weekdayForDate(form.work_date);
+                      const slotOnDay = timetableSlots.find(
+                        (s) => s.classId === cls.id && s.dayOfWeek === dayName,
+                      );
+                      const room = slotOnDay
+                        ? rooms.find((r) => r.id === slotOnDay.roomId)
+                        : rooms.find((r) => r.id === cls.roomId);
+                      const shiftTime = slotOnDay
+                        ? `${slotOnDay.startTime} - ${slotOnDay.endTime}${
+                            room ? ` (${room.name})` : ''
+                          }`
+                        : cls.scheduleTime || form.shift_label;
+
+                      const classTeacher = teachers.find((t) => t.id === cls.teacherId);
+                      let nextAssignee = form.assigned_uid;
+                      if (classTeacher && form.branch === 'training') {
+                        const matched = people.find(
+                          (p) =>
+                            p.teacherId === classTeacher.id ||
+                            p.user_id === classTeacher.id ||
+                            p.display_name === classTeacher.name,
+                        );
+                        if (matched) nextAssignee = matched.user_id;
+                      }
+
+                      setForm((prev) => ({
+                        ...prev,
+                        classId: cls.id,
+                        class_label: cls.name,
+                        shift_label: shiftTime || prev.shift_label,
+                        assigned_uid: nextAssignee,
+                      }));
+                    }}
+                  >
+                    <option value="">-- Không chọn lớp / Áp dụng chung --</option>
+                    {(() => {
+                      const selPerson = people.find((p) => p.user_id === form.assigned_uid);
+                      const selTeacher = teachers.find(
+                        (t) =>
+                          t.id === selPerson?.teacherId ||
+                          t.id === selPerson?.user_id ||
+                          t.name === selPerson?.display_name,
+                      );
+                      const tClasses = selTeacher
+                        ? classes.filter(
+                            (c) =>
+                              c.teacherId === selTeacher.id ||
+                              selTeacher.assignedClassIds?.includes(c.id) ||
+                              timetableSlots.some(
+                                (s) => s.classId === c.id && s.teacherId === selTeacher.id,
+                              ),
+                          )
+                        : [];
+                      const otherClasses = classes.filter(
+                        (c) => !tClasses.some((tc) => tc.id === c.id),
+                      );
+
+                      return (
+                        <>
+                          {tClasses.length > 0 && (
+                            <optgroup label={`⭐ Lớp phụ trách của ${selTeacher?.name}`}>
+                              {tClasses.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  [{c.code}] {c.name} {c.scheduleTime ? `(${c.scheduleTime})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="Tất cả các lớp học trong trung tâm">
+                            {otherClasses.map((c) => {
+                              const t = teachers.find((x) => x.id === c.teacherId);
+                              return (
+                                <option key={c.id} value={c.id}>
+                                  [{c.code}] {c.name} {t ? `· GV: ${t.name}` : ''}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                          <option value="__custom__">✏️ Nhập tên / mã lớp khác...</option>
+                        </>
+                      );
+                    })()}
+                  </select>
+
+                  {/* Input nhập tay nếu cần */}
+                  {!form.classId && form.class_label && (
+                    <input
+                      type="text"
+                      style={{ marginTop: 6 }}
+                      placeholder="Chọn lớp có sẵn hoặc nhập mã lớp..."
+                      value={form.class_label}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, class_label: e.target.value }))
+                      }
+                    />
+                  )}
+
+                  {/* Thông tin đồng bộ lớp học */}
+                  {(() => {
+                    const cls = classes.find((c) => c.id === form.classId);
+                    if (!cls) return null;
+                    const dayName = weekdayForDate(form.work_date);
+                    const slotsOnDay = timetableSlots.filter(
+                      (s) => s.classId === cls.id && s.dayOfWeek === dayName,
+                    );
+                    const roomName = rooms.find((r) => r.id === cls.roomId)?.name;
+                    return (
+                      <div className="bzw-sync-info">
+                        📅 <b>Lịch học:</b> {cls.scheduleTime || 'Chưa cố định'}
+                        {cls.days && cls.days.length > 0 ? ` · ${cls.days.join(', ')}` : ''}
+                        {roomName ? ` · Phòng ${roomName}` : ''}
+                        {slotsOnDay.length > 0 ? (
+                          <span className="bzw-chip done" style={{ marginLeft: 6 }}>
+                            ✓ Hôm nay ({dayName}) có ca:{' '}
+                            {slotsOnDay
+                              .map((s) => `${s.startTime}-${s.endTime}`)
+                              .join(', ')}
+                          </span>
+                        ) : (
+                          <span
+                            className="bzw-chip"
+                            style={{
+                              marginLeft: 6,
+                              background: '#f1f5f9',
+                              color: '#64748b',
+                            }}
+                          >
+                            ℹ️ Lớp không có lịch định kỳ vào {dayName}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="bzw-field">
-                  <label htmlFor="m_shift">Ca / Buổi</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label htmlFor="m_shift" style={{ margin: 0 }}>
+                      Ca / Buổi (đồng bộ với thời khóa biểu & lịch dạy)
+                    </label>
+                    <button
+                      type="button"
+                      className="bzw-quick-add-btn"
+                      onClick={() => {
+                        setIsCustomShift((prev) => {
+                          const next = !prev;
+                          if (next) {
+                            const formatted = customShiftNote
+                              ? `${customShiftNote} (${customShiftStart} - ${customShiftEnd})`
+                              : `${customShiftStart} - ${customShiftEnd}`;
+                            setForm((f) => ({ ...f, shift_label: formatted }));
+                          }
+                          return next;
+                        });
+                      }}
+                      title="Tự nhập mốc thời gian / ca làm việc"
+                    >
+                      {isCustomShift ? '✕ Chọn ca có sẵn' : '＋ Tự nhập giờ'}
+                    </button>
+                  </div>
                   <select
                     id="m_shift"
-                    value={form.shift_label}
-                    onChange={(e) => setForm({ ...form, shift_label: e.target.value })}
+                    aria-label="Ca / Buổi"
+                    value={isCustomShift ? '__custom_shift__' : form.shift_label}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__custom_shift__') {
+                        setIsCustomShift(true);
+                        const formatted = customShiftNote
+                          ? `${customShiftNote} (${customShiftStart} - ${customShiftEnd})`
+                          : `${customShiftStart} - ${customShiftEnd}`;
+                        setForm((prev) => ({ ...prev, shift_label: formatted }));
+                        return;
+                      }
+                      setIsCustomShift(false);
+                      setForm((prev) => ({ ...prev, shift_label: val }));
+                    }}
                   >
-                    <option value="Ca sáng">Ca sáng</option>
-                    <option value="Ca chiều">Ca chiều</option>
-                    <option value="Ca tối">Ca tối</option>
-                    <option value="Cuối buổi">Cuối buổi</option>
-                    <option value="Cả ngày">Cả ngày</option>
+                    {(() => {
+                      const dayName = weekdayForDate(form.work_date);
+                      const cls = classes.find((c) => c.id === form.classId);
+                      const slotsOnDay = form.classId
+                        ? timetableSlots.filter(
+                            (s) => s.classId === form.classId && s.dayOfWeek === dayName,
+                          )
+                        : [];
+                      const otherSlots = form.classId
+                        ? timetableSlots.filter(
+                            (s) => s.classId === form.classId && s.dayOfWeek !== dayName,
+                          )
+                        : [];
+
+                      return (
+                        <>
+                          {slotsOnDay.length > 0 && (
+                            <optgroup
+                              label={`🕒 Ca học của lớp vào ${dayName} (${dateVN(
+                                form.work_date,
+                              )})`}
+                            >
+                              {slotsOnDay.map((s) => {
+                                const rm = rooms.find((r) => r.id === s.roomId);
+                                const val = `${s.startTime} - ${s.endTime}${
+                                   rm ? ` (${rm.name})` : ''
+                                }`;
+                                return (
+                                  <option key={s.id} value={val}>
+                                    🕒 {s.startTime} - {s.endTime}{' '}
+                                    {rm ? `(Phòng ${rm.name})` : ''}
+                                  </option>
+                                );
+                              })}
+                            </optgroup>
+                          )}
+                          {otherSlots.length > 0 && (
+                            <optgroup label="Các ca học khác của lớp trong tuần">
+                              {otherSlots.map((s) => {
+                                const rm = rooms.find((r) => r.id === s.roomId);
+                                const val = `${s.startTime} - ${s.endTime}${
+                                   rm ? ` (${rm.name})` : ''
+                                }`;
+                                return (
+                                  <option key={s.id} value={val}>
+                                    🕒 {s.dayOfWeek}: {s.startTime} - {s.endTime}{' '}
+                                    {rm ? `(Phòng ${rm.name})` : ''}
+                                  </option>
+                                );
+                              })}
+                            </optgroup>
+                          )}
+                          {cls?.scheduleTime && (
+                            <optgroup label="Khung giờ cố định của lớp">
+                              <option value={cls.scheduleTime}>
+                                🕒 {cls.scheduleTime}
+                              </option>
+                            </optgroup>
+                          )}
+                          <optgroup label="Ca làm việc / trực chuẩn">
+                            <option value="Ca sáng">☀️ Ca sáng (08:00 - 11:30)</option>
+                            <option value="Ca chiều">🌤️ Ca chiều (14:00 - 17:30)</option>
+                            <option value="Ca tối">🌙 Ca tối (17:30 - 21:00)</option>
+                            <option value="Cuối buổi">📌 Cuối buổi</option>
+                            <option value="Cả ngày">⏳ Cả ngày</option>
+                          </optgroup>
+                          <optgroup label="Tùy chỉnh mốc thời gian">
+                            <option value="__custom_shift__">
+                              ➕ Thêm mới / Tự nhập mốc thời gian...
+                            </option>
+                          </optgroup>
+                          {!['Ca sáng', 'Ca chiều', 'Ca tối', 'Cuối buổi', 'Cả ngày', cls?.scheduleTime, '__custom_shift__'].includes(
+                            form.shift_label,
+                          ) &&
+                            !slotsOnDay.some(
+                              (s) => `${s.startTime} - ${s.endTime}` === form.shift_label,
+                            ) && (
+                              <option value={form.shift_label}>
+                                ✏️ {form.shift_label}
+                              </option>
+                            )}
+                        </>
+                      );
+                    })()}
                   </select>
+
+                  {isCustomShift && (
+                    <div
+                      className="bzw-custom-shift-box"
+                      style={{
+                        marginTop: 8,
+                        padding: '10px 12px',
+                        background: '#f8fafc',
+                        border: '1.5px dashed #cbd5e1',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: 6,
+                        }}
+                      >
+                        <strong style={{ fontSize: 12, color: '#1e293b' }}>
+                          🕒 Tự nhập mốc thời gian / ca làm việc:
+                        </strong>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>
+                          Hành chính & Quản lý tùy chỉnh
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                          gap: 8,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div>
+                          <label
+                            htmlFor="cs_start"
+                            style={{
+                              fontSize: 11,
+                              color: '#475569',
+                              display: 'block',
+                              marginBottom: 2,
+                            }}
+                          >
+                            Từ giờ:
+                          </label>
+                          <input
+                            id="cs_start"
+                            type="time"
+                            value={customShiftStart}
+                            onChange={(e) => {
+                              const start = e.target.value;
+                              setCustomShiftStart(start);
+                              const formatted = customShiftNote
+                                ? `${customShiftNote} (${start} - ${customShiftEnd})`
+                                : `${start} - ${customShiftEnd}`;
+                              setForm((prev) => ({ ...prev, shift_label: formatted }));
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="cs_end"
+                            style={{
+                              fontSize: 11,
+                              color: '#475569',
+                              display: 'block',
+                              marginBottom: 2,
+                            }}
+                          >
+                            Đến giờ:
+                          </label>
+                          <input
+                            id="cs_end"
+                            type="time"
+                            value={customShiftEnd}
+                            onChange={(e) => {
+                              const end = e.target.value;
+                              setCustomShiftEnd(end);
+                              const formatted = customShiftNote
+                                ? `${customShiftNote} (${customShiftStart} - ${end})`
+                                : `${customShiftStart} - ${end}`;
+                              setForm((prev) => ({ ...prev, shift_label: formatted }));
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label
+                            htmlFor="cs_custom_text"
+                            style={{
+                              fontSize: 11,
+                              color: '#475569',
+                              display: 'block',
+                              marginBottom: 2,
+                            }}
+                          >
+                            Tên ca / Ghi chú ca tự gõ:
+                          </label>
+                          <input
+                            id="cs_custom_text"
+                            type="text"
+                            placeholder="VD: Trực trưa, Họp đột xuất, Tiếp phụ huynh..."
+                            value={customShiftNote}
+                            onChange={(e) => {
+                              const note = e.target.value;
+                              setCustomShiftNote(note);
+                              const formatted = note
+                                ? `${note} (${customShiftStart} - ${customShiftEnd})`
+                                : `${customShiftStart} - ${customShiftEnd}`;
+                              setForm((prev) => ({ ...prev, shift_label: formatted }));
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label
+                            htmlFor="cs_full_text"
+                            style={{
+                              fontSize: 11,
+                              color: '#475569',
+                              display: 'block',
+                              marginBottom: 2,
+                            }}
+                          >
+                            Mốc thời gian hiển thị:
+                          </label>
+                          <input
+                            id="cs_full_text"
+                            type="text"
+                            placeholder="Mốc thời gian sẽ lưu vào công việc..."
+                            value={form.shift_label}
+                            onChange={(e) =>
+                              setForm((prev) => ({ ...prev, shift_label: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ĐĂNG KÝ CÔ NGHỈ (OFF) & DẠY THAY / DẠY BÙ */}
+                <div className="bzw-teacher-off-box">
+                  <label className="bzw-toggle-label">
+                    <input
+                      type="checkbox"
+                      style={{ width: 18, height: 18 }}
+                      checked={Boolean(form.is_teacher_off)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const selPerson = people.find(
+                          (p) => p.user_id === form.assigned_uid,
+                        );
+                        const selTeacher = teachers.find(
+                          (t) =>
+                            t.id === selPerson?.teacherId ||
+                            t.id === selPerson?.user_id ||
+                            t.name === selPerson?.display_name,
+                        );
+                        const selClass = classes.find((c) => c.id === form.classId);
+                        const teacherName =
+                          selTeacher?.name ||
+                          (selClass?.teacherId
+                            ? teachers.find((t) => t.id === selClass.teacherId)?.name
+                            : 'giáo viên');
+                        setForm((prev) => ({
+                          ...prev,
+                          is_teacher_off: checked,
+                          needs_handover: checked ? true : prev.needs_handover,
+                          priority: checked ? 'high' : prev.priority,
+                          title:
+                            checked &&
+                            (!prev.title || prev.title.startsWith('Công việc'))
+                              ? `Cô ${teacherName} đăng ký nghỉ - Xếp dạy thay ${
+                                  selClass?.name || ''
+                                }`.trim()
+                              : prev.title,
+                        }));
+                      }}
+                    />
+                    <span>
+                      <strong>👩‍🏫 Cô đăng ký nghỉ (off) & phân công giáo viên dạy thay / dạy bù</strong>
+                      <small>
+                        Tự động đồng bộ sang Thời khóa biểu (hiển thị GV dạy thay) và Lịch giáo viên (đánh dấu nghỉ dạy & xếp buổi dạy bù)
+                      </small>
+                    </span>
+                  </label>
+
+                  {form.is_teacher_off && (
+                    <div className="bzw-substitute-panel">
+                      <div className="bzw-field">
+                        <label htmlFor="m_sub_teacher">Giáo viên dạy thay / dạy bù *</label>
+                        <select
+                          id="m_sub_teacher"
+                          value={form.substitute_teacher_id || ''}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              substitute_teacher_id: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">-- Chọn giáo viên dạy thay / dạy bù --</option>
+                          {(() => {
+                            const selPerson = people.find(
+                              (p) => p.user_id === form.assigned_uid,
+                            );
+                            const currentTeacherId =
+                              selPerson?.teacherId ||
+                              selPerson?.user_id ||
+                              classes.find((c) => c.id === form.classId)?.teacherId;
+                            return teachers
+                              .filter(
+                                (t) =>
+                                  t.id !== currentTeacherId &&
+                                  !isHiddenWorkEmail(t.email),
+                              )
+                              .map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} {t.specialty ? `— ${t.specialty}` : ''}{' '}
+                                  {t.phone ? `(${t.phone})` : ''}
+                                </option>
+                              ));
+                          })()}
+                        </select>
+                      </div>
+
+                      <div className="bzw-off-sync-preview">
+                        🔄 <b>Thông tin đồng bộ:</b> Ngày <u>{dateVN(form.work_date)}</u> · Ca{' '}
+                        <u>{form.shift_label}</u> · Lớp{' '}
+                        <u>
+                          {classes.find((c) => c.id === form.classId)?.name ||
+                            form.class_label ||
+                            'Chưa chọn'}
+                        </u>
+                        <div style={{ marginTop: 5, fontSize: 11, color: '#334155' }}>
+                          • <b>Lịch cô xin nghỉ:</b> Hiển thị nhãn{' '}
+                          <span style={{ color: '#dc2626', fontWeight: 700 }}>
+                            Nghỉ dạy
+                          </span>{' '}
+                          trên ma trận lịch giáo viên.<br />
+                          • <b>Lịch GV dạy thay (
+                            {teachers.find(
+                              (t) => t.id === form.substitute_teacher_id,
+                            )?.name || 'Chưa chọn'}
+                          ):</b> Được xếp thêm buổi dạy thay tương ứng.<br />
+                          • <b>Thời khóa biểu:</b> Thẻ lớp cập nhật nhãn{' '}
+                          <span style={{ color: '#4338ca', fontWeight: 700 }}>
+                            Dạy thay:{' '}
+                            {teachers.find(
+                              (t) => t.id === form.substitute_teacher_id,
+                            )?.name || 'Tên GV'}
+                          </span>.<br />
+                          • <b>Phân hệ Giao việc:</b> Tự động gắn cờ <b>Cần bàn giao</b> để người trực ca theo dõi.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bzw-field">
@@ -1805,7 +2696,7 @@ export function BeeZoneWork({
                           `Trung tâm Anh ngữ BeeZone gửi đến anh/chị công việc sau:\n\n` +
                           `• Công việc: ${emailTask.title}\n` +
                           `• Người thực hiện: ${p.display_name} (${p.email || 'Chưa có email'})\n` +
-                          `• Bộ phận: ${emailTask.branch === 'admin' ? 'Hành chính / Lễ tân' : 'Đào tạo / Giáo viên'}\n` +
+                          `• Bộ phận: ${emailTask.branch === 'admin' ? 'Hành chính' : 'Đào tạo / Giáo viên'}\n` +
                           (emailTask.class_label ? `• Lớp: ${emailTask.class_label}\n` : '') +
                           `• Ngày thực hiện: ${dateVN(emailTask.work_date)} — ${emailTask.shift_label}\n` +
                           `• Trạng thái: ${statusName[emailTask.status]}\n` +
@@ -1816,7 +2707,7 @@ export function BeeZoneWork({
                     }
                   }}
                 >
-                  {people.map((p) => (
+                  {selectablePeople.map((p) => (
                     <option key={p.user_id} value={p.user_id}>
                       {p.display_name} — {p.email || 'Chưa có email'}
                     </option>
@@ -2002,8 +2893,10 @@ export function BeeZoneWork({
               </div>
 
               <div style={{ maxHeight: 320, overflow: 'auto' }}>
-                {people.map((p) => (
-                  <div key={p.user_id} className="bzw-staffrow">
+                {people
+                  .filter((p) => !isHiddenWorkEmail(p.email))
+                  .map((p) => (
+                    <div key={p.user_id} className="bzw-staffrow">
                     <span className="bzw-avatar">{getInitials(p.display_name)}</span>
                     <div className="bzw-text">
                       <b>{p.display_name}</b>
@@ -2113,7 +3006,7 @@ export function BeeZoneWork({
                     setStaffEditor((s) => s ? { ...s, branch: e.target.value as Branch } : s)
                   }
                 >
-                  <option value="admin">Hành chính / Lễ tân</option>
+                  <option value="admin">Hành chính</option>
                   <option value="training">Đào tạo / Giáo viên</option>
                 </select>
               </div>
