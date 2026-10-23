@@ -213,7 +213,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       scheduleTime: '',
       days: [],
       capacity: 0,
-      studentIds: []
+      studentIds: [],
+      notes: ''
     });
     setScheduleEntries([]);
     setScheduleError(null);
@@ -364,6 +365,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     if (createdProgram && !canCreateProgram) { setScheduleError('Bạn chưa có quyền tạo chương trình học. Hãy chọn chương trình có sẵn.'); return; }
     const savedClass: ClassRoom = {
       ...editingClass,
+      notes: (editingClass.notes ?? editingClass.note)?.trim() || undefined,
+      note: (editingClass.notes ?? editingClass.note)?.trim() || undefined,
       programId: matchingProgram?.id || createdProgram?.id || editingClass.programId,
       studentIds: selectedStudentIds,
       days: sortSchedule(validEntries).map((entry) => entry.dayOfWeek),
@@ -487,7 +490,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
       {/* Class Cards Grid */}
       <div className="entity-grid">
-        {classes.filter(cls => matchesSearch(searchQuery, cls.name, cls.code)).map((cls) => {
+        {classes.filter(cls => matchesSearch(searchQuery, cls.name, cls.code, cls.notes, cls.note)).map((cls) => {
           const teacher = teachers.find(t => t.id === cls.teacherId);
           const room = rooms.find(r => r.id === cls.roomId);
           const program = programs.find(p => p.id === cls.programId);
@@ -575,6 +578,17 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <div className="mt-1">Đã ghi nhận {attendanceSessions.filter(item => item.classId === cls.id).length}{cls.totalSessions ? ` / ${cls.totalSessions}` : ''} buổi · {enrollments.filter(item => item.classId === cls.id).length} hồ sơ đăng ký</div>
                   {cls.billingMode === 'session' && <div className="mt-1 font-semibold text-violet-700">Thu theo buổi · {cls.sessionRate?.toLocaleString('vi-VN')} đ/buổi · {absencePolicyLabels[cls.sessionAbsencePolicy || 'attended']}</div>}
                 </div>
+                {(cls.notes || cls.note) && (
+                  <div className="mt-2.5 rounded-xl bg-amber-50/70 border border-amber-200/60 p-2.5 text-xs text-amber-900 flex items-start gap-2">
+                    <span className="shrink-0 text-amber-700">📝</span>
+                    <div className="min-w-0">
+                      <span className="font-semibold text-amber-950">Ghi chú: </span>
+                      <span className="line-clamp-2 leading-relaxed whitespace-pre-line" title={cls.notes || cls.note}>
+                        {cls.notes || cls.note}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-4 pt-3 border-t border-slate-100">
                   <div className="flex justify-between items-center text-xs font-semibold mb-1.5">
                     <span className="text-slate-600">{t('class.capacity')}</span>
@@ -636,6 +650,12 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 return slots.length ? scheduleDescription(slots) : viewingClassStudents.scheduleTime;
               })()}
             </p>
+            {(viewingClassStudents.notes || viewingClassStudents.note) && (
+              <div className="mb-4 rounded-xl bg-amber-50/80 border border-amber-200 p-2.5 text-xs text-amber-950 flex items-start gap-2">
+                <span className="shrink-0 font-bold text-amber-700">📝 Ghi chú:</span>
+                <span className="leading-relaxed whitespace-pre-line">{viewingClassStudents.notes || viewingClassStudents.note}</span>
+              </div>
+            )}
 
             <div className="divide-y divide-slate-100">
               {students.filter(s => isStudentInClass(s, viewingClassStudents.id)).length === 0 ? (
@@ -1317,6 +1337,20 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   )}
                 </div>
               </fieldset>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <span>Ghi Chú / Lưu Ý Lớp Học</span>
+                  <span className="text-slate-400 font-normal">(tùy chọn)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingClass.notes ?? editingClass.note ?? ''}
+                  onChange={(e) => setEditingClass({ ...editingClass, notes: e.target.value, note: e.target.value })}
+                  placeholder="Ghi chú về lớp học, giáo trình bổ trợ, yêu cầu phụ huynh hoặc dặn dò..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl resize-y text-slate-800 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                />
+              </div>
 
               {scheduleError && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">{scheduleError}</p>}
 

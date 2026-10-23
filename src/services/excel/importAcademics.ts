@@ -62,7 +62,10 @@ export function importAcademics(classMaster: ExcelJS.Worksheet): ImportStageResu
       )?.[0] ||
         rawStatus ||
         undefined) as ClassRoom['courseStatus'];
+      const notes = cellText(getByAliases(record, ['ghichu', 'luuy', 'notes', 'note'])) || undefined;
       return {
+        notes,
+        note: notes,
         billingMode: (cellText(getByAliases(record, ['hinhthuchocphi'])) ||
           undefined) as ClassRoom['billingMode'],
         sessionRate: cellText(getByAliases(record, ['dongiabuoi']))

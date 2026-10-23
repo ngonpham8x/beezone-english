@@ -211,6 +211,15 @@ export function StudentProfileDialog({
                     </span>
                   </div>
                 </div>
+                {(cls?.notes || cls?.note) && (
+                  <div className="sm:col-span-2 pt-2 border-t border-slate-200/80 flex items-start gap-1.5 text-slate-700">
+                    <span className="shrink-0 text-amber-700">📝</span>
+                    <span>
+                      Ghi chú lớp:{' '}
+                      <strong className="text-slate-800 font-medium whitespace-pre-line">{cls.notes || cls.note}</strong>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Visual Weekly Grid for Student */}

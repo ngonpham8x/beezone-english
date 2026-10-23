@@ -111,6 +111,8 @@ export interface ClassRoom {
   sessionRate?: number;
   sessionBillingStartDate?: string;
   sessionAbsencePolicy?: SessionAbsencePolicy;
+  notes?: string;
+  note?: string;
 }
 
 export interface ClassEnrollment {

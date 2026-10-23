@@ -464,3 +464,63 @@ it('displays slot notes in TimetableManager and TeacherScheduleMatrix', () => {
   );
   expect(screen.getByText(/Mang giáo trình Unit 3/)).toBeTruthy();
 });
+
+it('supports class notes in ClassManager display and editing', () => {
+  const onUpdate = vi.fn();
+  const classWithNote = { ...classroom, notes: 'Lớp chuẩn bị thi Flyers cuối tháng 11' };
+  const { unmount } = render(
+    <LanguageProvider>
+      <ClassManager
+        classes={[classWithNote]}
+        teachers={initial.initialTeachers}
+        rooms={initial.initialRooms}
+        programs={initial.initialPrograms}
+        students={[]}
+        receipts={[]}
+        timetableSlots={[slot]}
+        permissions={DEV_OWNER_ACCOUNT.permissions}
+        isOwner
+        searchQuery=""
+        onAddClass={vi.fn()}
+        onUpdateClass={onUpdate}
+        onDeleteClass={vi.fn()}
+        onReplaceClassSchedule={vi.fn()}
+        onCreateRoom={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+  expect(screen.getByText(/Lớp chuẩn bị thi Flyers cuối tháng 11/)).toBeTruthy();
+  unmount();
+
+  render(
+    <LanguageProvider>
+      <ClassManager
+        classes={[classWithNote]}
+        teachers={initial.initialTeachers}
+        rooms={initial.initialRooms}
+        programs={initial.initialPrograms}
+        students={[]}
+        receipts={[]}
+        timetableSlots={[slot]}
+        permissions={DEV_OWNER_ACCOUNT.permissions}
+        isOwner
+        searchQuery=""
+        editRequest={classWithNote}
+        onAddClass={vi.fn()}
+        onUpdateClass={onUpdate}
+        onDeleteClass={vi.fn()}
+        onReplaceClassSchedule={vi.fn()}
+        onCreateRoom={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+  const notesTextarea = screen.getByPlaceholderText(/Ghi chú về lớp học/);
+  expect((notesTextarea as HTMLTextAreaElement).value).toBe('Lớp chuẩn bị thi Flyers cuối tháng 11');
+  fireEvent.change(notesTextarea, { target: { value: 'Ghi chú mới đã cập nhật' } });
+  submitForm(screen.getByRole('dialog').querySelector('form')!);
+  expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    notes: 'Ghi chú mới đã cập nhật',
+  }));
+});

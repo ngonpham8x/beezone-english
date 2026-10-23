@@ -27,6 +27,7 @@ export function writeClassSheet(context: ExportContext) {
     'Đơn giá buổi',
     'Ngày áp dụng phí buổi',
     'Quy tắc vắng',
+    'Ghi chú',
   ];
   classSheet.getRow(5).values = classHeaders;
   styleHeader(classSheet.getRow(5));
@@ -57,6 +58,7 @@ export function writeClassSheet(context: ExportContext) {
       classroom.sessionRate ?? '',
       classroom.sessionBillingStartDate || '',
       classroom.sessionAbsencePolicy || 'attended',
+      classroom.notes || classroom.note || '',
     ];
     styleData(row, index);
     row.getCell(10).font = {

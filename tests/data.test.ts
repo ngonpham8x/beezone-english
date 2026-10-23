@@ -63,6 +63,17 @@ describe('backup and cloud validation', () => {
     data.receipts = [{ ...receipt, paidAmount: 100 }];
     expect(() => parseCenterData(data, data.settings)).toThrow(/vượt quá/);
   });
+  it('validates class notes correctly', () => {
+    const data = fixture();
+    data.classes[0].notes = 'Lưu ý kiểm tra bài tập đầu giờ';
+    const parsed = parseCenterData(data, data.settings);
+    expect(parsed.classes[0].notes).toBe('Lưu ý kiểm tra bài tập đầu giờ');
+
+    const invalid = fixture();
+    (invalid.classes[0] as any).notes = 12345;
+    expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/Ghi chú lớp học không hợp lệ/);
+  });
+
   it('rejects arbitrary JSON as a backup', () => expect(() => parseBackupArchive({ app: 'BEEZONE', schemaVersion: 1, data: {} }, initial.initialSettings)).toThrow());
 });
 describe('financial history', () => {
