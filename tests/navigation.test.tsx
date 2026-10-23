@@ -52,6 +52,7 @@ beforeAll(async () => {
     import('../src/modules/system/BackupManager'),
     import('../src/modules/system/ActivityLogView'),
     import('../src/modules/system/DataConsistencyChecker'),
+    import('../src/modules/work/BeeZoneWork'),
   ]);
   localStorage.clear();
   sessionStorage.clear();
@@ -91,7 +92,7 @@ beforeAll(async () => {
   const labels = within(navigation)
     .getAllByRole('button')
     .map((button) => button.getAttribute('aria-label')!);
-  expect(labels).toHaveLength(18);
+  expect(labels).toHaveLength(19);
 }, 120_000);
 afterAll(() => {
   cleanup();
@@ -102,7 +103,7 @@ afterAll(() => {
 // This checks navigation, rendering and drawer behavior, not pixel layout.
 it.each(
   [320, 390, 480, 820, 1024, 1366].flatMap((width) =>
-    Array.from({ length: 18 }, (_, index) => [width, index]),
+    Array.from({ length: 19 }, (_, index) => [width, index]),
   ),
 )('opens management page at %spx, tab #%s without a runtime failure', async (width, index) => {
   resize(width);

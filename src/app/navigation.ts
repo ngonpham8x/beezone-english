@@ -4,6 +4,7 @@ import {
   BookOpen,
   CalendarCheck,
   CalendarDays,
+  ClipboardList,
   CloudUpload,
   DollarSign,
   DoorOpen,
@@ -28,6 +29,12 @@ export const NAVIGATION_GROUPS = [
         id: 'dashboard',
         labelKey: 'dashboard',
         icon: LayoutDashboard,
+        iconColor: 'text-amber-600',
+      },
+      {
+        id: 'work',
+        label: 'Giao việc & Bàn giao',
+        icon: ClipboardList,
         iconColor: 'text-amber-600',
       },
       {
@@ -98,6 +105,7 @@ export const canAccessTab = (tab: string, user: UserAccount): tab is TabId => {
 
   switch (tab) {
     case 'dashboard':
+    case 'work':
       return true;
     case 'attendance':
       return permissions.student.view || permissions.teacher.view;

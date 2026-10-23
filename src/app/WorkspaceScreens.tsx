@@ -60,6 +60,9 @@ const ActivityLogView = lazy(() =>
   })),
 );
 const DataConsistencyChecker = lazy(() => import('../modules/system/DataConsistencyChecker'));
+const BeeZoneWork = lazy(() =>
+  import('../modules/work/BeeZoneWork').then((m) => ({ default: m.BeeZoneWork })),
+);
 interface Props {
   store: CenterStore;
   actions: CenterActions;
@@ -170,6 +173,19 @@ export function WorkspaceScreens({
           }}
           onNavigateTab={navigateTo}
         />
+      );
+    case 'work':
+      return (
+        <Suspense
+          fallback={<div className="p-6 text-sm text-slate-500">Đang tải phân hệ Giao việc & Bàn giao…</div>}
+        >
+          <BeeZoneWork
+            currentUser={currentUser}
+            teachers={teachers}
+            classes={classes}
+            programs={programs}
+          />
+        </Suspense>
       );
     case 'students':
       return (
