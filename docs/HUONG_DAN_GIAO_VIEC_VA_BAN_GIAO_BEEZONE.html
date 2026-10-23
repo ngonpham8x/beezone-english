@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hướng Dẫn Giao Việc & Bàn Giao Ca - Anh Ngữ BeeZone</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 15mm 18mm 15mm;
+      @bottom-right {
+        content: counter(page) "/" counter(pages);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #1e293b;
+      background: #f8fafc;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 32px 40px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    /* HEADER */
+    .header {
+      border-bottom: 3px solid #f59e0b;
+      padding-bottom: 20px;
+      margin-bottom: 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-badge {
+      width: 52px;
+      height: 52px;
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+    }
+
+    .brand-title h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #92400e;
+      letter-spacing: -0.3px;
+      text-transform: uppercase;
+    }
+
+    .brand-title p {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .doc-meta {
+      text-align: right;
+      font-size: 11.5px;
+      color: #64748b;
+    }
+
+    .doc-badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #b45309;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      margin-bottom: 4px;
+      border: 1px solid #fde68a;
+    }
+
+    /* TITLE BANNER */
+    .title-banner {
+      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+      border: 1px solid #fcd34d;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 28px;
+    }
+
+    .title-banner h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #78350f;
+      margin-bottom: 6px;
+    }
+
+    .title-banner p {
+      font-size: 13px;
+      color: #92400e;
+      line-height: 1.5;
+    }
+
+    /* SECTION */
+    .section {
+      margin-bottom: 30px;
+      page-break-inside: avoid;
+    }
+
+    .section-title {
+      font-size: 15.5px;
+      font-weight: 800;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+
+    .section-title .step-badge {
+      background: #f59e0b;
+      color: #ffffff;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    /* CARDS & GRIDS */
+    .branch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .branch-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .branch-card.admin {
+      border-color: #fed7aa;
+      background: #fffaf5;
+    }
+
+    .branch-card.training {
+      border-color: #bbf7d0;
+      background: #f7fee7;
+    }
+
+    .branch-card h3 {
+      font-size: 13.5px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .branch-card.admin h3 { color: #c2410c; }
+    .branch-card.training h3 { color: #15803d; }
+
+    .branch-card ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .branch-card li {
+      font-size: 12px;
+      color: #334155;
+      margin-bottom: 4px;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .branch-card li::before {
+      content: "•";
+      position: absolute;
+      left: 4px;
+      color: #f59e0b;
+      font-weight: bold;
+    }
+
+    .alert-box {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: #1e40af;
+      margin-top: 10px;
+    }
+
+    .alert-box.success {
+      background: #ecfdf5;
+      border-left-color: #10b981;
+      color: #065f46;
+    }
+
+    /* STEP LIST */
+    .step-item {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      padding: 13px 16px;
+      margin-bottom: 12px;
+    }
+
+    .step-header {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .step-header .num {
+      background: #0ea5e9;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    .step-item p {
+      font-size: 12.5px;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+
+    /* FIGURE & IMAGES */
+    .figure-wrap {
+      margin: 14px 0 16px;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+
+    .figure-wrap img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      display: block;
+      margin: 0 auto;
+    }
+
+    .figure-caption {
+      font-size: 11.5px;
+      color: #64748b;
+      font-style: italic;
+      margin-top: 6px;
+    }
+
+    /* KEY SHORTCUTS & ACTIONS */
+    .tag {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+      border: 1px solid #cbd5e1;
+    }
+
+    .tag.green { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .tag.gold { background: #fef3c7; color: #854d0e; border-color: #fde047; }
+    .tag.blue { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+
+    /* FOOTER */
+    .footer {
+      border-top: 1.5px solid #e2e8f0;
+      margin-top: 30px;
+      padding-top: 15px;
+      text-align: center;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .container {
+        padding: 0;
+        box-shadow: none;
+        max-width: 100%;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="logo-badge">🐝</div>
+      <div class="brand-title">
+        <h1>ANH NGỮ BEEZONE</h1>
+        <p>Hệ thống Quản lý Trung tâm & Vận hành Giảng dạy</p>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div class="doc-badge">TÀI LIỆU VẬN HÀNH</div>
+      <div>Phân hệ: <b>Giao việc & Bàn giao ca</b></div>
+      <div>Phiên bản: <b>2.0 Chuẩn hóa</b></div>
+    </div>
+  </header>
+
+  <!-- BANNER -->
+  <div class="title-banner">
+    <h2>HƯỚNG DẪN QUẢN LÝ GIAO VIỆC & BÀN GIAO CA DẠY</h2>
+    <p>Tài liệu hướng dẫn trực quan dành cho Chủ cơ sở, Nhân viên Hành chính, Nhân viên Đào tạo và Giáo viên giảng dạy. Quy định rõ ràng phân quyền 2 nhánh công việc, đồng bộ danh mục lớp học, ca dạy, đăng ký nghỉ dạy thay và bàn giao ca cuối buổi.</p>
+  </div>
+
+  <!-- SECTION 1 -->
+  <section class="section">
+    <h2 class="section-title">
+      <span class="step-badge">1</span>
+      Mô hình 2 Nhánh Công Việc & Quy Định Phân Quyền
+    </h2>
+    <p style="margin-bottom: 12px; color: #334155;">
+      Để trung tâm vận hành trôi chảy, chuyên nghiệp và bảo mật thông tin nội bộ, hệ thống chia thành <b>2 nhánh công việc độc lập</b>:
+    </p>
+
+    <div class="branch-grid">
+      <!-- Nhánh 1 -->
+      <div class="branch-card admin">
+        <h3><span>🏢</span> NHÁNH 1: HÀNH CHÍNH & QUẢN TRỊ</h3>
+        <ul>
+          <li><b>Người phụ trách:</b> Chủ trung tâm (<code>chauoaingua679@gmail.com</code>) và Hành chính (<code>phonghanhchinh.beezone@gmail.com</code>).</li>
+          <li><b>Chức danh chuẩn:</b> Tài khoản hành chính hiển thị chức danh <b>Hành chính</b> (không còn chữ Lễ tân).</li>
+          <li><b>Phạm vi thấy:</b> <b>Thấy đầy đủ toàn bộ công việc</b> của trung tâm (Việc Hành chính, Bàn giao cuối ca, và Việc Giáo viên theo lớp).</li>
+          <li><b>Nhiệm vụ:</b> Quản lý việc văn phòng, bàn giao ca trực, giám sát tiến độ giáo viên và tiếp nhận việc bàn giao.</li>
+        </ul>
+      </div>
+
+      <!-- Nhánh 2 -->
+      <div class="branch-card training">
+        <h3><span>👩‍🏫</span> NHÁNH 2: ĐÀO TẠO & GIÁO VIÊN</h3>
+        <ul>
+          <li><b>Người phụ trách:</b> Nhân viên Đào tạo (<code>phongdaotao.beezone@gmail.com</code>) và các Giáo viên lớp học.</li>
+          <li><b>Nhiệm vụ Đào tạo:</b> Giao việc cho giáo viên từng lớp học, đồng bộ ca học và xếp giáo viên dạy thay / dạy bù.</li>
+          <li><b>Nhiệm vụ Giáo viên:</b> Xem việc lớp mình, báo việc đã làm / chưa làm, note hoặc tick xác nhận ca dạy.</li>
+          <li><b>Bảo mật tuyệt đối:</b> Đào tạo và Giáo viên <b>không thấy công việc hành chính</b>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/05_chuc_danh_hanh_chinh.png" alt="Chức danh Hành chính hiển thị chuẩn trong Quản lý tài khoản">
+      <div class="figure-caption">Hình 1.1: Tài khoản BeeZone Hành Chính hiển thị đúng chức danh "Hành chính • Được truy cập".</div>
+    </div>
+  </section>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 2 -->
+  <section class="section">
+    <h2 class="section-title">
+      <span class="step-badge">2</span>
+      Nhân Viên Đào Tạo Giao Việc Cho Giáo Viên Từng Lớp
+    </h2>
+    <p style="margin-bottom: 12px; color: #334155;">
+      Nhân viên Đào tạo đăng nhập vào phân hệ và thực hiện giao việc cho giáo viên theo từng lớp học với các bước sau:
+    </p>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Bước 1</span>
+        Bấm nút "＋ Tạo công việc" trên thanh công cụ
+      </div>
+      <p>Cửa sổ tạo nhiệm vụ mở ra. Đối với tài khoản Đào tạo, trường <b>Nhánh công việc</b> được cố định là <span class="tag green">Đào tạo / Giáo viên</span> để tập trung đúng chức năng chuyên môn.</p>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Bước 2</span>
+        Chọn Lớp học & Người thực hiện (Đồng bộ danh mục lớp)
+      </div>
+      <p>• Tại ô <b>Lớp</b>: Chọn lớp có sẵn trong trung tâm (ví dụ <code>[LOP-01] Kiddy 3A</code>). Hệ thống tự động nhận diện giáo viên phụ trách của lớp đó.</p>
+      <p>• Tại ô <b>Người thực hiện</b>: Hiển thị giáo viên lớp học hoặc nhân sự đào tạo. Nếu cần bổ sung giáo viên mới, có thể bấm nút <span class="tag gold">＋ Thêm mới</span> hoặc chọn dòng <i>➕ Thêm mới nhân sự / giáo viên...</i> để tạo trực tiếp mà không cần thoát ra.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/02_nguoi_thuc_hien_va_them_moi.png" alt="Chọn người thực hiện và thêm mới giáo viên nhanh">
+      <div class="figure-caption">Hình 2.1: Danh sách người thực hiện đã ẩn email kỹ thuật, tích hợp nút thêm mới giáo viên trực tiếp.</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Bước 3</span>
+        Chọn Ca / Buổi (Đồng bộ Thời khóa biểu & Lịch dạy)
+      </div>
+      <p>Khi chọn lớp học, dropdown <b>Ca / Buổi</b> sẽ tự động hiển thị:</p>
+      <p>1. <b>Các ca học trong tuần của lớp:</b> Ví dụ <code>Thứ 7: 18:00 - 19:30 (Phòng Kính)</code>, <code>Chủ Nhật: 18:00 - 19:30</code>.</p>
+      <p>2. <b>Các ca chuẩn:</b> Ca sáng, Ca chiều, Ca tối, Cuối buổi, Cả ngày.</p>
+      <p>3. <b>Tự nhập giờ thủ công:</b> Bấm nút <span class="tag blue">＋ Tự nhập giờ</span> để nhập bất kỳ khung giờ hoặc buổi dạy đặc thù nào do Đào tạo hoặc Quản lý chỉ định.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/03_dong_bo_thoi_khoa_bieu.png" alt="Đồng bộ ca học của lớp theo Thời khóa biểu">
+      <div class="figure-caption">Hình 2.2: Dropdown Ca / Buổi tự động đồng bộ theo lịch học trong tuần của lớp hoặc cho phép tự nhập giờ.</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Bước 4</span>
+        Trường hợp Cô đăng ký nghỉ (off) & Phân công dạy thay / dạy bù
+      </div>
+      <p>Nếu giáo viên có đơn xin nghỉ ca dạy đó:</p>
+      <p>• Tick chọn ô <span class="tag gold">👩‍🏫 Cô đăng ký nghỉ (off) & phân công giáo viên dạy bù</span>.</p>
+      <p>• Chọn <b>Giáo viên dạy thay</b> trong danh sách.</p>
+      <p>• Khi bấm lưu: Hệ thống <b>tự động đồng bộ sang Thời khóa biểu và Lịch giáo viên</b>, ghi nhận cô nghỉ và phân công giáo viên dạy thay chuẩn xác.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/01_tao_viec_lop_va_ca.png" alt="Tạo việc lớp học và phân công dạy thay">
+      <div class="figure-caption">Hình 2.3: Form tạo việc đầy đủ các trường: Lớp học, Ca/buổi và đăng ký cô nghỉ dạy thay.</div>
+    </div>
+  </section>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 3 -->
+  <section class="section">
+    <h2 class="section-title">
+      <span class="step-badge">3</span>
+      Giáo Viên Báo Việc Đã Làm, Chưa Làm & Note Xác Nhận
+    </h2>
+    <p style="margin-bottom: 12px; color: #334155;">
+      Giáo viên đăng nhập bằng tài khoản được cấp quyền. Màn hình của giáo viên sẽ hiển thị tập trung vào <b>Việc giáo viên theo lớp</b> và các thao tác cực kỳ đơn giản:
+    </p>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Thao tác 1</span>
+        Báo việc đã làm (Hoàn thành)
+      </div>
+      <p>• Bấm vào <b>ô vuông tick (checkbox) ☑</b> ngay trước tiêu đề nhiệm vụ trên thẻ công việc, hoặc bấm nút <span class="tag green">✓ Hoàn thành</span>.</p>
+      <p>• Thẻ công việc chuyển sang màu xanh lá hoàn thành và hệ thống tự động ghi nhận thời gian hoàn thành (ví dụ: <i>✓ Xong 19:35</i>).</p>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Thao tác 2</span>
+        Báo việc chưa làm / Còn dang dở
+      </div>
+      <p>• Nếu buổi học chưa hoàn thành đủ bài giảng, hoặc bài kiểm tra chưa kịp chấm xong: Bấm nút <span class="tag gold">◷ Còn dang dở</span> (hoặc nút <code>↶ Chưa làm</code>).</p>
+      <p>• Nhập lý do ngắn gọn (ví dụ: <i>"Bé Nam vắng, chưa trả bài kiểm tra Unit 3"</i>).</p>
+      <p>• Trạng thái được cập nhật trực quan để Đào tạo và Hành chính nắm bắt hỗ trợ.</p>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">Thao tác 3</span>
+        Ghi chú (Note) xác nhận ca dạy
+      </div>
+      <p>• Bấm nút <span class="tag blue">☷ Ghi chú</span> trên thẻ công việc.</p>
+      <p>• Gõ nội dung nhận xét buổi học (sĩ số, dặn dò bài tập về nhà, nhắc phụ huynh đón sớm...).</p>
+      <p>• Bấm Lưu: Dòng ghi chú mới nhất <b>được ghim trực tiếp trên thẻ công việc</b> kèm tên giáo viên và thời gian ghi chú.</p>
+    </div>
+
+    <div class="alert-box success">
+      <b>💡 Gửi email công việc:</b> Giáo viên hoặc Đào tạo có thể bấm nút <span class="tag blue">📧 Gửi email công việc</span> để hệ thống tự động soạn sẵn thư Gmail với đầy đủ chi tiết lớp, ca học và dặn dò, bấm 1 nút là mở Gmail gửi ngay!
+    </div>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section class="section">
+    <h2 class="section-title">
+      <span class="step-badge">4</span>
+      Quy Trình Bàn Giao Ca Trực & Bàn Giao Cuối Buổi
+    </h2>
+    <p style="margin-bottom: 12px; color: #334155;">
+      Áp dụng cho nhân viên ca trước bàn giao cho ca sau, hoặc giáo viên bàn giao việc theo dõi học sinh:
+    </p>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">1</span>
+        Chuyển việc vào bàn giao
+      </div>
+      <p>Khi có công việc còn dang dở hoặc lưu ý cần người tiếp theo xử lý: Bấm nút <span class="tag gold">↪ Bàn giao</span> trên thẻ công việc. Việc sẽ lập tức xuất hiện tại cột <b>Bàn giao cuối ca / cuối buổi</b>.</p>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">2</span>
+        Người nhận ca tiếp nhận
+      </div>
+      <p>Người trực ca sau mở hệ thống, xem cột Bàn giao và bấm nút <span class="tag green">✓ Nhận ca</span> (hoặc <i>✓ Nhận bàn giao</i>). Nhập tên và ghi chú xác nhận tiếp nhận công việc.</p>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">3</span>
+        Sao chép báo cáo bàn giao nhanh qua Zalo
+      </div>
+      <p>Bấm nút <b>📋 Sao chép nội dung bàn giao</b> ở cuối cột. Toàn bộ danh sách việc dở và lưu ý trong ca sẽ được định dạng đẹp mắt để dán ngay vào nhóm Zalo trung tâm.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/04_ban_giao_cuoi_ca.png" alt="Cột Bàn giao ca và nút nhận ca">
+      <div class="figure-caption">Hình 4.1: Cột bàn giao ca hiển thị danh sách các việc cần người tiếp theo tiếp nhận.</div>
+    </div>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section class="section">
+    <h2 class="section-title">
+      <span class="step-badge">5</span>
+      Thanh Bộ Lọc Ngang & Quản Lý Sao Lưu Dữ Liệu
+    </h2>
+    <p style="margin-bottom: 12px; color: #334155;">
+      Giao diện thanh bộ lọc đã được tối ưu hóa thành <b>hàng ngang cân đối</b>:
+    </p>
+
+    <div class="step-item">
+      <p>• <b>Ô tìm kiếm:</b> Dãn rộng linh hoạt, tìm nhanh theo tên việc, tên lớp, giáo viên hoặc ghi chú. Có nút <span class="tag">✕</span> để xóa nhanh từ khóa.</p>
+      <p>• <b>Ô chọn ngày:</b> Chọn ngày làm việc cần xem hoặc chuyển về ngày hôm nay.</p>
+      <p>• <b>Lọc trạng thái:</b> Lọc nhanh các việc: <i>Tất cả trạng thái, Chưa làm, Đang làm, Còn dang dở, Hoàn thành, Cần bàn giao</i>.</p>
+      <p>• <b>Sao lưu & Khôi phục:</b> Đã được đưa vào nút <b>🎨 Tùy chỉnh</b> ở góc trên bên phải để màn hình làm việc luôn gọn gàng và không bị bấm nhầm.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p><b>TRUNG TÂM ANH NGỮ BEEZONE</b> — Học tiếng Anh thật vui - Bé tự tin mỗi ngày!</p>
+    <p>Tài liệu lưu hành nội bộ — Hệ thống vận hành BeeZone 2026</p>
+  </footer>
+</div>
+
+</body>
+</html>

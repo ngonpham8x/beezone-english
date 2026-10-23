@@ -32,6 +32,21 @@ interface UserManagementModalProps {
 
 const createEmptyPermissions = () => createStaffPermissions();
 
+function getAccountRoleBadgeLabel(email?: string | null, name?: string | null, role?: string | null): string {
+  const normEmail = (email || '').toLowerCase().trim();
+  const normName = (name || '').toLowerCase().trim();
+  if (normEmail === 'phonghanhchinh.beezone@gmail.com' || normName.includes('hành chính') || normName.includes('hanh chinh')) {
+    return 'Hành chính';
+  }
+  if (normEmail === 'phongdaotao.beezone@gmail.com' || normName.includes('đào tạo') || normName.includes('dao tao')) {
+    return 'Nhân viên';
+  }
+  if (role === 'owner') {
+    return 'Chủ trung tâm';
+  }
+  return 'Nhân viên';
+}
+
 const permissionGroups: { title: string; options: { module: keyof StaffPermissions; action: string; label: string; emphasis?: boolean }[] }[] = [
   {
     title: 'Học viên',
@@ -463,7 +478,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         <div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200">
           {!isLoading && displayedMembers.length === 0 && <p className="p-4 text-sm text-slate-500">Chưa có danh sách tài khoản.</p>}
           {displayedMembers.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-            <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{member.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
+            <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{getAccountRoleBadgeLabel(member.email, member.full_name, member.role)} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -569,7 +584,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                           : 'bg-blue-100 text-blue-900 border border-blue-200'
                       }`}
                     >
-                      {sessionUser.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'}
+                      {getAccountRoleBadgeLabel(sessionUser.email, sessionUser.name, sessionUser.role)}
                     </span>
                     <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 hidden sm:inline-block">
                       ● Đang hoạt động

@@ -476,4 +476,70 @@ describe('BeeZoneWork Module', () => {
       expect(screen.getAllByText(/Trực trưa \(11:30 - 13:30\)/i).length).toBeGreaterThan(0);
     });
   });
+
+  it('removes backup buttons from main toolbar and arranges filter inputs cleanly', async () => {
+    render(
+      <BeeZoneWork
+        currentUser={DEV_OWNER_ACCOUNT}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    // Filter toolbar should have search, date, and status selector
+    expect(screen.getByPlaceholderText(/Tìm công việc, lớp, nhân sự/i)).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: '' })).toBeTruthy();
+
+    // Backup & Restore buttons should NOT be present on the main filter toolbar
+    expect(screen.queryByRole('button', { name: /↓ Sao lưu/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /↑ Nhập lại/i })).toBeNull();
+  });
+
+  it('enforces branch visibility: training staff does not see admin branch tasks and only creates training tasks', async () => {
+    seedTestTasks();
+
+    const trainingUser: UserAccount = {
+      id: 'acc-daotao',
+      name: 'BeeZone Đào Tạo',
+      email: 'phongdaotao.beezone@gmail.com',
+      avatar: '',
+      role: 'staff',
+      active: true,
+      permissions: {
+        student: { view: true, add: false, edit: false, delete: false, export: false },
+        teacher: { view: true, edit: false, delete: false },
+        tuition: { view: false, collect: false, delete: false, showDebt: false },
+        grade: { view: true, edit: true },
+        excel: { import: false, export: false },
+        report: { view: false, revenue: false },
+        academic: { programs: true, classes: true, rooms: true },
+      },
+    };
+
+    render(
+      <BeeZoneWork
+        currentUser={trainingUser}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    // Admin column header should NOT be present for training staff
+    expect(screen.queryByText(/Việc hôm nay · Hành chính/i)).toBeNull();
+
+    // Training column header should be present
+    expect(screen.getByText(/Việc giáo viên theo lớp/i)).toBeTruthy();
+
+    // When clicking Create task, the branch should be locked to Training
+    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
+
+    const branchSelect = screen.getByLabelText(/Nhánh công việc/i) as HTMLSelectElement;
+    expect(branchSelect.disabled).toBe(true);
+    expect(branchSelect.value).toBe('training');
+    expect(screen.getByText(/Nhánh Đào tạo phụ trách giao việc cho Giáo viên các lớp/i)).toBeTruthy();
+  });
 });

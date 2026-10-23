@@ -262,9 +262,38 @@ export function BeeZoneWork({
     });
   };
 
+  // Phân quyền nhánh:
+  // - "Nhánh giao việc hành chính sẽ thấy đầy đủ." -> canSeeAdminBranch = true
+  // - "Đào tạo Và giáo viên không thấy công việc hành chính." -> canSeeAdminBranch = false
+  const currentEmail = (currentUser?.email || '').toLowerCase().trim();
+  const currentName = (currentUser?.name || '').toLowerCase().trim();
+  const isOwner = currentUser?.role === 'owner' || currentEmail === 'chauoaingua679@gmail.com';
+  const isAdminOrManager =
+    isOwner ||
+    currentEmail === 'phonghanhchinh.beezone@gmail.com' ||
+    currentName.includes('quản trị') ||
+    currentName.includes('quan tri') ||
+    currentName.includes('hành chính') ||
+    currentName.includes('hanh chinh') ||
+    role === 'manager' ||
+    role === 'admin';
+
+  const isTrainingStaff =
+    currentEmail === 'phongdaotao.beezone@gmail.com' ||
+    ((currentName.includes('đào tạo') || currentName.includes('dao tao')) && !isAdminOrManager);
+
+  // Nhánh giao việc hành chính sẽ thấy đầy đủ; Đào tạo và giáo viên không thấy công việc hành chính
+  const canSeeAdminBranch = isAdminOrManager && !isTrainingStaff;
+
+  const accessibleTasks = useMemo(() => {
+    if (canSeeAdminBranch) return tasks;
+    // Đào tạo và giáo viên chỉ thấy việc đào tạo / giáo viên hoặc các việc được bàn giao ca
+    return tasks.filter((t) => t.branch === 'training' || t.needs_handover);
+  }, [tasks, canSeeAdminBranch]);
+
   // Filtered tasks for Daily view
   const dailyTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    return accessibleTasks.filter((t) => {
       // Date filter
       if (day && t.work_date !== day) return false;
       // Search
@@ -293,18 +322,18 @@ export function BeeZoneWork({
       }
       return true;
     });
-  }, [tasks, day, search, statusFilter, people]);
+  }, [accessibleTasks, day, search, statusFilter, people]);
 
   // Stats
   const stats = useMemo(() => {
-    const list = tasks.filter((t) => (!day || t.work_date === day));
+    const list = accessibleTasks.filter((t) => (!day || t.work_date === day));
     return {
       all: list.length,
       progress: list.filter((t) => t.status === 'progress').length,
       done: list.filter((t) => t.status === 'done').length,
       handover: list.filter((t) => t.needs_handover && t.status !== 'done').length,
     };
-  }, [tasks, day]);
+  }, [accessibleTasks, day]);
 
   // Columns
   const adminTasks = useMemo(
@@ -322,7 +351,7 @@ export function BeeZoneWork({
 
   // Completed tasks for History view
   const historyCompletedTasks = useMemo(() => {
-    return tasks
+    return accessibleTasks
       .filter((t) => {
         if (t.status !== 'done') return false;
         if (historyBranch !== 'all' && t.branch !== historyBranch) return false;
@@ -337,7 +366,7 @@ export function BeeZoneWork({
         return true;
       })
       .sort((a, b) => String(b.completed_at || b.updated_at).localeCompare(String(a.completed_at || a.updated_at)));
-  }, [tasks, historyBranch, historySearch, people]);
+  }, [accessibleTasks, historyBranch, historySearch, people]);
 
   // Quick Action Handlers
   const handleToggleDone = (t: WorkTask) => {
@@ -430,8 +459,7 @@ export function BeeZoneWork({
       setEditorTask(null);
       setIsCustomShift(false);
       setCustomShiftNote('');
-      const targetBranch: Branch =
-        role === 'trainer' || role === 'teacher' ? 'training' : 'admin';
+      const targetBranch: Branch = canSeeAdminBranch ? 'admin' : 'training';
       const targetAssignee =
         targetBranch === 'admin'
           ? selectablePeople.find((p) => p.email === 'phonghanhchinh.beezone@gmail.com')?.user_id ||
@@ -1297,55 +1325,49 @@ export function BeeZoneWork({
       {/* FILTER TOOLBAR */}
       {!historyMode && (
         <div className="bzw-view-tools">
-          <div className="bzw-tools-left">
-            <input
-              type="text"
-              className="bzw-search-input"
-              placeholder="🔎 Tìm công việc, lớp, nhân sự..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <input
-              type="date"
-              className="bzw-date-input"
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-            />
-            <select
-              className="bzw-status-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="todo">Chưa làm</option>
-              <option value="progress">Đang làm</option>
-              <option value="unfinished">Còn dang dở</option>
-              <option value="done">Hoàn thành</option>
-              <option value="handover">Cần bàn giao</option>
-            </select>
-          </div>
-          <div className="bzw-tools-right">
-            <button
-              type="button"
-              className="bzw-btn bzw-sm"
-              onClick={handleDownloadBackup}
-            >
-              ↓ Sao lưu
-            </button>
-            <button
-              type="button"
-              className="bzw-btn bzw-sm"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              ↑ Nhập lại
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              hidden
-              accept="application/json"
-              onChange={handleRestoreFile}
-            />
+          <div className="bzw-tools-filter">
+            <div className="bzw-search-wrap">
+              <input
+                type="text"
+                className="bzw-search-input"
+                placeholder="🔎 Tìm công việc, lớp, nhân sự..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="bzw-search-clear"
+                  onClick={() => setSearch('')}
+                  title="Xóa tìm kiếm"
+                  aria-label="Xóa tìm kiếm"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="bzw-date-wrap">
+              <input
+                type="date"
+                className="bzw-date-input"
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+              />
+            </div>
+            <div className="bzw-status-wrap">
+              <select
+                className="bzw-status-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="todo">Chưa làm</option>
+                <option value="progress">Đang làm</option>
+                <option value="unfinished">Còn dang dở</option>
+                <option value="done">Hoàn thành</option>
+                <option value="handover">Cần bàn giao</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -1467,28 +1489,30 @@ export function BeeZoneWork({
         </section>
       )}
 
-      {/* 3 WORKFLOW COLUMNS */}
+      {/* WORKFLOW COLUMNS */}
       {!historyMode && (
-        <div className="bzw-sections">
-          {/* Column 1: Hành chính */}
-          <section className="bzw-section">
-            <div className="bzw-section-head">
-              <div>
-                <h2>🔸 {settings.admin}</h2>
-                <small>Người trực cập nhật trước khi kết ca</small>
-              </div>
-              <span className="bzw-count">{adminTasks.length}</span>
-            </div>
-            <div className="bzw-stack">
-              {adminTasks.length === 0 ? (
-                <div className="bzw-no-data">
-                  <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+        <div className={`bzw-sections ${canSeeAdminBranch ? 'bzw-sections-three' : 'bzw-sections-two'}`}>
+          {/* Column 1: Hành chính (Chỉ hiển thị cho nhánh Hành chính & Quản lý) */}
+          {canSeeAdminBranch && (
+            <section className="bzw-section">
+              <div className="bzw-section-head">
+                <div>
+                  <h2>🔸 {settings.admin}</h2>
+                  <small>Người trực cập nhật trước khi kết ca</small>
                 </div>
-              ) : (
-                adminTasks.map((t) => renderTaskCard(t, false))
-              )}
-            </div>
-          </section>
+                <span className="bzw-count">{adminTasks.length}</span>
+              </div>
+              <div className="bzw-stack">
+                {adminTasks.length === 0 ? (
+                  <div className="bzw-no-data">
+                    <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+                  </div>
+                ) : (
+                  adminTasks.map((t) => renderTaskCard(t, false))
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Column 2: Bàn giao cuối ca / cuối buổi */}
           <section className="bzw-section">
@@ -1695,6 +1719,7 @@ export function BeeZoneWork({
                   <select
                     id="m_branch"
                     value={form.branch}
+                    disabled={!canSeeAdminBranch}
                     onChange={(e) => {
                       const newBranch = e.target.value as Branch;
                       let nextAssignee = form.assigned_uid;
@@ -1723,9 +1748,14 @@ export function BeeZoneWork({
                       });
                     }}
                   >
-                    <option value="admin">Hành chính</option>
+                    {canSeeAdminBranch && <option value="admin">Hành chính</option>}
                     <option value="training">Đào tạo / Giáo viên</option>
                   </select>
+                  {!canSeeAdminBranch && (
+                    <small style={{ color: '#64748b', fontSize: 11, marginTop: 3, display: 'block' }}>
+                      Nhánh Đào tạo phụ trách giao việc cho Giáo viên các lớp.
+                    </small>
+                  )}
                 </div>
 
                 <div className="bzw-field">
@@ -3129,6 +3159,45 @@ export function BeeZoneWork({
                     value={settings.training}
                     onChange={(e) => setSettings({ ...settings, training: e.target.value })}
                   />
+                </div>
+
+                <div
+                  className="bzw-field bzw-span2"
+                  style={{
+                    marginTop: 10,
+                    paddingTop: 12,
+                    borderTop: '1px solid #e2e8f0',
+                  }}
+                >
+                  <label style={{ fontWeight: 600, color: '#334155' }}>
+                    Sao lưu & Khôi phục dữ liệu phân hệ
+                  </label>
+                  <p style={{ margin: '4px 0 10px', fontSize: 13, color: '#64748b' }}>
+                    Tải về tệp JSON để lưu trữ hoặc khôi phục dữ liệu công việc và bàn giao khi cần.
+                  </p>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="bzw-btn bzw-sm"
+                      onClick={handleDownloadBackup}
+                    >
+                      ↓ Tải bản sao lưu JSON
+                    </button>
+                    <button
+                      type="button"
+                      className="bzw-btn bzw-sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      ↑ Khôi phục từ tệp JSON
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      hidden
+                      accept="application/json"
+                      onChange={handleRestoreFile}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
