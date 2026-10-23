@@ -947,6 +947,14 @@
   grid-column: 1 / -1;
 }
 
+.bzw-row-3cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  grid-column: 1 / -1;
+  margin-bottom: 11px;
+}
+
 .bzw-hint {
   font-size: 11px;
   line-height: 1.6;
@@ -1351,6 +1359,10 @@
   }
   .bzw-formgrid {
     grid-template-columns: 1fr;
+  }
+  .bzw-row-3cols {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
   .bzw-history-grid {
     grid-template-columns: 1fr;

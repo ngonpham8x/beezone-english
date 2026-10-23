@@ -2448,41 +2448,43 @@ export function BeeZoneWork({
                   )}
                 </div>
 
-                <div className="bzw-field">
-                  <label htmlFor="m_date">Ngày thực hiện *</label>
-                  <input
-                    id="m_date"
-                    type="date"
-                    required
-                    value={form.work_date}
-                    onChange={(e) => setForm({ ...form, work_date: e.target.value })}
-                  />
-                </div>
+                <div className="bzw-field bzw-span2 bzw-row-3cols">
+                  <div>
+                    <label htmlFor="m_date">Ngày thực hiện *</label>
+                    <input
+                      id="m_date"
+                      type="date"
+                      required
+                      value={form.work_date}
+                      onChange={(e) => setForm({ ...form, work_date: e.target.value })}
+                    />
+                  </div>
 
-                <div className="bzw-field">
-                  <label htmlFor="m_priority">Mức ưu tiên</label>
-                  <select
-                    id="m_priority"
-                    value={form.priority}
-                    onChange={(e) => setForm({ ...form, priority: e.target.value as any })}
-                  >
-                    <option value="normal">Bình thường</option>
-                    <option value="high">Ưu tiên cao</option>
-                  </select>
-                </div>
+                  <div>
+                    <label htmlFor="m_priority">Mức ưu tiên</label>
+                    <select
+                      id="m_priority"
+                      value={form.priority}
+                      onChange={(e) => setForm({ ...form, priority: e.target.value as any })}
+                    >
+                      <option value="normal">Bình thường</option>
+                      <option value="high">Ưu tiên cao</option>
+                    </select>
+                  </div>
 
-                <div className="bzw-field">
-                  <label htmlFor="m_status">Trạng thái</label>
-                  <select
-                    id="m_status"
-                    value={form.status || 'todo'}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as any })}
-                  >
-                    <option value="todo">Chưa làm</option>
-                    <option value="progress">Đang làm</option>
-                    <option value="unfinished">Còn dang dở</option>
-                    <option value="done">Hoàn thành</option>
-                  </select>
+                  <div>
+                    <label htmlFor="m_status">Trạng thái</label>
+                    <select
+                      id="m_status"
+                      value={form.status || 'todo'}
+                      onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+                    >
+                      <option value="todo">Chưa làm</option>
+                      <option value="progress">Đang làm</option>
+                      <option value="unfinished">Còn dang dở</option>
+                      <option value="done">Hoàn thành</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="bzw-field">

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hướng Dẫn Giao Việc & Bàn Giao Ca - Anh Ngữ BeeZone</title>
+  <title>Tài Liệu Hướng Dẫn Quản Lý Giao Việc & Bàn Giao Ca - Anh Ngữ BeeZone</title>
   <style>
     @page {
       size: A4;
-      margin: 18mm 15mm 18mm 15mm;
+      margin: 15mm 12mm 15mm 12mm;
       @bottom-right {
         content: counter(page) "/" counter(pages);
       }
@@ -21,43 +21,43 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      color: #1e293b;
-      background: #f8fafc;
-      font-size: 13.5px;
+      color: #0f172a;
+      background: #f1f5f9;
+      font-size: 13px;
       line-height: 1.6;
     }
 
     .container {
-      max-width: 860px;
+      max-width: 900px;
       margin: 0 auto;
       background: #ffffff;
-      padding: 32px 40px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      padding: 30px 42px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
     }
 
     /* HEADER */
     .header {
       border-bottom: 3px solid #f59e0b;
-      padding-bottom: 20px;
-      margin-bottom: 25px;
+      padding-bottom: 18px;
+      margin-bottom: 22px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 20px;
+      gap: 16px;
     }
 
     .header-brand {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
     }
 
     .logo-badge {
-      width: 52px;
-      height: 52px;
+      width: 50px;
+      height: 50px;
       background: #fef3c7;
       border: 2px solid #f59e0b;
-      border-radius: 14px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -65,7 +65,7 @@
     }
 
     .brand-title h1 {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 800;
       color: #92400e;
       letter-spacing: -0.3px;
@@ -93,40 +93,39 @@
       padding: 3px 10px;
       border-radius: 999px;
       font-size: 11px;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       border: 1px solid #fde68a;
     }
 
-    /* TITLE BANNER */
+    /* BANNER */
     .title-banner {
       background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
       border: 1px solid #fcd34d;
       border-radius: 12px;
       padding: 18px 22px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
 
     .title-banner h2 {
-      font-size: 18px;
+      font-size: 17.5px;
       font-weight: 800;
       color: #78350f;
       margin-bottom: 6px;
     }
 
     .title-banner p {
-      font-size: 13px;
+      font-size: 12.8px;
       color: #92400e;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     /* SECTION */
     .section {
-      margin-bottom: 30px;
-      page-break-inside: avoid;
+      margin-bottom: 28px;
     }
 
     .section-title {
-      font-size: 15.5px;
+      font-size: 15px;
       font-weight: 800;
       color: #0f172a;
       display: flex;
@@ -135,9 +134,11 @@
       margin-bottom: 12px;
       padding-bottom: 6px;
       border-bottom: 1.5px solid #e2e8f0;
+      text-transform: uppercase;
+      letter-spacing: -0.2px;
     }
 
-    .section-title .step-badge {
+    .section-title .badge {
       background: #f59e0b;
       color: #ffffff;
       width: 24px;
@@ -150,33 +151,38 @@
       font-weight: 800;
     }
 
-    /* CARDS & GRIDS */
-    .branch-grid {
+    /* 3-ROLES SUMMARY BOXES */
+    .role-cards {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-bottom: 16px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
     }
 
-    .branch-card {
-      background: #ffffff;
+    .role-box {
       border: 1.5px solid #e2e8f0;
       border-radius: 10px;
-      padding: 14px 16px;
+      padding: 13px 14px;
+      background: #ffffff;
     }
 
-    .branch-card.admin {
+    .role-box.admin {
       border-color: #fed7aa;
       background: #fffaf5;
     }
 
-    .branch-card.training {
+    .role-box.training {
+      border-color: #fde68a;
+      background: #fffbeb;
+    }
+
+    .role-box.teacher {
       border-color: #bbf7d0;
       background: #f7fee7;
     }
 
-    .branch-card h3 {
-      font-size: 13.5px;
+    .role-box h3 {
+      font-size: 13px;
       font-weight: 800;
       margin-bottom: 6px;
       display: flex;
@@ -184,52 +190,22 @@
       gap: 6px;
     }
 
-    .branch-card.admin h3 { color: #c2410c; }
-    .branch-card.training h3 { color: #15803d; }
+    .role-box.admin h3 { color: #c2410c; }
+    .role-box.training h3 { color: #b45309; }
+    .role-box.teacher h3 { color: #15803d; }
 
-    .branch-card ul {
-      list-style: none;
-      padding-left: 0;
-    }
-
-    .branch-card li {
-      font-size: 12px;
+    .role-box p {
+      font-size: 11.5px;
       color: #334155;
-      margin-bottom: 4px;
-      padding-left: 16px;
-      position: relative;
+      line-height: 1.45;
     }
 
-    .branch-card li::before {
-      content: "•";
-      position: absolute;
-      left: 4px;
-      color: #f59e0b;
-      font-weight: bold;
-    }
-
-    .alert-box {
-      background: #eff6ff;
-      border-left: 4px solid #3b82f6;
-      border-radius: 6px;
-      padding: 10px 14px;
-      font-size: 12.5px;
-      color: #1e40af;
-      margin-top: 10px;
-    }
-
-    .alert-box.success {
-      background: #ecfdf5;
-      border-left-color: #10b981;
-      color: #065f46;
-    }
-
-    /* STEP LIST */
+    /* STEP ITEM */
     .step-item {
       background: #ffffff;
       border: 1px solid #e2e8f0;
       border-radius: 9px;
-      padding: 13px 16px;
+      padding: 12px 16px;
       margin-bottom: 12px;
     }
 
@@ -240,7 +216,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
 
     .step-header .num {
@@ -255,12 +231,12 @@
     .step-item p {
       font-size: 12.5px;
       color: #475569;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
 
-    /* FIGURE & IMAGES */
+    /* FIGURE */
     .figure-wrap {
-      margin: 14px 0 16px;
+      margin: 12px 0 16px;
       text-align: center;
       page-break-inside: avoid;
     }
@@ -270,7 +246,7 @@
       height: auto;
       border-radius: 8px;
       border: 1px solid #cbd5e1;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
       display: block;
       margin: 0 auto;
     }
@@ -282,7 +258,7 @@
       margin-top: 6px;
     }
 
-    /* KEY SHORTCUTS & ACTIONS */
+    /* TAGS & BADGES */
     .tag {
       display: inline-block;
       background: #f1f5f9;
@@ -297,29 +273,43 @@
     .tag.green { background: #dcfce7; color: #166534; border-color: #86efac; }
     .tag.gold { background: #fef3c7; color: #854d0e; border-color: #fde047; }
     .tag.blue { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+    .tag.orange { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
 
-    /* FOOTER */
+    .alert-box {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #1e40af;
+      margin-top: 10px;
+    }
+
+    .alert-box.success {
+      background: #ecfdf5;
+      border-left-color: #10b981;
+      color: #065f46;
+    }
+
+    .alert-box.warning {
+      background: #fffbeb;
+      border-left-color: #f59e0b;
+      color: #92400e;
+    }
+
     .footer {
       border-top: 1.5px solid #e2e8f0;
-      margin-top: 30px;
-      padding-top: 15px;
+      margin-top: 26px;
+      padding-top: 14px;
       text-align: center;
       font-size: 11.5px;
       color: #94a3b8;
     }
 
     @media print {
-      body {
-        background: #ffffff;
-      }
-      .container {
-        padding: 0;
-        box-shadow: none;
-        max-width: 100%;
-      }
-      .page-break {
-        page-break-before: always;
-      }
+      body { background: #ffffff; }
+      .container { padding: 0; box-shadow: none; max-width: 100%; }
+      .page-break { page-break-before: always; }
     }
   </style>
 </head>
@@ -332,230 +322,260 @@
       <div class="logo-badge">🐝</div>
       <div class="brand-title">
         <h1>ANH NGỮ BEEZONE</h1>
-        <p>Hệ thống Quản lý Trung tâm & Vận hành Giảng dạy</p>
+        <p>Hệ Thống Quản Lý Trung Tâm & Vận Hành Giảng Dạy</p>
       </div>
     </div>
     <div class="doc-meta">
-      <div class="doc-badge">TÀI LIỆU VẬN HÀNH</div>
+      <div class="doc-badge">HƯỚNG DẪN VẬN HÀNH</div>
       <div>Phân hệ: <b>Giao việc & Bàn giao ca</b></div>
-      <div>Phiên bản: <b>2.0 Chuẩn hóa</b></div>
+      <div>Phiên bản: <b>2.1 Tự động hóa</b></div>
     </div>
   </header>
 
   <!-- BANNER -->
   <div class="title-banner">
-    <h2>HƯỚNG DẪN QUẢN LÝ GIAO VIỆC & BÀN GIAO CA DẠY</h2>
-    <p>Tài liệu hướng dẫn trực quan dành cho Chủ cơ sở, Nhân viên Hành chính, Nhân viên Đào tạo và Giáo viên giảng dạy. Quy định rõ ràng phân quyền 2 nhánh công việc, đồng bộ danh mục lớp học, ca dạy, đăng ký nghỉ dạy thay và bàn giao ca cuối buổi.</p>
+    <h2>HƯỚNG DẪN SỬ DỤNG CHI TIẾT THEO 3 VAI TRÒ</h2>
+    <p><b>Dành cho:</b> 1) Bộ phận Hành chính & Quản trị — 2) Nhân viên phụ trách Đào tạo — 3) Giáo viên giảng dạy. Tài liệu kèm hình ảnh chụp thực tế các thao tác giao việc theo lớp, đồng bộ ca học/lịch dạy, đăng ký cô nghỉ dạy thay, báo việc hoàn thành, ghi chú ca dạy và bàn giao ca cuối buổi.</p>
   </div>
 
   <!-- SECTION 1 -->
   <section class="section">
     <h2 class="section-title">
-      <span class="step-badge">1</span>
-      Mô hình 2 Nhánh Công Việc & Quy Định Phân Quyền
+      <span class="badge">1</span>
+      Tổng Quan Phân Quyền 2 Nhánh & 3 Đối Tượng Sử Dụng
     </h2>
-    <p style="margin-bottom: 12px; color: #334155;">
-      Để trung tâm vận hành trôi chảy, chuyên nghiệp và bảo mật thông tin nội bộ, hệ thống chia thành <b>2 nhánh công việc độc lập</b>:
-    </p>
 
-    <div class="branch-grid">
-      <!-- Nhánh 1 -->
-      <div class="branch-card admin">
-        <h3><span>🏢</span> NHÁNH 1: HÀNH CHÍNH & QUẢN TRỊ</h3>
-        <ul>
-          <li><b>Người phụ trách:</b> Chủ trung tâm (<code>chauoaingua679@gmail.com</code>) và Hành chính (<code>phonghanhchinh.beezone@gmail.com</code>).</li>
-          <li><b>Chức danh chuẩn:</b> Tài khoản hành chính hiển thị chức danh <b>Hành chính</b> (không còn chữ Lễ tân).</li>
-          <li><b>Phạm vi thấy:</b> <b>Thấy đầy đủ toàn bộ công việc</b> của trung tâm (Việc Hành chính, Bàn giao cuối ca, và Việc Giáo viên theo lớp).</li>
-          <li><b>Nhiệm vụ:</b> Quản lý việc văn phòng, bàn giao ca trực, giám sát tiến độ giáo viên và tiếp nhận việc bàn giao.</li>
-        </ul>
+    <div class="role-cards">
+      <!-- Role 1: Hành chính -->
+      <div class="role-box admin">
+        <h3><span>🏢</span> 1. HÀNH CHÍNH & QUẢN TRỊ</h3>
+        <p><b>Tài khoản:</b> <code>chauoaingua679@gmail.com</code> (Chủ cơ sở) và <code>phonghanhchinh.beezone@gmail.com</code> (Hành chính).</p>
+        <p style="margin-top: 4px;"><b>Phạm vi:</b> <b>Thấy đầy đủ toàn bộ</b> 3 cột công việc (Hành chính, Bàn giao, Việc giáo viên). Theo dõi tiến độ trung tâm và nhận bàn giao ca.</p>
       </div>
 
-      <!-- Nhánh 2 -->
-      <div class="branch-card training">
-        <h3><span>👩‍🏫</span> NHÁNH 2: ĐÀO TẠO & GIÁO VIÊN</h3>
-        <ul>
-          <li><b>Người phụ trách:</b> Nhân viên Đào tạo (<code>phongdaotao.beezone@gmail.com</code>) và các Giáo viên lớp học.</li>
-          <li><b>Nhiệm vụ Đào tạo:</b> Giao việc cho giáo viên từng lớp học, đồng bộ ca học và xếp giáo viên dạy thay / dạy bù.</li>
-          <li><b>Nhiệm vụ Giáo viên:</b> Xem việc lớp mình, báo việc đã làm / chưa làm, note hoặc tick xác nhận ca dạy.</li>
-          <li><b>Bảo mật tuyệt đối:</b> Đào tạo và Giáo viên <b>không thấy công việc hành chính</b>.</li>
-        </ul>
+      <!-- Role 2: Đào tạo -->
+      <div class="role-box training">
+        <h3><span>📋</span> 2. NHÂN VIÊN ĐÀO TẠO</h3>
+        <p><b>Tài khoản:</b> <code>phongdaotao.beezone@gmail.com</code>.</p>
+        <p style="margin-top: 4px;"><b>Phạm vi:</b> Chuyên trách giao việc cho Giáo viên từng lớp học, xếp lịch học, xếp giáo viên dạy bù/dạy thay. <b>Không thấy việc hành chính</b>.</p>
+      </div>
+
+      <!-- Role 3: Giáo viên -->
+      <div class="role-box teacher">
+        <h3><span>👩‍🏫</span> 3. GIÁO VIÊN GIẢNG DẠY</h3>
+        <p><b>Tài khoản:</b> Các giáo viên lớp học.</p>
+        <p style="margin-top: 4px;"><b>Phạm vi:</b> Xem việc lớp mình phụ trách, báo việc đã làm (done), chưa làm (unfinished), gõ note xác nhận ca dạy. <b>Không thấy việc hành chính</b>.</p>
       </div>
     </div>
 
     <div class="figure-wrap">
-      <img src="assets/work/05_chuc_danh_hanh_chinh.png" alt="Chức danh Hành chính hiển thị chuẩn trong Quản lý tài khoản">
-      <div class="figure-caption">Hình 1.1: Tài khoản BeeZone Hành Chính hiển thị đúng chức danh "Hành chính • Được truy cập".</div>
+      <img src="assets/work/05_chuc_danh_hanh_chinh.png" alt="Chức danh Hành chính hiển thị chuẩn xác">
+      <div class="figure-caption">Hình 1.1: Tài khoản Hành chính hiển thị chuẩn chức danh "Hành chính • Được truy cập" trong Quản lý tài khoản.</div>
     </div>
   </section>
 
   <div class="page-break"></div>
 
-  <!-- SECTION 2 -->
+  <!-- SECTION 2: HÀNH CHÍNH -->
   <section class="section">
     <h2 class="section-title">
-      <span class="step-badge">2</span>
-      Nhân Viên Đào Tạo Giao Việc Cho Giáo Viên Từng Lớp
+      <span class="badge">2</span>
+      Hướng Dẫn Chi Tiết Đối Với HÀNH CHÍNH & QUẢN TRỊ
     </h2>
-    <p style="margin-bottom: 12px; color: #334155;">
-      Nhân viên Đào tạo đăng nhập vào phân hệ và thực hiện giao việc cho giáo viên theo từng lớp học với các bước sau:
+    <p style="color: #334155; margin-bottom: 12px;">
+      Bộ phận Hành chính và Chủ trung tâm là nhánh quản lý tổng thể, có quyền hạn đầy đủ nhất:
     </p>
 
     <div class="step-item">
       <div class="step-header">
-        <span class="num">Bước 1</span>
-        Bấm nút "＋ Tạo công việc" trên thanh công cụ
+        <span class="num">2.1</span>
+        Quan sát toàn diện 3 cột công việc tại trung tâm
       </div>
-      <p>Cửa sổ tạo nhiệm vụ mở ra. Đối với tài khoản Đào tạo, trường <b>Nhánh công việc</b> được cố định là <span class="tag green">Đào tạo / Giáo viên</span> để tập trung đúng chức năng chuyên môn.</p>
+      <p>Khi đăng nhập bằng tài khoản Hành chính hoặc Chủ cơ sở, màn hình hiển thị đầy đủ cả 3 cột:</p>
+      <p>• <b>Cột 1 (🔸 Việc hôm nay · Hành chính):</b> Các công việc vận hành, lễ tân đón bé, quản lý cơ sở vật chất, thu học phí tồn đọng.</p>
+      <p>• <b>Cột 2 (🟦 Bàn giao cuối ca / cuối buổi):</b> Danh sách các công việc còn dang dở cần người trực ca sau tiếp nhận theo dõi.</p>
+      <p>• <b>Cột 3 (👩‍🏫 Việc giáo viên theo lớp):</b> Toàn bộ tiến độ các buổi dạy của giáo viên từng lớp học trong ngày.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/01_hanh_chinh_toan_canh.png" alt="Toàn cảnh phân hệ giao việc của Hành chính & Quản trị">
+      <div class="figure-caption">Hình 2.1: Giao diện Hành chính & Quản trị thấy đầy đủ cả 3 cột công việc và thanh bộ lọc hàng ngang cân đối.</div>
     </div>
 
     <div class="step-item">
       <div class="step-header">
-        <span class="num">Bước 2</span>
-        Chọn Lớp học & Người thực hiện (Đồng bộ danh mục lớp)
+        <span class="num">2.2</span>
+        Sử dụng Thanh Bộ Lọc hàng ngang thông minh
       </div>
-      <p>• Tại ô <b>Lớp</b>: Chọn lớp có sẵn trong trung tâm (ví dụ <code>[LOP-01] Kiddy 3A</code>). Hệ thống tự động nhận diện giáo viên phụ trách của lớp đó.</p>
-      <p>• Tại ô <b>Người thực hiện</b>: Hiển thị giáo viên lớp học hoặc nhân sự đào tạo. Nếu cần bổ sung giáo viên mới, có thể bấm nút <span class="tag gold">＋ Thêm mới</span> hoặc chọn dòng <i>➕ Thêm mới nhân sự / giáo viên...</i> để tạo trực tiếp mà không cần thoát ra.</p>
-    </div>
-
-    <div class="figure-wrap">
-      <img src="assets/work/02_nguoi_thuc_hien_va_them_moi.png" alt="Chọn người thực hiện và thêm mới giáo viên nhanh">
-      <div class="figure-caption">Hình 2.1: Danh sách người thực hiện đã ẩn email kỹ thuật, tích hợp nút thêm mới giáo viên trực tiếp.</div>
+      <p>Thanh bộ lọc đã được chuẩn hóa trên <b>1 hàng ngang duy nhất</b>:</p>
+      <p>• <b>Ô Tìm kiếm (dãn rộng):</b> Gõ từ khóa tìm nhanh theo tên việc, lớp học, giáo viên hoặc nội dung. Có nút <span class="tag">✕</span> để xóa nhanh từ khóa.</p>
+      <p>• <b>Ô Chọn ngày:</b> Chuyển nhanh giữa ngày hôm nay và các ngày khác.</p>
+      <p>• <b>Dropdown Trạng thái:</b> Lọc theo: <i>Tất cả trạng thái, Chưa làm, Đang làm, Còn dang dở, Hoàn thành, Cần bàn giao</i>.</p>
+      <p>• <b>Sao lưu & Khôi phục:</b> Nằm gọn gàng trong nút <b>🎨 Tùy chỉnh</b> ở góc trên bên phải, giúp thanh công cụ lọc luôn thông thoáng, sạch đẹp.</p>
     </div>
 
     <div class="step-item">
       <div class="step-header">
-        <span class="num">Bước 3</span>
-        Chọn Ca / Buổi (Đồng bộ Thời khóa biểu & Lịch dạy)
+        <span class="num">2.3</span>
+        Bàn giao ca trực & Tiếp nhận bàn giao
       </div>
-      <p>Khi chọn lớp học, dropdown <b>Ca / Buổi</b> sẽ tự động hiển thị:</p>
-      <p>1. <b>Các ca học trong tuần của lớp:</b> Ví dụ <code>Thứ 7: 18:00 - 19:30 (Phòng Kính)</code>, <code>Chủ Nhật: 18:00 - 19:30</code>.</p>
-      <p>2. <b>Các ca chuẩn:</b> Ca sáng, Ca chiều, Ca tối, Cuối buổi, Cả ngày.</p>
-      <p>3. <b>Tự nhập giờ thủ công:</b> Bấm nút <span class="tag blue">＋ Tự nhập giờ</span> để nhập bất kỳ khung giờ hoặc buổi dạy đặc thù nào do Đào tạo hoặc Quản lý chỉ định.</p>
-    </div>
-
-    <div class="figure-wrap">
-      <img src="assets/work/03_dong_bo_thoi_khoa_bieu.png" alt="Đồng bộ ca học của lớp theo Thời khóa biểu">
-      <div class="figure-caption">Hình 2.2: Dropdown Ca / Buổi tự động đồng bộ theo lịch học trong tuần của lớp hoặc cho phép tự nhập giờ.</div>
-    </div>
-
-    <div class="step-item">
-      <div class="step-header">
-        <span class="num">Bước 4</span>
-        Trường hợp Cô đăng ký nghỉ (off) & Phân công dạy thay / dạy bù
-      </div>
-      <p>Nếu giáo viên có đơn xin nghỉ ca dạy đó:</p>
-      <p>• Tick chọn ô <span class="tag gold">👩‍🏫 Cô đăng ký nghỉ (off) & phân công giáo viên dạy bù</span>.</p>
-      <p>• Chọn <b>Giáo viên dạy thay</b> trong danh sách.</p>
-      <p>• Khi bấm lưu: Hệ thống <b>tự động đồng bộ sang Thời khóa biểu và Lịch giáo viên</b>, ghi nhận cô nghỉ và phân công giáo viên dạy thay chuẩn xác.</p>
-    </div>
-
-    <div class="figure-wrap">
-      <img src="assets/work/01_tao_viec_lop_va_ca.png" alt="Tạo việc lớp học và phân công dạy thay">
-      <div class="figure-caption">Hình 2.3: Form tạo việc đầy đủ các trường: Lớp học, Ca/buổi và đăng ký cô nghỉ dạy thay.</div>
+      <p>• <b>Bàn giao việc dở:</b> Trên thẻ việc cần bàn giao, bấm nút <span class="tag gold">↪ Bàn giao</span>. Việc sẽ tự động chuyển sang Cột 2 (Bàn giao ca).</p>
+      <p>• <b>Nhận ca:</b> Người trực ca sau bấm nút <span class="tag green">✓ Nhận ca</span>, gõ tên và ghi chú xác nhận tiếp nhận.</p>
+      <p>• <b>Sao chép bàn giao Zalo:</b> Bấm <span class="tag blue">📋 Sao chép nội dung bàn giao</span> để dán báo cáo trực tiếp vào nhóm Zalo trung tâm.</p>
     </div>
   </section>
 
   <div class="page-break"></div>
 
-  <!-- SECTION 3 -->
+  <!-- SECTION 3: ĐÀO TẠO -->
   <section class="section">
     <h2 class="section-title">
-      <span class="step-badge">3</span>
-      Giáo Viên Báo Việc Đã Làm, Chưa Làm & Note Xác Nhận
+      <span class="badge">3</span>
+      Hướng Dẫn Chi Tiết Đối Với NHÂN VIÊN ĐÀO TẠO
     </h2>
-    <p style="margin-bottom: 12px; color: #334155;">
-      Giáo viên đăng nhập bằng tài khoản được cấp quyền. Màn hình của giáo viên sẽ hiển thị tập trung vào <b>Việc giáo viên theo lớp</b> và các thao tác cực kỳ đơn giản:
+    <p style="color: #334155; margin-bottom: 12px;">
+      Nhân viên Đào tạo (<code>phongdaotao.beezone@gmail.com</code>) phụ trách giao việc cho Giáo viên từng lớp học:
     </p>
 
     <div class="step-item">
       <div class="step-header">
-        <span class="num">Thao tác 1</span>
+        <span class="num">3.1</span>
+        Tạo công việc mới — Chuẩn hóa 3 trường trên 1 Hàng Ngang
+      </div>
+      <p>Bấm nút <b>＋ Tạo công việc</b>. Form tạo việc được thiết kế tối ưu, gọn gàng:</p>
+      <p>• <b>Nhánh công việc:</b> Cố định ở <span class="tag green">Đào tạo / Giáo viên</span>.</p>
+      <p>• <b>Lớp học:</b> Chọn lớp trong danh mục (ví dụ <code>[LOP-01] Kiddy 3A</code>). Tự động nhận diện giáo viên lớp.</p>
+      <p>• <b>Ca / Buổi:</b> Hiển thị lịch học các ngày trong tuần của lớp hoặc ca chuẩn, hoặc bấm <code>＋ Tự nhập giờ</code>.</p>
+      <p>• <b>3 TRƯỜNG TRÊN 1 HÀNG NGANG:</b> <b>Ngày thực hiện *</b> — <b>Mức ưu tiên</b> — <b>Trạng thái</b> được bố trí thẳng hàng cân đối, thuận tiện thao tác nhập liệu nhanh.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/02_tao_cong_viec_3_cot_mot_hang.png" alt="Form tạo công việc với 3 trường Ngày, Ưu tiên, Trạng thái thành 1 hàng ngang">
+      <div class="figure-caption">Hình 3.1: Form tạo việc chuẩn hóa — 3 trường "Ngày thực hiện *", "Mức ưu tiên" và "Trạng thái" nằm trên 1 hàng ngang 3 cột.</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">3.2</span>
+        Đăng ký cô nghỉ dạy (off) & Tự động đồng bộ Giáo viên dạy bù / dạy thay
+      </div>
+      <p>Khi có giáo viên xin nghỉ đột xuất hoặc nghỉ phép:</p>
+      <p>1. Tick chọn ô <span class="tag gold">👩‍🏫 Cô đăng ký nghỉ (off) & phân công giáo viên dạy thay / dạy bù</span>.</p>
+      <p>2. Chọn giáo viên dạy thay trong danh sách.</p>
+      <p>3. Bấm <b>Lưu công việc</b>: Hệ thống <b>tự động đồng bộ sang Thời khóa biểu và Lịch giáo viên</b>, đánh dấu cô nghỉ và gán giáo viên dạy thay lập tức mà không cần sang phân hệ TKB chỉnh sửa thủ công!</p>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">3.3</span>
+        Bổ sung nhanh giáo viên trực tiếp trong form
+      </div>
+      <p>Nếu có giáo viên mới nhận việc, bấm nút <span class="tag gold">＋ Thêm mới</span> ngay cạnh ô Người thực hiện. Nhập tên, email, số điện thoại -> Hệ thống tự động tạo hồ sơ nhân sự và chọn ngay làm người thực hiện nhiệm vụ.</p>
+    </div>
+  </section>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 4: GIÁO VIÊN -->
+  <section class="section">
+    <h2 class="section-title">
+      <span class="badge">4</span>
+      Hướng Dẫn Chi Tiết Đối Với GIÁO VIÊN GIẢNG DẠY
+    </h2>
+    <p style="color: #334155; margin-bottom: 12px;">
+      Giáo viên đăng nhập bằng tài khoản của mình. Giao diện được tối giản, tập trung hoàn toàn vào chuyên môn giảng dạy:
+    </p>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">4.1</span>
+        Xem việc lớp mình phụ trách — Không thấy việc hành chính
+      </div>
+      <p>• Để đảm bảo bảo mật và không gây xao nhãng, <b>Giáo viên và Đào tạo không nhìn thấy cột Việc hành chính</b>.</p>
+      <p>• Màn hình của giáo viên hiển thị trực tiếp danh sách ca dạy của các lớp mình phụ trách tại cột <b>👩‍🏫 Việc giáo viên theo lớp</b> và các công việc bàn giao ca.</p>
+    </div>
+
+    <div class="figure-wrap">
+      <img src="assets/work/03_giao_dien_giao_vien_daotao.png" alt="Giao diện màn hình của Đào tạo & Giáo viên">
+      <div class="figure-caption">Hình 4.1: Giao diện phân hệ của Đào tạo & Giáo viên — Không hiển thị cột việc Hành chính, tập trung chuyên môn.</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-header">
+        <span class="num">4.2</span>
         Báo việc đã làm (Hoàn thành)
       </div>
-      <p>• Bấm vào <b>ô vuông tick (checkbox) ☑</b> ngay trước tiêu đề nhiệm vụ trên thẻ công việc, hoặc bấm nút <span class="tag green">✓ Hoàn thành</span>.</p>
-      <p>• Thẻ công việc chuyển sang màu xanh lá hoàn thành và hệ thống tự động ghi nhận thời gian hoàn thành (ví dụ: <i>✓ Xong 19:35</i>).</p>
+      <p>Sau khi kết thúc buổi dạy, giáo viên chỉ cần <b>1 chạm</b>:</p>
+      <p>• Tick vào <b>ô vuông ☑</b> ngay trước tên công việc trên thẻ việc, hoặc bấm nút <span class="tag green">✓ Hoàn thành</span>.</p>
+      <p>• Thẻ việc chuyển sang màu xanh lá hoàn thành và tự động lưu mốc thời gian hoàn thành (ví dụ: <i>✓ Xong 19:35</i>).</p>
     </div>
 
     <div class="step-item">
       <div class="step-header">
-        <span class="num">Thao tác 2</span>
+        <span class="num">4.3</span>
         Báo việc chưa làm / Còn dang dở
       </div>
-      <p>• Nếu buổi học chưa hoàn thành đủ bài giảng, hoặc bài kiểm tra chưa kịp chấm xong: Bấm nút <span class="tag gold">◷ Còn dang dở</span> (hoặc nút <code>↶ Chưa làm</code>).</p>
-      <p>• Nhập lý do ngắn gọn (ví dụ: <i>"Bé Nam vắng, chưa trả bài kiểm tra Unit 3"</i>).</p>
-      <p>• Trạng thái được cập nhật trực quan để Đào tạo và Hành chính nắm bắt hỗ trợ.</p>
+      <p>Nếu buổi học chưa kịp làm bài kiểm tra hoặc còn nội dung dở:</p>
+      <p>• Bấm nút <span class="tag gold">◷ Còn dang dở</span> (hoặc nút <code>↶ Chưa làm</code>).</p>
+      <p>• Nhập lý do (ví dụ: <i>"Học viên cần ôn thêm từ vựng, sẽ kiểm tra 15 phút vào buổi sau"</i>). Trạng thái nhiệm vụ chuyển sang màu vàng để Đào tạo theo dõi.</p>
     </div>
 
     <div class="step-item">
       <div class="step-header">
-        <span class="num">Thao tác 3</span>
-        Ghi chú (Note) xác nhận ca dạy
+        <span class="num">4.4</span>
+        Ghi chú (Note) xác nhận buổi dạy
       </div>
       <p>• Bấm nút <span class="tag blue">☷ Ghi chú</span> trên thẻ công việc.</p>
-      <p>• Gõ nội dung nhận xét buổi học (sĩ số, dặn dò bài tập về nhà, nhắc phụ huynh đón sớm...).</p>
-      <p>• Bấm Lưu: Dòng ghi chú mới nhất <b>được ghim trực tiếp trên thẻ công việc</b> kèm tên giáo viên và thời gian ghi chú.</p>
-    </div>
-
-    <div class="alert-box success">
-      <b>💡 Gửi email công việc:</b> Giáo viên hoặc Đào tạo có thể bấm nút <span class="tag blue">📧 Gửi email công việc</span> để hệ thống tự động soạn sẵn thư Gmail với đầy đủ chi tiết lớp, ca học và dặn dò, bấm 1 nút là mở Gmail gửi ngay!
-    </div>
-  </section>
-
-  <!-- SECTION 4 -->
-  <section class="section">
-    <h2 class="section-title">
-      <span class="step-badge">4</span>
-      Quy Trình Bàn Giao Ca Trực & Bàn Giao Cuối Buổi
-    </h2>
-    <p style="margin-bottom: 12px; color: #334155;">
-      Áp dụng cho nhân viên ca trước bàn giao cho ca sau, hoặc giáo viên bàn giao việc theo dõi học sinh:
-    </p>
-
-    <div class="step-item">
-      <div class="step-header">
-        <span class="num">1</span>
-        Chuyển việc vào bàn giao
-      </div>
-      <p>Khi có công việc còn dang dở hoặc lưu ý cần người tiếp theo xử lý: Bấm nút <span class="tag gold">↪ Bàn giao</span> trên thẻ công việc. Việc sẽ lập tức xuất hiện tại cột <b>Bàn giao cuối ca / cuối buổi</b>.</p>
-    </div>
-
-    <div class="step-item">
-      <div class="step-header">
-        <span class="num">2</span>
-        Người nhận ca tiếp nhận
-      </div>
-      <p>Người trực ca sau mở hệ thống, xem cột Bàn giao và bấm nút <span class="tag green">✓ Nhận ca</span> (hoặc <i>✓ Nhận bàn giao</i>). Nhập tên và ghi chú xác nhận tiếp nhận công việc.</p>
-    </div>
-
-    <div class="step-item">
-      <div class="step-header">
-        <span class="num">3</span>
-        Sao chép báo cáo bàn giao nhanh qua Zalo
-      </div>
-      <p>Bấm nút <b>📋 Sao chép nội dung bàn giao</b> ở cuối cột. Toàn bộ danh sách việc dở và lưu ý trong ca sẽ được định dạng đẹp mắt để dán ngay vào nhóm Zalo trung tâm.</p>
+      <p>• Nhập tóm tắt buổi dạy: Tình hình học sinh, bài tập về nhà, bé nào cần phụ đạo thêm.</p>
+      <p>• Bấm Lưu: Dòng ghi chú mới nhất <b>được ghim trực tiếp trên mặt thẻ công việc</b> kèm tên giáo viên và thời gian ghi chú để Ban Giám đốc và Hành chính cùng nắm bắt.</p>
     </div>
 
     <div class="figure-wrap">
-      <img src="assets/work/04_ban_giao_cuoi_ca.png" alt="Cột Bàn giao ca và nút nhận ca">
-      <div class="figure-caption">Hình 4.1: Cột bàn giao ca hiển thị danh sách các việc cần người tiếp theo tiếp nhận.</div>
+      <img src="assets/work/04_ghi_chu_xac_nhan_giao_vien.png" alt="Hộp thoại Ghi chú xác nhận ca dạy của Giáo viên">
+      <div class="figure-caption">Hình 4.2: Hộp thoại ghi chú nhanh — Giáo viên nhập nhận xét ca dạy và ghim trực tiếp lên thẻ công việc.</div>
     </div>
   </section>
 
-  <!-- SECTION 5 -->
+  <!-- SECTION 5: TỔNG KẾT QUY TRÌNH -->
   <section class="section">
     <h2 class="section-title">
-      <span class="step-badge">5</span>
-      Thanh Bộ Lọc Ngang & Quản Lý Sao Lưu Dữ Liệu
+      <span class="badge">5</span>
+      Bảng Tóm Tắt Quy Trình Phối Hợp Giữa Các Bộ Phận
     </h2>
-    <p style="margin-bottom: 12px; color: #334155;">
-      Giao diện thanh bộ lọc đã được tối ưu hóa thành <b>hàng ngang cân đối</b>:
-    </p>
 
-    <div class="step-item">
-      <p>• <b>Ô tìm kiếm:</b> Dãn rộng linh hoạt, tìm nhanh theo tên việc, tên lớp, giáo viên hoặc ghi chú. Có nút <span class="tag">✕</span> để xóa nhanh từ khóa.</p>
-      <p>• <b>Ô chọn ngày:</b> Chọn ngày làm việc cần xem hoặc chuyển về ngày hôm nay.</p>
-      <p>• <b>Lọc trạng thái:</b> Lọc nhanh các việc: <i>Tất cả trạng thái, Chưa làm, Đang làm, Còn dang dở, Hoàn thành, Cần bàn giao</i>.</p>
-      <p>• <b>Sao lưu & Khôi phục:</b> Đã được đưa vào nút <b>🎨 Tùy chỉnh</b> ở góc trên bên phải để màn hình làm việc luôn gọn gàng và không bị bấm nhầm.</p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+      <thead>
+        <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1; text-align: left;">
+          <th style="padding: 10px 12px; font-weight: 700; color: #334155;">Bộ phận</th>
+          <th style="padding: 10px 12px; font-weight: 700; color: #334155;">Đầu ca / Trước giờ dạy</th>
+          <th style="padding: 10px 12px; font-weight: 700; color: #334155;">Trong ca làm việc</th>
+          <th style="padding: 10px 12px; font-weight: 700; color: #334155;">Cuối ca / Kết thúc buổi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+          <td style="padding: 10px 12px; font-weight: 700; color: #c2410c;">🏢 Hành chính</td>
+          <td style="padding: 10px 12px;">Nhận ca trực, kiểm tra việc bàn giao từ ca trước.</td>
+          <td style="padding: 10px 12px;">Đón học sinh, điểm danh, thu học phí, trực điện thoại.</td>
+          <td style="padding: 10px 12px;">Chuyển việc dở vào bàn giao ca, sao chép báo cáo Zalo.</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e2e8f0; background: #fffbeb;">
+          <td style="padding: 10px 12px; font-weight: 700; color: #b45309;">📋 Đào tạo</td>
+          <td style="padding: 10px 12px;">Tạo việc cho GV từng lớp, xếp GV dạy thay nếu có cô nghỉ.</td>
+          <td style="padding: 10px 12px;">Theo dõi tình hình điểm danh và sĩ số các lớp.</td>
+          <td style="padding: 10px 12px;">Kiểm tra tiến độ hoàn thành và ghi chú nhận xét của GV.</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e2e8f0; background: #f7fee7;">
+          <td style="padding: 10px 12px; font-weight: 700; color: #15803d;">👩‍🏫 Giáo viên</td>
+          <td style="padding: 10px 12px;">Mở xem việc lớp mình phụ trách, chuẩn bị giáo án.</td>
+          <td style="padding: 10px 12px;">Giảng dạy, tương tác học viên, cho làm bài tập.</td>
+          <td style="padding: 10px 12px;"><b>Tick hoàn thành ☑</b>, báo dang dở nếu có và <b>nhập Note xác nhận</b>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert-box success" style="margin-top: 16px;">
+      <b>🎉 Lợi ích đạt được:</b> Quy trình phân định rõ ràng giúp trung tâm tránh chồng chéo công việc, bảo mật số liệu quản trị, giáo viên tập trung chuyên môn giảng dạy, bàn giao ca minh bạch và không bỏ sót bất kỳ nhiệm vụ nào của học viên!
     </div>
   </section>
 
