@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as defaultSupabase } from '../../lib/supabase';
 import type { ClassRoom, CourseProgram, Teacher, UserAccount } from '../../types';
 import './beezone-work.css';
 import type {
   Branch,
+  CustomFieldDef,
   DetailFilter,
   TaskPriority,
   TaskStatus,
@@ -14,17 +15,22 @@ import type {
   WorkPerson,
   WorkReason,
   WorkRole,
+  WorkSettings,
   WorkTask,
 } from './types';
 import {
   buildWorkPeople,
+  dateVN,
+  defaultSettings,
   fetchWorkModuleData,
+  getEmptyWorkData,
   localISODate,
   mapUserToWorkRole,
   saveLocalWorkData,
   statusName,
   timeVN,
   validEmail,
+  WORK_SETTINGS_KEY,
 } from './workStorage';
 
 export interface BeeZoneWorkProps {
@@ -44,7 +50,7 @@ export function BeeZoneWork({
 }: BeeZoneWorkProps) {
   const supabase = supabaseClient !== undefined ? supabaseClient : defaultSupabase;
 
-  const [uid, setUid] = useState<string>(currentUser?.id || 'guest-user');
+  const [uid, setUid] = useState<string>(currentUser?.id || 'p1');
   const [role, setRole] = useState<WorkRole>(
     currentUser ? mapUserToWorkRole(currentUser) : 'manager',
   );
@@ -58,1165 +64,2170 @@ export function BeeZoneWork({
   const [dataSource, setDataSource] = useState<'supabase' | 'local'>('local');
 
   const [day, setDay] = useState(localISODate());
-  const [history, setHistory] = useState(false);
+  const [historyMode, setHistoryMode] = useState(false);
   const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState<'all' | Branch>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus | 'handover'>('all');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [toastMsg, setToastMsg] = useState('');
 
-  const [filter, setFilter] = useState<DetailFilter | null>(null);
-  const [selected, setSelected] = useState<WorkTask | null>(null);
-  const [editor, setEditor] = useState<WorkTask | null | undefined>(undefined);
+  // Modals
+  const [statModal, setStatModal] = useState<DetailFilter | null>(null);
+  const [editorTask, setEditorTask] = useState<WorkTask | null | undefined>(undefined);
+  const [noteTask, setNoteTask] = useState<WorkTask | null>(null);
+  const [reasonViewTask, setReasonViewTask] = useState<WorkTask | null>(null);
+  const [reasonAddTask, setReasonAddTask] = useState<{ task: WorkTask; defaultKind?: TaskStatus | 'handover' } | null>(null);
+  const [emailTask, setEmailTask] = useState<WorkTask | null>(null);
+  const [handoverTask, setHandoverTask] = useState<WorkTask | null>(null);
+  const [ackTask, setAckTask] = useState<WorkTask | null>(null);
+  const [directoryModal, setDirectoryModal] = useState(false);
+  const [staffEditor, setStaffEditor] = useState<WorkPerson | null | undefined>(undefined);
+  const [customizeModal, setCustomizeModal] = useState(false);
 
+  // Settings
+  const [settings, setSettings] = useState<WorkSettings>(() => {
+    try {
+      const raw = localStorage.getItem(WORK_SETTINGS_KEY);
+      if (raw) return { ...defaultSettings(), ...JSON.parse(raw) };
+    } catch {}
+    return defaultSettings();
+  });
+
+  // History controls
+  const [historyRange, setHistoryRange] = useState<'today' | 'yesterday' | 'seven' | 'thirty' | 'all'>('seven');
+  const [historyBranch, setHistoryBranch] = useState<'all' | Branch>('all');
+  const [historySearch, setHistorySearch] = useState('');
+
+  // Email state
+  const [emailTab, setEmailTab] = useState<'gmail' | 'copy'>('gmail');
+  const [emailRecipientUid, setEmailRecipientUid] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBodyContent, setEmailBodyContent] = useState('');
+  const [emailMarkChecked, setEmailMarkChecked] = useState(false);
+
+  // Handover state
+  const [handoverToUid, setHandoverToUid] = useState('');
+  const [handoverNoteContent, setHandoverNoteContent] = useState('');
+  const [ackName, setAckName] = useState(currentUser?.name || 'Người nhận ca');
+  const [ackNote, setAckNote] = useState('');
+
+  // Note draft
+  const [noteDraft, setNoteDraft] = useState('');
+
+  // Reason draft
+  const [reasonKind, setReasonKind] = useState<'progress' | 'unfinished' | 'done' | 'handover'>('progress');
+  const [reasonText, setReasonText] = useState('');
+
+  // Task form
   const initialForm: WorkFormState = {
     title: '',
     description: '',
     branch: 'admin',
-    assigned_uid: currentUser?.id || '',
+    assigned_uid: 'p1',
     work_date: localISODate(),
-    shift_label: 'Ca chiều',
+    shift_label: 'Ca sáng',
     class_label: '',
     priority: 'normal',
+    status: 'todo',
+    needs_handover: false,
   };
   const [form, setForm] = useState<WorkFormState>(initialForm);
 
-  const [noteDraft, setNoteDraft] = useState('');
-  const [reasonDraft, setReasonDraft] = useState('');
-  const [statusDraft, setStatusDraft] = useState<TaskStatus>('progress');
-  const [handoffTo, setHandoffTo] = useState('');
-  const [handoffNote, setHandoffNote] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [sendTask, setSendTask] = useState<WorkTask | null>(null);
-  const [recipient, setRecipient] = useState('');
-  const [subject, setSubject] = useState('');
-  const [emailBody, setEmailBody] = useState('');
-
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  // Determine permissions
-  const manager = role === 'manager' || role === 'admin';
-  const canManage = (t: WorkTask) => manager || (role === 'trainer' && t.branch === 'training');
-  const canEditStatus = (t: WorkTask) =>
-    canManage(t) || (role === 'teacher' && t.branch === 'training' && t.assigned_uid === uid);
-
-  const eligible = (_branch?: Branch) =>
-    people.filter((p) => p.active);
-
-  const name = (id: string) => people.find((p) => p.user_id === id)?.display_name || 'Nhân sự chưa xác định';
-  const email = (id: string) => people.find((p) => p.user_id === id)?.email || '';
-
-  // Synchronize people when currentUser or teachers change
-  useEffect(() => {
-    setPeople((prev) => buildWorkPeople(currentUser, teachers, prev));
-    if (currentUser) {
-      setUid(currentUser.id);
-      setRole((prevRole) => (prevRole === 'manager' && currentUser.role === 'owner' ? 'manager' : mapUserToWorkRole(currentUser)));
-    }
-  }, [currentUser, teachers]);
-
-  // Load work data
-  async function load() {
-    setError('');
-    const today = localISODate();
-    const effectiveUid = currentUser?.id || 'guest-user';
-    setUid(effectiveUid);
-
-    const { state, dbPeople, dbRole } = await fetchWorkModuleData(supabase, today, effectiveUid);
-    setTasks(state.tasks);
-    setNotes(state.notes);
-    setReasons(state.reasons);
-    setHandoffs(state.handoffs);
-    setDataSource(state.source);
-
-    if (dbRole) {
-      setRole(dbRole);
-    } else if (currentUser) {
-      setRole(mapUserToWorkRole(currentUser));
-    }
-
-    setPeople(buildWorkPeople(currentUser, teachers, dbPeople));
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    load().catch((e) => {
-      if (!cancelled) setError(e.message || String(e));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase, refreshKey]);
-
-  const reload = () => setRefreshKey((n) => n + 1);
-
-  // Helper to persist in local storage and keep state updated
-  function syncLocalChanges(
-    updater: (prev: {
-      tasks: WorkTask[];
-      notes: WorkNote[];
-      reasons: WorkReason[];
-      handoffs: WorkHandoff[];
-    }) => {
-      tasks: WorkTask[];
-      notes: WorkNote[];
-      reasons: WorkReason[];
-      handoffs: WorkHandoff[];
-    },
-  ) {
-    const updated = updater({ tasks, notes, reasons, handoffs });
-    setTasks(updated.tasks);
-    setNotes(updated.notes);
-    setReasons(updated.reasons);
-    setHandoffs(updated.handoffs);
-    saveLocalWorkData(updated);
-  }
-
-  // RPC or Local Fallback Dispatcher
-  async function callAction(
-    fn: string,
-    args: Record<string, unknown>,
-    localAction: () => void,
-  ): Promise<boolean> {
-    setBusy(true);
-    setError('');
-    setSuccessMsg('');
-
-    let rpcSucceeded = false;
-    if (supabase && dataSource === 'supabase') {
-      try {
-        const { error: e } = await supabase.rpc(fn, args);
-        if (!e) {
-          rpcSucceeded = true;
-          await load();
-        } else {
-          // If RPC doesn't exist or permissions issue, fall back to local
-          console.warn(`RPC ${fn} failed, applying local fallback:`, e.message);
-        }
-      } catch (err: any) {
-        console.warn(`RPC ${fn} threw, applying local fallback:`, err?.message);
-      }
-    }
-
-    if (!rpcSucceeded) {
-      // Execute local action
-      localAction();
-    }
-
-    setBusy(false);
-    return true;
-  }
-
-  // Filter visible tasks
-  const visible = useMemo(() => {
-    return tasks.filter((t) => {
-      // If there is a pending handoff waiting for current user, always show it
-      const isPendingForMe = handoffs.some(
-        (h) => h.task_id === t.id && !h.acknowledged_at && h.to_uid === uid,
-      );
-      if (isPendingForMe) return true;
-
-      // Teacher role: see tasks assigned to self
-      if (role === 'teacher' && t.assigned_uid !== uid) {
-        return false;
-      }
-      if (role === 'trainer' && t.branch === 'admin') {
-        return false;
-      }
-      if (branchFilter !== 'all' && t.branch !== branchFilter) {
-        return false;
-      }
-      const matchSearch =
-        !search ||
-        [t.title, t.description, t.class_label, name(t.assigned_uid)]
-          .join(' ')
-          .toLowerCase()
-          .includes(search.toLowerCase());
-
-      if (history) {
-        return t.status === 'done' && matchSearch;
-      }
-      return t.work_date === day && matchSearch;
-    });
-  }, [tasks, day, history, search, people, branchFilter, role, uid, handoffs]);
-
-  const stats = {
-    all: visible.length,
-    progress: visible.filter((t) => t.status === 'progress').length,
-    done: visible.filter((t) => t.status === 'done').length,
-    handover: visible.filter((t) => t.needs_handover && t.status !== 'done').length,
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3000);
   };
 
-  const statList = (kind: DetailFilter) =>
-    visible.filter((t) =>
-      kind === 'all'
-        ? true
-        : kind === 'handover'
-        ? t.needs_handover && t.status !== 'done'
-        : t.status === kind,
+  // Helper getters
+  const getPerson = (userId: string): WorkPerson => {
+    return (
+      people.find((p) => p.user_id === userId) || {
+        user_id: userId,
+        display_name: 'Nhân sự chưa xác định',
+        email: '',
+        role: 'admin',
+        active: true,
+        department: 'Chưa phân công',
+      }
     );
+  };
 
-  const column = (branch: Branch) => visible.filter((t) => t.branch === branch);
-  const hasPending = (t: WorkTask) => handoffs.some((h) => h.task_id === t.id && !h.acknowledged_at);
-  const pendingForMe = (t: WorkTask) =>
-    handoffs.find((h) => h.task_id === t.id && !h.acknowledged_at && h.to_uid === uid);
+  const getInitials = (name?: string): string => {
+    const clean = String(name || '?').trim();
+    if (!clean) return '?';
+    const parts = clean.split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[parts.length - 2][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
 
-  // Editor Actions
-  function openEditor(t?: WorkTask) {
-    setEditor(t || null);
-    const next: WorkFormState = t
-      ? {
-          title: t.title,
-          description: t.description,
-          branch: t.branch,
-          assigned_uid: t.assigned_uid,
-          work_date: t.work_date,
-          shift_label: t.shift_label,
-          class_label: t.class_label,
-          priority: t.priority,
-        }
-      : {
-          ...initialForm,
-          branch: role === 'trainer' ? 'training' : 'admin',
-          work_date: day,
-          assigned_uid: people.find((p) => (role === 'trainer' ? p.role === 'teacher' : p.user_id === uid))?.user_id || uid,
-        };
-    setForm(next);
-  }
-
-  // Handle class selection helper
-  function handleSelectClass(classNameOrCode: string) {
-    const selectedClass = classes.find(
-      (c) => c.name === classNameOrCode || c.code === classNameOrCode || `${c.code} - ${c.name}` === classNameOrCode,
-    );
-    if (selectedClass) {
-      setForm((prev) => ({
-        ...prev,
-        class_label: `${selectedClass.code} - ${selectedClass.name}`,
-        assigned_uid:
-          prev.branch === 'training' && selectedClass.teacherId
-            ? selectedClass.teacherId
-            : prev.assigned_uid,
-      }));
-    } else {
-      setForm((prev) => ({ ...prev, class_label: classNameOrCode }));
+  // Load data
+  const loadData = async () => {
+    try {
+      const data = await fetchWorkModuleData(supabase, day, uid);
+      setTasks(data.tasks);
+      setNotes(data.notes);
+      setReasons(data.reasons);
+      setHandoffs(data.handoffs);
+      setDataSource(data.source);
+    } catch (e) {
+      console.error('Error loading work module data:', e);
+      const empty = getEmptyWorkData();
+      syncStorage(empty.tasks, empty.notes, empty.reasons, empty.handoffs);
     }
-  }
+  };
 
-  async function saveEditor() {
-    if (!form.title.trim() || !form.assigned_uid) {
-      setError('Vui lòng nhập tên công việc và chọn người thực hiện.');
+  useEffect(() => {
+    loadData();
+  }, [day, uid]);
+
+  // Persist locally
+  const syncStorage = (
+    nextTasks: WorkTask[],
+    nextNotes: WorkNote[],
+    nextReasons: WorkReason[],
+    nextHandoffs: WorkHandoff[],
+  ) => {
+    setTasks(nextTasks);
+    setNotes(nextNotes);
+    setReasons(nextReasons);
+    setHandoffs(nextHandoffs);
+    saveLocalWorkData({
+      tasks: nextTasks,
+      notes: nextNotes,
+      reasons: nextReasons,
+      handoffs: nextHandoffs,
+    });
+  };
+
+  // Filtered tasks for Daily view
+  const dailyTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      // Date filter
+      if (day && t.work_date !== day) return false;
+      // Search
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const p = getPerson(t.assigned_uid);
+        const match = [
+          t.title,
+          t.description,
+          t.class_label,
+          t.shift_label,
+          p.display_name,
+          p.email,
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!match.includes(q)) return false;
+      }
+      // Status filter
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'handover') {
+          if (!t.needs_handover || t.status === 'done') return false;
+        } else if (t.status !== statusFilter) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [tasks, day, search, statusFilter, people]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const list = tasks.filter((t) => (!day || t.work_date === day));
+    return {
+      all: list.length,
+      progress: list.filter((t) => t.status === 'progress').length,
+      done: list.filter((t) => t.status === 'done').length,
+      handover: list.filter((t) => t.needs_handover && t.status !== 'done').length,
+    };
+  }, [tasks, day]);
+
+  // Columns
+  const adminTasks = useMemo(
+    () => dailyTasks.filter((t) => t.branch === 'admin'),
+    [dailyTasks],
+  );
+  const trainingTasks = useMemo(
+    () => dailyTasks.filter((t) => t.branch === 'training'),
+    [dailyTasks],
+  );
+  const handoverTasks = useMemo(
+    () => dailyTasks.filter((t) => t.needs_handover && t.status !== 'done'),
+    [dailyTasks],
+  );
+
+  // Completed tasks for History view
+  const historyCompletedTasks = useMemo(() => {
+    return tasks
+      .filter((t) => {
+        if (t.status !== 'done') return false;
+        if (historyBranch !== 'all' && t.branch !== historyBranch) return false;
+        if (historySearch.trim()) {
+          const q = historySearch.trim().toLowerCase();
+          const p = getPerson(t.assigned_uid);
+          const match = [t.title, t.description, t.class_label, p.display_name, p.email]
+            .join(' ')
+            .toLowerCase();
+          if (!match.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => String(b.completed_at || b.updated_at).localeCompare(String(a.completed_at || a.updated_at)));
+  }, [tasks, historyBranch, historySearch, people]);
+
+  // Quick Action Handlers
+  const handleToggleDone = (t: WorkTask) => {
+    const isDone = t.status === 'done';
+    const nextStatus: TaskStatus = isDone ? 'todo' : 'done';
+    const now = new Date().toISOString();
+    const updated: WorkTask = {
+      ...t,
+      status: nextStatus,
+      completed_at: nextStatus === 'done' ? now : null,
+      updated_at: now,
+      needs_handover: nextStatus === 'done' ? false : t.needs_handover,
+    };
+    const nextTasks = tasks.map((x) => (x.id === t.id ? updated : x));
+    syncStorage(nextTasks, notes, reasons, handoffs);
+    showToast(isDone ? 'Đã mở lại công việc.' : '✓ Đã đánh dấu hoàn thành công việc.');
+  };
+
+  const handleToggleProgress = (t: WorkTask) => {
+    const nextStatus: TaskStatus = t.status === 'progress' ? 'todo' : 'progress';
+    const now = new Date().toISOString();
+    const updated: WorkTask = {
+      ...t,
+      status: nextStatus,
+      completed_at: null,
+      updated_at: now,
+    };
+    const nextTasks = tasks.map((x) => (x.id === t.id ? updated : x));
+    syncStorage(nextTasks, notes, reasons, handoffs);
+    showToast(nextStatus === 'progress' ? 'Đã chuyển sang Đang làm.' : 'Đã chuyển về Chưa làm.');
+  };
+
+  const handleToggleHandover = (t: WorkTask) => {
+    if (t.status === 'done') {
+      showToast('Công việc đã hoàn thành không cần bàn giao.');
       return;
     }
-
-    const args = {
-      p_title: form.title.trim(),
-      p_description: form.description.trim(),
-      p_assigned_uid: form.assigned_uid,
-      p_work_date: form.work_date,
-      p_shift_label: form.shift_label,
-      p_class_label: form.class_label.trim(),
-      p_priority: form.priority,
+    const nextNeeds = !t.needs_handover;
+    const now = new Date().toISOString();
+    const updated: WorkTask = {
+      ...t,
+      needs_handover: nextNeeds,
+      updated_at: now,
     };
+    const nextTasks = tasks.map((x) => (x.id === t.id ? updated : x));
+    syncStorage(nextTasks, notes, reasons, handoffs);
+    showToast(nextNeeds ? 'Đã đánh dấu cần bàn giao.' : 'Đã bỏ đánh dấu bàn giao.');
+  };
 
-    if (editor?.id) {
-      await callAction(
-        'bz_work_edit_task',
-        { p_task_id: editor.id, ...args },
-        () => {
-          syncLocalChanges((prev) => ({
-            ...prev,
-            tasks: prev.tasks.map((item) =>
-              item.id === editor.id
-                ? {
-                    ...item,
-                    title: form.title.trim(),
-                    description: form.description.trim(),
-                    assigned_uid: form.assigned_uid,
-                    work_date: form.work_date,
-                    shift_label: form.shift_label,
-                    class_label: form.class_label.trim(),
-                    priority: form.priority,
-                    updated_at: new Date().toISOString(),
-                  }
-                : item,
-            ),
-          }));
-        },
-      );
+  const handleToggleEmailSent = (t: WorkTask) => {
+    const sent = !t.email_sent_at;
+    const now = new Date().toISOString();
+    const p = getPerson(t.assigned_uid);
+    const updated: WorkTask = {
+      ...t,
+      email_sent_at: sent ? now : null,
+      email_sent_to: sent ? p.email : null,
+      updated_at: now,
+    };
+    const nextTasks = tasks.map((x) => (x.id === t.id ? updated : x));
+    syncStorage(nextTasks, notes, reasons, handoffs);
+    showToast(sent ? 'Đã đánh dấu đã gửi email.' : 'Đã bỏ đánh dấu gửi email.');
+  };
+
+  // Open Task Editor
+  const handleOpenEditor = (t?: WorkTask) => {
+    if (t) {
+      setEditorTask(t);
+      setForm({
+        title: t.title,
+        description: t.description || '',
+        branch: t.branch,
+        assigned_uid: t.assigned_uid,
+        work_date: t.work_date,
+        shift_label: t.shift_label,
+        class_label: t.class_label || '',
+        priority: t.priority,
+        status: t.status,
+        needs_handover: t.needs_handover,
+      });
     } else {
-      await callAction(
-        'bz_work_create_task',
-        { p_branch: form.branch, ...args },
-        () => {
-          const newTask: WorkTask = {
-            id: `task-${crypto.randomUUID()}`,
-            branch: form.branch,
-            title: form.title.trim(),
-            description: form.description.trim(),
-            assigned_uid: form.assigned_uid,
-            work_date: form.work_date,
-            shift_label: form.shift_label,
-            class_label: form.class_label.trim(),
-            priority: form.priority,
-            status: 'todo',
-            needs_handover: false,
-            completed_at: null,
-            email_sent_at: null,
-            email_sent_to: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          syncLocalChanges((prev) => ({
-            ...prev,
-            tasks: [newTask, ...prev.tasks],
-          }));
-        },
-      );
+      setEditorTask(null);
+      setForm({
+        ...initialForm,
+        branch: role === 'trainer' ? 'training' : 'admin',
+        work_date: day || localISODate(),
+        assigned_uid: people[0]?.user_id || 'p1',
+      });
     }
-    setEditor(undefined);
-  }
+  };
 
-  // Email Functions
-  function openSend(t: WorkTask) {
-    setSendTask(t);
-    const targetUid = t.assigned_uid || people[0]?.user_id || uid;
-    setRecipient(targetUid);
-    fillEmail(t, targetUid);
-  }
+  const handleSaveTask = () => {
+    if (!form.title.trim()) {
+      showToast('Vui lòng nhập tên công việc.');
+      return;
+    }
+    if (!form.assigned_uid) {
+      showToast('Vui lòng chọn người thực hiện.');
+      return;
+    }
+    const now = new Date().toISOString();
+    if (editorTask) {
+      // Edit
+      const updated: WorkTask = {
+        ...editorTask,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        branch: form.branch,
+        assigned_uid: form.assigned_uid,
+        work_date: form.work_date,
+        shift_label: form.shift_label,
+        class_label: form.class_label.trim(),
+        priority: form.priority,
+        status: form.status || editorTask.status,
+        needs_handover: Boolean(form.needs_handover),
+        updated_at: now,
+      };
+      const nextTasks = tasks.map((x) => (x.id === editorTask.id ? updated : x));
+      syncStorage(nextTasks, notes, reasons, handoffs);
+      showToast('Đã cập nhật công việc.');
+    } else {
+      // Create
+      const newTask: WorkTask = {
+        id: 't-' + Date.now(),
+        title: form.title.trim(),
+        description: form.description.trim(),
+        branch: form.branch,
+        assigned_uid: form.assigned_uid,
+        work_date: form.work_date,
+        shift_label: form.shift_label,
+        class_label: form.class_label.trim(),
+        priority: form.priority,
+        status: form.status || 'todo',
+        needs_handover: Boolean(form.needs_handover),
+        completed_at: null,
+        email_sent_at: null,
+        email_sent_to: null,
+        created_at: now,
+        updated_at: now,
+      };
+      syncStorage([newTask, ...tasks], notes, reasons, handoffs);
+      showToast('Đã tạo công việc mới.');
+    }
+    setEditorTask(undefined);
+  };
 
-  function fillEmail(t: WorkTask, pid: string) {
-    setSubject(`[BeeZone] Giao việc: ${t.title}`);
-    setEmailBody(
-      `Xin chào ${name(pid)},\n\nTrung tâm Anh ngữ BeeZone gửi phân công công việc:\n\n` +
-        `- Tên công việc: ${t.title}\n` +
-        `- Ngày thực hiện: ${t.work_date} (${t.shift_label})\n` +
-        `- Lớp / Chương trình: ${t.class_label || 'Toàn trung tâm'}\n` +
-        `- Người thực hiện: ${name(pid)} (${email(pid) || 'Chưa cập nhật email'})\n` +
-        `- Mức ưu tiên: ${t.priority === 'high' ? 'Ưu tiên cao' : 'Bình thường'}\n` +
-        `- Yêu cầu & nội dung: ${t.description || 'Theo hướng dẫn phân công'}\n\n` +
-        `Vui lòng truy cập hệ thống để cập nhật tiến độ công việc và bàn giao khi kết thúc ca.\n\n` +
+  // Note Modal
+  const handleOpenNoteModal = (t: WorkTask) => {
+    setNoteTask(t);
+    setNoteDraft('');
+  };
+
+  const handleSaveNote = () => {
+    if (!noteTask || !noteDraft.trim()) return;
+    const authorName = currentUser?.name || 'Nhân sự';
+    const newNote: WorkNote = {
+      id: 'n-' + Date.now(),
+      task_id: noteTask.id,
+      author_uid: uid,
+      author_name: authorName,
+      body: noteDraft.trim(),
+      created_at: new Date().toISOString(),
+    };
+    const nextNotes = [...notes, newNote];
+    const nextTasks = tasks.map((x) =>
+      x.id === noteTask.id ? { ...x, updated_at: new Date().toISOString() } : x,
+    );
+    syncStorage(nextTasks, nextNotes, reasons, handoffs);
+    setNoteDraft('');
+    showToast('Đã lưu ghi chú.');
+  };
+
+  // Reason Modal
+  const handleOpenReasonAdd = (t: WorkTask, defaultKind?: TaskStatus | 'handover') => {
+    setReasonAddTask({ task: t, defaultKind });
+    setReasonKind((defaultKind as any) || (t.needs_handover ? 'handover' : t.status === 'todo' ? 'progress' : t.status));
+    setReasonText('');
+  };
+
+  const handleSaveReason = () => {
+    if (!reasonAddTask || !reasonText.trim()) {
+      showToast('Vui lòng nhập lý do hoặc nội dung cập nhật.');
+      return;
+    }
+    const t = reasonAddTask.task;
+    const now = new Date().toISOString();
+    const authorName = currentUser?.name || getPerson(t.assigned_uid).display_name || 'Nhân sự';
+    const newReason: WorkReason = {
+      id: 'r-' + Date.now(),
+      task_id: t.id,
+      author_uid: uid,
+      author_name: authorName,
+      kind: reasonKind,
+      body: reasonText.trim(),
+      created_at: now,
+    };
+    const nextReasons = [...reasons, newReason];
+
+    // Status / handover updates
+    let updatedTask: WorkTask = { ...t, updated_at: now };
+    if (reasonKind === 'handover') {
+      updatedTask.needs_handover = true;
+      if (updatedTask.status === 'done') {
+        updatedTask.status = 'unfinished';
+        updatedTask.completed_at = null;
+      }
+    } else {
+      updatedTask.status = reasonKind;
+      if (reasonKind === 'done') {
+        updatedTask.completed_at = now;
+        updatedTask.needs_handover = false;
+      } else {
+        updatedTask.completed_at = null;
+      }
+    }
+
+    const nextTasks = tasks.map((x) => (x.id === t.id ? updatedTask : x));
+    syncStorage(nextTasks, notes, nextReasons, handoffs);
+    setReasonAddTask(null);
+    showToast('Đã lưu lý do và cập nhật trạng thái.');
+  };
+
+  // Email Modal
+  const handleOpenEmailModal = (t: WorkTask) => {
+    setEmailTask(t);
+    const p = getPerson(t.assigned_uid);
+    setEmailRecipientUid(t.assigned_uid);
+    setEmailSubject(`[BeeZone] Giao việc: ${t.title}`);
+    setEmailBodyContent(
+      `Xin chào ${p.display_name},\n\n` +
+        `Trung tâm Anh ngữ BeeZone gửi đến anh/chị công việc sau:\n\n` +
+        `• Công việc: ${t.title}\n` +
+        `• Người thực hiện: ${p.display_name} (${p.email || 'Chưa có email'})\n` +
+        `• Bộ phận: ${t.branch === 'admin' ? 'Hành chính / Lễ tân' : 'Đào tạo / Giáo viên'}\n` +
+        (t.class_label ? `• Lớp: ${t.class_label}\n` : '') +
+        `• Ngày thực hiện: ${dateVN(t.work_date)} — ${t.shift_label}\n` +
+        `• Trạng thái: ${statusName[t.status]}\n` +
+        `• Yêu cầu: ${t.description || 'Theo nội dung đã phân công.'}\n\n` +
+        `Anh/chị vui lòng cập nhật tiến độ và phản hồi nếu cần hỗ trợ.\n\n` +
         `Trân trọng,\nTrung tâm Anh ngữ BeeZone`,
     );
-  }
+    setEmailMarkChecked(Boolean(t.email_sent_at));
+    setEmailTab('gmail');
+  };
 
-  function openGmail() {
-    if (!sendTask) return;
-    const recipientEmail = email(recipient);
-    if (!validEmail(recipientEmail)) {
-      setError('Email người nhận chưa đúng định dạng. Vui lòng kiểm tra lại email.');
-      return;
-    }
-    if (!subject.trim() || !emailBody.trim()) {
-      setError('Vui lòng điền tiêu đề và nội dung thư.');
+  const handleOpenGmail = () => {
+    if (!emailTask) return;
+    const p = getPerson(emailRecipientUid);
+    if (!validEmail(p.email)) {
+      showToast('Email người nhận không hợp lệ hoặc đang là @example.com.');
       return;
     }
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-      recipientEmail,
-    )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+      p.email || '',
+    )}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBodyContent)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
-  }
 
-  // Keyboard shortcut: close modals on Escape
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        if (filter) setFilter(null);
-        else if (editor !== undefined) setEditor(undefined);
-        else if (selected) setSelected(null);
-        else if (sendTask) setSendTask(null);
-      }
+    if (emailMarkChecked) {
+      const now = new Date().toISOString();
+      const updated: WorkTask = {
+        ...emailTask,
+        email_sent_at: now,
+        email_sent_to: p.email,
+        updated_at: now,
+      };
+      const nextTasks = tasks.map((x) => (x.id === emailTask.id ? updated : x));
+      syncStorage(nextTasks, notes, reasons, handoffs);
     }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [filter, editor, selected, sendTask]);
+    showToast('Đã mở Gmail compose.');
+  };
+
+  const handleSaveEmailMark = () => {
+    if (!emailTask) return;
+    const p = getPerson(emailRecipientUid);
+    const now = new Date().toISOString();
+    const updated: WorkTask = {
+      ...emailTask,
+      email_sent_at: emailMarkChecked ? now : null,
+      email_sent_to: emailMarkChecked ? p.email : null,
+      updated_at: now,
+    };
+    const nextTasks = tasks.map((x) => (x.id === emailTask.id ? updated : x));
+    syncStorage(nextTasks, notes, reasons, handoffs);
+    showToast(emailMarkChecked ? 'Đã lưu dấu tích đã gửi email.' : 'Đã bỏ dấu tích đã gửi email.');
+  };
+
+  // Handover flow
+  const handleOpenHandoverModal = (t: WorkTask) => {
+    setHandoverTask(t);
+    setHandoverToUid(people.find((p) => p.user_id !== t.assigned_uid)?.user_id || '');
+    setHandoverNoteContent('');
+  };
+
+  const handleSaveHandover = () => {
+    if (!handoverTask || !handoverToUid) {
+      showToast('Vui lòng chọn người nhận ca.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const newHandoff: WorkHandoff = {
+      id: 'h-' + Date.now(),
+      task_id: handoverTask.id,
+      from_uid: uid,
+      to_uid: handoverToUid,
+      note: handoverNoteContent.trim(),
+      handed_at: now,
+      acknowledged_at: null,
+    };
+    const updatedTask: WorkTask = {
+      ...handoverTask,
+      needs_handover: true,
+      updated_at: now,
+    };
+    const nextHandoffs = [newHandoff, ...handoffs];
+    const nextTasks = tasks.map((x) => (x.id === handoverTask.id ? updatedTask : x));
+    syncStorage(nextTasks, notes, reasons, nextHandoffs);
+    setHandoverTask(null);
+    showToast('Đã bàn giao công việc.');
+  };
+
+  const handleAckHandover = () => {
+    if (!ackTask) return;
+    const now = new Date().toISOString();
+    const nextHandoffs = handoffs.map((h) =>
+      h.task_id === ackTask.id && !h.acknowledged_at
+        ? {
+            ...h,
+            acknowledged_at: now,
+            acknowledged_by: uid,
+            ack_name: ackName.trim() || 'Người nhận ca',
+          }
+        : h,
+    );
+    const updatedTask: WorkTask = {
+      ...ackTask,
+      ack: `${ackName.trim() || 'Người nhận ca'} lúc ${timeVN(now)}`,
+      updated_at: now,
+    };
+    const nextTasks = tasks.map((x) => (x.id === ackTask.id ? updatedTask : x));
+    syncStorage(nextTasks, notes, reasons, nextHandoffs);
+    setAckTask(null);
+    showToast('✓ Đã xác nhận nhận bàn giao.');
+  };
+
+  const handleCopyHandover = () => {
+    if (!handoverTasks.length) {
+      showToast('Hiện không có công việc nào cần bàn giao.');
+      return;
+    }
+    const text =
+      `BEEZONE – BÀN GIAO CÔNG VIỆC (${dateVN(day)})\n\n` +
+      handoverTasks
+        .map((t, idx) => {
+          const p = getPerson(t.assigned_uid);
+          const lastN = notes.filter((n) => n.task_id === t.id).at(-1);
+          return (
+            `${idx + 1}. ${t.title}\n` +
+            `• Người phụ trách: ${p.display_name} (${p.department || 'Nhân sự'})\n` +
+            `• Trạng thái: ${statusName[t.status]}\n` +
+            `• Ghi chú: ${lastN ? lastN.body : 'Chưa có ghi chú'}\n` +
+            `• Yêu cầu: ${t.description || 'Không có mô tả'}\n`
+          );
+        })
+        .join('\n');
+    navigator.clipboard.writeText(text);
+    showToast('📋 Đã sao chép nội dung bàn giao vào clipboard.');
+  };
+
+  // Backup & Restore
+  const handleDownloadBackup = () => {
+    const data = { tasks, notes, reasons, handoffs, settings };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `BeeZone-sao-luu-giao-viec-${localISODate()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Đã tải file sao lưu JSON.');
+  };
+
+  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target?.result as string);
+        if (Array.isArray(parsed.tasks) && Array.isArray(parsed.notes)) {
+          syncStorage(
+            parsed.tasks,
+            parsed.notes,
+            parsed.reasons || [],
+            parsed.handoffs || [],
+          );
+          if (parsed.settings) {
+            setSettings(parsed.settings);
+            localStorage.setItem(WORK_SETTINGS_KEY, JSON.stringify(parsed.settings));
+          }
+          showToast('Đã khôi phục dữ liệu thành công.');
+        } else {
+          showToast('File JSON không đúng định dạng dữ liệu BeeZone.');
+        }
+      } catch (err) {
+        showToast('Không thể đọc file JSON: ' + String(err));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // Staff management
+  const handleSaveStaff = () => {
+    if (!staffEditor?.display_name.trim()) {
+      showToast('Vui lòng nhập họ tên nhân sự.');
+      return;
+    }
+    const exists = people.some(
+      (p) => p.user_id === staffEditor.user_id,
+    );
+    let nextPeople: WorkPerson[];
+    if (exists) {
+      nextPeople = people.map((p) => (p.user_id === staffEditor.user_id ? staffEditor : p));
+    } else {
+      nextPeople = [...people, staffEditor];
+    }
+    setPeople(nextPeople);
+    setStaffEditor(undefined);
+    showToast('Đã cập nhật danh bạ nhân sự.');
+  };
 
   // Task Card Component
-  const taskCard = (t: WorkTask) => (
-    <article key={t.id} className={`bzw-task ${t.priority === 'high' ? 'priority-high' : ''}`}>
-      <div className="bzw-top">
-        <input
-          type="checkbox"
-          checked={t.status === 'done'}
-          disabled={!canEditStatus(t) || busy}
-          onChange={() => {
-            setSelected(t);
-            setStatusDraft(t.status === 'done' ? 'progress' : 'done');
+  const renderTaskCard = (t: WorkTask, inHandover = false) => {
+    const p = getPerson(t.assigned_uid);
+    const taskNotes = notes.filter((n) => n.task_id === t.id);
+    const lastNote = taskNotes.at(-1);
+    const taskReasons = reasons.filter((r) => r.task_id === t.id);
+    const latestReason = taskReasons.at(-1);
+    const pendingHandoff = handoffs.find((h) => h.task_id === t.id && !h.acknowledged_at);
+
+    return (
+      <article
+        key={t.id}
+        className={`bzw-task ${t.status === 'done' ? 'completed' : ''} ${
+          inHandover ? 'handover-card' : ''
+        }`}
+      >
+        <div className="bzw-task-top">
+          <input
+            type="checkbox"
+            className="bzw-check"
+            style={{ width: 18, height: 18, minWidth: 18, minHeight: 18, flexShrink: 0, margin: '2px 0 0' }}
+            checked={t.status === 'done'}
+            onChange={() => handleToggleDone(t)}
+            aria-label={`Đánh dấu hoàn thành ${t.title}`}
+          />
+          <div className="bzw-task-main">
+            <div className="bzw-task-title">{t.title}</div>
+            <div className="bzw-badges">
+              <span className={`bzw-chip ${t.status}`}>{statusName[t.status]}</span>
+              {t.priority === 'high' && <span className="bzw-chip high">Ưu tiên</span>}
+              {t.needs_handover && <span className="bzw-chip handover">Cần bàn giao</span>}
+              {t.class_label && <span className="bzw-chip">Lớp {t.class_label}</span>}
+              <span className={`bzw-chip ${t.email_sent_at ? 'done' : ''}`}>
+                {t.email_sent_at ? 'Đã gửi email' : 'Chưa gửi email'}
+              </span>
+            </div>
+            <p className="bzw-desc">{t.description || 'Chưa có mô tả.'}</p>
+            <div className="bzw-meta">
+              <span>☀️ {t.shift_label}</span>
+              <span>📅 {dateVN(t.work_date)}</span>
+              <span>🕒 {timeVN(t.updated_at)}</span>
+              {t.status === 'done' && t.completed_at && (
+                <span style={{ color: '#087554' }}>✓ Xong {timeVN(t.completed_at)}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Assignee Row */}
+        <div className="bzw-assignee">
+          <div className="bzw-avatar">{getInitials(p.display_name)}</div>
+          <div style={{ minWidth: 0 }}>
+            <b>{p.display_name}</b>
+            <small>✉ {p.email || 'Chưa có email'}</small>
+          </div>
+          <span className="bzw-dept">
+            {p.department || (t.branch === 'admin' ? 'Hành chính' : 'Giáo viên')}
+          </span>
+        </div>
+
+        {/* Email Status Line */}
+        <div
+          className="bzw-small"
+          style={{
+            marginTop: 7,
+            color: t.email_sent_at ? '#087554' : '#7b8797',
           }}
-          aria-label={'Đánh dấu hoàn thành ' + t.title}
-        />
-        <strong>{t.title}</strong>
-      </div>
-      <div className="bzw-line">
-        <span className={'bzw-chip ' + t.status}>{statusName[t.status]}</span>
-        {t.priority === 'high' && <span className="bzw-chip warn font-bold">⚡ Ưu tiên</span>}
-        {t.needs_handover && <span className="bzw-chip warn">↪ Cần bàn giao</span>}
-        <span className={'bzw-chip ' + (t.email_sent_at ? 'done' : '')}>
-          {t.email_sent_at ? '✓ Đã đánh dấu gửi email' : 'Chưa gửi email'}
-        </span>
-      </div>
-      <p>{t.description || 'Chưa có mô tả chi tiết.'}</p>
-      <small>
-        👤 <strong>{name(t.assigned_uid)}</strong> {email(t.assigned_uid) && `· ${email(t.assigned_uid)}`}
-      </small>
-      <small>
-        📅 {t.work_date} · {t.shift_label} {t.class_label && `· Lớp: ${t.class_label}`}
-      </small>
-      {t.email_sent_at && <small>📧 Gửi lúc: {timeVN(t.email_sent_at)}</small>}
-      <div className="bzw-actions">
-        <button type="button" onClick={() => setSelected(t)}>Xem chi tiết</button>
-        {canManage(t) && (
-          <button type="button" onClick={() => openEditor(t)}>Sửa</button>
+        >
+          {t.email_sent_at
+            ? `📧 Đã gửi email lúc ${timeVN(t.email_sent_at)} • ${t.email_sent_to || p.email}`
+            : '✉ Chưa đánh dấu đã gửi email'}
+        </div>
+
+        {/* Last Note Box */}
+        {lastNote && (
+          <div className="bzw-last-note">
+            <strong>🗒 {lastNote.author_name || p.display_name}:</strong> {lastNote.body}
+          </div>
         )}
-        {canManage(t) && (
-          <button type="button" onClick={() => openSend(t)}>📧 Gửi email</button>
+
+        {/* Reason / Handover Box */}
+        {latestReason && (
+          <div className="bzw-reason-snapshot">
+            <b>
+              {latestReason.kind === 'progress'
+                ? 'Đang làm'
+                : latestReason.kind === 'unfinished'
+                ? 'Còn dang dở'
+                : latestReason.kind === 'done'
+                ? 'Hoàn thành'
+                : 'Bàn giao ca'}
+              :
+            </b>{' '}
+            {latestReason.body} <span className="bzw-small">— {latestReason.author_name}</span>
+          </div>
         )}
-        {pendingForMe(t) && (
+
+        {/* Handover Ack Info */}
+        {t.ack && (
+          <div className="bzw-handover-info">
+            ✅ Đã nhận bàn giao: {t.ack}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="bzw-actions">
+          {/* Row 1 */}
           <button
             type="button"
-            className="bzw-primary font-bold"
-            disabled={busy}
-            onClick={async () => {
-              const pendingHandoff = pendingForMe(t);
-              if (!pendingHandoff) return;
-              await callAction(
-                'bz_work_ack_handoff',
-                { p_handoff_id: pendingHandoff.id },
-                () => {
-                  syncLocalChanges((prev) => ({
-                    ...prev,
-                    handoffs: prev.handoffs.map((h) =>
-                      h.id === pendingHandoff.id
-                        ? { ...h, acknowledged_at: new Date().toISOString(), acknowledged_by: uid }
-                        : h,
-                    ),
-                    tasks: prev.tasks.map((task) =>
-                      task.id === t.id
-                        ? { ...task, assigned_uid: uid, needs_handover: false, updated_at: new Date().toISOString() }
-                        : task,
-                    ),
-                  }));
-                },
-              );
-            }}
+            className="bzw-btn bzw-sm"
+            onClick={() => handleOpenEditor(t)}
           >
-            ✓ Nhận bàn giao
+            ✎ Sửa
           </button>
-        )}
-      </div>
-    </article>
-  );
+          <button
+            type="button"
+            className="bzw-btn bzw-sm"
+            onClick={() => handleOpenNoteModal(t)}
+          >
+            ☷ Ghi chú
+          </button>
+          <button
+            type="button"
+            className="bzw-btn bzw-sm bzw-green"
+            onClick={() => handleToggleDone(t)}
+          >
+            {t.status === 'done' ? '↶ Mở lại' : '✓ Hoàn thành'}
+          </button>
+          {t.status !== 'done' && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => handleOpenReasonAdd(t, 'unfinished')}
+            >
+              ◷ Còn dang dở
+            </button>
+          )}
+          {t.status !== 'done' && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => handleToggleProgress(t)}
+            >
+              {t.status === 'progress' ? '↶ Chưa làm' : '▶ Đang làm'}
+            </button>
+          )}
 
-  const details = selected && tasks.find((t) => t.id === selected.id);
+          {/* Row 2 */}
+          {!inHandover ? (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => handleToggleHandover(t)}
+            >
+              {t.needs_handover ? 'Bỏ bàn giao' : '↪ Bàn giao'}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="bzw-btn bzw-sm bzw-green"
+                onClick={() => setAckTask(t)}
+              >
+                ✓ Nhận ca
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-sm"
+                onClick={() => handleToggleHandover(t)}
+              >
+                Bỏ bàn giao
+              </button>
+            </>
+          )}
+
+          {pendingHandoff && pendingHandoff.to_uid === uid && !inHandover && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm bzw-green"
+              onClick={() => setAckTask(t)}
+            >
+              ✓ Nhận bàn giao
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="bzw-btn bzw-sm"
+            onClick={() => setReasonViewTask(t)}
+          >
+            📝 Lý do ({taskReasons.length})
+          </button>
+          <button
+            type="button"
+            className="bzw-btn bzw-sm"
+            onClick={() => handleOpenReasonAdd(t)}
+          >
+            ＋ Thêm mới
+          </button>
+          <button
+            type="button"
+            className="bzw-btn bzw-sm"
+            onClick={() => handleToggleEmailSent(t)}
+          >
+            {t.email_sent_at ? '☑ Đã gửi' : '☐ Chưa gửi'}
+          </button>
+
+          {/* Row 3 */}
+          <button
+            type="button"
+            className="bzw-btn bzw-sm bzw-btn-mail"
+            onClick={() => handleOpenEmailModal(t)}
+          >
+            📧 Gửi email công việc
+          </button>
+        </div>
+      </article>
+    );
+  };
 
   return (
     <section className="bzw-root">
-      <header className="bzw-heading">
-        <div>
-          <h2>📋 Giao việc & Bàn giao</h2>
-          <p>Trung tâm Anh ngữ BeeZone · Quản lý công việc hành chính, giáo viên và bàn giao ca làm việc</p>
-          <div className="mt-1 text-xs">
-            {dataSource === 'supabase' ? (
-              <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                ☁️ Đám mây Supabase
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                💾 Bộ nhớ đồng bộ trung tâm
-              </span>
-            )}
+      {/* HERO HEADER */}
+      <div className="bzw-hero">
+        <div className="bzw-hero-left">
+          <div className="bzw-hero-icon">📋</div>
+          <div>
+            <h1>{settings.page}</h1>
+            <p>Phù hợp trung tâm nhỏ: giao đúng người, theo dõi tiến độ và bàn giao cuối ca rõ ràng.</p>
           </div>
         </div>
-        <div className="bzw-actions">
-          {(manager || role === 'trainer') && (
-            <button type="button" className="bzw-primary" onClick={() => openEditor()}>
-              ＋ Tạo công việc
-            </button>
-          )}
-          <button type="button" onClick={reload}>↻ Tải lại</button>
-        </div>
-      </header>
-
-      {error && (
-        <div className="bzw-error" role="alert">
-          {error}
-        </div>
-      )}
-      {successMsg && (
-        <div className="bzw-chip done p-2 mb-3 text-xs font-bold" role="status">
-          {successMsg}
-        </div>
-      )}
-      {busy && <p className="bzw-muted">Đang lưu thay đổi…</p>}
-
-      {/* 4 Interactive Statistics Cards */}
-      <div className="bzw-stats">
-        {(
-          [
-            ['all', '📋', 'Việc trong danh sách'],
-            ['progress', '◷', 'Đang làm'],
-            ['done', '✓', 'Hoàn thành'],
-            ['handover', '↪', 'Cần bàn giao'],
-          ] as const
-        ).map(([k, ic, l]) => (
+        <div className="bzw-hero-actions">
           <button
             type="button"
-            key={k}
-            className={`bzw-stat ${filter === k ? 'bzw-selected' : ''}`}
-            onClick={() => setFilter(k)}
+            className={`bzw-btn ${historyMode ? 'active' : ''}`}
+            onClick={() => setHistoryMode(!historyMode)}
           >
-            <div>
-              {ic} <span>{l}</span>
-            </div>
-            <b>{stats[k]}</b>
-            <small>Bấm để xem chi tiết</small>
+            {historyMode ? '← Việc trong ngày' : '⏱️ Lịch sử hoàn thành'}
           </button>
-        ))}
-      </div>
-
-      {/* Filters Toolbar */}
-      <div className="bzw-tools">
-        <button
-          type="button"
-          className={!history ? 'bzw-selected' : ''}
-          onClick={() => setHistory(false)}
-        >
-          Việc trong ngày
-        </button>
-        <button
-          type="button"
-          className={history ? 'bzw-selected' : ''}
-          onClick={() => setHistory(true)}
-        >
-          Lịch sử hoàn thành
-        </button>
-        {!history && (
-          <input
-            aria-label="Ngày làm việc"
-            type="date"
-            value={day}
-            onChange={(e) => setDay(e.target.value)}
-          />
-        )}
-        <select
-          aria-label="Lọc theo nhánh"
-          value={branchFilter}
-          onChange={(e) => setBranchFilter(e.target.value as 'all' | Branch)}
-          style={{ width: 'auto', minWidth: '150px' }}
-        >
-          <option value="all">Tất cả các nhánh</option>
-          <option value="admin">Hành chính / Lễ tân</option>
-          <option value="training">Đào tạo / Giáo viên</option>
-        </select>
-        <input
-          placeholder="Tìm việc, lớp, người thực hiện…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* 3 Main Workflow Columns */}
-      <div className="bzw-columns">
-        {manager && (
-          <div className="bzw-col">
-            <h3>Hành chính / Lễ tân ({column('admin').length})</h3>
-            {column('admin').length ? (
-              column('admin').map(taskCard)
-            ) : (
-              <p className="bzw-muted text-xs p-3 text-center">Chưa có công việc nào.</p>
-            )}
-          </div>
-        )}
-
-        <div className="bzw-col">
-          <h3>Đào tạo / Giáo viên ({column('training').length})</h3>
-          {column('training').length ? (
-            column('training').map(taskCard)
-          ) : (
-            <p className="bzw-muted text-xs p-3 text-center">Chưa có công việc nào.</p>
-          )}
-        </div>
-
-        <div className="bzw-col">
-          <h3>Bàn giao cuối ca / cuối buổi ({visible.filter((t) => t.needs_handover && t.status !== 'done').length})</h3>
-          {visible.filter((t) => t.needs_handover && t.status !== 'done').length ? (
-            visible.filter((t) => t.needs_handover && t.status !== 'done').map(taskCard)
-          ) : (
-            <p className="bzw-muted text-xs p-3 text-center">Không có việc cần bàn giao.</p>
-          )}
+          <button
+            type="button"
+            className="bzw-btn"
+            onClick={() => setDirectoryModal(true)}
+          >
+            👥 Nhân sự
+          </button>
+          <button
+            type="button"
+            className="bzw-btn"
+            onClick={() => setCustomizeModal(true)}
+          >
+            🎨 Tùy chỉnh
+          </button>
+          <button
+            type="button"
+            className="bzw-btn bzw-gold bzw-big"
+            onClick={() => handleOpenEditor()}
+          >
+            ＋ Tạo công việc
+          </button>
         </div>
       </div>
 
-      {/* MODAL 1: Detail Filter Modal */}
-      {filter && (
-        <div
-          className="bzw-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setFilter(null);
-          }}
-        >
-          <div className="bzw-modal">
-            <div className="bzw-modal-head">
-              <h3>
-                {(
-                  {
-                    all: 'Việc trong danh sách',
-                    progress: 'Đang làm',
-                    done: 'Hoàn thành',
-                    handover: 'Cần bàn giao',
-                  } as const
-                )[filter]}{' '}
-                ({statList(filter).length})
-              </h3>
-              <button type="button" onClick={() => setFilter(null)}>×</button>
+      {/* STATS BAR */}
+      {!historyMode && (
+        <div className="bzw-stats">
+          <button
+            type="button"
+            className="bzw-stat"
+            onClick={() => setStatModal('all')}
+          >
+            <div className="bzw-stat-icon">📋</div>
+            <div>
+              <div className="bzw-stat-label">Việc trong danh sách</div>
+              <div className="bzw-stat-value">{stats.all}</div>
+              <small>Bấm để xem chi tiết</small>
             </div>
-            {statList(filter).length ? (
-              <div className="space-y-3">{statList(filter).map(taskCard)}</div>
-            ) : (
-              <p className="p-4 text-center text-slate-500">Không có công việc nào phù hợp.</p>
-            )}
-            <footer>
-              <button type="button" onClick={() => setFilter(null)}>Đóng</button>
-            </footer>
+          </button>
+
+          <button
+            type="button"
+            className="bzw-stat"
+            onClick={() => setStatModal('progress')}
+          >
+            <div className="bzw-stat-icon">🕓</div>
+            <div>
+              <div className="bzw-stat-label">Đang làm</div>
+              <div className="bzw-stat-value">{stats.progress}</div>
+              <small>Bấm để xem chi tiết</small>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="bzw-stat"
+            onClick={() => setStatModal('done')}
+          >
+            <div className="bzw-stat-icon">✓</div>
+            <div>
+              <div className="bzw-stat-label">Hoàn thành</div>
+              <div className="bzw-stat-value">{stats.done}</div>
+              <small>Bấm để xem chi tiết</small>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="bzw-stat"
+            onClick={() => setStatModal('handover')}
+          >
+            <div className="bzw-stat-icon">↪</div>
+            <div>
+              <div className="bzw-stat-label">Cần bàn giao</div>
+              <div className="bzw-stat-value">{stats.handover}</div>
+              <small>Bấm để xem chi tiết</small>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* FILTER TOOLBAR */}
+      {!historyMode && (
+        <div className="bzw-view-tools">
+          <div className="bzw-tools-left">
+            <input
+              type="text"
+              className="bzw-search-input"
+              placeholder="🔎 Tìm công việc, lớp, nhân sự..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <input
+              type="date"
+              className="bzw-date-input"
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+            />
+            <select
+              className="bzw-status-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="todo">Chưa làm</option>
+              <option value="progress">Đang làm</option>
+              <option value="unfinished">Còn dang dở</option>
+              <option value="done">Hoàn thành</option>
+              <option value="handover">Cần bàn giao</option>
+            </select>
+          </div>
+          <div className="bzw-tools-right">
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={handleDownloadBackup}
+            >
+              ↓ Sao lưu
+            </button>
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              ↑ Nhập lại
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              hidden
+              accept="application/json"
+              onChange={handleRestoreFile}
+            />
           </div>
         </div>
       )}
 
-      {/* MODAL 2: Create / Edit Task Modal */}
-      {editor !== undefined && (
-        <div
-          className="bzw-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setEditor(undefined);
-          }}
-        >
-          <div className="bzw-modal">
-            <div className="bzw-modal-head">
-              <h3>{editor ? 'Sửa công việc' : 'Tạo công việc mới'}</h3>
-              <button type="button" onClick={() => setEditor(undefined)}>×</button>
+      {/* HISTORY PANEL */}
+      {historyMode && (
+        <section className="bzw-history-panel">
+          <div className="bzw-history-intro">
+            <div>
+              <h2>⏱️ Lịch sử công việc đã hoàn thành</h2>
+              <p>Xem lại việc đã làm hôm trước, người thực hiện, ghi chú và thời điểm hoàn thành. Không tự xóa việc cũ.</p>
             </div>
-            <div className="bzw-grid">
-              <label className="full">
-                Tên công việc *
-                <input
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Nhập tên nhiệm vụ hoặc công việc..."
-                  required
-                />
-              </label>
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => setHistoryMode(false)}
+            >
+              ← Trở về việc trong ngày
+            </button>
+          </div>
 
-              <label>
-                Nhánh công việc *
+          <div className="bzw-history-controls">
+            <div className="bzw-field" style={{ minWidth: 150, margin: 0 }}>
+              <label>Khoảng thời gian</label>
+              <select
+                value={historyRange}
+                onChange={(e) => setHistoryRange(e.target.value as any)}
+              >
+                <option value="yesterday">Hôm qua</option>
+                <option value="today">Hôm nay</option>
+                <option value="seven">7 ngày qua</option>
+                <option value="thirty">30 ngày qua</option>
+                <option value="all">Tất cả</option>
+              </select>
+            </div>
+
+            <div className="bzw-field" style={{ minWidth: 160, margin: 0 }}>
+              <label>Nhóm công việc</label>
+              <select
+                value={historyBranch}
+                onChange={(e) => setHistoryBranch(e.target.value as any)}
+              >
+                <option value="all">Tất cả được phép xem</option>
+                <option value="admin">Hành chính / Lễ tân</option>
+                <option value="training">Đào tạo / Giáo viên</option>
+              </select>
+            </div>
+
+            <div className="bzw-field" style={{ flex: 1, minWidth: 220, margin: 0 }}>
+              <label>Tìm công việc hoặc người thực hiện</label>
+              <input
+                type="text"
+                placeholder="Tên việc, tên người, lớp, email…"
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="bzw-history-count">
+            ✓ Tìm thấy {historyCompletedTasks.length} công việc đã hoàn thành
+          </div>
+
+          {historyCompletedTasks.length === 0 ? (
+            <div className="bzw-history-empty">
+              📂<b> Không thấy việc hoàn thành trong khoảng này</b>
+              <p>Hãy thử chọn “7 ngày qua”, “Tất cả” hoặc điều chỉnh ngày.</p>
+            </div>
+          ) : (
+            <div className="bzw-history-grid">
+              {historyCompletedTasks.map((t) => (
+                <article key={t.id} className="bzw-task completed">
+                  <div className="bzw-task-title">✓ {t.title}</div>
+                  <div className="bzw-badges">
+                    <span className="bzw-chip done">Hoàn thành</span>
+                    <span className="bzw-chip">
+                      {t.branch === 'admin' ? 'Hành chính / Lễ tân' : 'Đào tạo / Giáo viên'}
+                    </span>
+                    {t.class_label && <span className="bzw-chip">Lớp {t.class_label}</span>}
+                  </div>
+                  <p className="bzw-desc">{t.description || 'Không có mô tả.'}</p>
+                  <div className="bzw-history-date-label">
+                    ✓ Hoàn thành lúc {timeVN(t.completed_at || t.updated_at)}
+                  </div>
+                  <div className="bzw-assignee">
+                    <div className="bzw-avatar">{getInitials(getPerson(t.assigned_uid).display_name)}</div>
+                    <div>
+                      <b>{getPerson(t.assigned_uid).display_name}</b>
+                      <small>✉ {getPerson(t.assigned_uid).email || 'Chưa có email'}</small>
+                    </div>
+                  </div>
+                  <div className="bzw-actions">
+                    <button
+                      type="button"
+                      className="bzw-btn bzw-sm"
+                      onClick={() => setReasonViewTask(t)}
+                    >
+                      📝 Xem lý do ({reasons.filter((r) => r.task_id === t.id).length})
+                    </button>
+                    <button
+                      type="button"
+                      className="bzw-btn bzw-sm"
+                      onClick={() => handleOpenNoteModal(t)}
+                    >
+                      🗒 Xem ghi chú ({notes.filter((n) => n.task_id === t.id).length})
+                    </button>
+                    <button
+                      type="button"
+                      className="bzw-btn bzw-sm"
+                      onClick={() => handleToggleDone(t)}
+                    >
+                      ↶ Mở lại việc
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 3 WORKFLOW COLUMNS */}
+      {!historyMode && (
+        <div className="bzw-sections">
+          {/* Column 1: Hành chính / Lễ tân */}
+          <section className="bzw-section">
+            <div className="bzw-section-head">
+              <div>
+                <h2>🔸 {settings.admin}</h2>
+                <small>Người trực cập nhật trước khi kết ca</small>
+              </div>
+              <span className="bzw-count">{adminTasks.length}</span>
+            </div>
+            <div className="bzw-stack">
+              {adminTasks.length === 0 ? (
+                <div className="bzw-no-data">
+                  <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+                </div>
+              ) : (
+                adminTasks.map((t) => renderTaskCard(t, false))
+              )}
+            </div>
+          </section>
+
+          {/* Column 2: Bàn giao cuối ca / cuối buổi */}
+          <section className="bzw-section">
+            <div className="bzw-section-head">
+              <div>
+                <h2>🟦 {settings.handover}</h2>
+                <small>Việc dang dở cần người tiếp theo tiếp nhận</small>
+              </div>
+              <span className="bzw-count">{handoverTasks.length}</span>
+            </div>
+            <div className="bzw-stack">
+              {handoverTasks.length === 0 ? (
+                <div className="bzw-no-data">
+                  <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+                </div>
+              ) : (
+                handoverTasks.map((t) => renderTaskCard(t, true))
+              )}
+            </div>
+            <div style={{ padding: '0 11px 12px' }}>
+              <button
+                type="button"
+                className="bzw-btn bzw-sm"
+                style={{ width: '100%' }}
+                onClick={handleCopyHandover}
+              >
+                📋 Sao chép nội dung bàn giao
+              </button>
+            </div>
+          </section>
+
+          {/* Column 3: Việc giáo viên theo lớp */}
+          <section className="bzw-section">
+            <div className="bzw-section-head">
+              <div>
+                <h2>🟩 {settings.training}</h2>
+                <small>Giáo viên tích hoàn thành và ghi chú cuối buổi</small>
+              </div>
+              <span className="bzw-count">{trainingTasks.length}</span>
+            </div>
+            <div className="bzw-stack">
+              {trainingTasks.length === 0 ? (
+                <div className="bzw-no-data">
+                  <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+                </div>
+              ) : (
+                trainingTasks.map((t) => renderTaskCard(t, false))
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* GUIDE SECTION AT BOTTOM */}
+      <div className="bzw-guide">
+        <h2>💡 Quy trình đề xuất cho trung tâm quy mô nhỏ</h2>
+        <div className="bzw-guide-grid">
+          <div className="bzw-guide-step">
+            <span className="bzw-guide-num">1</span>
+            <div>
+              <strong>Giao việc đầu ca</strong>
+              <p>Chọn người thực hiện, ca hoặc lớp, thời hạn.</p>
+            </div>
+          </div>
+          <div className="bzw-guide-step">
+            <span className="bzw-guide-num">2</span>
+            <div>
+              <strong>Cập nhật trong buổi</strong>
+              <p>Tích hoàn thành hoặc ghi chú vướng mắc.</p>
+            </div>
+          </div>
+          <div className="bzw-guide-step">
+            <span className="bzw-guide-num">3</span>
+            <div>
+              <strong>Bàn giao việc dở</strong>
+              <p>Đánh dấu cần bàn giao, người sau xác nhận.</p>
+            </div>
+          </div>
+          <div className="bzw-guide-step">
+            <span className="bzw-guide-num">4</span>
+            <div>
+              <strong>Lưu lịch sử</strong>
+              <p>Kiểm tra lại ghi chú, công việc, người phụ trách.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL: STAT DETAIL */}
+      {statModal && (
+        <div className="bzw-overlay" onClick={() => setStatModal(null)}>
+          <div className="bzw-modal bzw-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>
+                {statModal === 'all'
+                  ? '📋 Việc trong danh sách'
+                  : statModal === 'progress'
+                  ? '🕓 Đang làm'
+                  : statModal === 'done'
+                  ? '✓ Hoàn thành'
+                  : '↪ Cần bàn giao'}{' '}
+                (
+                {
+                  tasks.filter((t) =>
+                    !day || t.work_date === day
+                      ? statModal === 'all'
+                        ? true
+                        : statModal === 'handover'
+                        ? t.needs_handover && t.status !== 'done'
+                        : t.status === statModal
+                      : false,
+                  ).length
+                }
+                )
+              </h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setStatModal(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-stack" style={{ padding: 0, minHeight: 'auto' }}>
+                {tasks
+                  .filter((t) =>
+                    !day || t.work_date === day
+                      ? statModal === 'all'
+                        ? true
+                        : statModal === 'handover'
+                        ? t.needs_handover && t.status !== 'done'
+                        : t.status === statModal
+                      : false,
+                  )
+                  .map((t) => renderTaskCard(t, statModal === 'handover'))}
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setStatModal(null)}
+              >
+                Đóng
+              </button>
+              {statModal !== 'all' && (
+                <button
+                  type="button"
+                  className="bzw-btn bzw-gold"
+                  onClick={() => {
+                    setStatusFilter(statModal as any);
+                    setStatModal(null);
+                  }}
+                >
+                  Lọc ngoài màn hình chính
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TASK CREATE / EDIT */}
+      {editorTask !== undefined && (
+        <div className="bzw-overlay" onClick={() => setEditorTask(undefined)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>{editorTask ? 'Sửa công việc' : 'Tạo công việc mới'}</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setEditorTask(undefined)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-formgrid">
+                <div className="bzw-field bzw-span2">
+                  <label htmlFor="m_title">Tên công việc *</label>
+                  <input
+                    id="m_title"
+                    type="text"
+                    required
+                    placeholder="Nhập tên nhiệm vụ..."
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field bzw-span2">
+                  <label htmlFor="m_desc">Nội dung / yêu cầu thực hiện</label>
+                  <textarea
+                    id="m_desc"
+                    placeholder="Mô tả các bước, yêu cầu và tài liệu..."
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_branch">Nhánh công việc *</label>
+                  <select
+                    id="m_branch"
+                    value={form.branch}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        branch: e.target.value as Branch,
+                      })
+                    }
+                  >
+                    <option value="admin">Hành chính / Lễ tân</option>
+                    <option value="training">Đào tạo / Giáo viên</option>
+                  </select>
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_assignee">Người thực hiện *</label>
+                  <select
+                    id="m_assignee"
+                    value={form.assigned_uid}
+                    onChange={(e) => setForm({ ...form, assigned_uid: e.target.value })}
+                  >
+                    {people
+                      .filter((p) => p.active)
+                      .map((p) => (
+                        <option key={p.user_id} value={p.user_id}>
+                          {p.display_name} — {p.department || 'Nhân sự'} ({p.email || 'Chưa có email'})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_class">Lớp (nếu là công việc giáo viên)</label>
+                  <input
+                    id="m_class"
+                    type="text"
+                    placeholder="Chọn lớp có sẵn hoặc nhập mã lớp..."
+                    value={form.class_label}
+                    onChange={(e) => setForm({ ...form, class_label: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_shift">Ca / Buổi</label>
+                  <select
+                    id="m_shift"
+                    value={form.shift_label}
+                    onChange={(e) => setForm({ ...form, shift_label: e.target.value })}
+                  >
+                    <option value="Ca sáng">Ca sáng</option>
+                    <option value="Ca chiều">Ca chiều</option>
+                    <option value="Ca tối">Ca tối</option>
+                    <option value="Cuối buổi">Cuối buổi</option>
+                    <option value="Cả ngày">Cả ngày</option>
+                  </select>
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_date">Ngày thực hiện *</label>
+                  <input
+                    id="m_date"
+                    type="date"
+                    required
+                    value={form.work_date}
+                    onChange={(e) => setForm({ ...form, work_date: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_priority">Mức ưu tiên</label>
+                  <select
+                    id="m_priority"
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: e.target.value as any })}
+                  >
+                    <option value="normal">Bình thường</option>
+                    <option value="high">Ưu tiên cao</option>
+                  </select>
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="m_status">Trạng thái</label>
+                  <select
+                    id="m_status"
+                    value={form.status || 'todo'}
+                    onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+                  >
+                    <option value="todo">Chưa làm</option>
+                    <option value="progress">Đang làm</option>
+                    <option value="unfinished">Còn dang dở</option>
+                    <option value="done">Hoàn thành</option>
+                  </select>
+                </div>
+
+                <div className="bzw-field">
+                  <label style={{ marginTop: 26, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: 18, height: 18 }}
+                      checked={Boolean(form.needs_handover)}
+                      onChange={(e) => setForm({ ...form, needs_handover: e.target.checked })}
+                    />
+                    Đánh dấu cần bàn giao cuối ca
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setEditorTask(undefined)}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={handleSaveTask}
+              >
+                💾 Lưu công việc
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NOTES */}
+      {noteTask && (
+        <div className="bzw-overlay" onClick={() => setNoteTask(null)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>Ghi chú / Báo cáo cuối buổi</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setNoteTask(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-hint">
+                <b>{noteTask.title}</b>
+                <div>Ghi chú giúp người trực ca sau hoặc phụ trách đào tạo nắm việc còn lại.</div>
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="new_note_text">Nội dung ghi chú mới *</label>
+                <textarea
+                  id="new_note_text"
+                  placeholder="Thêm ghi chú bổ sung..."
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                />
+              </div>
+
+              <div style={{ marginTop: 15 }}>
+                <b>Lịch sử ghi chú ({notes.filter((n) => n.task_id === noteTask.id).length})</b>
+                <div style={{ maxHeight: 220, overflow: 'auto', marginTop: 8 }}>
+                  {notes.filter((n) => n.task_id === noteTask.id).length === 0 ? (
+                    <p className="bzw-small">Chưa có ghi chú nào.</p>
+                  ) : (
+                    notes
+                      .filter((n) => n.task_id === noteTask.id)
+                      .slice()
+                      .reverse()
+                      .map((n) => (
+                        <div key={n.id} className="bzw-note-log">
+                          <b>{n.author_name || 'Nhân sự'}</b> <small>• {timeVN(n.created_at)}</small>
+                          <div>{n.body}</div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setNoteTask(null)}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={handleSaveNote}
+              >
+                ＋ Thêm ghi chú
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REASONS LIST */}
+      {reasonViewTask && (
+        <div className="bzw-overlay" onClick={() => setReasonViewTask(null)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>📝 Lý do / Kết quả công việc</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setReasonViewTask(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-hint">
+                <b>{reasonViewTask.title}</b>
+                <div>Người thực hiện: {getPerson(reasonViewTask.assigned_uid).display_name}</div>
+              </div>
+
+              <div style={{ maxHeight: 300, overflow: 'auto', marginTop: 10 }}>
+                {reasons.filter((r) => r.task_id === reasonViewTask.id).length === 0 ? (
+                  <p className="bzw-small">Chưa có lý do cập nhật.</p>
+                ) : (
+                  reasons
+                    .filter((r) => r.task_id === reasonViewTask.id)
+                    .map((r) => (
+                      <div key={r.id} className="bzw-note-log">
+                        <b>
+                          {r.kind === 'progress'
+                            ? 'Đang làm'
+                            : r.kind === 'unfinished'
+                            ? 'Còn dang dở'
+                            : r.kind === 'done'
+                            ? 'Hoàn thành'
+                            : 'Bàn giao ca'}
+                        </b>{' '}
+                        <small>• {r.author_name} • {timeVN(r.created_at)}</small>
+                        <p style={{ margin: '4px 0 0' }}>{r.body}</p>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setReasonViewTask(null)}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={() => {
+                  const t = reasonViewTask;
+                  setReasonViewTask(null);
+                  handleOpenReasonAdd(t);
+                }}
+              >
+                ＋ Thêm lý do
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REASON ADD / STATUS UPDATE */}
+      {reasonAddTask && (
+        <div className="bzw-overlay" onClick={() => setReasonAddTask(null)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>Cập nhật trạng thái &amp; Lý do</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setReasonAddTask(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-hint">
+                <b>{reasonAddTask.task.title}</b>
+                <div>Người thực hiện: {getPerson(reasonAddTask.task.assigned_uid).display_name}</div>
+                <div>Chọn trạng thái phù hợp và ghi rõ kết quả, phần còn dở hoặc việc cần bàn giao.</div>
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="reason_kind_select">Trạng thái / Nhóm lý do *</label>
                 <select
-                  disabled={Boolean(editor) || role === 'trainer'}
-                  value={form.branch}
+                  id="reason_kind_select"
+                  value={reasonKind}
+                  onChange={(e) => setReasonKind(e.target.value as any)}
+                >
+                  <option value="progress">Đang làm</option>
+                  <option value="unfinished">Còn dang dở</option>
+                  <option value="done">Hoàn thành</option>
+                  <option value="handover">Bàn giao ca</option>
+                </select>
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="reason_body_text">Lý do / Kết quả / Nội dung bàn giao *</label>
+                <textarea
+                  id="reason_body_text"
+                  required
+                  placeholder="Nhập lý do / kết quả thực hiện..."
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setReasonAddTask(null)}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={handleSaveReason}
+              >
+                Lưu trạng thái
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EMAIL SHARE */}
+      {emailTask && (
+        <div className="bzw-overlay" onClick={() => setEmailTask(null)}>
+          <div className="bzw-modal bzw-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>📧 Gửi email công việc</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setEmailTask(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="bzw-share-tabs">
+              <button
+                type="button"
+                className={`bzw-share-tab ${emailTab === 'gmail' ? 'active' : ''}`}
+                onClick={() => setEmailTab('gmail')}
+              >
+                📧 Email công việc
+              </button>
+              <button
+                type="button"
+                className={`bzw-share-tab ${emailTab === 'copy' ? 'active' : ''}`}
+                onClick={() => setEmailTab('copy')}
+              >
+                📋 Sao chép nội dung
+              </button>
+            </div>
+
+            <div className="bzw-modal-content">
+              <div className="bzw-field">
+                <label htmlFor="mailRecipient">Người nhận / nhân viên nhận thư *</label>
+                <select
+                  id="mailRecipient"
+                  value={emailRecipientUid}
+                  onChange={(e) => {
+                    setEmailRecipientUid(e.target.value);
+                    const p = getPerson(e.target.value);
+                    if (emailTask) {
+                      setEmailSubject(`[BeeZone] Giao việc: ${emailTask.title}`);
+                      setEmailBodyContent(
+                        `Xin chào ${p.display_name},\n\n` +
+                          `Trung tâm Anh ngữ BeeZone gửi đến anh/chị công việc sau:\n\n` +
+                          `• Công việc: ${emailTask.title}\n` +
+                          `• Người thực hiện: ${p.display_name} (${p.email || 'Chưa có email'})\n` +
+                          `• Bộ phận: ${emailTask.branch === 'admin' ? 'Hành chính / Lễ tân' : 'Đào tạo / Giáo viên'}\n` +
+                          (emailTask.class_label ? `• Lớp: ${emailTask.class_label}\n` : '') +
+                          `• Ngày thực hiện: ${dateVN(emailTask.work_date)} — ${emailTask.shift_label}\n` +
+                          `• Trạng thái: ${statusName[emailTask.status]}\n` +
+                          `• Yêu cầu: ${emailTask.description || 'Theo nội dung đã phân công.'}\n\n` +
+                          `Anh/chị vui lòng cập nhật tiến độ và phản hồi nếu cần hỗ trợ.\n\n` +
+                          `Trân trọng,\nTrung tâm Anh ngữ BeeZone`,
+                      );
+                    }
+                  }}
+                >
+                  {people.map((p) => (
+                    <option key={p.user_id} value={p.user_id}>
+                      {p.display_name} — {p.email || 'Chưa có email'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Recipient preview */}
+              <div className="bzw-recipient-card">
+                <span className="bzw-avatar">
+                  {getInitials(getPerson(emailRecipientUid).display_name)}
+                </span>
+                <div>
+                  <b>{getPerson(emailRecipientUid).display_name} · {getPerson(emailRecipientUid).department || 'Nhân sự'}</b>
+                  <small>{getPerson(emailRecipientUid).email || 'Chưa có email'}</small>
+                </div>
+              </div>
+
+              {emailTab === 'gmail' ? (
+                <>
+                  <div className="bzw-field">
+                    <label htmlFor="mail_subj">Tiêu đề email (có thể sửa)</label>
+                    <input
+                      id="mail_subj"
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="bzw-field">
+                    <label htmlFor="mail_body">Nội dung email (có thể sửa)</label>
+                    <textarea
+                      id="mail_body"
+                      rows={8}
+                      value={emailBodyContent}
+                      onChange={(e) => setEmailBodyContent(e.target.value)}
+                    />
+                  </div>
+
+                  <label className="bzw-staffrow" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: 18, height: 18 }}
+                      checked={emailMarkChecked}
+                      onChange={(e) => setEmailMarkChecked(e.target.checked)}
+                    />
+                    <div className="bzw-text">
+                      <b>Đánh dấu là đã gửi email</b>
+                      <small>Dùng sau khi anh/chị đã bấm Gửi trong Gmail để tránh gửi trùng hoặc bỏ sót.</small>
+                    </div>
+                  </label>
+
+                  <div className="bzw-warning">
+                    Hệ thống sẽ mở Gmail với nội dung soạn sẵn, anh/chị kiểm tra và bấm <b>Gửi</b> bên Gmail.
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <strong style={{ fontSize: 12 }}>Xem trước thư</strong>
+                  <div className="bzw-email-preview">
+                    {`Người nhận: ${getPerson(emailRecipientUid).email}\nTiêu đề: ${emailSubject}\n\n${emailBodyContent}`}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setEmailTask(null)}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${emailSubject}\n\n${emailBodyContent}`);
+                  showToast('Đã sao chép nội dung email.');
+                }}
+              >
+                📋 Sao chép
+              </button>
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={handleSaveEmailMark}
+              >
+                ☑ Xác nhận đã gửi email
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-blue"
+                onClick={handleOpenGmail}
+              >
+                📧 Mở Gmail để gửi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: HANDOVER ACK */}
+      {ackTask && (
+        <div className="bzw-overlay" onClick={() => setAckTask(null)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>Xác nhận đã nhận bàn giao</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setAckTask(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-hint">
+                <b>{ackTask.title}</b>
+                <div>Người nhận ca đọc ghi chú và xác nhận đã nhận việc dang dở.</div>
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="ack_user_name">Tên người nhận ca *</label>
+                <input
+                  id="ack_user_name"
+                  type="text"
+                  required
+                  value={ackName}
+                  onChange={(e) => setAckName(e.target.value)}
+                />
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="ack_user_note">Ghi chú người nhận (không bắt buộc)</label>
+                <textarea
+                  id="ack_user_note"
+                  placeholder="Ví dụ: Đã nhận thông tin, sẽ liên hệ lại phụ huynh sáng mai."
+                  value={ackNote}
+                  onChange={(e) => setAckNote(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setAckTask(null)}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-green"
+                onClick={handleAckHandover}
+              >
+                ✓ Xác nhận bàn giao
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DIRECTORY */}
+      {directoryModal && (
+        <div className="bzw-overlay" onClick={() => setDirectoryModal(false)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>👥 Danh bạ nhân viên – giáo viên</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setDirectoryModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-hint">
+                Nhập <b>Gmail thật</b> cho từng người để nút gửi email sử dụng được.
+              </div>
+
+              <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                {people.map((p) => (
+                  <div key={p.user_id} className="bzw-staffrow">
+                    <span className="bzw-avatar">{getInitials(p.display_name)}</span>
+                    <div className="bzw-text">
+                      <b>{p.display_name}</b>
+                      <small>
+                        {p.department || 'Nhân sự'} • {p.email || 'Chưa có email'}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      className="bzw-btn bzw-sm"
+                      onClick={() => setStaffEditor(p)}
+                    >
+                      ✎ Sửa
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn"
+                onClick={() => setDirectoryModal(false)}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={() =>
+                  setStaffEditor({
+                    user_id: 'p-' + Date.now(),
+                    display_name: '',
+                    email: '',
+                    department: 'Giáo viên',
+                    branch: 'training',
+                    role: 'teacher',
+                    active: true,
+                  })
+                }
+              >
+                ＋ Thêm nhân sự
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: STAFF EDIT */}
+      {staffEditor !== undefined && (
+        <div className="bzw-overlay" onClick={() => setStaffEditor(undefined)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>{people.some((p) => p.user_id === staffEditor?.user_id) ? 'Sửa nhân sự' : 'Thêm nhân sự'}</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setStaffEditor(undefined)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-field">
+                <label htmlFor="staff_name">Họ tên *</label>
+                <input
+                  id="staff_name"
+                  type="text"
+                  required
+                  value={staffEditor?.display_name || ''}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      branch: e.target.value as Branch,
-                      assigned_uid: '',
-                    })
+                    setStaffEditor((s) => s ? { ...s, display_name: e.target.value } : s)
+                  }
+                />
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="staff_email">Email (Gmail hoặc email công việc)</label>
+                <input
+                  id="staff_email"
+                  type="email"
+                  value={staffEditor?.email || ''}
+                  onChange={(e) =>
+                    setStaffEditor((s) => s ? { ...s, email: e.target.value } : s)
+                  }
+                />
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="staff_dept">Bộ phận / Chức danh</label>
+                <input
+                  id="staff_dept"
+                  type="text"
+                  value={staffEditor?.department || ''}
+                  onChange={(e) =>
+                    setStaffEditor((s) => s ? { ...s, department: e.target.value } : s)
+                  }
+                />
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="staff_branch">Nhóm phân quyền</label>
+                <select
+                  id="staff_branch"
+                  value={staffEditor?.branch || 'admin'}
+                  onChange={(e) =>
+                    setStaffEditor((s) => s ? { ...s, branch: e.target.value as Branch } : s)
                   }
                 >
                   <option value="admin">Hành chính / Lễ tân</option>
                   <option value="training">Đào tạo / Giáo viên</option>
                 </select>
-              </label>
-
-              <label>
-                Người thực hiện *
-                <select
-                  value={form.assigned_uid}
-                  onChange={(e) => setForm({ ...form, assigned_uid: e.target.value })}
-                  required
-                >
-                  <option value="">— Chọn nhân sự / giáo viên —</option>
-                  {eligible(form.branch).map((p) => (
-                    <option key={p.user_id} value={p.user_id}>
-                      {p.display_name} {p.role === 'teacher' ? '(Giáo viên)' : '(Nhân viên)'} {p.email ? `– ${p.email}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="full">
-                Lớp học / Chương trình (tùy chọn)
-                <input
-                  list="beezone-class-options"
-                  value={form.class_label}
-                  onChange={(e) => handleSelectClass(e.target.value)}
-                  placeholder="Chọn lớp có sẵn hoặc gõ tên chương trình..."
-                />
-                <datalist id="beezone-class-options">
-                  {classes.map((c) => (
-                    <option key={c.id} value={`${c.code} - ${c.name}`}>
-                      {c.name}
-                    </option>
-                  ))}
-                  {programs.map((prog) => (
-                    <option key={prog.id} value={prog.name}>
-                      Chương trình: {prog.name}
-                    </option>
-                  ))}
-                </datalist>
-              </label>
-
-              <label className="full">
-                Nội dung / Yêu cầu chi tiết
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Mô tả các bước cần thực hiện, tiêu chí hoàn thành hoặc lưu ý..."
-                />
-              </label>
-
-              <label>
-                Ngày thực hiện
-                <input
-                  type="date"
-                  value={form.work_date}
-                  onChange={(e) => setForm({ ...form, work_date: e.target.value })}
-                />
-              </label>
-
-              <label>
-                Ca / Buổi
-                <select
-                  value={form.shift_label}
-                  onChange={(e) => setForm({ ...form, shift_label: e.target.value })}
-                >
-                  <option>Ca sáng</option>
-                  <option>Ca chiều</option>
-                  <option>Ca tối</option>
-                  <option>Cuối buổi</option>
-                </select>
-              </label>
-
-              <label>
-                Mức ưu tiên
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value as TaskPriority })}
-                >
-                  <option value="normal">Bình thường</option>
-                  <option value="high">Ưu tiên cao</option>
-                </select>
-              </label>
+              </div>
             </div>
-            <footer>
-              <button type="button" onClick={() => setEditor(undefined)}>Hủy</button>
+            <div className="bzw-modal-bottom">
               <button
                 type="button"
-                className="bzw-primary font-bold"
-                disabled={busy}
-                onClick={saveEditor}
+                className="bzw-btn"
+                onClick={() => setStaffEditor(undefined)}
               >
-                Lưu công việc
+                Hủy
               </button>
-            </footer>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={handleSaveStaff}
+              >
+                💾 Lưu nhân sự
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 3: View Details & Status/Notes/Handoff Modal */}
-      {details && (
-        <div
-          className="bzw-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSelected(null);
-          }}
-        >
-          <div className="bzw-modal">
+      {/* MODAL: CUSTOMIZE */}
+      {customizeModal && (
+        <div className="bzw-overlay" onClick={() => setCustomizeModal(false)}>
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
-              <h3>{details.title}</h3>
-              <button type="button" onClick={() => setSelected(null)}>×</button>
-            </div>
-            <p className="text-slate-700">{details.description || 'Chưa có mô tả chi tiết.'}</p>
-            <p>
-              <b>Người thực hiện:</b> {name(details.assigned_uid)} ({email(details.assigned_uid) || 'Chưa cập nhật email'})
-            </p>
-            <p>
-              <b>Trạng thái:</b>{' '}
-              <span className={'bzw-chip ' + details.status}>{statusName[details.status]}</span>{' '}
-              · <b>Ngày thực hiện:</b> {details.work_date} ({details.shift_label})
-              {details.class_label && ` · Lớp: ${details.class_label}`}
-            </p>
-
-            {/* Panel: Update status & reason */}
-            {canEditStatus(details) && (
-              <div className="bzw-panel">
-                <h4>Cập nhật trạng thái & Lý do</h4>
-                <div className="space-y-2">
-                  <select
-                    value={statusDraft}
-                    onChange={(e) => setStatusDraft(e.target.value as TaskStatus)}
-                  >
-                    {Object.entries(statusName).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                  <textarea
-                    placeholder="Nhập lý do / kết quả thực hiện (bắt buộc khi cập nhật tiến độ)..."
-                    value={reasonDraft}
-                    onChange={(e) => setReasonDraft(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="bzw-primary font-bold"
-                    disabled={busy}
-                    onClick={async () => {
-                      if (statusDraft !== 'todo' && !reasonDraft.trim()) {
-                        setError('Vui lòng nhập lý do hoặc kết quả thực hiện.');
-                        return;
-                      }
-                      await callAction(
-                        'bz_work_update_status',
-                        {
-                          p_task_id: details.id,
-                          p_status: statusDraft,
-                          p_reason: reasonDraft.trim(),
-                        },
-                        () => {
-                          const newReason: WorkReason = {
-                            id: `reason-${crypto.randomUUID()}`,
-                            task_id: details.id,
-                            author_uid: uid,
-                            kind: statusDraft === 'todo' ? 'progress' : (statusDraft as WorkReason['kind']),
-                            body: reasonDraft.trim() || `Chuyển trạng thái sang ${statusName[statusDraft]}`,
-                            created_at: new Date().toISOString(),
-                          };
-                          syncLocalChanges((prev) => ({
-                            ...prev,
-                            reasons: [newReason, ...prev.reasons],
-                            tasks: prev.tasks.map((task) =>
-                              task.id === details.id
-                                ? {
-                                    ...task,
-                                    status: statusDraft,
-                                    completed_at: statusDraft === 'done' ? new Date().toISOString() : null,
-                                    needs_handover: statusDraft === 'done' ? false : task.needs_handover,
-                                    updated_at: new Date().toISOString(),
-                                  }
-                                : task,
-                            ),
-                          }));
-                        },
-                      );
-                      setReasonDraft('');
-                      setSelected(null);
-                    }}
-                  >
-                    Lưu trạng thái
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Panel: Notes */}
-            <div className="bzw-panel">
-              <h4>Ghi chú ({notes.filter((n) => n.task_id === details.id).length})</h4>
-              <div className="space-y-1.5 mb-2 max-h-48 overflow-y-auto">
-                {notes.filter((n) => n.task_id === details.id).length === 0 ? (
-                  <p className="text-slate-400 text-xs italic">Chưa có ghi chú nào.</p>
-                ) : (
-                  notes
-                    .filter((n) => n.task_id === details.id)
-                    .map((n) => (
-                      <p key={n.id} className="text-xs bg-slate-50 p-2 rounded border border-slate-100">
-                        <b>{name(n.author_uid)}</b> · <small>{timeVN(n.created_at)}</small>: {n.body}
-                      </p>
-                    ))
-                )}
-              </div>
-              {canEditStatus(details) && (
-                <div className="space-y-2">
-                  <textarea
-                    value={noteDraft}
-                    onChange={(e) => setNoteDraft(e.target.value)}
-                    placeholder="Thêm ghi chú bổ sung..."
-                  />
-                  <button
-                    type="button"
-                    disabled={busy || !noteDraft.trim()}
-                    onClick={async () => {
-                      if (!noteDraft.trim()) return;
-                      await callAction(
-                        'bz_work_add_note',
-                        {
-                          p_task_id: details.id,
-                          p_body: noteDraft.trim(),
-                        },
-                        () => {
-                          const newNote: WorkNote = {
-                            id: `note-${crypto.randomUUID()}`,
-                            task_id: details.id,
-                            author_uid: uid,
-                            body: noteDraft.trim(),
-                            created_at: new Date().toISOString(),
-                          };
-                          syncLocalChanges((prev) => ({
-                            ...prev,
-                            notes: [...prev.notes, newNote],
-                          }));
-                        },
-                      );
-                      setNoteDraft('');
-                    }}
-                  >
-                    ＋ Thêm ghi chú
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Panel: Reasons */}
-            <div className="bzw-panel">
-              <h4>Lý do & Nhật ký kết quả ({reasons.filter((r) => r.task_id === details.id).length})</h4>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {reasons.filter((r) => r.task_id === details.id).length === 0 ? (
-                  <p className="text-slate-400 text-xs italic">Chưa có ghi nhận lý do.</p>
-                ) : (
-                  reasons
-                    .filter((r) => r.task_id === details.id)
-                    .map((r) => (
-                      <p key={r.id} className="text-xs">
-                        <span className="bzw-chip">{r.kind}</span> <b>{name(r.author_uid)}</b> ({timeVN(r.created_at)}): {r.body}
-                      </p>
-                    ))
-                )}
-              </div>
-            </div>
-
-            {/* Panel: Handoff */}
-            {canManage(details) && details.status !== 'done' && !hasPending(details) && (
-              <div className="bzw-panel">
-                <h4>↪ Bàn giao ca</h4>
-                <div className="space-y-2">
-                  <select
-                    value={handoffTo}
-                    onChange={(e) => setHandoffTo(e.target.value)}
-                  >
-                    <option value="">Chọn người nhận ca</option>
-                    {eligible(details.branch)
-                      .filter((p) => p.user_id !== uid)
-                      .map((p) => (
-                        <option key={p.user_id} value={p.user_id}>
-                          {p.display_name} {p.role === 'teacher' ? '(Giáo viên)' : '(Nhân viên)'}
-                        </option>
-                      ))}
-                  </select>
-                  <textarea
-                    placeholder="Việc còn lại và nội dung ca sau cần thực hiện tiếp..."
-                    value={handoffNote}
-                    onChange={(e) => setHandoffNote(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="bzw-primary font-bold"
-                    disabled={busy || !handoffTo || !handoffNote.trim()}
-                    onClick={async () => {
-                      if (!handoffTo || !handoffNote.trim()) {
-                        setError('Vui lòng chọn người nhận ca và nhập nội dung bàn giao.');
-                        return;
-                      }
-                      await callAction(
-                        'bz_work_handoff',
-                        {
-                          p_task_id: details.id,
-                          p_to_uid: handoffTo,
-                          p_note: handoffNote.trim(),
-                        },
-                        () => {
-                          const newHandoff: WorkHandoff = {
-                            id: `handoff-${crypto.randomUUID()}`,
-                            task_id: details.id,
-                            from_uid: uid,
-                            to_uid: handoffTo,
-                            note: handoffNote.trim(),
-                            handed_at: new Date().toISOString(),
-                            acknowledged_at: null,
-                          };
-                          const newReason: WorkReason = {
-                            id: `reason-${crypto.randomUUID()}`,
-                            task_id: details.id,
-                            author_uid: uid,
-                            kind: 'handover',
-                            body: handoffNote.trim(),
-                            created_at: new Date().toISOString(),
-                          };
-                          syncLocalChanges((prev) => ({
-                            ...prev,
-                            handoffs: [newHandoff, ...prev.handoffs],
-                            reasons: [newReason, ...prev.reasons],
-                            tasks: prev.tasks.map((task) =>
-                              task.id === details.id
-                                ? { ...task, needs_handover: true, updated_at: new Date().toISOString() }
-                                : task,
-                            ),
-                          }));
-                        },
-                      );
-                      setHandoffNote('');
-                      setSelected(null);
-                    }}
-                  >
-                    Bàn giao công việc
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {pendingForMe(details) && (
+              <h2>🎨 Tùy chỉnh giao diện và trường công việc</h2>
               <button
                 type="button"
-                className="bzw-primary font-bold w-full my-2"
-                disabled={busy}
-                onClick={async () => {
-                  const pending = pendingForMe(details);
-                  if (!pending) return;
-                  await callAction(
-                    'bz_work_ack_handoff',
-                    { p_handoff_id: pending.id },
-                    () => {
-                      syncLocalChanges((prev) => ({
-                        ...prev,
-                        handoffs: prev.handoffs.map((h) =>
-                          h.id === pending.id
-                            ? { ...h, acknowledged_at: new Date().toISOString(), acknowledged_by: uid }
-                            : h,
-                        ),
-                        tasks: prev.tasks.map((task) =>
-                          task.id === details.id
-                            ? { ...task, assigned_uid: uid, needs_handover: false, updated_at: new Date().toISOString() }
-                            : task,
-                        ),
-                      }));
-                    },
-                  );
-                  setSelected(null);
+                className="bzw-xbtn"
+                onClick={() => setCustomizeModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-formgrid">
+                <div className="bzw-field">
+                  <label htmlFor="set_title">Tiêu đề trang</label>
+                  <input
+                    id="set_title"
+                    type="text"
+                    value={settings.page}
+                    onChange={(e) => setSettings({ ...settings, page: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="set_admin">Khung việc Hành chính</label>
+                  <input
+                    id="set_admin"
+                    type="text"
+                    value={settings.admin}
+                    onChange={(e) => setSettings({ ...settings, admin: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="set_ho">Khung bàn giao</label>
+                  <input
+                    id="set_ho"
+                    type="text"
+                    value={settings.handover}
+                    onChange={(e) => setSettings({ ...settings, handover: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="set_train">Khung việc Giáo viên</label>
+                  <input
+                    id="set_train"
+                    type="text"
+                    value={settings.training}
+                    onChange={(e) => setSettings({ ...settings, training: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button
+                type="button"
+                className="bzw-btn bzw-danger"
+                onClick={() => {
+                  localStorage.removeItem(WORK_SETTINGS_KEY);
+                  setSettings(defaultSettings());
+                  setCustomizeModal(false);
+                  showToast('Đã khôi phục cài đặt mặc định.');
                 }}
               >
-                ✓ Xác nhận nhận bàn giao
+                ↶ Khôi phục mặc định
               </button>
-            )}
-
-            <footer>
-              <button type="button" onClick={() => setSelected(null)}>Đóng</button>
-            </footer>
+              <button
+                type="button"
+                className="bzw-btn bzw-gold"
+                onClick={() => {
+                  localStorage.setItem(WORK_SETTINGS_KEY, JSON.stringify(settings));
+                  setCustomizeModal(false);
+                  showToast('Đã lưu tùy chỉnh giao diện.');
+                }}
+              >
+                💾 Lưu giao diện
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 4: Send Email Modal */}
-      {sendTask && (
-        <div
-          className="bzw-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSendTask(null);
-          }}
-        >
-          <div className="bzw-modal">
-            <div className="bzw-modal-head">
-              <h3>📧 Gửi email công việc</h3>
-              <button type="button" onClick={() => setSendTask(null)}>×</button>
-            </div>
-
-            <label>
-              Người nhận
-              <select
-                value={recipient}
-                onChange={(e) => {
-                  setRecipient(e.target.value);
-                  fillEmail(sendTask, e.target.value);
-                }}
-              >
-                {people.filter((p) => p.active).map((p) => (
-                  <option key={p.user_id} value={p.user_id}>
-                    {p.display_name} {p.email ? `– ${p.email}` : '(chưa có email)'}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Tiêu đề email
-              <input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-              />
-            </label>
-
-            <label>
-              Nội dung thư
-              <textarea
-                rows={9}
-                value={emailBody}
-                onChange={(e) => setEmailBody(e.target.value)}
-              />
-            </label>
-
-            <div className="bzw-panel">
-              <b>
-                {sendTask.email_sent_at
-                  ? '☑ Đã đánh dấu gửi email'
-                  : '☐ Chưa đánh dấu gửi email'}
-              </b>
-              {sendTask.email_sent_at && (
-                <p>
-                  Thời điểm: {timeVN(sendTask.email_sent_at)} · Người nhận:{' '}
-                  {name(sendTask.email_sent_to || '')}
-                </p>
-              )}
-              <p className="text-xs text-slate-500 mt-1">
-                Lưu ý: Mở Gmail chỉ hỗ trợ điền sẵn thông tin. Hãy nhấn "Mở Gmail để gửi" để gửi thư thực tế trên trình duyệt, sau đó nhấn "Xác nhận đã gửi email" để lưu dấu mốc vào hệ thống.
-              </p>
-            </div>
-
-            <footer>
-              <button type="button" onClick={() => setSendTask(null)}>Đóng</button>
-              <button type="button" onClick={openGmail}>📧 Mở Gmail để gửi</button>
-              <button
-                type="button"
-                className="bzw-primary font-bold"
-                disabled={busy}
-                onClick={async () => {
-                  const newSent = !sendTask.email_sent_at;
-                  await callAction(
-                    'bz_work_mark_email',
-                    {
-                      p_task_id: sendTask.id,
-                      p_sent: newSent,
-                      p_to_uid: recipient,
-                    },
-                    () => {
-                      syncLocalChanges((prev) => ({
-                        ...prev,
-                        tasks: prev.tasks.map((task) =>
-                          task.id === sendTask.id
-                            ? {
-                                ...task,
-                                email_sent_at: newSent ? new Date().toISOString() : null,
-                                email_sent_to: newSent ? recipient : null,
-                                updated_at: new Date().toISOString(),
-                              }
-                            : task,
-                        ),
-                      }));
-                    },
-                  );
-                  setSendTask(null);
-                }}
-              >
-                {sendTask.email_sent_at ? 'Bỏ đánh dấu đã gửi' : '✓ Xác nhận đã gửi email'}
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
+      {/* TOAST NOTIFICATION */}
+      {toastMsg && <div className="bzw-toast">{toastMsg}</div>}
     </section>
   );
 }
 
 export default BeeZoneWork;
-

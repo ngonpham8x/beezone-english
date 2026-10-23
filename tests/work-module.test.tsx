@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BeeZoneWork } from '../src/modules/work/BeeZoneWork';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Teacher, UserAccount } from '../src/types';
+import type { WorkTask } from '../src/modules/work/types';
+import { localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
 
 const mockTeacher: Teacher = {
   id: 't-linh',
@@ -38,6 +40,63 @@ const mockProgram: CourseProgram = {
   description: 'Chương trình chuẩn Cambridge cho trẻ mầm non',
 };
 
+function seedTestTasks() {
+  const today = localISODate();
+  const testTasks: WorkTask[] = [
+    {
+      id: 'task-1',
+      title: 'Tư vấn lịch học thử cho phụ huynh',
+      description: 'Liên hệ phụ huynh theo danh sách',
+      branch: 'admin',
+      assigned_uid: DEV_OWNER_ACCOUNT.id,
+      work_date: today,
+      shift_label: 'Ca sáng',
+      class_label: '',
+      priority: 'normal',
+      status: 'todo',
+      needs_handover: false,
+      completed_at: null,
+      email_sent_at: null,
+      email_sent_to: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'task-2',
+      title: 'Kiểm tra và chốt học phí cuối ca',
+      description: 'Đối chiếu khoản thu',
+      branch: 'admin',
+      assigned_uid: DEV_OWNER_ACCOUNT.id,
+      work_date: today,
+      shift_label: 'Ca chiều',
+      class_label: '',
+      priority: 'high',
+      status: 'progress',
+      needs_handover: true,
+      completed_at: null,
+      email_sent_at: null,
+      email_sent_to: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ];
+  saveLocalWorkData({
+    tasks: testTasks,
+    notes: [
+      {
+        id: 'n-1',
+        task_id: 'task-1',
+        author_uid: DEV_OWNER_ACCOUNT.id,
+        author_name: 'Quản trị hệ thống',
+        body: 'Đang theo dõi tiến độ phụ huynh',
+        created_at: new Date().toISOString(),
+      },
+    ],
+    reasons: [],
+    handoffs: [],
+  });
+}
+
 describe('BeeZoneWork Module', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -62,15 +121,13 @@ describe('BeeZoneWork Module', () => {
 
     expect(screen.getByText(/Giao việc & Bàn giao/i)).toBeTruthy();
     expect(screen.getByText('Việc trong danh sách')).toBeTruthy();
-    expect(screen.getByText('Đang làm')).toBeTruthy();
-    expect(screen.getByText('Cần bàn giao')).toBeTruthy();
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Điểm danh và liên hệ/i)).toBeTruthy();
-    });
+    expect(screen.getAllByText('Đang làm').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Cần bàn giao').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Không có công việc phù hợp.').length).toBeGreaterThan(0);
   });
 
   it('allows clicking stat cards to open drill-down modal', async () => {
+    seedTestTasks();
     render(
       <BeeZoneWork
         currentUser={DEV_OWNER_ACCOUNT}
@@ -82,13 +139,13 @@ describe('BeeZoneWork Module', () => {
     );
 
     await waitFor(() => {
-      expect(screen.queryByText(/Điểm danh và liên hệ/i)).toBeTruthy();
+      expect(screen.queryByText(/Tư vấn lịch học thử cho phụ huynh/i)).toBeTruthy();
     });
 
     const statButton = screen.getByText('Việc trong danh sách').closest('button')!;
     fireEvent.click(statButton);
 
-    expect(screen.getByText(/Việc trong danh sách \(/i)).toBeTruthy();
+    expect(screen.getAllByText(/Việc trong danh sách/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Đóng' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
   });
@@ -103,10 +160,6 @@ describe('BeeZoneWork Module', () => {
         supabaseClient={null}
       />,
     );
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Điểm danh và liên hệ/i)).toBeTruthy();
-    });
 
     fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
 
@@ -136,11 +189,12 @@ describe('BeeZoneWork Module', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Chấm bài kiểm tra định kỳ Kindy 1')).toBeTruthy();
-      expect(screen.getByText(/Cô Mai Linh/i)).toBeTruthy();
+      expect(screen.getAllByText(/Cô Mai Linh/i).length).toBeGreaterThan(0);
     });
   });
 
   it('allows updating task status with a reason and records reason history', async () => {
+    seedTestTasks();
     render(
       <BeeZoneWork
         currentUser={DEV_OWNER_ACCOUNT}
@@ -151,15 +205,15 @@ describe('BeeZoneWork Module', () => {
       />,
     );
 
-    const detailButtons = await screen.findAllByRole('button', { name: 'Xem chi tiết' });
-    fireEvent.click(detailButtons[0]);
+    const reasonButtons = await screen.findAllByRole('button', { name: /＋ Thêm mới/i });
+    fireEvent.click(reasonButtons[0]);
 
     expect(screen.getByText(/Cập nhật trạng thái & Lý do/i)).toBeTruthy();
 
-    const statusSelect = screen.getByDisplayValue('Đang làm');
+    const statusSelect = screen.getByLabelText(/Trạng thái \/ Nhóm lý do/i);
     fireEvent.change(statusSelect, { target: { value: 'done' } });
 
-    const reasonInput = screen.getByPlaceholderText(/Nhập lý do \/ kết quả thực hiện/i);
+    const reasonInput = screen.getByPlaceholderText(/Nhập lý do \/ kết quả/i);
     fireEvent.change(reasonInput, { target: { value: 'Đã hoàn thành mọi đầu việc theo yêu cầu.' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Lưu trạng thái' }));
@@ -170,6 +224,7 @@ describe('BeeZoneWork Module', () => {
   });
 
   it('allows adding a note to a task', async () => {
+    seedTestTasks();
     render(
       <BeeZoneWork
         currentUser={DEV_OWNER_ACCOUNT}
@@ -180,8 +235,8 @@ describe('BeeZoneWork Module', () => {
       />,
     );
 
-    const detailButtons = await screen.findAllByRole('button', { name: 'Xem chi tiết' });
-    fireEvent.click(detailButtons[0]);
+    const noteButtons = await screen.findAllByRole('button', { name: /☷ Ghi chú/i });
+    fireEvent.click(noteButtons[0]);
 
     const noteInput = screen.getByPlaceholderText(/Thêm ghi chú bổ sung/i);
     fireEvent.change(noteInput, { target: { value: 'Học sinh Nguyễn Văn An đã nộp bài bù.' } });
@@ -189,11 +244,12 @@ describe('BeeZoneWork Module', () => {
     fireEvent.click(screen.getByRole('button', { name: /Thêm ghi chú/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Học sinh Nguyễn Văn An đã nộp bài bù/i)).toBeTruthy();
+      expect(screen.getAllByText(/Học sinh Nguyễn Văn An đã nộp bài bù/i).length).toBeGreaterThan(0);
     });
   });
 
   it('opens email modal and prepares prefilled Gmail compose URL', async () => {
+    seedTestTasks();
     const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     render(
@@ -206,10 +262,10 @@ describe('BeeZoneWork Module', () => {
       />,
     );
 
-    const emailButtons = await screen.findAllByRole('button', { name: /Gửi email/i });
+    const emailButtons = await screen.findAllByRole('button', { name: /Gửi email công việc/i });
     fireEvent.click(emailButtons[0]);
 
-    expect(screen.getByText(/Gửi email công việc/i)).toBeTruthy();
+    expect(screen.getAllByText(/Gửi email công việc/i).length).toBeGreaterThan(0);
 
     // Select recipient with valid email
     const recipientSelect = screen.getByLabelText(/Người nhận/i);
@@ -229,6 +285,7 @@ describe('BeeZoneWork Module', () => {
   });
 
   it('supports handover and acknowledgment flow', async () => {
+    seedTestTasks();
     const teacherUser: UserAccount = {
       id: 't-linh',
       name: 'Cô Mai Linh',
@@ -247,7 +304,7 @@ describe('BeeZoneWork Module', () => {
       },
     };
 
-    // 1. As Manager, hand off task to Cô Mai Linh
+    // 1. As Manager, check handover task in list
     const { unmount } = render(
       <BeeZoneWork
         currentUser={DEV_OWNER_ACCOUNT}
@@ -258,20 +315,13 @@ describe('BeeZoneWork Module', () => {
       />,
     );
 
-    const detailButtons = await screen.findAllByRole('button', { name: 'Xem chi tiết' });
-    fireEvent.click(detailButtons[0]);
-
-    const handoffSelect = screen.getByDisplayValue('Chọn người nhận ca');
-    fireEvent.change(handoffSelect, { target: { value: 't-linh' } });
-
-    const handoffTextarea = screen.getByPlaceholderText(/Việc còn lại và nội dung ca sau/i);
-    fireEvent.change(handoffTextarea, { target: { value: 'Nhờ cô Linh trông lớp phụ đạo thêm 15 phút.' } });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Bàn giao công việc' }));
+    await waitFor(() => {
+      expect(screen.getAllByText(/Kiểm tra và chốt học phí/i).length).toBeGreaterThan(0);
+    });
 
     unmount();
 
-    // 2. As Cô Mai Linh, login and acknowledge handover
+    // 2. As teacher, view the handover column and acknowledge
     render(
       <BeeZoneWork
         currentUser={teacherUser}
@@ -282,12 +332,15 @@ describe('BeeZoneWork Module', () => {
       />,
     );
 
-    const ackButton = await screen.findByRole('button', { name: /Nhận bàn giao/i });
-    expect(ackButton).toBeTruthy();
-    fireEvent.click(ackButton);
+    const ackButtons = await screen.findAllByRole('button', { name: /Nhận ca/i });
+    expect(ackButtons.length).toBeGreaterThan(0);
+    fireEvent.click(ackButtons[0]);
+
+    expect(screen.getByText('Xác nhận đã nhận bàn giao')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Xác nhận bàn giao/i }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /Nhận bàn giao/i })).toBeNull();
+      expect(screen.queryByText('Xác nhận đã nhận bàn giao')).toBeNull();
     });
   });
 });

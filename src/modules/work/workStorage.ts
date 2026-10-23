@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Teacher, UserAccount } from '../../types';
 import type {
   Branch,
+  CustomFieldDef,
   DetailFilter,
   TaskPriority,
   TaskStatus,
@@ -11,10 +12,12 @@ import type {
   WorkPerson,
   WorkReason,
   WorkRole,
+  WorkSettings,
   WorkTask,
 } from './types';
 
-export const WORK_LOCAL_STORAGE_KEY = 'BEEZONE_WORK_DATA_V1';
+export const WORK_LOCAL_STORAGE_KEY = 'BEEZONE_WORK_DATA_V2';
+export const WORK_SETTINGS_KEY = 'BEEZONE_WORK_SETTINGS_V2';
 
 export const localISODate = () =>
   new Intl.DateTimeFormat('en-CA', {
@@ -32,6 +35,13 @@ export const timeVN = (x?: string | null) =>
         timeStyle: 'short',
       }).format(new Date(x))
     : '';
+
+export const dateVN = (x?: string | null) => {
+  if (!x) return '';
+  const parts = x.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return x;
+};
 
 export const statusName: Record<TaskStatus, string> = {
   todo: 'Chưa làm',
@@ -59,6 +69,10 @@ export function mapUserToWorkRole(user: UserAccount): WorkRole {
   return 'admin';
 }
 
+export function defaultDemoPeople(): WorkPerson[] {
+  return [];
+}
+
 export function buildWorkPeople(
   currentUser: UserAccount | null | undefined,
   teachers: Teacher[] = [],
@@ -73,22 +87,25 @@ export function buildWorkPeople(
       user_id: currentUser.id,
       display_name: currentUser.name || currentUser.email || 'Quản lý trung tâm',
       email: currentUser.email || null,
+      department: userRole === 'teacher' ? 'Giáo viên' : userRole === 'trainer' ? 'Đào tạo' : 'Hành chính',
+      branch: userRole === 'teacher' || userRole === 'trainer' ? 'training' : 'admin',
       role: userRole,
       active: currentUser.active ?? true,
       teacherId: currentUser.permissions?.teacherId,
     });
   }
 
-  // 2. Add all teachers from center store
+  // 3. Add all teachers from center store
   for (const t of teachers) {
     if (!t.id) continue;
-    // Don't overwrite current user if IDs match, but attach details
     const existing = peopleMap.get(t.id);
     if (!existing) {
       peopleMap.set(t.id, {
         user_id: t.id,
         display_name: t.name,
         email: t.email || null,
+        department: 'Giáo viên',
+        branch: 'training',
         phone: t.phone,
         specialty: t.specialty,
         role: 'teacher',
@@ -98,7 +115,7 @@ export function buildWorkPeople(
     }
   }
 
-  // 3. Merge extraPeople from database if available
+  // 4. Merge extraPeople from database if available
   for (const p of extraPeople) {
     if (!p.user_id) continue;
     const existing = peopleMap.get(p.user_id);
@@ -126,97 +143,37 @@ export interface WorkStorageState {
   source: 'supabase' | 'local';
 }
 
-function getInitialSampleData(today: string, currentUserId: string): Omit<WorkStorageState, 'source'> {
-  const sampleTaskId1 = 'task-sample-1';
-  const sampleTaskId2 = 'task-sample-2';
-  const sampleTaskId3 = 'task-sample-3';
-
+export function defaultSettings(): WorkSettings {
   return {
-    tasks: [
-      {
-        id: sampleTaskId1,
-        branch: 'admin',
-        title: 'Điểm danh và liên hệ phụ huynh học viên vắng buổi sáng',
-        description: 'Kiểm tra sĩ số các lớp học sáng nay, ghi chú lý do nghỉ và thông báo lịch học bù.',
-        assigned_uid: currentUserId,
-        work_date: today,
-        shift_label: 'Ca sáng',
-        class_label: 'Khối Mầm Non & Tiểu Học',
-        priority: 'high',
-        status: 'progress',
-        needs_handover: false,
-        completed_at: null,
-        email_sent_at: null,
-        email_sent_to: null,
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date(Date.now() - 1800000).toISOString(),
-      },
-      {
-        id: sampleTaskId2,
-        branch: 'training',
-        title: 'Chuẩn bị học liệu và bài kiểm tra tuần Unit 4',
-        description: 'In ấn đề kiểm tra và chuẩn bị flashcard, file nghe cho các lớp chiều.',
-        assigned_uid: currentUserId,
-        work_date: today,
-        shift_label: 'Ca chiều',
-        class_label: 'Lớp Flyers & Movers',
-        priority: 'normal',
-        status: 'todo',
-        needs_handover: false,
-        completed_at: null,
-        email_sent_at: null,
-        email_sent_to: null,
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        updated_at: new Date(Date.now() - 7200000).toISOString(),
-      },
-      {
-        id: sampleTaskId3,
-        branch: 'admin',
-        title: 'Bàn giao sổ thu học phí và chìa khóa phòng cuối ca',
-        description: 'Đối soát phiếu thu trong ngày, kiểm tra thiết bị phòng học trước khi đóng ca.',
-        assigned_uid: currentUserId,
-        work_date: today,
-        shift_label: 'Cuối buổi',
-        class_label: 'Quầy Lễ Tân',
-        priority: 'high',
-        status: 'progress',
-        needs_handover: true,
-        completed_at: null,
-        email_sent_at: null,
-        email_sent_to: null,
-        created_at: new Date(Date.now() - 10800000).toISOString(),
-        updated_at: new Date(Date.now() - 3600000).toISOString(),
-      },
-    ],
-    notes: [
-      {
-        id: 'note-sample-1',
-        task_id: sampleTaskId1,
-        author_uid: currentUserId,
-        body: 'Đã gọi cho phụ huynh 2 bạn xin nghỉ ốm, ghi nhận học bù sang thứ 7.',
-        created_at: new Date(Date.now() - 1800000).toISOString(),
-      },
-    ],
-    reasons: [
-      {
-        id: 'reason-sample-1',
-        task_id: sampleTaskId1,
-        author_uid: currentUserId,
-        kind: 'progress',
-        body: 'Đang hoàn tất danh sách liên hệ trước 11:30.',
-        created_at: new Date(Date.now() - 1800000).toISOString(),
-      },
-      {
-        id: 'reason-sample-2',
-        task_id: sampleTaskId3,
-        author_uid: currentUserId,
-        kind: 'handover',
-        body: 'Cần bàn giao cho nhân sự ca sau nhận sổ quỹ và thiết bị phòng P02.',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-      },
-    ],
+    page: 'Giao việc & Bàn giao',
+    admin: 'Việc hôm nay · Hành chính / Lễ tân',
+    handover: 'Bàn giao cuối ca / cuối buổi',
+    training: 'Việc giáo viên theo lớp',
+    accent: '#ffc627',
+    compact: false,
+    customFields: [],
+  };
+}
+
+export function getEmptyWorkData(): Omit<WorkStorageState, 'source'> {
+  return {
+    tasks: [],
+    notes: [],
+    reasons: [],
     handoffs: [],
   };
+}
+
+export function getInitialSampleData(today: string, currentUserId: string): Omit<WorkStorageState, 'source'> {
+  return getEmptyWorkData();
+}
+
+export function saveLocalWorkData(state: Omit<WorkStorageState, 'source'>) {
+  try {
+    localStorage.setItem(WORK_LOCAL_STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Cannot write to localStorage:', e);
+  }
 }
 
 export function loadLocalWorkData(today: string, currentUserId: string): Omit<WorkStorageState, 'source'> {
@@ -224,90 +181,74 @@ export function loadLocalWorkData(today: string, currentUserId: string): Omit<Wo
     const raw = localStorage.getItem(WORK_LOCAL_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed?.tasks)) {
+      if (Array.isArray(parsed.tasks) && Array.isArray(parsed.notes)) {
+        // Strip out any previous demo tasks
+        const cleanTasks = (parsed.tasks as WorkTask[]).filter(
+          (t) => !['t1', 't2', 't3', 't4', 't5', 't6'].includes(t.id),
+        );
+        const cleanNotes = (parsed.notes as WorkNote[]).filter(
+          (n) => !['n1', 'n2', 'n4', 'n5'].includes(n.id),
+        );
+        const cleanReasons = ((parsed.reasons || []) as WorkReason[]).filter(
+          (r) => !['r1', 'r2', 'r3', 'r4'].includes(r.id),
+        );
+        const cleanHandoffs = ((parsed.handoffs || []) as WorkHandoff[]).filter(
+          (h) => !['h2'].includes(h.id),
+        );
         return {
-          tasks: parsed.tasks,
-          notes: Array.isArray(parsed.notes) ? parsed.notes : [],
-          reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [],
-          handoffs: Array.isArray(parsed.handoffs) ? parsed.handoffs : [],
+          tasks: cleanTasks,
+          notes: cleanNotes,
+          reasons: cleanReasons,
+          handoffs: cleanHandoffs,
         };
       }
     }
-  } catch {
-    // Local storage unavailable or corrupt
+  } catch (e) {
+    console.warn('Error reading local work storage:', e);
   }
-  const sample = getInitialSampleData(today, currentUserId);
-  saveLocalWorkData(sample);
-  return sample;
-}
-
-export function saveLocalWorkData(data: Omit<WorkStorageState, 'source'>): void {
-  try {
-    localStorage.setItem(WORK_LOCAL_STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // Local storage full or quota exceeded
-  }
+  const empty = getEmptyWorkData();
+  saveLocalWorkData(empty);
+  return empty;
 }
 
 export async function fetchWorkModuleData(
   supabase: SupabaseClient | null | undefined,
   today: string,
   currentUserId: string,
-): Promise<{ state: WorkStorageState; dbPeople: WorkPerson[]; dbRole: WorkRole | null }> {
-  // If no Supabase client or not connected, use local storage immediately
+): Promise<WorkStorageState> {
   if (!supabase) {
     const local = loadLocalWorkData(today, currentUserId);
-    return { state: { ...local, source: 'local' }, dbPeople: [], dbRole: null };
+    return { ...local, source: 'local' };
   }
 
   try {
-    // Attempt to load from Supabase tables
-    const [tasksRes, peopleRes] = await Promise.all([
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) {
+      const local = loadLocalWorkData(today, currentUserId);
+      return { ...local, source: 'local' };
+    }
+
+    const [tasksRes, notesRes, reasonsRes, handoffsRes] = await Promise.all([
       supabase.from('bz_work_tasks').select('*').order('work_date', { ascending: false }).limit(500),
-      supabase.from('bz_work_people').select('user_id,display_name,email,role,active').eq('active', true),
+      supabase.from('bz_work_notes').select('*').order('created_at', { ascending: true }),
+      supabase.from('bz_work_reasons').select('*').order('created_at', { ascending: true }),
+      supabase.from('bz_work_handoffs').select('*').order('handed_at', { ascending: false }),
     ]);
 
-    // Check if table does not exist (e.g. 42P01 error)
-    if (tasksRes.error) {
-      // Gracefully fall back to local store
+    if (tasksRes.error || !tasksRes.data) {
       const local = loadLocalWorkData(today, currentUserId);
-      return { state: { ...local, source: 'local' }, dbPeople: [], dbRole: null };
+      return { ...local, source: 'local' };
     }
-
-    const tasks = (tasksRes.data || []) as WorkTask[];
-    const dbPeople = (peopleRes.data || []) as WorkPerson[];
-
-    const taskIds = tasks.map((t) => t.id);
-    let notes: WorkNote[] = [];
-    let reasons: WorkReason[] = [];
-    let handoffs: WorkHandoff[] = [];
-
-    if (taskIds.length > 0) {
-      const [nRes, rRes, hRes] = await Promise.all([
-        supabase.from('bz_work_notes').select('*').in('task_id', taskIds).order('created_at', { ascending: true }),
-        supabase.from('bz_work_reasons').select('*').in('task_id', taskIds).order('created_at', { ascending: true }),
-        supabase.from('bz_work_handoffs').select('*').in('task_id', taskIds).order('handed_at', { ascending: false }),
-      ]);
-      if (!nRes.error && nRes.data) notes = nRes.data as WorkNote[];
-      if (!rRes.error && rRes.data) reasons = rRes.data as WorkReason[];
-      if (!hRes.error && hRes.data) handoffs = hRes.data as WorkHandoff[];
-    }
-
-    const myDbPerson = dbPeople.find((p) => p.user_id === currentUserId);
-    const dbRole = myDbPerson ? myDbPerson.role : null;
-
-    // Cache to local storage as well for seamless offline resilience
-    saveLocalWorkData({ tasks, notes, reasons, handoffs });
 
     return {
-      state: { tasks, notes, reasons, handoffs, source: 'supabase' },
-      dbPeople,
-      dbRole,
+      tasks: tasksRes.data as WorkTask[],
+      notes: (notesRes.data || []) as WorkNote[],
+      reasons: (reasonsRes.data || []) as WorkReason[],
+      handoffs: (handoffsRes.data || []) as WorkHandoff[],
+      source: 'supabase',
     };
   } catch {
-    // Fall back to local
     const local = loadLocalWorkData(today, currentUserId);
-    return { state: { ...local, source: 'local' }, dbPeople: [], dbRole: null };
+    return { ...local, source: 'local' };
   }
 }
-
