@@ -6,7 +6,7 @@ import { BeeZoneWork } from '../src/modules/work/BeeZoneWork';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
 import type { WorkTask } from '../src/modules/work/types';
-import { localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
+import { fetchWorkModuleData, localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
 
 const mockTeacher: Teacher = {
   id: 't-linh',
@@ -106,6 +106,17 @@ describe('BeeZoneWork Module', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it('keeps locally saved work when a server client is configured', async () => {
+    seedTestTasks();
+    const serverClient = { auth: { getUser: vi.fn() }, from: vi.fn() };
+
+    const data = await fetchWorkModuleData(serverClient as never, localISODate(), DEV_OWNER_ACCOUNT.id);
+
+    expect(data.source).toBe('local');
+    expect(data.tasks.map((task) => task.id)).toEqual(['task-1', 'task-2']);
+    expect(serverClient.from).not.toHaveBeenCalled();
   });
 
   it('renders without error and displays 4 interactive stat cards', async () => {

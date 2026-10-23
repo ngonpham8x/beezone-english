@@ -32,7 +32,7 @@ import {
   dateVN,
   defaultSettings,
   fetchWorkModuleData,
-  getEmptyWorkData,
+  loadLocalWorkData,
   localISODate,
   mapUserToWorkRole,
   saveLocalWorkData,
@@ -230,8 +230,12 @@ export function BeeZoneWork({
       setDataSource(data.source);
     } catch (e) {
       console.error('Error loading work module data:', e);
-      const empty = getEmptyWorkData();
-      syncStorage(empty.tasks, empty.notes, empty.reasons, empty.handoffs);
+      const local = loadLocalWorkData(day, uid);
+      setTasks(local.tasks);
+      setNotes(local.notes);
+      setReasons(local.reasons);
+      setHandoffs(local.handoffs);
+      setDataSource('local');
     }
   };
 
@@ -1228,6 +1232,10 @@ export function BeeZoneWork({
           </button>
         </div>
       </div>
+
+      <p role="status" style={{ margin: '12px 0', color: '#705000', fontSize: 13 }}>
+        Công việc và bàn giao hiện được lưu trên trình duyệt này; chưa đồng bộ giữa các thiết bị.
+      </p>
 
       {/* STATS BAR */}
       {!historyMode && (

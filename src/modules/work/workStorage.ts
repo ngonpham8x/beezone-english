@@ -299,43 +299,12 @@ export function loadLocalWorkData(today: string, currentUserId: string): Omit<Wo
 }
 
 export async function fetchWorkModuleData(
-  supabase: SupabaseClient | null | undefined,
+  _supabase: SupabaseClient | null | undefined,
   today: string,
   currentUserId: string,
 ): Promise<WorkStorageState> {
-  if (!supabase) {
-    const local = loadLocalWorkData(today, currentUserId);
-    return { ...local, source: 'local' };
-  }
-
-  try {
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user) {
-      const local = loadLocalWorkData(today, currentUserId);
-      return { ...local, source: 'local' };
-    }
-
-    const [tasksRes, notesRes, reasonsRes, handoffsRes] = await Promise.all([
-      supabase.from('bz_work_tasks').select('*').order('work_date', { ascending: false }).limit(500),
-      supabase.from('bz_work_notes').select('*').order('created_at', { ascending: true }),
-      supabase.from('bz_work_reasons').select('*').order('created_at', { ascending: true }),
-      supabase.from('bz_work_handoffs').select('*').order('handed_at', { ascending: false }),
-    ]);
-
-    if (tasksRes.error || !tasksRes.data) {
-      const local = loadLocalWorkData(today, currentUserId);
-      return { ...local, source: 'local' };
-    }
-
-    return {
-      tasks: tasksRes.data as WorkTask[],
-      notes: (notesRes.data || []) as WorkNote[],
-      reasons: (reasonsRes.data || []) as WorkReason[],
-      handoffs: (handoffsRes.data || []) as WorkHandoff[],
-      source: 'supabase',
-    };
-  } catch {
-    const local = loadLocalWorkData(today, currentUserId);
-    return { ...local, source: 'local' };
-  }
+  // Work writes currently use localStorage. Reading the server here would replace
+  // those unsynced edits on refresh or when the selected date changes.
+  const local = loadLocalWorkData(today, currentUserId);
+  return { ...local, source: 'local' };
 }
