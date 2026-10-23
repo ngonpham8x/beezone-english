@@ -12,6 +12,7 @@ interface ResponsiveSelectProps {
   placeholder?: string;
   icon?: ElementType;
   className?: string;
+  contentClassName?: string;
 }
 
 // Keep filter values in their owning module. Radix handles focus, keyboard
@@ -25,6 +26,7 @@ export function ResponsiveSelect({
   placeholder = 'Chọn mục',
   icon: Icon,
   className = '',
+  contentClassName = '',
 }: ResponsiveSelectProps) {
   const portalContainer = useContext(DialogPortalContext);
   const selectedLabel = options.find((option) => option.value === value)?.label || placeholder;
@@ -58,7 +60,7 @@ export function ResponsiveSelect({
             collisionPadding={8}
             avoidCollisions
             hideWhenDetached
-            className="select-menu-content"
+            className={`select-menu-content ${contentClassName}`.trim()}
           >
             <Select.ScrollUpButton className="select-menu-scroll">
               <ChevronUp aria-hidden="true" size={16} />

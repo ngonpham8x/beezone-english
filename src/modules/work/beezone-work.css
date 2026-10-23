@@ -873,6 +873,12 @@
   width: min(740px, 100%);
 }
 
+.bzw-assignee-select-menu {
+  z-index: 10001;
+  width: min(var(--radix-select-trigger-width), calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+}
+
 .bzw-modal-head {
   padding: 17px 20px;
   display: flex;

@@ -183,6 +183,7 @@ describe('BeeZoneWork Module', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
     fireEvent.change(screen.getByLabelText(/Nhánh công việc/i), { target: { value: 'training' } });
+    fireEvent.click(screen.getByLabelText(/Người thực hiện/i));
 
     await waitFor(() => {
       expect(screen.getByRole('option', { name: /Cô Giáo Mới/i })).toBeTruthy();
@@ -262,7 +263,8 @@ describe('BeeZoneWork Module', () => {
 
     // Select assignee: Cô Mai Linh
     const assigneeSelect = screen.getByLabelText(/Người thực hiện/i);
-    fireEvent.change(assigneeSelect, { target: { value: 't-linh' } });
+    fireEvent.click(assigneeSelect);
+    fireEvent.click(screen.getByRole('option', { name: /Cô Mai Linh/i }));
 
     // Select class: LOP-KINDY-01
     const classSelect = screen.getByLabelText(/Lớp/i);
@@ -463,8 +465,8 @@ describe('BeeZoneWork Module', () => {
     expect(branchOptionTexts).not.toContain('Hành chính / Lễ tân');
 
     // Check assignee options
-    const assigneeSelect = screen.getByLabelText(/Người thực hiện/i) as HTMLSelectElement;
-    const assigneeOptionTexts = Array.from(assigneeSelect.options).map((o) => o.textContent || '');
+    fireEvent.click(screen.getByLabelText(/Người thực hiện/i));
+    const assigneeOptionTexts = screen.getAllByRole('option').map((option) => option.textContent || '');
 
     // Must contain the 3 authorized accounts from Image 1
     expect(assigneeOptionTexts.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(true);
@@ -491,7 +493,8 @@ describe('BeeZoneWork Module', () => {
 
     // Select option "➕ Thêm mới nhân sự / giáo viên..." in Người thực hiện dropdown
     const assigneeSelect = screen.getByLabelText(/Người thực hiện/i);
-    fireEvent.change(assigneeSelect, { target: { value: '__add_new__' } });
+    fireEvent.click(assigneeSelect);
+    fireEvent.click(screen.getByRole('option', { name: /Thêm mới nhân sự \/ giáo viên/i }));
 
     expect(screen.getByText('➕ Thêm mới nhân sự / giáo viên')).toBeTruthy();
 
@@ -507,10 +510,9 @@ describe('BeeZoneWork Module', () => {
       // The quick-add box is closed
       expect(screen.queryByText(/Bổ sung người thực hiện trực tiếp/i)).toBeNull();
       // The assignee select now has the new person selected
-      const assigneeSelect = screen.getByLabelText(/Người thực hiện/i) as HTMLSelectElement;
-      const selectedOption = assigneeSelect.options[assigneeSelect.selectedIndex];
-      expect(selectedOption.textContent).toContain('Thầy Tuấn Anh');
-      expect(selectedOption.textContent).toContain('tuananh@beezone.edu.vn');
+      const assigneeSelect = screen.getByLabelText(/Người thực hiện/i);
+      expect(assigneeSelect.textContent).toContain('Thầy Tuấn Anh');
+      expect(assigneeSelect.textContent).toContain('tuananh@beezone.edu.vn');
     });
   });
 

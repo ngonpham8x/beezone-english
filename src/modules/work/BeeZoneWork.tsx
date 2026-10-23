@@ -11,6 +11,7 @@ import type {
   UserAccount,
 } from '../../types';
 import { weekdayForDate } from '../../lib/operations';
+import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import './beezone-work.css';
 import type {
   Branch,
@@ -1855,13 +1856,21 @@ export function BeeZoneWork({
                 </div>
 
                 <div className="bzw-field">
-                  <label htmlFor="m_assignee">Người thực hiện *</label>
-                  <select
-                    id="m_assignee"
-                    aria-label="Người thực hiện"
+                  <label>Người thực hiện *</label>
+                  <ResponsiveSelect
+                    label="Người thực hiện"
                     value={form.assigned_uid}
-                    onChange={(e) => {
-                      const newUid = e.target.value;
+                    placeholder="— Chọn nhân sự / giáo viên —"
+                    className="bzw-assignee-select"
+                    contentClassName="bzw-assignee-select-menu"
+                    options={[
+                      ...selectablePeople.map((p) => ({
+                        value: p.user_id,
+                        label: `${p.display_name} (${p.department || (p.role === 'teacher' ? 'Giáo viên' : 'Nhân sự')})${p.email ? ` – ${p.email}` : ''}`,
+                      })),
+                      ...(!supabase ? [{ value: '__add_new__', label: '➕ Thêm mới nhân sự / giáo viên...' }] : []),
+                    ]}
+                    onChange={(newUid) => {
                       if (newUid === '__add_new__') {
                         setShowQuickAddPerson(true);
                         return;
@@ -1893,17 +1902,7 @@ export function BeeZoneWork({
                         class_label: nextClassLabel,
                       }));
                     }}
-                  >
-                    <option value="" disabled>
-                      — Chọn nhân sự / giáo viên —
-                    </option>
-                    {selectablePeople.map((p) => (
-                      <option key={p.user_id} value={p.user_id}>
-                        {p.display_name} ({p.department || (p.role === 'teacher' ? 'Giáo viên' : 'Nhân sự')}){p.email ? ` – ${p.email}` : ''}
-                      </option>
-                    ))}
-                    {!supabase && <option value="__add_new__">➕ Thêm mới nhân sự / giáo viên...</option>}
-                  </select>
+                  />
 
                   {showQuickAddPerson && (
                     <div className="bzw-quick-add-box">
