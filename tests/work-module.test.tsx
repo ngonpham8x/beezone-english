@@ -6,7 +6,7 @@ import { BeeZoneWork } from '../src/modules/work/BeeZoneWork';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
 import type { WorkTask } from '../src/modules/work/types';
-import { fetchWorkModuleData, localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
+import { buildWorkPeople, fetchWorkModuleData, localISODate, saveLocalWorkData } from '../src/modules/work/workStorage';
 
 const mockTeacher: Teacher = {
   id: 't-linh',
@@ -117,6 +117,54 @@ describe('BeeZoneWork Module', () => {
     expect(data.source).toBe('local');
     expect(data.tasks.map((task) => task.id)).toEqual(['task-1', 'task-2']);
     expect(serverClient.from).not.toHaveBeenCalled();
+  });
+
+  it('does not grant the administrative branch from an account email or display name', async () => {
+    seedTestTasks();
+    const teachingStaff: UserAccount = {
+      ...DEV_OWNER_ACCOUNT,
+      id: 'teaching-staff',
+      role: 'staff',
+      name: 'Quản trị Hành chính',
+      email: 'chauoaingua679@gmail.com',
+      permissions: {
+        ...DEV_OWNER_ACCOUNT.permissions,
+        teacherId: mockTeacher.id,
+      },
+    };
+
+    render(<BeeZoneWork currentUser={teachingStaff} teachers={[mockTeacher]} supabaseClient={null} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Tư vấn lịch học thử cho phụ huynh')).toBeNull();
+    });
+    expect(screen.queryByText(/Việc hôm nay · Hành chính/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
+    expect((screen.getByLabelText(/Nhánh công việc/i) as HTMLSelectElement).value).toBe('training');
+  });
+
+  it('refreshes the assignee list when the center adds a teacher', async () => {
+    const newTeacher: Teacher = { ...mockTeacher, id: 't-new', name: 'Cô Giáo Mới', email: 'new@beezone.edu.vn' };
+    const { rerender } = render(
+      <BeeZoneWork currentUser={DEV_OWNER_ACCOUNT} teachers={[mockTeacher]} supabaseClient={null} />,
+    );
+    rerender(
+      <BeeZoneWork currentUser={DEV_OWNER_ACCOUNT} teachers={[mockTeacher, newTeacher]} supabaseClient={null} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
+    fireEvent.change(screen.getByLabelText(/Nhánh công việc/i), { target: { value: 'training' } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Cô Giáo Mới/i })).toBeTruthy();
+    });
+  });
+
+  it('does not add a private signed-in account to the work directory', () => {
+    const privateUser = { ...DEV_OWNER_ACCOUNT, email: 'private-owner@beezone.edu.vn', isPrivate: true };
+    const people = buildWorkPeople(privateUser, [mockTeacher]);
+
+    expect(people.some((person) => person.email === privateUser.email)).toBe(false);
   });
 
   it('renders without error and displays 4 interactive stat cards', async () => {
@@ -361,7 +409,8 @@ describe('BeeZoneWork Module', () => {
       id: 'usr-hidden',
       name: 'Quản trị hệ thống',
       email: 'tayninhdoimoi@gmail.com',
-      role: 'staff',
+      role: 'owner',
+      isPrivate: true,
     };
 
     render(

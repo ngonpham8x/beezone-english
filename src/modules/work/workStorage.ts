@@ -144,7 +144,7 @@ export function buildWorkPeople(
   const peopleMap = new Map<string, WorkPerson>();
 
   // 1. Add current user (excluding hidden emails like tayninhdoimoi@gmail.com)
-  if (currentUser && !isHiddenWorkEmail(currentUser.email)) {
+  if (currentUser && !currentUser.isPrivate && !isHiddenWorkEmail(currentUser.email)) {
     const userRole = mapUserToWorkRole(currentUser);
     peopleMap.set(currentUser.id, {
       user_id: currentUser.id,

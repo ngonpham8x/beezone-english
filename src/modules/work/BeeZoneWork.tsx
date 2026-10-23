@@ -73,13 +73,17 @@ export function BeeZoneWork({
 }: BeeZoneWorkProps) {
   const supabase = supabaseClient !== undefined ? supabaseClient : defaultSupabase;
 
-  const [uid, setUid] = useState<string>(currentUser?.id || 'p1');
-  const [role, setRole] = useState<WorkRole>(
-    currentUser ? mapUserToWorkRole(currentUser) : 'manager',
-  );
+  const uid = currentUser?.id || '';
+  const role: WorkRole = currentUser?.active
+    ? mapUserToWorkRole(currentUser)
+    : 'teacher';
   const [people, setPeople] = useState<WorkPerson[]>(() =>
     buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()),
   );
+
+  useEffect(() => {
+    setPeople(buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()));
+  }, [currentUser, teachers]);
 
   const selectablePeople = useMemo(() => {
     return people.filter((p) => p.active && !isHiddenWorkEmail(p.email));
@@ -265,25 +269,8 @@ export function BeeZoneWork({
   // Phân quyền nhánh:
   // - "Nhánh giao việc hành chính sẽ thấy đầy đủ." -> canSeeAdminBranch = true
   // - "Đào tạo Và giáo viên không thấy công việc hành chính." -> canSeeAdminBranch = false
-  const currentEmail = (currentUser?.email || '').toLowerCase().trim();
-  const currentName = (currentUser?.name || '').toLowerCase().trim();
-  const isOwner = currentUser?.role === 'owner' || currentEmail === 'chauoaingua679@gmail.com';
-  const isAdminOrManager =
-    isOwner ||
-    currentEmail === 'phonghanhchinh.beezone@gmail.com' ||
-    currentName.includes('quản trị') ||
-    currentName.includes('quan tri') ||
-    currentName.includes('hành chính') ||
-    currentName.includes('hanh chinh') ||
-    role === 'manager' ||
-    role === 'admin';
-
-  const isTrainingStaff =
-    currentEmail === 'phongdaotao.beezone@gmail.com' ||
-    ((currentName.includes('đào tạo') || currentName.includes('dao tao')) && !isAdminOrManager);
-
-  // Nhánh giao việc hành chính sẽ thấy đầy đủ; Đào tạo và giáo viên không thấy công việc hành chính
-  const canSeeAdminBranch = isAdminOrManager && !isTrainingStaff;
+  // Use the verified profile and grants; a display name or email never grants access.
+  const canSeeAdminBranch = role === 'manager' || role === 'admin';
 
   const accessibleTasks = useMemo(() => {
     if (canSeeAdminBranch) return tasks;
