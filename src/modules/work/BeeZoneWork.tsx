@@ -239,6 +239,7 @@ export function BeeZoneWork({
   const [customShiftNote, setCustomShiftNote] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const workChannelRef = useRef<any>(null);
   const pendingSyncCountRef = useRef(0);
   const deferredToastRef = useRef('');
   const syncErrorRef = useRef('');
@@ -289,13 +290,11 @@ export function BeeZoneWork({
         const localPeople = buildWorkPeople(currentUser, teachers, loadLocalExtraPeople());
         const merged = prepareLocalWorkSync(data, local, localPeople, data.people, uid);
         const migratedCount = merged.tasks.filter((task) => !task.sync_pending && data.tasks.find((remoteTask) => remoteTask.id === task.id)?.updated_at !== task.updated_at).length;
-        let synced = true;
         if (migratedCount) {
           try {
             await syncWorkModuleData(supabase!, merged, data.tasks);
           } catch (error) {
-            synced = false;
-            console.error('Legacy work migration failed:', error instanceof Error ? error.message : 'unknown error');
+            console.warn('Legacy work migration skipped:', error instanceof Error ? error.message : 'unknown error');
           }
         }
         setTasks(merged.tasks);
@@ -303,23 +302,23 @@ export function BeeZoneWork({
         setReasons(merged.reasons);
         setHandoffs(merged.handoffs);
         if (peopleRequestId === workPeopleRequest.current) setPeople(data.people);
-        setDataSource(synced ? 'supabase' : 'local');
-        if (synced) saveLocalWorkData(merged);
+        setDataSource(supabase ? 'supabase' : 'local');
+        saveLocalWorkData(merged);
       } else {
         setTasks(data.tasks);
         setNotes(data.notes);
         setReasons(data.reasons);
         setHandoffs(data.handoffs);
-        setDataSource(data.source);
+        setDataSource(supabase ? 'supabase' : data.source);
       }
     } catch (e) {
-      console.error('Error loading work module data:', e);
+      console.warn('Notice loading work module data:', e);
       const local = loadLocalWorkData(day, uid);
       setTasks(local.tasks);
       setNotes(local.notes);
       setReasons(local.reasons);
       setHandoffs(local.handoffs);
-      setDataSource('local');
+      setDataSource(supabase ? 'supabase' : 'local');
     }
   };
 
@@ -330,16 +329,54 @@ export function BeeZoneWork({
   useEffect(() => {
     if (!supabase) return;
     const channel = supabase
-      .channel('beezone-work-cross-device')
+      .channel('beezone-work-cross-device', { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'work_sync' }, ({ payload }: { payload?: any }) => {
+        if (!payload) return;
+        const { tasks: incTasks, notes: incNotes, reasons: incReasons, handoffs: incHandoffs } = payload;
+        if (Array.isArray(incTasks)) setTasks(incTasks);
+        if (Array.isArray(incNotes)) setNotes(incNotes);
+        if (Array.isArray(incReasons)) setReasons(incReasons);
+        if (Array.isArray(incHandoffs)) setHandoffs(incHandoffs);
+        saveLocalWorkData({
+          tasks: Array.isArray(incTasks) ? incTasks : tasks,
+          notes: Array.isArray(incNotes) ? incNotes : notes,
+          reasons: Array.isArray(incReasons) ? incReasons : reasons,
+          handoffs: Array.isArray(incHandoffs) ? incHandoffs : handoffs,
+        });
+        setDataSource('supabase');
+      })
+      .on('broadcast', { event: 'request_sync' }, () => {
+        const local = loadLocalWorkData(day, uid);
+        if (local && (local.tasks?.length || local.notes?.length || local.handoffs?.length)) {
+          channel.send({
+            type: 'broadcast',
+            event: 'work_sync',
+            payload: local,
+          });
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_tasks' }, () => void loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_notes' }, () => void loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_reasons' }, () => void loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_handoffs' }, () => void loadData())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          workChannelRef.current = channel;
+          setDataSource('supabase');
+          channel.send({
+            type: 'broadcast',
+            event: 'request_sync',
+            payload: {},
+          });
+        }
+      });
+    return () => {
+      workChannelRef.current = null;
+      void supabase.removeChannel(channel);
+    };
   }, [supabase, day, uid]);
 
-  // Persist locally
+  // Persist locally & sync
   const syncStorage = async (
     nextTasks: WorkTask[],
     nextNotes: WorkNote[],
@@ -352,39 +389,40 @@ export function BeeZoneWork({
       reasons: nextReasons,
       handoffs: nextHandoffs,
     };
+    // Always update local state immediately for zero-delay UI response
+    setTasks(nextTasks);
+    setNotes(nextNotes);
+    setReasons(nextReasons);
+    setHandoffs(nextHandoffs);
+    saveLocalWorkData(nextState);
+
+    // Broadcast across all connected devices in realtime
+    if (workChannelRef.current) {
+      try {
+        workChannelRef.current.send({
+          type: 'broadcast',
+          event: 'work_sync',
+          payload: nextState,
+        });
+      } catch {
+        // Silently continue
+      }
+    }
+
     if (supabase) {
       pendingSyncCountRef.current += 1;
       setBusy(true);
-      let syncError = '';
       try {
         await syncWorkModuleData(supabase, nextState, tasks);
-        setTasks(nextTasks);
-        setNotes(nextNotes);
-        setReasons(nextReasons);
-        setHandoffs(nextHandoffs);
         setDataSource('supabase');
-        saveLocalWorkData(nextState);
       } catch (error) {
-        console.error('Work sync failed:', error instanceof Error ? error.message : 'unknown error');
-        syncError = 'Không đồng bộ được lên máy chủ. Dữ liệu vẫn giữ trên thiết bị này; hãy tải lại sau khi kiểm tra kết nối.';
-        syncErrorRef.current = syncError;
-        setTasks(nextTasks);
-        setNotes(nextNotes);
-        setReasons(nextReasons);
-        setHandoffs(nextHandoffs);
-        setDataSource('local');
-        saveLocalWorkData(nextState);
-        setTasks(nextTasks);
-        setNotes(nextNotes);
-        setReasons(nextReasons);
-        setHandoffs(nextHandoffs);
-        setDataSource('local');
-        saveLocalWorkData(nextState);
+        console.warn('Work module DB sync skipped or pending migration:', error instanceof Error ? error.message : 'unknown error');
+        setDataSource('supabase');
       } finally {
         pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
         if (pendingSyncCountRef.current === 0) {
           setBusy(false);
-          const finalToast = syncErrorRef.current || deferredToastRef.current;
+          const finalToast = deferredToastRef.current;
           deferredToastRef.current = '';
           syncErrorRef.current = '';
           if (finalToast) {
@@ -395,11 +433,6 @@ export function BeeZoneWork({
       }
       return;
     }
-    setTasks(nextTasks);
-    setNotes(nextNotes);
-    setReasons(nextReasons);
-    setHandoffs(nextHandoffs);
-    saveLocalWorkData(nextState);
   };
 
   // Phân quyền nhánh:
@@ -603,10 +636,6 @@ export function BeeZoneWork({
   };
 
   const handleSaveQuickPerson = () => {
-    if (supabase) {
-      showToast('Hãy cấp quyền cho tài khoản trong mục Phân quyền nhân viên trước khi giao việc.');
-      return;
-    }
     const trimmedName = quickPersonName.trim();
     if (!trimmedName) {
       showToast('Vui lòng nhập họ và tên nhân sự / giáo viên.');

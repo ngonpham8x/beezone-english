@@ -216,7 +216,7 @@ export const getReceiptPaymentEntries = (receipts: TuitionReceipt[]): ReceiptPay
       // Nếu tổng các đợt nhỏ hơn paidAmount, ghi nhận phần chênh lệch còn lại vào ngày paymentDate
       if (receipt.paidAmount > installmentsSum) {
         const remainingInitAmount = receipt.paidAmount - installmentsSum;
-        const date = receipt.paymentDate;
+        const date = receipt.paymentDate || '';
         entries.push({
           receiptId: receipt.id,
           receiptCode: receipt.code,
@@ -234,7 +234,7 @@ export const getReceiptPaymentEntries = (receipts: TuitionReceipt[]): ReceiptPay
         });
       }
     } else if (receipt.paidAmount > 0) {
-      const date = receipt.paymentDate;
+      const date = receipt.paymentDate || '';
       entries.push({
         receiptId: receipt.id,
         receiptCode: receipt.code,

@@ -133,6 +133,40 @@ it('provides a focusable report action and returns focus after closing the detai
   expect(document.activeElement).toBe(open);
 });
 
+it('supports yearly report filtering, year selection and monthly breakdown', () => {
+  const sampleReceipt: TuitionReceipt = {
+    id: 'rc-yearly-1',
+    code: 'PT-2026-001',
+    studentId: 'st-1',
+    classId: classes[0].id,
+    courseFee: 1500000,
+    paidAmount: 1500000,
+    debtAmount: 0,
+    discount: 0,
+    paymentDate: '2026-04-15',
+    collectorName: 'Admin',
+    paymentMethod: 'Tiền mặt',
+    paymentKind: 'monthly',
+  };
+  render(
+    <ReportView
+      students={[]}
+      teachers={[]}
+      classes={[classes[0]]}
+      programs={[]}
+      receipts={[sampleReceipt]}
+      onNavigateTab={vi.fn()}
+    />,
+  );
+  const yearBtn = screen.getByRole('button', { name: 'Hằng Năm' });
+  fireEvent.click(yearBtn);
+  expect(yearBtn.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByText('BÁO CÁO TỔNG HỢP HẰNG NĂM')).toBeTruthy();
+  expect(screen.getByLabelText('Chọn năm báo cáo')).toBeTruthy();
+  expect(screen.getByText(/Doanh Thu 12 Tháng Trong Năm 2026/)).toBeTruthy();
+  expect(screen.getAllByText('1.500.000 đ').length).toBeGreaterThan(0);
+});
+
 it('retains the attendance date when selecting a class with the keyboard and saves the correct roster', async () => {
   viewportWidth = 320;
   // Supply an on-screen anchor for keyboard focus; jsdom does not measure layout.
