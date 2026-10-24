@@ -125,7 +125,66 @@ export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
     role: 'admin',
     active: true,
   },
+  {
+    user_id: 'acc-bichnhu',
+    display_name: 'Nguyễn Bích Như',
+    email: 'nhu.beezone@gmail.com',
+    department: 'Nhân viên',
+    branch: 'admin',
+    role: 'admin',
+    active: true,
+  },
+  {
+    user_id: 'acc-bichtuyen',
+    display_name: 'Cao Dương Bích Tuyền',
+    email: 'vgen8642@gmail.com',
+    department: 'Nhân viên',
+    branch: 'admin',
+    role: 'admin',
+    active: true,
+  },
 ];
+
+export const MANAGED_USERS_CACHE_KEY = 'BEEZONE_MANAGED_USERS_CACHE';
+
+export function loadCachedManagedUsers(): WorkPerson[] {
+  try {
+    const raw = localStorage.getItem(MANAGED_USERS_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((u) => u && typeof u.email === 'string' && u.email && !isHiddenWorkEmail(u.email) && u.is_active !== false)
+          .map((u) => {
+            const isOwner = u.role === 'owner';
+            const isHanhChinh = u.email?.trim().toLowerCase() === 'phonghanhchinh.beezone@gmail.com';
+            const dept = isOwner ? 'Chủ trung tâm' : isHanhChinh ? 'Hành chính' : 'Nhân viên';
+            return {
+              user_id: u.id || `acc-${u.email}`,
+              display_name: u.full_name || u.name || u.email || 'Nhân sự BeeZone',
+              email: u.email,
+              department: dept,
+              branch: 'admin' as Branch,
+              role: (isOwner ? 'manager' : 'admin') as WorkRole,
+              active: u.is_active ?? true,
+              teacherId: u.permissions?.teacherId,
+            };
+          });
+      }
+    }
+  } catch (e) {
+    console.warn('Cannot load cached managed users:', e);
+  }
+  return [];
+}
+
+export function saveCachedManagedUsers(users: unknown[]) {
+  try {
+    localStorage.setItem(MANAGED_USERS_CACHE_KEY, JSON.stringify(users));
+  } catch (e) {
+    console.warn('Cannot save cached managed users:', e);
+  }
+}
 
 export const WORK_EXTRA_PEOPLE_KEY = 'BEEZONE_WORK_EXTRA_PEOPLE_V2';
 
@@ -179,7 +238,7 @@ export function buildWorkPeople(
     });
   }
 
-  // 2. Add default authorized accounts from center management (BeeZone Đào Tạo, Oai Ngua Châu, BeeZone Hành Chính)
+  // 2. Add default authorized accounts from center management (BeeZone Đào Tạo, Oai Ngua Châu, BeeZone Hành Chính, Nguyễn Bích Như, Cao Dương Bích Tuyền)
   for (const acc of DEFAULT_AUTHORIZED_ACCOUNTS) {
     if (!isHiddenWorkEmail(acc.email)) {
       const existingByEmail = Array.from(peopleMap.values()).find(
@@ -190,6 +249,25 @@ export function buildWorkPeople(
           ...existingByEmail,
           display_name: acc.display_name,
           department: acc.department,
+        });
+      } else {
+        peopleMap.set(acc.user_id, acc);
+      }
+    }
+  }
+
+  // 2b. Add cached managed accounts from system permissions directory
+  const cachedAccounts = loadCachedManagedUsers();
+  for (const acc of cachedAccounts) {
+    if (!isHiddenWorkEmail(acc.email)) {
+      const existingByEmail = Array.from(peopleMap.values()).find(
+        (p) => p.email && p.email.toLowerCase() === acc.email?.toLowerCase(),
+      );
+      if (existingByEmail) {
+        peopleMap.set(existingByEmail.user_id, {
+          ...existingByEmail,
+          display_name: acc.display_name || existingByEmail.display_name,
+          department: acc.department || existingByEmail.department,
         });
       } else {
         peopleMap.set(acc.user_id, acc);
@@ -220,10 +298,21 @@ export function buildWorkPeople(
   // 4. Merge extraPeople from database/localStorage if available
   for (const p of extraPeople) {
     if (!p.user_id || isHiddenWorkEmail(p.email)) continue;
-    const existing = peopleMap.get(p.user_id);
+    const existingByEmail = p.email
+      ? Array.from(peopleMap.entries()).find(
+          ([, item]) => item.email && item.email.toLowerCase() === p.email!.toLowerCase(),
+        )
+      : undefined;
+
     const isSpecialHanhChinh =
       p.user_id === 'acc-hanhchinh' || p.email === 'phonghanhchinh.beezone@gmail.com';
-    if (existing) {
+
+    if (existingByEmail) {
+      const [existingKey, existing] = existingByEmail;
+      // If server provides a real UUID while we had dummy 'acc-xxx', replace the key
+      if (existingKey !== p.user_id && existingKey.startsWith('acc-')) {
+        peopleMap.delete(existingKey);
+      }
       peopleMap.set(p.user_id, {
         ...existing,
         ...p,
@@ -233,10 +322,22 @@ export function buildWorkPeople(
         role: p.role || existing.role,
       });
     } else {
-      peopleMap.set(p.user_id, {
-        ...p,
-        department: isSpecialHanhChinh ? 'Hành chính' : p.department,
-      });
+      const existing = peopleMap.get(p.user_id);
+      if (existing) {
+        peopleMap.set(p.user_id, {
+          ...existing,
+          ...p,
+          department: isSpecialHanhChinh ? 'Hành chính' : (p.department || existing.department),
+          display_name: p.display_name || existing.display_name,
+          email: p.email ?? existing.email,
+          role: p.role || existing.role,
+        });
+      } else {
+        peopleMap.set(p.user_id, {
+          ...p,
+          department: isSpecialHanhChinh ? 'Hành chính' : p.department,
+        });
+      }
     }
   }
 

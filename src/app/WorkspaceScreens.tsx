@@ -1,4 +1,5 @@
 import { canManageAcademic } from '../lib/permissions';
+import { supabase } from '../lib/supabase';
 import { lazy, Suspense } from 'react';
 import type { CenterActions } from '../modules/center/createCenterActions';
 import type { CenterStore } from '../modules/center/useCenterStore';
@@ -189,6 +190,7 @@ export function WorkspaceScreens({
             scheduleChanges={scheduleChanges}
             onSaveScheduleChange={handleSaveScheduleChange}
             onDeleteScheduleChange={handleDeleteScheduleChange}
+            supabaseClient={supabase}
           />
         </Suspense>
       );

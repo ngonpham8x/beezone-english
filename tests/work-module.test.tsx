@@ -541,11 +541,15 @@ describe('BeeZoneWork Module', () => {
     fireEvent.click(screen.getByLabelText(/Người thực hiện/i));
     const assigneeOptionTexts = screen.getAllByRole('option').map((option) => option.textContent || '');
 
-    // Must contain the 3 authorized accounts from Image 1
+    // Must contain authorized accounts
     expect(assigneeOptionTexts.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(false);
     expect(assigneeOptionTexts.some((txt) => txt.includes('chauoaingua679@gmail.com'))).toBe(true);
     expect(assigneeOptionTexts.some((txt) => txt.includes('phonghanhchinh.beezone@gmail.com'))).toBe(true);
     expect(assigneeOptionTexts.some((txt) => txt.includes('BeeZone Hành Chính (Hành chính)'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('nhu.beezone@gmail.com'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('Nguyễn Bích Như'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('vgen8642@gmail.com'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('Cao Dương Bích Tuyền'))).toBe(true);
 
     // Must NOT contain tayninhdoimoi@gmail.com
     expect(assigneeOptionTexts.some((txt) => txt.includes('tayninhdoimoi@gmail.com'))).toBe(false);
@@ -694,5 +698,12 @@ describe('BeeZoneWork Module', () => {
     expect(branchSelect.disabled).toBe(true);
     expect(branchSelect.value).toBe('training');
     expect(screen.getByText(/Nhánh Đào tạo phụ trách giao việc cho Giáo viên các lớp/i)).toBeTruthy();
+
+    // Verify Nguyen Bich Nhu and Cao Duong Bich Tuyen are also assignable in Training branch
+    fireEvent.click(screen.getByLabelText(/Người thực hiện/i));
+    const trainingAssignees = screen.getAllByRole('option').map((option) => option.textContent || '');
+    expect(trainingAssignees.some((txt) => txt.includes('nhu.beezone@gmail.com'))).toBe(true);
+    expect(trainingAssignees.some((txt) => txt.includes('vgen8642@gmail.com'))).toBe(true);
+    expect(trainingAssignees.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(true);
   });
 });

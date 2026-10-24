@@ -96,7 +96,9 @@ export function BeeZoneWork({
     setPeopleRefreshing(true);
     try {
       const latestPeople = await fetchWorkPeople(supabase);
-      if (requestId === workPeopleRequest.current) setPeople(latestPeople);
+      if (requestId === workPeopleRequest.current) {
+        setPeople(buildWorkPeople(currentUser, teachers, [...loadLocalExtraPeople(), ...latestPeople]));
+      }
     } catch (error) {
       console.error(
         'Error refreshing authorized work assignees:',
@@ -105,7 +107,7 @@ export function BeeZoneWork({
     } finally {
       if (requestId === workPeopleRequest.current) setPeopleRefreshing(false);
     }
-  }, [supabase]);
+  }, [supabase, currentUser, teachers]);
 
   useEffect(() => {
     setPeople(buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()));
@@ -1914,7 +1916,7 @@ export function BeeZoneWork({
                         value: p.user_id,
                         label: `${p.display_name} (${p.department || (p.role === 'teacher' ? 'Giáo viên' : 'Nhân sự')})${p.email ? ` – ${p.email}` : ''}`,
                       })),
-                      ...(!supabase ? [{ value: '__add_new__', label: '➕ Thêm mới nhân sự / giáo viên...' }] : []),
+                      { value: '__add_new__', label: '➕ Thêm mới nhân sự / giáo viên...' },
                     ]}
                     onChange={(newUid) => {
                       if (newUid === '__add_new__') {

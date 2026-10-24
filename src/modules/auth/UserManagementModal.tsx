@@ -8,6 +8,8 @@ import { readApiJson } from '../../lib/http';
 import { isLocalPreview } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
 import { createStaffPermissions, normalizeStaffPermissions } from '../../lib/permissions';
+import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../../lib/appEvents';
+import { saveCachedManagedUsers } from '../work/workStorage';
 import { ClassRoom, StaffPermissions, Teacher, UserAccount, UserRole } from '../../types';
 
 interface ManagedUser {
@@ -158,6 +160,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       if (!Array.isArray(payload.users)) throw new Error('Danh sách tài khoản không đúng định dạng.');
       setMembers(payload.users);
       setHiddenAccountIds(Array.isArray(payload.hiddenAccountIds) ? payload.hiddenAccountIds.filter(id => typeof id === 'string') : []);
+      saveCachedManagedUsers(payload.users);
+      window.dispatchEvent(new Event(ACCOUNT_DIRECTORY_CHANGED_EVENT));
       setAccountVisibilityReady(true);
     } catch (error) {
       if (requestId !== memberRequest.current || !dialogOpen.current) return;
