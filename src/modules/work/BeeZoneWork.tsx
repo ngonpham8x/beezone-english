@@ -1366,7 +1366,7 @@ export function BeeZoneWork({
           <div className="bzw-hero-icon">📋</div>
           <div>
             <h1>{settings.page}</h1>
-            <p>Phù hợp trung tâm nhỏ: giao đúng người, theo dõi tiến độ và bàn giao cuối ca rõ ràng.</p>
+            <p>Phân công nhiệm vụ, theo dõi tiến độ thực hiện và bàn giao công việc ca / buổi.</p>
           </div>
         </div>
         <div className="bzw-hero-actions">
@@ -1712,7 +1712,7 @@ export function BeeZoneWork({
 
       {/* GUIDE SECTION AT BOTTOM */}
       <div className="bzw-guide">
-        <h2>💡 Quy trình đề xuất cho trung tâm quy mô nhỏ</h2>
+        <h2>💡 Quy trình thực hiện & bàn giao ca làm việc</h2>
         <div className="bzw-guide-grid">
           <div className="bzw-guide-step">
             <span className="bzw-guide-num">1</span>
