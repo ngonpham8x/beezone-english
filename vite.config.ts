@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => {
       fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/.vercel/**'] },
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {
-        ignored: ['**/docs/**', '**/tmp/**', '**/.git/**'],
+        ignored: ['**/docs/**', '**/tmp/**', '**/.git/**', '**/supabase/**'],
       },
     },
     esbuild: { drop: mode === 'production' ? ['debugger'] : [] },

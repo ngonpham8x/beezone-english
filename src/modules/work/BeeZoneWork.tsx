@@ -1398,16 +1398,18 @@ export function BeeZoneWork({
           >
             ＋ Tạo công việc
           </button>
+          <span
+            className={`bzw-sync-badge ${dataSource === 'supabase' ? 'bzw-sync-ok' : 'bzw-sync-local'}`}
+            title={
+              dataSource === 'supabase'
+                ? 'Đã kết nối máy chủ Supabase · Đồng bộ liên thông đa thiết bị'
+                : 'Dữ liệu lưu an toàn trên trình duyệt này'
+            }
+          >
+            {dataSource === 'supabase' ? '🟢 Đồng bộ máy chủ' : '💾 Lưu trên thiết bị'}
+          </span>
         </div>
       </div>
-
-      <p role="status" style={{ margin: '12px 0', color: dataSource === 'supabase' ? '#047857' : '#b45309', fontSize: 13 }}>
-        {tasks.some((task) => task.sync_pending)
-          ? `${tasks.filter((task) => task.sync_pending).length} công việc cũ chưa khớp tài khoản BeeZone nên vẫn chỉ có trên thiết bị này; hãy cấp tài khoản cho người phụ trách để đồng bộ.`
-          : dataSource === 'supabase'
-            ? 'Công việc và bàn giao đã kết nối đồng bộ giữa các thiết bị.'
-            : 'Đang dùng dữ liệu cục bộ trên thiết bị này. Hãy chạy migration đồng bộ và kiểm tra kết nối để chia sẻ công việc.'}
-      </p>
 
       {/* STATS BAR */}
       {!historyMode && (

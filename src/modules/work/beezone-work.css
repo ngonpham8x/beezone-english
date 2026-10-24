@@ -130,6 +130,31 @@
   flex-wrap: wrap;
 }
 
+.bzw-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  user-select: none;
+  line-height: 1.2;
+}
+
+.bzw-sync-badge.bzw-sync-ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.bzw-sync-badge.bzw-sync-local {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
 /* BUTTONS */
 .bzw-btn {
   border: 1px solid #dce3ec;
