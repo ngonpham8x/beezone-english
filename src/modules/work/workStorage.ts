@@ -242,6 +242,29 @@ export interface WorkStorageState {
   people?: WorkPerson[];
 }
 
+function mapServerWorkPeople(rows: Array<Record<string, unknown>>): WorkPerson[] {
+  return rows
+    .filter((person) => typeof person.user_id === 'string' && person.user_id.length > 0)
+    .map((person) => ({
+      user_id: String(person.user_id),
+      display_name: String(person.display_name || 'Nhân sự BeeZone'),
+      email: typeof person.email === 'string' ? person.email : null,
+      role: person.role as WorkRole,
+      active: Boolean(person.active),
+      department: String(person.department || ''),
+      branch: (person.branch === 'training' ? 'training' : 'admin') as Branch,
+      teacherId: typeof person.teacher_id === 'string' ? person.teacher_id : undefined,
+    }));
+}
+
+export async function fetchWorkPeople(
+  supabase: SupabaseClient,
+): Promise<WorkPerson[]> {
+  const { data, error } = await supabase.rpc('bz_work_sync_people');
+  if (error) throw error;
+  return mapServerWorkPeople((data || []) as Array<Record<string, unknown>>);
+}
+
 export function defaultSettings(): WorkSettings {
   return {
     page: 'Giao việc & Bàn giao',
@@ -325,17 +348,7 @@ export async function fetchWorkModuleData(
     ]);
     const error = peopleResult.error || tasksResult.error || notesResult.error || reasonsResult.error || handoffsResult.error;
     if (error) throw error;
-    const rows = (peopleResult.data || []) as Array<Record<string, unknown>>;
-    const serverPeople = rows.map((p) => ({
-      user_id: String(p.user_id),
-      display_name: String(p.display_name || 'Nhân sự BeeZone'),
-      email: typeof p.email === 'string' ? p.email : null,
-      role: p.role as WorkRole,
-      active: Boolean(p.active),
-      department: String(p.department || ''),
-      branch: (p.branch === 'training' ? 'training' : 'admin') as Branch,
-      teacherId: typeof p.teacher_id === 'string' ? p.teacher_id : undefined,
-    }));
+    const serverPeople = mapServerWorkPeople((peopleResult.data || []) as Array<Record<string, unknown>>);
     const mapTask = (row: Record<string, unknown>): WorkTask => ({
       ...(row as unknown as WorkTask),
       id: String(row.id), assigned_uid: String(row.assigned_uid),

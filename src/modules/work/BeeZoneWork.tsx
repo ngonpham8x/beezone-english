@@ -11,6 +11,7 @@ import type {
   UserAccount,
 } from '../../types';
 import { weekdayForDate } from '../../lib/operations';
+import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../../lib/appEvents';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import './beezone-work.css';
 import type {
@@ -32,6 +33,7 @@ import {
   buildWorkPeople,
   dateVN,
   defaultSettings,
+  fetchWorkPeople,
   fetchWorkModuleData,
   loadLocalWorkData,
   localISODate,
@@ -84,10 +86,33 @@ export function BeeZoneWork({
   const [people, setPeople] = useState<WorkPerson[]>(() =>
     buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()),
   );
+  const workPeopleRequest = useRef(0);
 
   useEffect(() => {
     setPeople(buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()));
   }, [currentUser, teachers]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    const refreshAuthorizedPeople = async () => {
+      const requestId = ++workPeopleRequest.current;
+      try {
+        const latestPeople = await fetchWorkPeople(supabase);
+        if (mounted && requestId === workPeopleRequest.current) setPeople(latestPeople);
+      } catch (error) {
+        console.error(
+          'Error refreshing authorized work assignees:',
+          error instanceof Error ? error.message : 'unknown error',
+        );
+      }
+    };
+    window.addEventListener(ACCOUNT_DIRECTORY_CHANGED_EVENT, refreshAuthorizedPeople);
+    return () => {
+      mounted = false;
+      window.removeEventListener(ACCOUNT_DIRECTORY_CHANGED_EVENT, refreshAuthorizedPeople);
+    };
+  }, [supabase]);
 
   const selectablePeople = useMemo(() => {
     return people.filter((p) => p.active && !isHiddenWorkEmail(p.email));
@@ -236,6 +261,7 @@ export function BeeZoneWork({
 
   // Load data
   const loadData = async () => {
+    const peopleRequestId = ++workPeopleRequest.current;
     try {
       const data = await fetchWorkModuleData(supabase, day, uid);
       if (data.source === 'supabase' && data.people) {
@@ -256,7 +282,7 @@ export function BeeZoneWork({
         setNotes(merged.notes);
         setReasons(merged.reasons);
         setHandoffs(merged.handoffs);
-        setPeople(data.people);
+        if (peopleRequestId === workPeopleRequest.current) setPeople(data.people);
         setDataSource(synced ? 'supabase' : 'local');
         if (synced) saveLocalWorkData(merged);
       } else {

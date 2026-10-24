@@ -3,6 +3,7 @@ import { DialogFrame } from '../components/DialogFrame';
 import { PwaInstallModal } from '../components/PwaInstallModal';
 import { LoginModal } from '../modules/auth/LoginModal';
 import { UserManagementModal } from '../modules/auth/UserManagementModal';
+import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../lib/appEvents';
 import type { CenterActions } from '../modules/center/createCenterActions';
 import type { CenterConnection } from '../modules/center/useCenterConnection';
 import type { CenterStore } from '../modules/center/useCenterStore';
@@ -97,7 +98,10 @@ export function WorkspaceDialogs({
         currentUser={currentUser}
         classes={classes}
         teachers={teachers}
-        onAccountChanged={() => void loadAccountAuditLogs()}
+        onAccountChanged={() => {
+          void loadAccountAuditLogs();
+          window.dispatchEvent(new Event(ACCOUNT_DIRECTORY_CHANGED_EVENT));
+        }}
       />
       {isImportExportModalOpen && (
         <Suspense fallback={null}>

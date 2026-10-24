@@ -3,6 +3,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BeeZoneWork } from '../src/modules/work/BeeZoneWork';
+import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../src/lib/appEvents';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
 import type { WorkPerson, WorkTask } from '../src/modules/work/types';
@@ -122,6 +123,56 @@ describe('BeeZoneWork Module', () => {
     expect(data.tasks.map((task) => task.title)).toEqual(['Việc đã đồng bộ']);
     expect(data.people?.[0].role).toBe('manager');
     expect(from).toHaveBeenCalledTimes(4);
+  });
+
+  it('refreshes the assignee directory after an account permission change', async () => {
+    const ownerPerson = {
+      user_id: DEV_OWNER_ACCOUNT.id,
+      display_name: 'BeeZone Owner',
+      email: DEV_OWNER_ACCOUNT.email,
+      role: 'manager',
+      active: true,
+      branch: 'admin',
+    };
+    const grantedPerson = {
+      user_id: 'newly-granted-user',
+      display_name: 'Nhân viên mới',
+      email: 'nhanvienmoi@beezone.vn',
+      role: 'admin',
+      active: true,
+      department: 'Hành chính',
+      branch: 'admin',
+    };
+    let directoryUpdated = false;
+    const rpc = vi.fn(async () => ({
+      data: directoryUpdated ? [ownerPerson, grantedPerson] : [ownerPerson],
+      error: null,
+    }));
+    const from = vi.fn(() => ({
+      select: () => ({ order: async () => ({ data: [], error: null }) }),
+    }));
+    const channel = {
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn().mockReturnThis(),
+    };
+    const serverClient = {
+      rpc,
+      from,
+      channel: vi.fn(() => channel),
+      removeChannel: vi.fn(),
+    };
+
+    render(
+      <BeeZoneWork currentUser={DEV_OWNER_ACCOUNT} teachers={[]} supabaseClient={serverClient as never} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Nhân sự/i }));
+    expect(screen.getByText(/Danh sách này đồng bộ từ các tài khoản hoạt động/i)).toBeTruthy();
+    expect(screen.queryByText('Nhân viên mới')).toBeNull();
+
+    directoryUpdated = true;
+    window.dispatchEvent(new Event(ACCOUNT_DIRECTORY_CHANGED_EVENT));
+
+    expect(await screen.findByText('Nhân viên mới')).toBeTruthy();
   });
 
   it('sends one atomic server sync with the expected task versions', async () => {
