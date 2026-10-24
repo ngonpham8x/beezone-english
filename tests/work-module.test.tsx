@@ -7,7 +7,7 @@ import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../src/lib/appEvents';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
 import type { WorkPerson, WorkTask } from '../src/modules/work/types';
-import { buildWorkPeople, fetchWorkModuleData, localISODate, prepareLocalWorkSync, saveLocalWorkData, syncWorkModuleData } from '../src/modules/work/workStorage';
+import { buildWorkPeople, fetchWorkModuleData, getAssignableWorkPeople, localISODate, prepareLocalWorkSync, saveLocalWorkData, syncWorkModuleData } from '../src/modules/work/workStorage';
 
 const mockTeacher: Teacher = {
   id: 't-linh',
@@ -181,6 +181,20 @@ describe('BeeZoneWork Module', () => {
     directoryUpdated = true;
     fireEvent.focus(window);
     expect(await screen.findByText('Nhân viên mới')).toBeTruthy();
+  });
+
+  it('shows authorized staff for training tasks and only admin-capable people for admin tasks', () => {
+    const people: WorkPerson[] = [
+      { user_id: 'owner', display_name: 'Owner', email: null, role: 'manager', active: true },
+      { user_id: 'staff', display_name: 'Office', email: null, role: 'admin', active: true },
+      { user_id: 'trainer', display_name: 'Trainer', email: null, role: 'trainer', active: true },
+      { user_id: 'teacher', display_name: 'Teacher', email: null, role: 'teacher', active: true },
+    ];
+
+    expect(getAssignableWorkPeople(people, 'admin').map((person) => person.user_id)).toEqual(['owner', 'staff']);
+    expect(getAssignableWorkPeople(people, 'training').map((person) => person.user_id)).toEqual([
+      'owner', 'staff', 'trainer', 'teacher',
+    ]);
   });
 
   it('sends one atomic server sync with the expected task versions', async () => {
@@ -528,7 +542,7 @@ describe('BeeZoneWork Module', () => {
     const assigneeOptionTexts = screen.getAllByRole('option').map((option) => option.textContent || '');
 
     // Must contain the 3 authorized accounts from Image 1
-    expect(assigneeOptionTexts.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(true);
+    expect(assigneeOptionTexts.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(false);
     expect(assigneeOptionTexts.some((txt) => txt.includes('chauoaingua679@gmail.com'))).toBe(true);
     expect(assigneeOptionTexts.some((txt) => txt.includes('phonghanhchinh.beezone@gmail.com'))).toBe(true);
     expect(assigneeOptionTexts.some((txt) => txt.includes('BeeZone Hành Chính (Hành chính)'))).toBe(true);

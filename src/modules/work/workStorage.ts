@@ -87,6 +87,16 @@ export function isHiddenWorkEmail(email?: string | null): boolean {
   return HIDDEN_WORK_EMAILS.includes(email.trim().toLowerCase());
 }
 
+export function getAssignableWorkPeople(
+  people: WorkPerson[],
+  branch: Branch,
+): WorkPerson[] {
+  if (branch === 'admin') {
+    return people.filter((person) => person.role === 'manager' || person.role === 'admin');
+  }
+  return people;
+}
+
 export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
   {
     user_id: 'acc-daotao',

@@ -35,6 +35,7 @@ import {
   defaultSettings,
   fetchWorkPeople,
   fetchWorkModuleData,
+  getAssignableWorkPeople,
   loadLocalWorkData,
   localISODate,
   mapUserToWorkRole,
@@ -217,6 +218,10 @@ export function BeeZoneWork({
     needs_handover: false,
   };
   const [form, setForm] = useState<WorkFormState>(initialForm);
+  const assignablePeople = useMemo(
+    () => getAssignableWorkPeople(selectablePeople, form.branch),
+    [selectablePeople, form.branch],
+  );
 
   // Quick-add person form state (inside Task Editor modal)
   const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
@@ -637,7 +642,9 @@ export function BeeZoneWork({
     setForm((prev) => ({
       ...prev,
       assigned_uid: newPerson.user_id,
-      branch: prev.branch || branch,
+      branch: getAssignableWorkPeople(nextPeople, prev.branch).some(
+        (person) => person.user_id === newPerson.user_id,
+      ) ? prev.branch : branch,
     }));
 
     setQuickPersonName('');
@@ -1903,7 +1910,7 @@ export function BeeZoneWork({
                     className="bzw-assignee-select"
                     contentClassName="bzw-assignee-select-menu"
                     options={[
-                      ...selectablePeople.map((p) => ({
+                      ...assignablePeople.map((p) => ({
                         value: p.user_id,
                         label: `${p.display_name} (${p.department || (p.role === 'teacher' ? 'Giáo viên' : 'Nhân sự')})${p.email ? ` – ${p.email}` : ''}`,
                       })),
