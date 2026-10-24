@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as defaultSupabase } from '../../lib/supabase';
 import type {
@@ -87,6 +87,24 @@ export function BeeZoneWork({
     buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()),
   );
   const workPeopleRequest = useRef(0);
+  const [peopleRefreshing, setPeopleRefreshing] = useState(false);
+
+  const refreshAuthorizedPeople = useCallback(async () => {
+    if (!supabase) return;
+    const requestId = ++workPeopleRequest.current;
+    setPeopleRefreshing(true);
+    try {
+      const latestPeople = await fetchWorkPeople(supabase);
+      if (requestId === workPeopleRequest.current) setPeople(latestPeople);
+    } catch (error) {
+      console.error(
+        'Error refreshing authorized work assignees:',
+        error instanceof Error ? error.message : 'unknown error',
+      );
+    } finally {
+      if (requestId === workPeopleRequest.current) setPeopleRefreshing(false);
+    }
+  }, [supabase]);
 
   useEffect(() => {
     setPeople(buildWorkPeople(currentUser, teachers, loadLocalExtraPeople()));
@@ -94,25 +112,20 @@ export function BeeZoneWork({
 
   useEffect(() => {
     if (!supabase) return;
-    let mounted = true;
-    const refreshAuthorizedPeople = async () => {
-      const requestId = ++workPeopleRequest.current;
-      try {
-        const latestPeople = await fetchWorkPeople(supabase);
-        if (mounted && requestId === workPeopleRequest.current) setPeople(latestPeople);
-      } catch (error) {
-        console.error(
-          'Error refreshing authorized work assignees:',
-          error instanceof Error ? error.message : 'unknown error',
-        );
-      }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshAuthorizedPeople();
     };
     window.addEventListener(ACCOUNT_DIRECTORY_CHANGED_EVENT, refreshAuthorizedPeople);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    const refreshTimer = window.setInterval(refreshWhenVisible, 30_000);
     return () => {
-      mounted = false;
       window.removeEventListener(ACCOUNT_DIRECTORY_CHANGED_EVENT, refreshAuthorizedPeople);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.clearInterval(refreshTimer);
     };
-  }, [supabase]);
+  }, [refreshAuthorizedPeople, supabase]);
 
   const selectablePeople = useMemo(() => {
     return people.filter((p) => p.active && !isHiddenWorkEmail(p.email));
@@ -3054,6 +3067,20 @@ export function BeeZoneWork({
                   ? 'Danh sách này đồng bộ từ các tài khoản hoạt động được cấp quyền trong mục Phân quyền nhân viên.'
                   : <>Nhập <b>Gmail thật</b> cho từng người để nút gửi email sử dụng được.</>}
               </div>
+
+              {supabase && (
+                <div className="flex justify-end pb-2">
+                  <button
+                    type="button"
+                    className="bzw-btn bzw-sm"
+                    onClick={() => void refreshAuthorizedPeople()}
+                    disabled={peopleRefreshing}
+                    aria-label="Làm mới danh sách người thực hiện"
+                  >
+                    {peopleRefreshing ? 'Đang đồng bộ…' : 'Làm mới danh sách'}
+                  </button>
+                </div>
+              )}
 
               <div style={{ maxHeight: 320, overflow: 'auto' }}>
                 {people

@@ -173,6 +173,14 @@ describe('BeeZoneWork Module', () => {
     window.dispatchEvent(new Event(ACCOUNT_DIRECTORY_CHANGED_EVENT));
 
     expect(await screen.findByText('Nhân viên mới')).toBeTruthy();
+
+    directoryUpdated = false;
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.queryByText('Nhân viên mới')).toBeNull());
+
+    directoryUpdated = true;
+    fireEvent.focus(window);
+    expect(await screen.findByText('Nhân viên mới')).toBeTruthy();
   });
 
   it('sends one atomic server sync with the expected task versions', async () => {
