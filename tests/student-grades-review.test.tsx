@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { GradeManager } from '../src/modules/grades/GradeManager';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { StudentProfileDialog } from '../src/modules/students/StudentProfileDialog';
 import { ShareReviewDialog } from '../src/modules/attendance/ShareReviewDialog';
@@ -164,7 +165,7 @@ describe('ShareReviewDialog & permissions', () => {
         lessonTopic="Lesson 12: Superheroes"
         entry={{
           studentId: 'st-02',
-          status: 'present',
+          status: 'excused',
           homeworkCompleted: true,
           rating: 5,
           learningAttitude: 'excellent',
@@ -177,9 +178,43 @@ describe('ShareReviewDialog & permissions', () => {
     );
 
     expect(screen.getByText('Chia sẻ nhận xét buổi học')).toBeTruthy();
+    expect(screen.getByText('Nghỉ có phép')).toBeTruthy();
     expect(screen.getAllByText(/Lê Trần Ái Vy/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Mở Zalo gửi phụ huynh/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Gửi SMS/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Sao chép/i })).toBeTruthy();
+  });
+
+  it('allows teacher to enter and update comment on student academic performance in GradeManager', () => {
+    const onUpdateGrade = vi.fn();
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={[]}
+        teachers={[]}
+        settings={{} as any}
+        permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={onUpdateGrade}
+      />,
+    );
+
+    const commentInput = screen.getByPlaceholderText(/Nhập nhận xét lực học của bé/i);
+    expect(commentInput).toBeTruthy();
+
+    fireEvent.change(commentInput, {
+      target: { value: 'Bé nắm vững ngữ pháp, cần tự tin hơn khi nói.' },
+    });
+
+    expect(onUpdateGrade).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: dummyStudent.id,
+        classId: dummyClass.id,
+        comment: 'Bé nắm vững ngữ pháp, cần tự tin hơn khi nói.',
+      }),
+    );
   });
 });

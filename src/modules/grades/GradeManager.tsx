@@ -115,6 +115,21 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     onUpdateGrade(updated);
   };
 
+  const handleCommentChange = (studentId: string, classId: string, comment: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!canEdit || !student || !classStudents.some(s => s.id === studentId && s.classId === classId)) return;
+    const existing = grades.find(g => g.studentId === studentId && g.classId === classId) || {
+      id: `GR_${crypto.randomUUID()}`, studentId, classId,
+      listening: 0, speaking: 0, reading: 0, writing: 0, midterm: 0, finalExam: 0, attendance: 0, average: 0,
+    };
+
+    const updated: Grade = {
+      ...existing,
+      comment,
+    };
+    onUpdateGrade(updated);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -206,6 +221,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   <th className="py-3.5 px-3 text-center min-w-[90px]">Cuối Kỳ</th>
                   <th className="py-3.5 px-3 text-center min-w-[90px]">Chuyên Cần</th>
                   <th className="py-3.5 px-4 text-center bg-amber-600 text-slate-950 font-extrabold min-w-[80px]">ĐTB</th>
+                  <th className="py-3.5 px-3 text-left min-w-[240px]">Nhận Xét Lực Học Của Bé</th>
                   <th className="py-3.5 px-3 text-center min-w-[160px]">Hành Động</th>
                 </tr>
               </thead>
@@ -339,6 +355,19 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       {/* Average */}
                       <td className="py-3 px-4 text-center bg-amber-50 font-black text-sm text-slate-950 border-l border-amber-200">
                         {savedGrade ? grade.average : '—'}
+                      </td>
+
+                      {/* Teacher Comment */}
+                      <td className="p-2 min-w-[240px]">
+                        <input
+                          type="text"
+                          aria-label={`Nhận xét lực học - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                          placeholder="Nhập nhận xét lực học của bé..."
+                          value={grade.comment || ''}
+                          disabled={!canEdit}
+                          onChange={(e) => handleCommentChange(st.id, st.classId, e.target.value)}
+                          className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white placeholder:text-slate-400 placeholder:italic"
+                        />
                       </td>
 
                       {/* Report Card Action */}
@@ -520,6 +549,22 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded"
                     />
                   </div>
+                </div>
+
+                {/* Teacher Comment on Student Performance */}
+                <div className="bg-amber-50/60 p-2.5 rounded-xl border border-amber-200/80 space-y-1">
+                  <span className="text-[10px] font-bold text-amber-900 uppercase block">
+                    Nhận xét của giáo viên về lực học của bé:
+                  </span>
+                  <textarea
+                    rows={2}
+                    aria-label={`Nhận xét lực học - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
+                    placeholder="VD: Bé tiếp thu nhanh, ngữ pháp tốt, cần luyện thêm phản xạ nói..."
+                    value={grade.comment || ''}
+                    disabled={!canEdit}
+                    onChange={(e) => handleCommentChange(st.id, st.classId, e.target.value)}
+                    className="w-full p-2 text-xs border border-amber-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white placeholder:text-slate-400 resize-none leading-relaxed"
+                  />
                 </div>
 
                 {/* Card Actions */}
