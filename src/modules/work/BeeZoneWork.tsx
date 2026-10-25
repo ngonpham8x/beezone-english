@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as defaultSupabase } from '../../lib/supabase';
 import type {
@@ -64,6 +65,50 @@ export interface BeeZoneWorkProps {
   onSaveScheduleChange?: (change: ScheduleChange) => string | null;
   onDeleteScheduleChange?: (id: string) => string | null;
   supabaseClient?: SupabaseClient | null;
+}
+
+interface BzwModalOverlayProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  role?: string;
+  'aria-modal'?: boolean | 'true' | 'false';
+  'aria-label'?: string;
+}
+
+function BzwModalOverlay({
+  children,
+  onClick,
+  role = 'dialog',
+  'aria-modal': ariaModal = true,
+  'aria-label': ariaLabel,
+}: BzwModalOverlayProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClick) {
+        onClick();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClick]);
+
+  const content = (
+    <div
+      className="bzw-overlay bzw-root"
+      onClick={onClick}
+      role={role}
+      aria-modal={ariaModal}
+      aria-label={ariaLabel}
+    >
+      {children}
+    </div>
+  );
+
+  if (typeof document === 'undefined') {
+    return content;
+  }
+
+  return createPortal(content, document.body);
 }
 
 export function BeeZoneWork({
@@ -1778,7 +1823,7 @@ export function BeeZoneWork({
 
       {/* MODAL: STAT DETAIL */}
       {statModal && (
-        <div className="bzw-overlay" onClick={() => setStatModal(null)}>
+        <BzwModalOverlay onClick={() => setStatModal(null)} aria-label="Chi tiết thống kê công việc">
           <div className="bzw-modal bzw-wide" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>
@@ -1848,12 +1893,12 @@ export function BeeZoneWork({
               )}
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: TASK CREATE / EDIT */}
       {editorTask !== undefined && (
-        <div className="bzw-overlay" onClick={() => setEditorTask(undefined)}>
+        <BzwModalOverlay onClick={() => setEditorTask(undefined)} aria-label={editorTask ? 'Sửa công việc' : 'Tạo công việc mới'}>
           <div className="bzw-modal bzw-wide" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>{editorTask ? 'Sửa công việc' : 'Tạo công việc mới'}</h2>
@@ -2655,12 +2700,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: NOTES */}
       {noteTask && (
-        <div className="bzw-overlay" onClick={() => setNoteTask(null)}>
+        <BzwModalOverlay onClick={() => setNoteTask(null)} aria-label="Ghi chú báo cáo cuối buổi">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>Ghi chú / Báo cáo cuối buổi</h2>
@@ -2725,12 +2770,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: REASONS LIST */}
       {reasonViewTask && (
-        <div className="bzw-overlay" onClick={() => setReasonViewTask(null)}>
+        <BzwModalOverlay onClick={() => setReasonViewTask(null)} aria-label="Lý do kết quả công việc">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>📝 Lý do / Kết quả công việc</h2>
@@ -2793,12 +2838,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: REASON ADD / STATUS UPDATE */}
       {reasonAddTask && (
-        <div className="bzw-overlay" onClick={() => setReasonAddTask(null)}>
+        <BzwModalOverlay onClick={() => setReasonAddTask(null)} aria-label="Cập nhật trạng thái và lý do">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>Cập nhật trạng thái &amp; Lý do</h2>
@@ -2859,12 +2904,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: EMAIL SHARE */}
       {emailTask && (
-        <div className="bzw-overlay" onClick={() => setEmailTask(null)}>
+        <BzwModalOverlay onClick={() => setEmailTask(null)} aria-label="Gửi email công việc">
           <div className="bzw-modal bzw-wide" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>📧 Gửi email công việc</h2>
@@ -3023,12 +3068,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: HANDOVER ACK */}
       {ackTask && (
-        <div className="bzw-overlay" onClick={() => setAckTask(null)}>
+        <BzwModalOverlay onClick={() => setAckTask(null)} aria-label="Xác nhận nhận bàn giao">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>Xác nhận đã nhận bàn giao</h2>
@@ -3084,12 +3129,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: DIRECTORY */}
       {directoryModal && (
-        <div className="bzw-overlay" onClick={() => setDirectoryModal(false)}>
+        <BzwModalOverlay onClick={() => setDirectoryModal(false)} aria-label="Danh bạ giáo viên và nhân sự">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>👥 Danh bạ giáo viên</h2>
@@ -3172,12 +3217,12 @@ export function BeeZoneWork({
               </button>}
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: STAFF EDIT */}
       {staffEditor !== undefined && (
-        <div className="bzw-overlay" onClick={() => setStaffEditor(undefined)}>
+        <BzwModalOverlay onClick={() => setStaffEditor(undefined)} aria-label="Thêm sửa nhân sự">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>{people.some((p) => p.user_id === staffEditor?.user_id) ? 'Sửa nhân sự' : 'Thêm nhân sự'}</h2>
@@ -3258,12 +3303,12 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* MODAL: CUSTOMIZE */}
       {customizeModal && (
-        <div className="bzw-overlay" onClick={() => setCustomizeModal(false)}>
+        <BzwModalOverlay onClick={() => setCustomizeModal(false)} aria-label="Tùy chỉnh giao diện">
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
               <h2>🎨 Tùy chỉnh giao diện và trường công việc</h2>
@@ -3383,7 +3428,7 @@ export function BeeZoneWork({
               </button>
             </div>
           </div>
-        </div>
+        </BzwModalOverlay>
       )}
 
       {/* TOAST NOTIFICATION */}

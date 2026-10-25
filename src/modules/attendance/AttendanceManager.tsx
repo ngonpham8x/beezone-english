@@ -956,7 +956,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             type="button"
             onClick={handleSave}
             disabled={!canSave || !selectedClass}
-            aria-label={existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét Đã Sửa' : 'Lưu Điểm Danh & Nhận Xét'}
+            aria-label={existingSession ? 'Cập nhật lại nhận xét buổi học' : 'Xác nhận hoàn tất buổi học'}
             className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
               isSavedRecently
                 ? 'bg-emerald-700 ring-2 ring-emerald-300 shadow-md scale-102'
@@ -971,7 +971,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             ) : (
               <>
                 <Save className="w-4 h-4 shrink-0" />
-                <span>{existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét' : 'Lưu Điểm Danh & Nhận Xét'}</span>
+                <span>{existingSession ? 'Cập Nhật Lại Nhận Xét' : 'Xác Nhận & Hoàn Tất Buổi Học'}</span>
               </>
             )}
           </button>
