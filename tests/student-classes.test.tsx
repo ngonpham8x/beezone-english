@@ -68,7 +68,7 @@ it('shows the combined debt of two course classes and keeps recorded tuition aft
   expect(classTuitionDebtBreakdown(courseClasses[1], [learner], receipts, programs).course).toBe(2400000);
 
   render(<LanguageProvider><StudentManager students={[learner]} classes={courseClasses} programs={programs.map((item, index) => ({ ...initial.initialPrograms[index], ...item }))} receipts={receipts} timetableSlots={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner searchQuery="" onAddStudent={vi.fn()} onUpdateStudent={vi.fn()} onDeleteStudent={vi.fn()} onCreateProgram={vi.fn()} onOpenImportExportModal={vi.fn()} onOpenTuition={vi.fn()} /></LanguageProvider>);
-  expect(screen.getByText('Nợ khóa: 5.800.000 đ')).toBeTruthy();
+  expect(screen.getByText('Còn lại khóa: 5.800.000 đ')).toBeTruthy();
 
   const secondReceipt = { ...firstReceipt, id: 'second', classId: courseClasses[1].id, debtAmount: 0, paidAmount: 2400000 };
   expect(studentTuitionDebtBreakdown(learner, [...receipts, secondReceipt], programs, courseClasses).total).toBe(3400000);

@@ -32,8 +32,8 @@
     "no_messages": "No new messages",
     "switch_account": "Switch Account",
     "owner": "Center Owner",
-    "staff": "Staff Member",
-    "permissions": "Staff Permissions"
+    "staff": "Teacher",
+    "permissions": "Account Permissions"
   },
   "actions": {
     "add_student": "Add Student",

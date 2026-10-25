@@ -42,7 +42,7 @@ begin
   values (new.id, lower(new.email),
     coalesce(left(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), 120), ''),
     nullif(left(new.raw_user_meta_data ->> 'avatar_url', 2000), ''),
-    case when bootstrap_owner then 'owner'::public.app_role else 'staff'::public.app_role end,
+    case when bootstrap_owner then 'owner'::public.app_role else 'teacher'::public.app_role end,
     bootstrap_owner, private_owner)
   on conflict (id) do nothing returning id into created_id;
   if bootstrap_owner and created_id is not null then

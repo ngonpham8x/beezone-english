@@ -204,6 +204,8 @@ export function WorkspaceScreens({
           timetableSlots={timetableSlots}
           teachers={teachers}
           rooms={rooms}
+          grades={grades}
+          attendanceSessions={attendanceSessions}
           permissions={currentUser.permissions}
           isOwner={currentUser.role === 'owner'}
           searchQuery={searchQuery}

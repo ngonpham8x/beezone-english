@@ -34,7 +34,7 @@ describe("new Supabase project setup", () => {
     const { rows } = await db.query(
       `select role, is_active from public.profiles`,
     );
-    expect(rows).toEqual([{ role: "staff", is_active: false }]);
+    expect(rows).toEqual([{ role: "teacher", is_active: false }]);
     expect(
       (await db.query(`select * from public.owner_bootstrap_allowlist`)).rows,
     ).toEqual([]);

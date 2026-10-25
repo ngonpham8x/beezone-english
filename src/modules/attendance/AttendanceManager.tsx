@@ -7,8 +7,6 @@ import {
   CalendarCheck,
   CheckCheck,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock,
   FileText,
   History,
@@ -28,14 +26,50 @@ import { centerDate, isCalendarDate } from '../../lib/dates';
 import { lessonsOn } from '../../lib/operations';
 import { snapshotForSession } from '../../lib/sessionBilling';
 import type { ClassEnrollment, ScheduleChange, TimetableSlot } from '../../types';
-import { AttendanceSession, AttendanceStatus, ClassRoom, Student, Teacher } from '../../types';
+import { AttendanceSession, AttendanceStatus, AttendanceStudentEntry, ClassRoom, LearningAttitude, Student, Teacher } from '../../types';
 import type { TaskDestination } from '../dashboard/TodayTasks';
 import { ParentContactButton, ParentContactDialog } from './ParentContactDialog';
 import { canContactParent, retainContactHistory, splitAttendanceNote } from './parentContact';
 import type { ParentContactRequest } from './parentContact';
+import { canEditAttendanceClass, canViewAttendanceClass, isAttendanceManagementRole } from './access';
 
 import { UserAccount } from '../../types';
 const EMPTY_ENROLLMENTS: ClassEnrollment[] = [];
+type AttendanceDraftEntry = {
+  status: AttendanceStatus;
+  homeworkCompleted: boolean;
+  note: string;
+  homeworkAssignment: string;
+  rating: number;
+  learningAttitude: LearningAttitude | '';
+  sessionScore: number | '';
+};
+
+const DEFAULT_ENTRY: AttendanceDraftEntry = {
+  status: 'present',
+  homeworkCompleted: true,
+  note: '',
+  homeworkAssignment: '',
+  rating: 0,
+  learningAttitude: '',
+  sessionScore: '',
+};
+
+const LEARNING_ATTITUDES: Array<{ value: LearningAttitude; label: string }> = [
+  { value: 'excellent', label: 'Rất tích cực' },
+  { value: 'good', label: 'Tốt' },
+  { value: 'normal', label: 'Bình thường' },
+  { value: 'needs_focus', label: 'Cần tập trung' },
+  { value: 'needs_support', label: 'Cần hỗ trợ' },
+];
+
+const appendQuickNote = (current: string, quickNote: string) => {
+  const parts = current.split(',').map((part) => part.trim()).filter(Boolean);
+  if (!parts.some((part) => part.toLocaleLowerCase('vi-VN') === quickNote.toLocaleLowerCase('vi-VN'))) {
+    parts.push(quickNote);
+  }
+  return parts.join(', ');
+};
 
 interface AttendanceManagerProps {
   timetableSlots?: TimetableSlot[];
@@ -68,26 +102,29 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   currentUser,
   timetableSlots, scheduleChanges = [], enrollments = EMPTY_ENROLLMENTS, request, onRequestHandled
 }) => {
-  // Determine classes the current teacher/staff is permitted to access
+  // Chủ trung tâm, Hành chính và Đào tạo có phạm vi quản lý toàn trung tâm.
+  // Giáo viên chỉ thấy lớp được phân công; quyền sửa vẫn được kiểm tra riêng.
   const permittedClasses = useMemo(() => {
     if (isOwner) return classes;
     if (!currentUser) return [];
+    if (isAttendanceManagementRole(currentUser)) return classes.filter((classroom) => canViewAttendanceClass(currentUser, classroom));
 
-    const assignedIds = currentUser.permissions.assignedClassIds || [];
-    const teacherId = currentUser.permissions.teacherId;
-
-    const teacherProfile = teachers.find(
-      t => (teacherId && t.id === teacherId) || (currentUser.email && t.email && t.email.toLowerCase() === currentUser.email.toLowerCase())
+    const teacherProfile = teachers.find((teacher) =>
+      (currentUser.permissions.teacherId && teacher.id === currentUser.permissions.teacherId) ||
+      (currentUser.email && teacher.email && teacher.email.toLowerCase() === currentUser.email.toLowerCase()),
     );
-
-    return classes.filter(c => {
-      if (assignedIds.includes(c.id)) return true;
-      if (teacherProfile && (c.teacherId === teacherProfile.id || teacherProfile.assignedClassIds?.includes(c.id))) return true;
-      if (teacherId && c.teacherId === teacherId) return true;
-      return false;
-    });
+    const accountWithTeacherAssignments = teacherProfile
+      ? {
+          ...currentUser,
+          permissions: {
+            ...currentUser.permissions,
+            teacherId: currentUser.permissions.teacherId || teacherProfile.id,
+            assignedClassIds: [...new Set([...(currentUser.permissions.assignedClassIds || []), ...(teacherProfile.assignedClassIds || [])])],
+          },
+        }
+      : currentUser;
+    return classes.filter((classroom) => canViewAttendanceClass(accountWithTeacherAssignments, classroom));
   }, [classes, isOwner, currentUser, teachers]);
-  const canSave = isOwner || Boolean(currentUser?.permissions.student.edit || currentUser?.permissions.teacher.edit);
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => permittedClasses[0]?.id || '');
   const [sessionDate, setSessionDate] = useState<string>(
@@ -95,7 +132,6 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   );
   const [lessonTopic, setLessonTopic] = useState<string>('');
   const [generalNotes, setGeneralNotes] = useState<string>('');
-  const [showTopicNote, setShowTopicNote] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [applyOldSessionBilling, setApplyOldSessionBilling] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<AttendanceSession | null>(null);
@@ -114,6 +150,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     () => permittedClasses.find(c => c.id === selectedClassId),
     [permittedClasses, selectedClassId]
   );
+  const canSave = isOwner || canEditAttendanceClass(currentUser, selectedClass);
+  const hasManagementOverview = isOwner || isAttendanceManagementRole(currentUser);
 
   // Existing session for this class on this date if any
   const existingSession = useMemo(
@@ -156,9 +194,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   }, [request, permittedClasses, onRequestHandled]);
 
   // Working entries state
-  const [entries, setEntries] = useState<
-    Record<string, { status: AttendanceStatus; homeworkCompleted: boolean; note: string }>
-  >({});
+  const [entries, setEntries] = useState<Record<string, AttendanceDraftEntry>>({});
 
   // Sync entries when class or date changes
   React.useEffect(() => {
@@ -166,25 +202,33 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     if (existingSession) {
       setLessonTopic(existingSession.lessonTopic || '');
       setGeneralNotes(existingSession.generalNotes || '');
-      const map: Record<string, { status: AttendanceStatus; homeworkCompleted: boolean; note: string }> = {};
+      const map: Record<string, AttendanceDraftEntry> = {};
       classStudents.forEach(st => {
         const found = existingSession.entries.find(e => e.studentId === st.id);
         map[st.id] = {
           status: found?.status || 'present',
           homeworkCompleted: found?.homeworkCompleted ?? true,
-          note: found?.note || ''
+          note: found?.note || '',
+          homeworkAssignment: found?.homeworkAssignment || '',
+          rating: found?.rating || 0,
+          learningAttitude: found?.learningAttitude || '',
+          sessionScore: found?.sessionScore ?? '',
         };
       });
       setEntries(map);
     } else {
       setLessonTopic('');
       setGeneralNotes('');
-      const map: Record<string, { status: AttendanceStatus; homeworkCompleted: boolean; note: string }> = {};
+      const map: Record<string, AttendanceDraftEntry> = {};
       classStudents.forEach(st => {
         map[st.id] = {
           status: 'present',
           homeworkCompleted: true,
-          note: ''
+          note: '',
+          homeworkAssignment: '',
+          rating: 0,
+          learningAttitude: '',
+          sessionScore: '',
         };
       });
       setEntries(map);
@@ -221,13 +265,27 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     }));
   };
 
+  const updateEntry = (studentId: string, changes: Partial<AttendanceDraftEntry>) => {
+    setEntries((previous) => ({
+      ...previous,
+      [studentId]: { ...previous[studentId], ...changes },
+    }));
+  };
+
   const hasUnsavedChanges = !existingSession || applyOldSessionBilling ||
     (lessonTopic.trim() || 'Buổi học theo thời khóa biểu') !== (existingSession.lessonTopic || 'Buổi học theo thời khóa biểu') ||
     generalNotes.trim() !== (existingSession.generalNotes || '').trim() ||
     classStudents.some(student => {
       const draft = entries[student.id];
       const saved = existingSession.entries.find(entry => entry.studentId === student.id);
-      return !draft || !saved || draft.status !== saved.status || draft.homeworkCompleted !== (saved.homeworkCompleted ?? true) || draft.note !== (saved.note || '');
+      return !draft || !saved ||
+        draft.status !== saved.status ||
+        draft.homeworkCompleted !== (saved.homeworkCompleted ?? true) ||
+        draft.note !== (saved.note || '') ||
+        draft.homeworkAssignment !== (saved.homeworkAssignment || '') ||
+        draft.rating !== (saved.rating || 0) ||
+        draft.learningAttitude !== (saved.learningAttitude || '') ||
+        draft.sessionScore !== (saved.sessionScore ?? '');
     });
   const contactReason = !canContactParent(currentUser, selectedClass) ? 'Bạn không có quyền ghi nhận liên hệ cho lớp này.' :
     !isCalendarDate(sessionDate) || sessionDate > centerDate() ? 'Chỉ báo vắng cho buổi học đã diễn ra.' :
@@ -272,22 +330,32 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       teacherId: existingSession?.teacherId || datedLesson?.teacherId || selectedClass?.teacherId,
       billing: snapshotForSession(selectedClass, sessionDate, applyOldSessionBilling ? undefined : existingSession),
       generalNotes: generalNotes.trim(),
-      entries: [...(existingSession?.entries || []).filter(entry => !classStudents.some(st => st.id === entry.studentId)), ...classStudents.map(st => ({
-        studentId: st.id,
-        status: entries[st.id]?.status || 'present',
-        homeworkCompleted: entries[st.id]?.homeworkCompleted ?? true,
-        note: entries[st.id]?.note || ''
-      }))]
+      entries: [
+        ...(existingSession?.entries || []).filter(entry => !classStudents.some(st => st.id === entry.studentId)),
+        ...classStudents.map((st): AttendanceStudentEntry => {
+          const draft = entries[st.id];
+          return {
+            studentId: st.id,
+            status: draft?.status || 'present',
+            homeworkCompleted: draft?.homeworkCompleted ?? true,
+            note: draft?.note || '',
+            homeworkAssignment: draft?.homeworkAssignment?.trim() || undefined,
+            rating: draft?.rating ? draft.rating : undefined,
+            learningAttitude: draft?.learningAttitude ? draft.learningAttitude : undefined,
+            sessionScore: typeof draft?.sessionScore === 'number' ? draft.sessionScore : undefined,
+          };
+        }),
+      ],
     };
 
     if (onSaveSession(sessionData) === false) return;
-    setStatusMessage('✅ Đã lưu kết quả điểm danh thành công!');
+    setStatusMessage(existingSession ? '✅ Đã cập nhật điểm danh và nhận xét thành công!' : '✅ Đã lưu kết quả điểm danh thành công!');
     setTimeout(() => setStatusMessage(null), 3500);
   };
 
   // Stats
   const totalStudents = classStudents.length;
-  const entriesList = Object.values(entries) as Array<{ status: AttendanceStatus; homeworkCompleted: boolean; note: string }>;
+  const entriesList = Object.values(entries);
   const presentCount = entriesList.filter(e => e.status === 'present').length;
   const lateCount = entriesList.filter(e => e.status === 'late').length;
   const excusedCount = entriesList.filter(e => e.status === 'excused').length;
@@ -334,7 +402,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           </div>
         </div>
 
-        {/* Quick Class Summary & Topic Toggle */}
+        {/* Quick Class Summary */}
         {selectedClass && (
           <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] sm:text-xs">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-600">
@@ -348,44 +416,47 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                 Lịch: <strong className="text-slate-700 font-semibold">{selectedClass.scheduleTime || 'N/A'}</strong>
               </span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowTopicNote(prev => !prev)}
-              className="text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200/80 transition flex items-center gap-1 active:scale-95"
-            >
-              <FileText className="w-3.5 h-3.5 text-amber-700" />
-              <span>{showTopicNote ? 'Thu gọn bài học & ghi chú' : (lessonTopic || generalNotes ? '✏️ Đã có chủ đề/ghi chú' : '+ Chủ đề bài học & ghi chú')}</span>
-              {showTopicNote ? <ChevronUp className="w-3.5 h-3.5 text-amber-700" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-700" />}
-            </button>
+            {hasManagementOverview && (
+              <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-800">
+                Tổng quan quản lý: {permittedClasses.length} lớp · {teachers.length} giáo viên
+              </span>
+            )}
           </div>
         )}
 
-        {/* Topic & Notes Panel */}
-        {showTopicNote && (
-          <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-200 animate-in fade-in duration-200">
+        {/* Topic & Notes Panel — luôn mở để giáo viên không bỏ sót nội dung cuối buổi. */}
+        {selectedClass && (
+          <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/70 p-3 sm:p-4 rounded-xl border border-slate-200">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label htmlFor="attendance-lesson-topic" className="block text-[11px] font-bold text-slate-700 mb-1">
                 Chủ đề bài học / Giáo trình hôm nay:
               </label>
-              <input
-                type="text"
+              <textarea
+                id="attendance-lesson-topic"
+                aria-label="Chủ đề bài học / Giáo trình hôm nay"
+                rows={3}
+                maxLength={1000}
+                disabled={!canSave}
                 placeholder="VD: Unit 4: Speaking Practice & Flashcards..."
                 value={lessonTopic}
                 onChange={e => setLessonTopic(e.target.value)}
-                className="w-full text-xs font-medium px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                className="w-full resize-y text-xs font-medium px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden disabled:bg-slate-100"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                Ghi chú chung cả lớp:
+              <label htmlFor="attendance-general-notes" className="block text-[11px] font-bold text-slate-700 mb-1">
+                Nội dung dặn dò / BTVN chung cả lớp:
               </label>
-              <input
-                type="text"
-                placeholder="VD: Lớp học sôi nổi, các con tiếp thu tốt..."
+              <textarea
+                id="attendance-general-notes"
+                aria-label="Nội dung dặn dò / BTVN chung cả lớp"
+                rows={3}
+                maxLength={3000}
+                disabled={!canSave}
+                placeholder="VD: Ôn Unit 4, làm Workbook trang 18–19, chuẩn bị bài nói tuần sau..."
                 value={generalNotes}
                 onChange={e => setGeneralNotes(e.target.value)}
-                className="w-full text-xs font-medium px-3 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                className="w-full resize-y text-xs font-medium px-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden disabled:bg-slate-100"
               />
             </div>
           </div>
@@ -446,8 +517,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           <button
             type="button"
             onClick={handleMarkAllPresent}
-            disabled={classStudents.length === 0}
-            className={`flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs ${classStudents.length === 0 ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-100 active:scale-95 cursor-pointer"}`}
+            disabled={!canSave || classStudents.length === 0}
+            className={`flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition shadow-2xs ${!canSave || classStudents.length === 0 ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-100 active:scale-95 cursor-pointer"}`}
           >
             <CheckCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Tất Cả Có Mặt</span>
@@ -488,11 +559,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             type="button"
             onClick={handleSave}
             disabled={!canSave || !selectedClass || classStudents.length === 0}
+            aria-label={existingSession ? 'Lưu Điểm Danh & Nhận Xét Đã Sửa' : 'Lưu Điểm Danh & Nhận Xét'}
             title={classStudents.length === 0 ? "Lớp học chưa có học viên để điểm danh" : undefined}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="w-4 h-4 shrink-0" />
-            <span>Lưu Điểm Danh</span>
+            <span>{existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét' : 'Lưu Điểm Danh & Nhận Xét'}</span>
           </button>
         </div>
       </div>
@@ -509,13 +581,9 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               Lớp này hiện chưa có học viên nào.
             </div>
           ) : (
-            <div className="grid grid-cols-1 @min-[640px]:grid-cols-2 @min-[1050px]:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 gap-4 ${classStudents.length === 1 ? 'mx-auto w-full max-w-5xl' : classStudents.length === 2 ? 'mx-auto w-full max-w-6xl sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
               {classStudents.map((st, index) => {
-                const entry = entries[st.id] || {
-                  status: 'present',
-                  homeworkCompleted: true,
-                  note: ''
-                };
+                const entry = entries[st.id] || DEFAULT_ENTRY;
 
                 const quickNotes = ['Phát biểu tốt', 'Ngoan, chú ý', 'Cần tập trung', 'Quên làm BTVN', 'Tiến bộ rõ'];
 
@@ -551,6 +619,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       <label className="flex items-center gap-1.5 cursor-pointer shrink-0 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
                         <input
                           type="checkbox"
+                          disabled={!canSave}
                           checked={entry.homeworkCompleted}
                           onChange={e => handleHomeworkChange(st.id, e.target.checked)}
                           className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
@@ -565,6 +634,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                     <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl">
                       <button
                         type="button"
+                        disabled={!canSave}
                         onClick={() => handleStatusChange(st.id, 'present')}
                         className={`py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
                           entry.status === 'present'
@@ -577,6 +647,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       </button>
                       <button
                         type="button"
+                        disabled={!canSave}
                         onClick={() => handleStatusChange(st.id, 'late')}
                         className={`py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
                           entry.status === 'late'
@@ -589,6 +660,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       </button>
                       <button
                         type="button"
+                        disabled={!canSave}
                         onClick={() => handleStatusChange(st.id, 'excused')}
                         className={`py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
                           entry.status === 'excused'
@@ -601,6 +673,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       </button>
                       <button
                         type="button"
+                        disabled={!canSave}
                         onClick={() => handleStatusChange(st.id, 'absent')}
                         className={`py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
                           entry.status === 'absent'
@@ -671,11 +744,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                   </tr>
                 ) : (
                   classStudents.map((st, index) => {
-                    const entry = entries[st.id] || {
-                      status: 'present',
-                      homeworkCompleted: true,
-                      note: ''
-                    };
+                    const entry = entries[st.id] || DEFAULT_ENTRY;
 
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 transition-colors">

@@ -58,7 +58,7 @@ export function writeSummarySheet(context: ExportContext) {
       'HỌC PHÍ + thu trực tiếp HỌC SINH',
     ],
     [
-      'Tổng công nợ',
+      'Tổng còn lại',
       {
         formula: withWorksheetLink(
           "#'HỌC SINH'!A5",
@@ -66,9 +66,9 @@ export function writeSummarySheet(context: ExportContext) {
         ),
       },
       'VNĐ',
-      'Phiếu thu + buổi chưa lập phiếu + nợ trực tiếp',
+      'Phiếu thu + buổi chưa lập phiếu + số tiền còn lại nhập trực tiếp',
     ],
-    ['Tỷ lệ thu', { formula: 'IFERROR(B8/(B8+B9),0)' }, '%', 'Đã thu / (đã thu + công nợ)'],
+    ['Tỷ lệ thu', { formula: 'IFERROR(B8/(B8+B9),0)' }, '%', 'Đã thu / (đã thu + còn lại)'],
   ];
   const kpiSourceLinks = ["#'HỌC SINH'!A1", "#'HỌC SINH'!A5", "#'HỌC SINH'!A5", undefined];
   kpis.forEach((values, index) => {
@@ -108,7 +108,7 @@ export function writeSummarySheet(context: ExportContext) {
     'Sĩ số',
     ...months.map((month) => `Tháng ${month.slice(5)}/${month.slice(0, 4)}`),
     'Tổng đã thu',
-    'Công nợ',
+    'Còn lại',
   ];
   summary.getRow(monthlyHeaderRow).values = monthlyHeaders;
   styleHeader(summary.getRow(monthlyHeaderRow));

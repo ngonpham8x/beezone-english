@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { DialogFrame } from '../../components/DialogFrame';
 import { isLocalPreview } from '../../lib/supabase';
+import { accountRoleLabel } from '../../lib/accountRoles';
 import type { UserAccount } from '../../types';
 
 interface LoginModalProps {
@@ -33,7 +34,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, current
         <button onClick={onClose} aria-label="Đóng" className="absolute right-3 top-3 rounded-lg p-2 text-slate-500"><X className="h-5 w-5" /></button>
         <h2 className="break-words pr-8 text-lg font-bold">{displayName}</h2>
         {displayEmail && <p className="mt-1 break-all text-sm text-slate-500">{displayEmail}</p>}
-        <p className="mt-3 flex items-center gap-2 text-sm text-amber-800"><ShieldCheck className="h-4 w-4" />{currentUser.role === 'owner' ? 'Chủ trung tâm' : 'Nhân viên / Giáo viên'}</p>
+        <p className="mt-3 flex items-center gap-2 text-sm text-amber-800"><ShieldCheck className="h-4 w-4" />{accountRoleLabel(currentUser.role)}</p>
         {currentUser.role === 'owner' && onManageAccounts && <button onClick={() => { onClose(); onManageAccounts(); }} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900"><ShieldCheck className="h-4 w-4" />Quản lý tài khoản và phân quyền</button>}
         {isLocalPreview ? (
           <button onClick={() => { onSwitchRole?.(currentUser.role === 'owner' ? 'teacher' : 'owner'); onClose(); }} className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-50 p-3 text-sm font-bold"><ArrowLeftRight className="h-4 w-4" />Chuyển vai trò xem thử</button>

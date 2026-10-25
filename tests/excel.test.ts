@@ -31,15 +31,22 @@ describe('Excel export/import', () => {
     const student = {...initial.initialStudents[0],classId:classroom.id};
     const sessions:AttendanceSession[] = ['2020-01-02','2020-01-03','2020-01-04'].map((date,index)=>({id:`a${index}`,classId:classroom.id,date,lessonTopic:'Speaking',generalNotes:'Test note',billing:{unitPrice:150000,absencePolicy:'attended'},entries:[{studentId:student.id,status:index===2?'excused':'late',homeworkCompleted:true,note:'Homework checked'}]}));
     sessions[2].entries[0].note = appendParentContact('Homework checked', 'Zalo', 'Parent confirmed', 'Test teacher', new Date('2020-01-04T12:00:00Z'));
-    const receipt:TuitionReceipt={id:'r',code:'PT-2020-0001',studentId:student.id,classId:classroom.id,paymentKind:'session',courseFee:0,monthlyFee:0,sessionFee:150000,sessionLines:[{attendanceSessionId:'a0',date:'2020-01-02',unitPrice:150000}],paidAmount:60000,debtAmount:80000,discount:10000,paymentDate:'2020-01-10',collectorName:'Owner',paymentMethod:'Tiền mặt',status:'partial',installments:[{id:'i1',date:'2020-01-05',amount:40000},{id:'i2',date:'2020-01-10',amount:20000}]};
+    const receipt:TuitionReceipt={id:'r',code:'PT-2020-0001',invoiceNo:'00126',bookNo:'03',invoiceBook:'00126 / 03',studentId:student.id,classId:classroom.id,paymentKind:'session',courseFee:0,monthlyFee:0,sessionFee:150000,sessionLines:[{attendanceSessionId:'a0',date:'2020-01-02',unitPrice:150000}],paidAmount:60000,debtAmount:80000,discount:10000,paymentDate:'2020-01-10',collectorName:'Owner',paymentMethod:'Tiền mặt',status:'partial',installments:[{id:'i1',date:'2020-01-05',amount:40000,invoiceNo:'00125',bookNo:'03',invoiceBook:'00125 / 03'},{id:'i2',date:'2020-01-10',amount:20000,invoiceNo:'00126',bookNo:'03',invoiceBook:'00126 / 03'}]};
     const blob=await generateMasterExcelWorkbook({centerName:'Test',programs:initial.initialPrograms,students:[student],classes:[classroom],teachers:initial.initialTeachers,rooms:initial.initialRooms,grades:[],receipts:[receipt],attendanceSessions:sessions});
     const book=new ExcelJS.Workbook(); await book.xlsx.load(await blob.arrayBuffer());
     expect(book.getWorksheet('BUỔI CHƯA THU')!.getCell('G2').value).toBe(150000);
     expect(book.getWorksheet('BUỔI CHƯA THU')!.rowCount).toBe(2);
     expect((book.getWorksheet('TỔNG QUAN')!.getCell('B9').value as any).formula).toContain('BUỔI CHƯA THU');
+    expect(book.getWorksheet('HỌC PHÍ')!.getCell('X6').value).toBe('00125');
+    expect(book.getWorksheet('HỌC PHÍ')!.getCell('Z7').value).toBe('00126 / 03');
     const result=await parseCenterWorkbookFile(new File([await blob.arrayBuffer()],'session.xlsx'));
     expect(result.errors).toEqual([]);expect(result.data!.receipts).toHaveLength(1);
     expect(result.data!.receipts[0]).toMatchObject({paymentKind:'session',sessionFee:150000,paidAmount:60000,debtAmount:80000,discount:10000,sessionLines:receipt.sessionLines});
+    expect(result.data!.receipts[0]).toMatchObject({invoiceNo:'00126',bookNo:'03',invoiceBook:'00126 / 03'});
+    expect(result.data!.receipts[0].installments).toEqual([
+      expect.objectContaining({ invoiceNo: '00125', bookNo: '03', invoiceBook: '00125 / 03' }),
+      expect.objectContaining({ invoiceNo: '00126', bookNo: '03', invoiceBook: '00126 / 03' }),
+    ]);
     expect(result.data!.attendanceSessions!.map(a=>a.entries[0].status)).toEqual(['late','late','excused']);
     expect(result.data!.attendanceSessions![2].entries[0].note).toBe(sessions[2].entries[0].note);
     expect(result.data!.classes[0]).toMatchObject({billingMode:'session',sessionRate:200000,sessionAbsencePolicy:'attended',sessionBillingStartDate:'2020-01-01'});

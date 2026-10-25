@@ -91,8 +91,8 @@ it('counts active unpaid students in debt metrics even when no receipts exist', 
     />
   );
 
-  fireEvent.click(screen.getByRole('button', { name: /Học sinh nợ phí/i }));
-  expect(screen.getByText('Học sinh còn nợ học phí')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /Học sinh chưa hoàn thành/i }));
+  expect(screen.getByText('Học sinh chưa hoàn thành học phí')).toBeTruthy();
   expect(screen.getAllByText('Học sinh chưa đóng').length).toBeGreaterThanOrEqual(1);
-  expect(screen.getByText('Chưa đóng')).toBeTruthy();
+  expect(screen.getAllByText('Chưa hoàn thành').length).toBeGreaterThanOrEqual(1);
 });

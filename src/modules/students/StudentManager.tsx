@@ -38,9 +38,11 @@ import { centerDate, isCalendarDate } from '../../lib/dates';
 import { matchesSearch as matchesSearchText } from '../../lib/search';
 import { isStudentOwingTuition, studentTuitionDebtBreakdown } from '../../lib/tuition';
 import {
+  AttendanceSession,
   ClassEnrollment,
   ClassRoom,
   CourseProgram,
+  Grade,
   Room,
   StaffPermissions,
   Student,
@@ -62,6 +64,8 @@ interface StudentManagerProps {
   timetableSlots: TimetableSlot[];
   teachers?: Teacher[];
   rooms?: Room[];
+  grades?: Grade[];
+  attendanceSessions?: AttendanceSession[];
   permissions: StaffPermissions;
   isOwner: boolean;
   searchQuery: string;
@@ -86,6 +90,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   timetableSlots,
   teachers = [],
   rooms = [],
+  grades = [],
+  attendanceSessions = [],
   permissions,
   isOwner,
   searchQuery,
@@ -609,7 +615,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} />
         <StatCard label="Đang theo học" value={students.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
         <StatCard label="Đang bảo lưu" value={students.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
-        <StatCard label="Còn nợ học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
+        <StatCard label="Chưa hoàn thành học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
       </div>
 
       {/* Filters & View Mode Bar */}
@@ -996,7 +1002,21 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         </div>
       )}
 
-      {viewingStudent && <StudentProfileDialog student={viewingStudent} programs={programs} classes={classes} teachers={teachers} rooms={rooms} timetableSlots={timetableSlots} receipts={receipts} enrollments={enrollments} onClose={() => setViewingStudent(null)} />}
+      {viewingStudent && (
+        <StudentProfileDialog
+          student={viewingStudent}
+          programs={programs}
+          classes={classes}
+          teachers={teachers}
+          rooms={rooms}
+          timetableSlots={timetableSlots}
+          receipts={receipts}
+          enrollments={enrollments}
+          grades={grades}
+          attendanceSessions={attendanceSessions}
+          onClose={() => setViewingStudent(null)}
+        />
+      )}
 
       {/* ADD / EDIT STUDENT MODAL */}
       {isModalOpen && editingStudent && (
@@ -1580,12 +1600,12 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     disabled
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 font-semibold disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
-                    <option value="paid" className="text-emerald-700 font-bold">🟢 Đã đóng đủ</option>
+                    <option value="paid" className="text-emerald-700 font-bold">🟢 Đã hoàn thành</option>
                     <option value="unpaid" className="text-red-700 font-bold">🔴 Chưa đóng học phí</option>
-                    <option value="debt" className="text-amber-700 font-bold">🟡 Đóng thiếu</option>
-                    <option value="partial" className="text-blue-700 font-bold">🔵 Đóng thiếu</option>
+                    <option value="debt" className="text-amber-700 font-bold">🟡 Chưa hoàn thành</option>
+                    <option value="partial" className="text-blue-700 font-bold">🔵 Chưa hoàn thành</option>
                   </select>
-                  <p className="mt-1 text-[10px] text-slate-500">Tự tính từ phiếu thu; không sửa tay để tránh sai doanh thu hoặc công nợ.</p>
+                  <p className="mt-1 text-[10px] text-slate-500">Tự tính từ phiếu thu; không sửa tay để tránh sai doanh thu hoặc số tiền còn lại.</p>
                   <button
                     type="button"
                     onClick={() => { setIsModalOpen(false); setEditingStudent(null); onOpenTuition(); }}

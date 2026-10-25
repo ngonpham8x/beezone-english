@@ -268,7 +268,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-slate-700">
               <div className="font-bold text-slate-900 text-sm">Cấu trúc Workbook ExcelJS Xuất Ra:</div>
               <ul className="list-disc list-inside space-y-1 text-slate-600">
-                <li><strong>TỔNG QUAN:</strong> Bấm vào tổng thu, công nợ hoặc số tiền từng tháng để mở đúng lớp/sổ thu liên quan.</li>
+                <li><strong>TỔNG QUAN:</strong> Bấm vào tổng thu, số tiền còn lại hoặc số tiền từng tháng để mở đúng lớp/sổ thu liên quan.</li>
                 <li><strong>Sheet Lớp &amp; Học sinh:</strong> Có tổng tiền theo tháng, tổng từng học sinh và liên kết đến phiếu thu gốc; công thức `SUMIFS` tự mở rộng khi thêm dòng.</li>
               </ul>
             </div>

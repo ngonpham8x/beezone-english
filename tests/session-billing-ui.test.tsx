@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SessionTuitionManager } from '../src/modules/tuition/SessionTuitionManager';
 import { AttendanceManager } from '../src/modules/attendance/AttendanceManager';
 import { TuitionManager } from '../src/modules/tuition/TuitionManager';
+import { ReceiptPreview } from '../src/modules/tuition/ReceiptPreview';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import { withUnbilledSessionReceipts } from '../src/lib/sessionBilling';
 import * as initial from '../src/mock/initialData';
@@ -212,7 +213,7 @@ it('opens payment reminders from the compact section without losing receipt edit
       onDeleteReceipt={vi.fn()}
     />,
   );
-  const summary = screen.getByText(/Nhắc hạn thanh toán · 1 phiếu còn nợ/);
+  const summary = screen.getByText(/Nhắc hạn thanh toán · 1 phiếu chưa hoàn thành/);
   const section = summary.closest('details')!;
   expect(section.open).toBe(false);
   fireEvent.click(summary);
@@ -260,6 +261,100 @@ it('displays active unpaid students in TuitionManager with quick collect button'
 
   expect(screen.getByText('Lập Phiếu Thu Học Phí')).toBeTruthy();
   expect(screen.getByDisplayValue(/Trương Gia Bảo/)).toBeTruthy();
+});
+
+it('defaults a new receipt to course tuition and stores SHĐ/Quyển', () => {
+  const program = { ...initial.initialPrograms[0], id: 'program-monthly', tuitionFee: 5_400_000 };
+  const monthlyClass = {
+    ...initial.initialClasses[0],
+    id: 'class-monthly',
+    programId: program.id,
+    billingMode: 'monthly' as const,
+  };
+  const learner = {
+    ...initial.initialStudents[0],
+    id: 'student-monthly',
+    classId: monthlyClass.id,
+    programId: program.id,
+    feeStatus: 'unpaid' as const,
+  };
+  const onAddReceipt = vi.fn();
+  render(
+    <TuitionManager
+      receipts={[]}
+      attendanceSessions={[]}
+      students={[learner]}
+      classes={[monthlyClass]}
+      programs={[program]}
+      settings={initial.initialSettings}
+      permissions={DEV_OWNER_ACCOUNT.permissions}
+      isOwner
+      onAddReceipt={onAddReceipt}
+      onUpdateReceipt={vi.fn()}
+      onDeleteReceipt={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Thu học phí' }));
+  expect((screen.getByLabelText('Khoản Thu') as HTMLSelectElement).value).toBe('course');
+  expect((screen.getByLabelText('Học Phí Khóa (VNĐ)') as HTMLInputElement).value).toBe('5400000');
+  fireEvent.change(screen.getByLabelText('Số Hóa Đơn (SHĐ)'), { target: { value: '00125' } });
+  fireEvent.change(screen.getByLabelText('Quyển Số'), { target: { value: '03' } });
+  fireEvent.click(screen.getByRole('button', { name: /Hoàn Thành Lập Phiếu/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Có, hoàn thành' }));
+
+  expect(onAddReceipt).toHaveBeenCalledWith(expect.objectContaining({
+    paymentKind: 'course',
+    courseFee: 5_400_000,
+    invoiceNo: '00125',
+    bookNo: '03',
+    invoiceBook: '00125 / 03',
+    installments: [expect.objectContaining({ invoiceNo: '00125', bookNo: '03' })],
+  }));
+});
+
+it('always shows the remaining amount and each installment SHĐ/Quyển on the receipt', () => {
+  const courseClass = { ...initial.initialClasses[0], id: 'course-receipt', billingMode: 'course' as const };
+  const learner = { ...initial.initialStudents[0], id: 'receipt-student', classId: courseClass.id };
+  const receipt: TuitionReceipt = {
+    id: 'receipt-complete',
+    code: 'PT-2026-0100',
+    invoiceNo: '00126',
+    bookNo: '03',
+    invoiceBook: '00126 / 03',
+    studentId: learner.id,
+    classId: courseClass.id,
+    courseFee: 5_400_000,
+    paymentKind: 'course',
+    billingPeriod: 'Khóa 2026',
+    discount: 0,
+    paidAmount: 5_400_000,
+    debtAmount: 0,
+    status: 'paid',
+    paymentDate: '2026-10-13',
+    collectorName: 'Chủ trung tâm',
+    paymentMethod: 'Tiền mặt',
+    installments: [
+      { id: 'i1', date: '2026-10-01', amount: 2_000_000, invoiceNo: '00125', bookNo: '03' },
+      { id: 'i2', date: '2026-10-13', amount: 3_400_000, invoiceNo: '00126', bookNo: '03' },
+    ],
+  };
+  render(
+    <ReceiptPreview
+      receipt={receipt}
+      settings={initial.initialSettings}
+      students={[learner]}
+      classes={[courseClass]}
+      onClose={vi.fn()}
+      onCollectInstallment={vi.fn()}
+    />,
+  );
+
+  const dialog = screen.getByRole('dialog', { name: 'In phiếu thu' });
+  expect(within(dialog).getByText(/Số tiền còn lại:/)).toBeTruthy();
+  expect(within(dialog).getByText('Đã hoàn thành')).toBeTruthy();
+  expect(within(dialog).getAllByText(/SHĐ\/Quyển: 0012[56] \/ 03/)).toHaveLength(3);
+  expect((document.querySelector('[data-print-receipt]') as HTMLElement).style.fontSize).toBe('13pt');
 });
 
 it('lists both classes in tuition debt and opens collection for the unpaid second class', () => {

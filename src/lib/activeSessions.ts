@@ -1,5 +1,6 @@
 import { reportError } from './diagnostics';
 import { UserAccount, UserRole } from '../types';
+import { normalizeAccountRole } from './accountRoles';
 
 export interface ActiveSession {
   id: string;
@@ -22,14 +23,15 @@ export function getActiveSessions(): ActiveSession[] {
     
     // Filter valid sessions with valid email/id, active within 48h
     const now = Date.now();
-    return list.filter((s): s is ActiveSession => {
+    return list.flatMap((s): ActiveSession[] => {
+      const role = normalizeAccountRole(s?.role);
       return Boolean(
         s &&
         typeof s === 'object' &&
         (s.email || s.name) &&
-        s.role &&
+        role &&
         (!s.lastActive || now - s.lastActive < 48 * 60 * 60 * 1000)
-      );
+      ) ? [{ ...s, role }] : [];
     });
   } catch {
     return [];
@@ -54,7 +56,7 @@ export function registerActiveSession(user: UserAccount): void {
       name: cleanName,
       email: cleanEmail,
       avatar: user.avatar || '',
-      role: user.role || 'staff',
+      role: normalizeAccountRole(user.role) || 'teacher',
       loginTime: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       lastActive: Date.now(),
     };

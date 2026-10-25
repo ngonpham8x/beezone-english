@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { accountRoleLabel, normalizeAccountRole } from '../../lib/accountRoles';
 import type { Teacher, UserAccount } from '../../types';
 import type {
   Branch,
@@ -71,6 +72,10 @@ export const validEmail = (email: string | null | undefined) =>
 
 export function mapUserToWorkRole(user: UserAccount): WorkRole {
   if (user.role === 'owner') return 'manager';
+  if (user.role === 'admin') return 'admin';
+  if (user.role === 'trainer') return 'trainer';
+  if (user.role === 'teacher') return 'teacher';
+  // Legacy `staff` sessions did not carry a department, so retain the old inference.
   if (user.permissions.teacherId || (user.permissions.assignedClassIds && user.permissions.assignedClassIds.length > 0)) {
     return 'teacher';
   }
@@ -102,7 +107,7 @@ export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
     user_id: 'acc-daotao',
     display_name: 'BeeZone Đào Tạo',
     email: 'phongdaotao.beezone@gmail.com',
-    department: 'Nhân viên',
+    department: 'Đào tạo',
     branch: 'training',
     role: 'trainer',
     active: true,
@@ -129,7 +134,7 @@ export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
     user_id: 'acc-bichnhu',
     display_name: 'Nguyễn Bích Như',
     email: 'nhu.beezone@gmail.com',
-    department: 'Nhân viên',
+    department: 'Hành chính',
     branch: 'admin',
     role: 'admin',
     active: true,
@@ -138,7 +143,7 @@ export const DEFAULT_AUTHORIZED_ACCOUNTS: WorkPerson[] = [
     user_id: 'acc-bichtuyen',
     display_name: 'Cao Dương Bích Tuyền',
     email: 'vgen8642@gmail.com',
-    department: 'Nhân viên',
+    department: 'Hành chính',
     branch: 'admin',
     role: 'admin',
     active: true,
@@ -156,16 +161,15 @@ export function loadCachedManagedUsers(): WorkPerson[] {
         return parsed
           .filter((u) => u && typeof u.email === 'string' && u.email && !isHiddenWorkEmail(u.email) && u.is_active !== false)
           .map((u) => {
-            const isOwner = u.role === 'owner';
-            const isHanhChinh = u.email?.trim().toLowerCase() === 'phonghanhchinh.beezone@gmail.com';
-            const dept = isOwner ? 'Chủ trung tâm' : isHanhChinh ? 'Hành chính' : 'Nhân viên';
+            const accountRole = normalizeAccountRole(u.role) || 'teacher';
+            const workRole: WorkRole = accountRole === 'owner' ? 'manager' : accountRole;
             return {
               user_id: u.id || `acc-${u.email}`,
               display_name: u.full_name || u.name || u.email || 'Nhân sự BeeZone',
               email: u.email,
-              department: dept,
-              branch: 'admin' as Branch,
-              role: (isOwner ? 'manager' : 'admin') as WorkRole,
+              department: accountRoleLabel(accountRole),
+              branch: (workRole === 'trainer' || workRole === 'teacher' ? 'training' : 'admin') as Branch,
+              role: workRole,
               active: u.is_active ?? true,
               teacherId: u.permissions?.teacherId,
             };

@@ -3,6 +3,7 @@ import { DRAWER_QUERY, useMediaQuery } from '../hooks/useResponsive';
 import { UserAccount, CenterSettings } from '../types';
 import { Logo } from './Logo';
 import { useLanguage } from '../context/LanguageContext';
+import { accountRoleLabel } from '../lib/accountRoles';
 import {
   ChevronDown,
   Search,
@@ -166,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenUserManagement}
               className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-amber-300 transition-colors hidden lg:flex shadow-2xs active:scale-95"
-              title="Cấp quyền quản lý cho nhân viên trung tâm"
+              title="Cấp quyền quản lý cho tài khoản trung tâm"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
               <span>{t('permissions')}</span>
@@ -192,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {currentUser.name.replace(/\s*\(Quản [L|l]ý\)/gi, '')}
                 </div>
                 <div className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
-                  <span>{currentUser.role === 'owner' ? t('owner') : t('staff')}</span>
+                  <span>{accountRoleLabel(currentUser.role)}</span>
                 </div>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors" />

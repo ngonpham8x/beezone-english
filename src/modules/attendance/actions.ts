@@ -14,6 +14,7 @@ import {
   splitAttendanceNote,
 } from './parentContact';
 import type { ParentContactRequest } from './parentContact';
+import { canEditAttendanceClass } from './access';
 
 type Context = Pick<
   CenterStore,
@@ -33,11 +34,17 @@ export function createAttendanceActions({
 }: Context) {
   // Attendance Handler
   const handleSaveAttendanceSession = (sessionData: AttendanceSession) => {
+    const classroom = classes.find((item) => item.id === sessionData.classId);
+    if (!canEditAttendanceClass(currentUser, classroom)) {
+      showAlert('Bạn không có quyền sửa điểm danh hoặc nhận xét của lớp này.');
+      return false;
+    }
     const issue = validateBilledAttendanceEdit(sessionData, receipts);
     if (issue) {
       showAlert(issue);
       return false;
     }
+    const isUpdate = attendanceSessions.some((session) => session.id === sessionData.id);
     setAttendanceSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === sessionData.id);
       if (idx >= 0) {
@@ -64,8 +71,8 @@ export function createAttendanceActions({
       }
       return [sessionData, ...prev];
     });
-    addLog('THÊM', 'Điểm danh', `Điểm danh buổi học ngày ${sessionData.date} lớp ${classes.find((c) => c.id === sessionData.classId)?.name || sessionData.classId}`);
-    toast.success('Đã lưu dữ liệu điểm danh thành công!');
+    addLog(isUpdate ? 'SỬA' : 'THÊM', 'Điểm danh', `${isUpdate ? 'Cập nhật' : 'Điểm danh'} buổi học ngày ${sessionData.date} lớp ${classroom?.name || sessionData.classId}`);
+    toast.success(isUpdate ? 'Đã cập nhật điểm danh và nhận xét thành công!' : 'Đã lưu dữ liệu điểm danh thành công!');
     return true;
   };
 
@@ -77,10 +84,10 @@ export function createAttendanceActions({
     if (!session || !isCalendarDate(session.date) || session.date > centerDate())
       return 'Chỉ liên hệ cho buổi học đã diễn ra và đã lưu điểm danh.';
     const student = students.find((item) => item.id === request.studentId);
-    if (
-      !student ||
-      session.entries.find((entry) => entry.studentId === request.studentId)?.status !== 'absent'
-    )
+    const entry = session.entries.find((e) => e.studentId === request.studentId);
+    if (!student || !entry)
+      return 'Học viên không có trong danh sách buổi học này.';
+    if (request.type !== 'review' && entry.status !== 'absent')
       return 'Học viên không còn được ghi nhận vắng trong buổi này. Kiểm tra lại điểm danh.';
     if (
       !CONTACT_CHANNELS.includes(request.channel) ||
@@ -94,19 +101,19 @@ export function createAttendanceActions({
         item.id === session.id
           ? {
               ...item,
-              entries: item.entries.map((entry) =>
-                entry.studentId === student.id
+              entries: item.entries.map((itemEntry) =>
+                itemEntry.studentId === student.id
                   ? {
-                      ...entry,
+                      ...itemEntry,
                       note: appendParentContact(
-                        entry.note || '',
+                        itemEntry.note || '',
                         request.channel,
                         request.details,
                         currentUser!.name,
                         now,
                       ),
                     }
-                  : entry,
+                  : itemEntry,
               ),
             }
           : item,

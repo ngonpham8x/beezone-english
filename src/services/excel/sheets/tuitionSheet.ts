@@ -26,8 +26,8 @@ export function writeTuitionSheet(context: ExportContext) {
     studentSheetRowById,
   } = context;
   const tuitionSheet = workbook.addWorksheet('HỌC PHÍ');
-  styleTitle(tuitionSheet, 'A1:U2', `${data.centerName.toUpperCase()}\nSỔ THU HỌC PHÍ`);
-  applyBackLink(tuitionSheet, 'U');
+  styleTitle(tuitionSheet, 'A1:Z2', `${data.centerName.toUpperCase()}\nSỔ THU HỌC PHÍ`);
+  applyBackLink(tuitionSheet, 'Z');
   const tuitionHeaders = [
     'STT',
     'Mã phiếu',
@@ -41,7 +41,7 @@ export function writeTuitionSheet(context: ExportContext) {
     'Kỳ học phí',
     'Giảm giá (VNĐ)',
     'Đã thu (VNĐ)',
-    'Công nợ (VNĐ)',
+    'Còn lại (VNĐ)',
     'Tình trạng',
     'Ngày thu',
     'Hình thức',
@@ -52,6 +52,9 @@ export function writeTuitionSheet(context: ExportContext) {
     'Hạn thanh toán',
     'Học phí buổi (VNĐ)',
     'Chi tiết buổi JSON',
+    'Số hóa đơn (SHĐ)',
+    'Quyển số',
+    'SHĐ/Quyển',
   ];
   tuitionSheet.getRow(5).values = tuitionHeaders;
   styleHeader(tuitionSheet.getRow(5));
@@ -74,7 +77,7 @@ export function writeTuitionSheet(context: ExportContext) {
     const systemIdFormula = `IF($D${rowNumber}="","",IFERROR(INDEX('HỌC SINH'!$W$${STUDENT_DATA_START_ROW}:$W$${STUDENT_DYNAMIC_LAST_ROW},MATCH($D${rowNumber},'HỌC SINH'!$B$${STUDENT_DATA_START_ROW}:$B$${STUDENT_DYNAMIC_LAST_ROW},0)),"${receipt.studentId}"))`;
     const studentNameFormula = `IF($D${rowNumber}="","",IFERROR(INDEX('HỌC SINH'!$C$${STUDENT_DATA_START_ROW}:$C$${STUDENT_DYNAMIC_LAST_ROW},MATCH($D${rowNumber},'HỌC SINH'!$B$${STUDENT_DATA_START_ROW}:$B$${STUDENT_DYNAMIC_LAST_ROW},0)),"${formulaText(student?.name || '')}"))`;
     const classCodeFormula = `IF($D${rowNumber}="","",IFERROR(INDEX('HỌC SINH'!$G$${STUDENT_DATA_START_ROW}:$G$${STUDENT_DYNAMIC_LAST_ROW},MATCH($D${rowNumber},'HỌC SINH'!$B$${STUDENT_DATA_START_ROW}:$B$${STUDENT_DYNAMIC_LAST_ROW},0)),"${formulaText(classroom?.code || '')}"))`;
-    const statusFormula = `IF($M${rowNumber}<=0,IF($L${rowNumber}>0,"Đã đóng đủ","Chưa đóng"),IF($L${rowNumber}>0,"Đóng thiếu","Chưa đóng"))`;
+    const statusFormula = `IF($M${rowNumber}<=0,IF($L${rowNumber}>0,"Đã hoàn thành","Chưa hoàn thành"),"Chưa hoàn thành")`;
     row.values = [
       index + 1,
       receipt.code,
@@ -99,6 +102,9 @@ export function writeTuitionSheet(context: ExportContext) {
       receipt.dueDate || '',
       receipt.sessionFee || 0,
       receipt.sessionLines?.length ? JSON.stringify(receipt.sessionLines) : '',
+      receipt.invoiceNo || '',
+      receipt.bookNo || '',
+      receipt.invoiceBook || '',
     ];
     styleData(row, index);
     [7, 8, 11, 12, 13, 22].forEach((column) => {
@@ -142,7 +148,7 @@ export function writeTuitionSheet(context: ExportContext) {
     pattern: 'solid',
     fgColor: { argb: 'FFFBEB' },
   };
-  tuitionSheet.autoFilter = { from: 'A5', to: `W${tuitionFooterRow - 1}` };
+  tuitionSheet.autoFilter = { from: 'A5', to: `Z${tuitionFooterRow - 1}` };
   tuitionSheet.views = [{ state: 'frozen', ySplit: 5 }];
   tuitionSheet.columns = [
     { width: 8 },
@@ -168,6 +174,9 @@ export function writeTuitionSheet(context: ExportContext) {
     { width: 18 },
     { width: 20 },
     { width: 30 },
+    { width: 20 },
+    { width: 14 },
+    { width: 24 },
   ];
   tuitionSheet.getColumn(3).hidden = true;
 }

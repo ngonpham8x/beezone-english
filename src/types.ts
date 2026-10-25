@@ -1,4 +1,6 @@
-export type UserRole = 'owner' | 'staff';
+/** `staff` is retained only so cached sessions and pre-migration profiles remain readable. */
+export type UserRole = 'owner' | 'admin' | 'trainer' | 'teacher' | 'staff';
+export type AccountRole = Exclude<UserRole, 'staff'>;
 
 export interface StaffPermissions {
   student: { view: boolean; add: boolean; edit: boolean; delete: boolean; export: boolean };
@@ -277,12 +279,21 @@ export interface CenterSettings {
 
 // Quản lý Điểm danh & Buổi học
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';
+export type LearningAttitude = 'excellent' | 'good' | 'normal' | 'needs_focus' | 'needs_support';
 
 export interface AttendanceStudentEntry {
   studentId: string;
   status: AttendanceStatus;
+  /** Nhận xét diễn biến học tập trên lớp; giữ tên `note` để tương thích dữ liệu cũ. */
   note?: string;
   homeworkCompleted?: boolean;
+  /** Dặn dò hoặc bài tập về nhà riêng gửi phụ huynh học viên. */
+  homeworkAssignment?: string;
+  /** Đánh giá nhanh của giáo viên cho buổi học, từ 1 đến 5 sao. */
+  rating?: number;
+  learningAttitude?: LearningAttitude;
+  /** Điểm riêng của buổi học, từ 0 đến 10. */
+  sessionScore?: number;
 }
 
 export interface AttendanceSession {

@@ -1,6 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js';
 import type { StaffPermissions, UserAccount, UserRole } from '../types';
 import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy';
+import { normalizeAccountRole } from './accountRoles';
 import { createStaffPermissions, normalizeStaffPermissions } from './permissions';
 
 export interface ProfileRow {
@@ -60,7 +61,7 @@ export const DEV_TEACHER_ACCOUNT: UserAccount = {
   name: 'Cô Mai Anh (GV BeeZone)',
   email: 'maianh.nguyen@beezone.edu.vn',
   avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
-  role: 'staff',
+  role: 'teacher',
   active: true,
   permissions: {
     ...DEFAULT_STAFF_PERMISSIONS,
@@ -102,7 +103,7 @@ export function profileToAccount(profile: ProfileRow, authUser: User): UserAccou
     name: profile.is_private === true ? PRIVATE_ACCOUNT_LABEL : profile.full_name || fallbackName,
     email: authUser.email || '',
     avatar: profile.is_private === true ? '' : profile.avatar_url || fallbackAvatar,
-    role: profile.role,
+    role: normalizeAccountRole(profile.role) || 'teacher',
     active: profile.is_active,
     isPrivate: profile.is_private === true,
     permissions: profile.role === 'owner' ? OWNER_PERMISSIONS : mergePermissions(profile.permissions),

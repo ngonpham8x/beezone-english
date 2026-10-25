@@ -150,7 +150,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         if (!isCurrent()) return;
         if (error)
           throw new Error('Không thể kiểm tra quyền tài khoản. Kiểm tra kết nối và thử lại.');
-        if (!data || !data.is_active || !['owner', 'staff'].includes(data.role)) {
+        if (!data || !data.is_active || !['owner', 'admin', 'trainer', 'teacher', 'staff'].includes(data.role)) {
           hydratedUserIdRef.current = null;
           syncQueueRef.current?.stop();
           setCurrentUser(null);

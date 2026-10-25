@@ -293,10 +293,9 @@ BEGIN
  INSERT INTO public.bz_work_people(user_id,display_name,email,role,active)
  SELECT p.id,coalesce(nullif(btrim(p.full_name),''),p.email),p.email,
    CASE WHEN p.role='owner' THEN 'manager'
-        WHEN nullif(p.permissions->>'teacherId','') IS NOT NULL OR (jsonb_typeof(p.permissions->'assignedClassIds')='array' AND jsonb_array_length(p.permissions->'assignedClassIds')>0) THEN 'teacher'
-        WHEN coalesce(p.permissions->'academic'->'programs','false'::jsonb)='true'::jsonb
-          OR coalesce(p.permissions->'academic'->'classes','false'::jsonb)='true'::jsonb THEN 'trainer'
-        ELSE 'admin' END, true
+        WHEN p.role='admin' THEN 'admin'
+        WHEN p.role='trainer' THEN 'trainer'
+        ELSE 'teacher' END, true
  FROM public.profiles p
  WHERE p.is_active=true AND (coalesce(p.is_private,false)=false OR p.id=auth.uid())
  ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name,email=excluded.email,role=excluded.role,active=true;
@@ -448,10 +447,9 @@ BEGIN
  INSERT INTO public.bz_work_people(user_id,display_name,email,role,active)
  SELECT p.id,coalesce(nullif(btrim(p.full_name),''),p.email),p.email,
    CASE WHEN p.role='owner' THEN 'manager'
-        WHEN nullif(p.permissions->>'teacherId','') IS NOT NULL OR (jsonb_typeof(p.permissions->'assignedClassIds')='array' AND jsonb_array_length(p.permissions->'assignedClassIds')>0) THEN 'teacher'
-        WHEN coalesce(p.permissions->'academic'->'programs','false'::jsonb)='true'::jsonb
-          OR coalesce(p.permissions->'academic'->'classes','false'::jsonb)='true'::jsonb THEN 'trainer'
-        ELSE 'admin' END, true
+        WHEN p.role='admin' THEN 'admin'
+        WHEN p.role='trainer' THEN 'trainer'
+        ELSE 'teacher' END, true
  FROM public.profiles p
  WHERE p.is_active=true AND (coalesce(p.is_private,false)=false OR p.id=auth.uid())
  ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name,email=excluded.email,role=excluded.role,active=true;

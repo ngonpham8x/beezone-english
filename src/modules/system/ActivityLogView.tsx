@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { maskEmail } from '../../lib/privacy';
+import { accountRoleLabel } from '../../lib/accountRoles';
 import { AccountAuditLog, ActivityLog } from '../../types';
 
 interface ActivityLogViewProps {
@@ -147,7 +148,7 @@ export const ActivityLogView: React.FC<ActivityLogViewProps> = ({
                     <td className="whitespace-nowrap px-4 py-3 min-w-[180px]">
                       <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                         <b className="text-slate-900">{log.targetName || 'Tài khoản BeeZone'}</b>
-                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{log.targetRole === 'owner' ? 'Chủ trung tâm' : 'Nhân viên'}</span>
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{accountRoleLabel(log.targetRole)}</span>
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 min-w-[120px]">

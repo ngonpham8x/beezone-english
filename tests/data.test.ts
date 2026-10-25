@@ -63,6 +63,39 @@ describe('backup and cloud validation', () => {
     data.receipts = [{ ...receipt, paidAmount: 100 }];
     expect(() => parseCenterData(data, data.settings)).toThrow(/vượt quá/);
   });
+  it('preserves and validates SHĐ/Quyển for receipts and installments', () => {
+    const data = fixture();
+    data.receipts = [{
+      ...receipt,
+      invoiceNo: '00125',
+      bookNo: '03',
+      invoiceBook: '00125 / 03',
+      installments: [{
+        id: 'i1',
+        date: '2026-09-01',
+        amount: 600,
+        invoiceNo: '00125',
+        bookNo: '03',
+        invoiceBook: '00125 / 03',
+      }],
+    }];
+    expect(parseCenterData(data, data.settings).receipts[0]).toMatchObject({
+      invoiceNo: '00125',
+      bookNo: '03',
+      installments: [expect.objectContaining({ invoiceBook: '00125 / 03' })],
+    });
+
+    const invalidReceipt = fixture();
+    invalidReceipt.receipts = [{ ...receipt, invoiceNo: 125 } as any];
+    expect(() => parseCenterData(invalidReceipt, invalidReceipt.settings)).toThrow(/SHĐ\/Quyển/);
+
+    const invalidInstallment = fixture();
+    invalidInstallment.receipts = [{
+      ...receipt,
+      installments: [{ id: 'i1', date: '2026-09-01', amount: 600, bookNo: 'x'.repeat(51) }],
+    }];
+    expect(() => parseCenterData(invalidInstallment, invalidInstallment.settings)).toThrow(/Lịch sử đóng học phí/);
+  });
   it('validates class notes correctly', () => {
     const data = fixture();
     data.classes[0].notes = 'Lưu ý kiểm tra bài tập đầu giờ';

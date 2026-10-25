@@ -9,7 +9,7 @@ export const FeeStatusBadge: React.FC<{
 }> = ({ feeStatus, monthlyDebt = 0, courseDebt = 0, sessionDebt = 0 }) => {
   const isPaid = feeStatus === 'paid' && monthlyDebt + courseDebt + sessionDebt === 0;
   const isUnpaid = feeStatus === 'unpaid';
-  const label = isPaid ? 'Đã đóng đủ' : isUnpaid ? 'Chưa đóng' : 'Đóng thiếu';
+  const label = isPaid ? 'Đã hoàn thành' : 'Chưa hoàn thành';
   const className = isPaid
     ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
     : isUnpaid
@@ -26,17 +26,17 @@ export const FeeStatusBadge: React.FC<{
       </span>
       {monthlyDebt > 0 && (
         <div className="text-[10px] font-bold text-rose-700">
-          Nợ tháng: {monthlyDebt.toLocaleString('vi-VN')} đ
+          Còn lại tháng: {monthlyDebt.toLocaleString('vi-VN')} đ
         </div>
       )}
       {courseDebt > 0 && (
         <div className="text-[10px] font-bold text-rose-700">
-          Nợ khóa: {courseDebt.toLocaleString('vi-VN')} đ
+          Còn lại khóa: {courseDebt.toLocaleString('vi-VN')} đ
         </div>
       )}
       {sessionDebt > 0 && (
         <div className="text-[10px] font-bold text-rose-700">
-          Nợ buổi: {sessionDebt.toLocaleString('vi-VN')} đ
+          Còn lại buổi: {sessionDebt.toLocaleString('vi-VN')} đ
         </div>
       )}
     </div>

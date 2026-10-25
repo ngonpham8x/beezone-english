@@ -19,6 +19,10 @@ export function writeAttendanceSheets(context: ExportContext) {
     'Nội dung bài',
     'Ghi chú buổi',
     'Giáo viên',
+    'Dặn dò / BTVN riêng',
+    'Đánh giá sao',
+    'Thái độ học tập',
+    'Điểm buổi học',
   ]);
   styleHeader(attendanceSheet.getRow(1));
   for (const session of data.attendanceSessions || []) {
@@ -36,11 +40,15 @@ export function writeAttendanceSheets(context: ExportContext) {
         session.lessonTopic,
         session.generalNotes || '',
         session.teacherId ? teacherById.get(session.teacherId)?.name || '' : '',
+        entry?.homeworkAssignment || '',
+        entry?.rating ?? '',
+        entry?.learningAttitude || '',
+        entry?.sessionScore ?? '',
       ]);
     }
   }
   attendanceSheet.views = [{ state: 'frozen', ySplit: 1 }];
-  attendanceSheet.columns = [28, 18, 16, 18, 24, 18, 35, 18, 20, 40, 40, 28].map((width) => ({
+  attendanceSheet.columns = [28, 18, 16, 18, 24, 18, 35, 18, 20, 40, 40, 28, 40, 16, 22, 18].map((width) => ({
     width,
   }));
   const pendingSheet = workbook.addWorksheet('BUỔI CHƯA THU');

@@ -51,7 +51,7 @@ export function writeClassLookup(context: ExportContext) {
     'Gõ chính xác mã lớp từ sheet LỚP HỌC để xem danh sách và học phí. Không sửa vùng danh sách bên dưới.';
   classLookup.mergeCells('D4:M4');
   classLookup.getCell('D4').value =
-    'Gõ mã lớp ở ô B4. Dữ liệu học sinh, phiếu thu và công nợ sẽ tự lọc từ các sheet nguồn.';
+    'Gõ mã lớp ở ô B4. Dữ liệu học sinh, phiếu thu và số tiền còn lại sẽ tự lọc từ các sheet nguồn.';
   classLookup.getCell('D4').font = {
     name: 'Arial',
     size: 9.5,
@@ -83,7 +83,7 @@ export function writeClassLookup(context: ExportContext) {
   classLookup.getCell('B8').value = {
     formula: `${receiptSumByClassFormula('L', '$B$4')}+${directSumByClassFormula('M', '$B$4')}`,
   };
-  classLookup.getCell('D8').value = 'Tổng nợ';
+  classLookup.getCell('D8').value = 'Tổng còn lại';
   classLookup.getCell('E8').value = {
     formula: `${receiptSumByClassFormula('M', '$B$4')}+${directSumByClassFormula('N', '$B$4')}+SUMIF('BUỔI CHƯA THU'!$C:$C,$B$4,'BUỔI CHƯA THU'!$G:$G)`,
   };
@@ -107,9 +107,9 @@ export function writeClassLookup(context: ExportContext) {
     'SĐT phụ huynh',
     'Địa chỉ',
     'Tổng đã thu (VNĐ)',
-    'Tổng nợ (VNĐ)',
-    'Nợ tháng (VNĐ)',
-    'Nợ khóa (VNĐ)',
+    'Tổng còn lại (VNĐ)',
+    'Còn lại tháng (VNĐ)',
+    'Còn lại khóa (VNĐ)',
     'Xem phiếu',
     'Trạng thái',
     'ID hệ thống',

@@ -24,7 +24,7 @@ export function writeStudentSheet(context: ExportContext) {
   applyBackLink(studentsSheet, 'Y');
   studentsSheet.mergeCells('A4:Y4');
   studentsSheet.getCell('A4').value =
-    'Nhập học sinh tại các dòng trống ngay trên TỔNG CỘNG; khoản thu trực tiếp ở cột nền vàng M–R. Tổng/Nợ và sheet lớp tự liên kết theo ID hệ thống.';
+    'Nhập học sinh tại các dòng trống ngay trên TỔNG CỘNG; khoản thu trực tiếp ở cột nền vàng M–R. Tổng/Còn lại và sheet lớp tự liên kết theo ID hệ thống.';
   studentsSheet.getCell('A4').font = {
     name: 'Arial',
     size: 9.5,
@@ -56,19 +56,19 @@ export function writeStudentSheet(context: ExportContext) {
     'Trạng thái',
     'Ghi chú',
     'Đã thu nhập trực tiếp (VNĐ)',
-    'Còn nợ nhập trực tiếp (VNĐ)',
+    'Còn lại nhập trực tiếp (VNĐ)',
     'Khoản thu nhập trực tiếp',
     'Kỳ học phí / Mốc khóa',
     'Ngày thu nhập trực tiếp',
     'Hình thức nhập trực tiếp',
     'Tổng đã thu (VNĐ)',
-    'Tổng nợ (VNĐ)',
-    'Nợ học phí tháng (VNĐ)',
-    'Nợ học phí khóa (VNĐ)',
+    'Tổng còn lại (VNĐ)',
+    'Còn lại học phí tháng (VNĐ)',
+    'Còn lại học phí khóa (VNĐ)',
     'ID hệ thống',
     'Khóa lớp tự động',
     'Khóa học sinh/lớp tự động',
-    'Nợ học phí buổi (VNĐ)',
+    'Còn lại học phí buổi (VNĐ)',
     'Mã lớp học thêm',
   ];
   studentsSheet.getRow(5).values = studentHeaders;

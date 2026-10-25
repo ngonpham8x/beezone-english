@@ -1107,7 +1107,7 @@ export function BeeZoneWork({
   // Staff management
   const handleSaveStaff = () => {
     if (supabase) {
-      showToast('Danh sách đồng bộ lấy từ tài khoản đang hoạt động trong mục Phân quyền nhân viên.');
+      showToast('Danh sách đồng bộ lấy từ tài khoản đang hoạt động trong mục Phân quyền giáo viên.');
       return;
     }
     if (!staffEditor?.display_name.trim()) {
@@ -2896,7 +2896,7 @@ export function BeeZoneWork({
 
             <div className="bzw-modal-content">
               <div className="bzw-field">
-                <label htmlFor="mailRecipient">Người nhận / nhân viên nhận thư *</label>
+                <label htmlFor="mailRecipient">Người nhận / giáo viên nhận thư *</label>
                 <select
                   id="mailRecipient"
                   value={emailRecipientUid}
@@ -3092,7 +3092,7 @@ export function BeeZoneWork({
         <div className="bzw-overlay" onClick={() => setDirectoryModal(false)}>
           <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bzw-modal-head">
-              <h2>👥 Danh bạ nhân viên – giáo viên</h2>
+              <h2>👥 Danh bạ giáo viên</h2>
               <button
                 type="button"
                 className="bzw-xbtn"
@@ -3104,7 +3104,7 @@ export function BeeZoneWork({
             <div className="bzw-modal-content">
               <div className="bzw-hint">
                 {supabase
-                  ? 'Danh sách này đồng bộ từ các tài khoản hoạt động được cấp quyền trong mục Phân quyền nhân viên.'
+                  ? 'Danh sách này đồng bộ từ các tài khoản hoạt động được cấp quyền trong mục Phân quyền giáo viên.'
                   : <>Nhập <b>Gmail thật</b> cho từng người để nút gửi email sử dụng được.</>}
               </div>
 

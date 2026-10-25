@@ -10,16 +10,7 @@ import {
   receiptFee,
 } from '../../lib/tuition';
 import type { CenterSettings, ClassRoom, Student, TuitionReceipt } from '../../types';
-import { receiptStatus, receiptStatusLabel } from './receiptPresentation';
-
-export function formatInvoiceBook(item?: { invoiceBook?: string; invoiceNo?: string; bookNo?: string; code?: string } | null): string {
-  if (!item) return '......... / .........';
-  if (item.invoiceBook?.trim()) return item.invoiceBook.trim();
-  if (item.invoiceNo?.trim() || item.bookNo?.trim()) {
-    return `${item.invoiceNo?.trim() || '.......'} / ${item.bookNo?.trim() || '.......'}`;
-  }
-  return '......... / .........';
-}
+import { formatInvoiceBook, receiptStatus, receiptStatusLabel } from './receiptPresentation';
 
 interface Props {
   receipt: TuitionReceipt;
@@ -151,14 +142,12 @@ export function ReceiptPreview({
                     {selectedReceipt.paidAmount.toLocaleString('vi-VN')} đ
                   </strong>
                 </div>
-                {selectedReceipt.debtAmount > 0 && (
-                  <div>
-                    Số tiền còn lại:{' '}
-                    <strong className="text-rose-700">
-                      {selectedReceipt.debtAmount.toLocaleString('vi-VN')} đ
-                    </strong>
-                  </div>
-                )}
+                <div>
+                  Số tiền còn lại:{' '}
+                  <strong className={selectedReceipt.debtAmount > 0 ? 'text-rose-700' : 'text-emerald-700'}>
+                    {selectedReceipt.debtAmount.toLocaleString('vi-VN')} đ
+                  </strong>
+                </div>
                 <div>
                   Tình trạng: <strong>{receiptStatusLabel[receiptStatus(selectedReceipt)]}</strong>
                 </div>
@@ -262,7 +251,7 @@ export function ReceiptPreview({
               }}
               className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 flex items-center gap-1.5 shadow-sm"
             >
-              <DollarSign className="w-4 h-4 text-emerald-200" /> Thu Nợ / Đóng Đợt Tiếp
+              <DollarSign className="w-4 h-4 text-emerald-200" /> Thu Tiếp / Đóng Đợt Tiếp
             </button>
           )}
           <button

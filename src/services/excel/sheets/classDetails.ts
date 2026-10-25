@@ -60,7 +60,7 @@ export function writeClassDetails(context: ExportContext) {
     const monthlyPaidRow = sheet.getRow(7);
     const monthlyDebtRow = sheet.getRow(8);
     monthlyPaidRow.getCell(1).value = 'Đã thu (VNĐ)';
-    monthlyDebtRow.getCell(1).value = 'Công nợ (VNĐ)';
+    monthlyDebtRow.getCell(1).value = 'Còn lại (VNĐ)';
     months.forEach((month, index) => {
       const column = 2 + index;
       const header = `${columnLetter(column)}$6`;
@@ -109,7 +109,7 @@ export function writeClassDetails(context: ExportContext) {
       formula: `${receiptSumByClassFormula('M', classCriterion, `,'HỌC PHÍ'!$I$${STUDENT_DATA_START_ROW}:$I$${STUDENT_DYNAMIC_LAST_ROW},"Học phí khóa"`)}+SUMIFS('HỌC SINH'!$N:$N,'HỌC SINH'!$G:$G,${classCriterion},'HỌC SINH'!$O:$O,"Học phí khóa")`,
     };
     styleData(sheet.getRow(9), 0);
-    ['Tổng đã thu', 'Tổng nợ', 'Nợ tháng', 'Nợ khóa'].forEach((label, index) => {
+    ['Tổng đã thu', 'Tổng còn lại', 'Còn lại tháng', 'Còn lại khóa'].forEach((label, index) => {
       sheet.getCell(9, index + 2).note = label;
       sheet.getCell(9, index + 2).numFmt = moneyFormat;
       styleFormulaLink(sheet.getCell(9, index + 2));
@@ -136,9 +136,9 @@ export function writeClassDetails(context: ExportContext) {
       'SĐT phụ huynh',
       'Địa chỉ',
       'Tổng đã thu (VNĐ)',
-      'Tổng nợ (VNĐ)',
-      'Nợ học phí tháng (VNĐ)',
-      'Nợ học phí khóa (VNĐ)',
+      'Tổng còn lại (VNĐ)',
+      'Còn lại học phí tháng (VNĐ)',
+      'Còn lại học phí khóa (VNĐ)',
       'Xem phiếu',
       'Trạng thái',
       'ID hệ thống',

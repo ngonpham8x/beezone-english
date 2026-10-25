@@ -10,7 +10,8 @@ import { toast } from '../../lib/toast';
 import { createStaffPermissions, normalizeStaffPermissions } from '../../lib/permissions';
 import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../../lib/appEvents';
 import { saveCachedManagedUsers } from '../work/workStorage';
-import { ClassRoom, StaffPermissions, Teacher, UserAccount, UserRole } from '../../types';
+import { ACCOUNT_ROLE_OPTIONS, accountRoleLabel, normalizeAccountRole } from '../../lib/accountRoles';
+import { AccountRole, ClassRoom, StaffPermissions, Teacher, UserAccount, UserRole } from '../../types';
 
 interface ManagedUser {
   id: string;
@@ -33,21 +34,6 @@ interface UserManagementModalProps {
 }
 
 const createEmptyPermissions = () => createStaffPermissions();
-
-function getAccountRoleBadgeLabel(email?: string | null, name?: string | null, role?: string | null): string {
-  const normEmail = (email || '').toLowerCase().trim();
-  const normName = (name || '').toLowerCase().trim();
-  if (normEmail === 'phonghanhchinh.beezone@gmail.com' || normName.includes('hành chính') || normName.includes('hanh chinh')) {
-    return 'Hành chính';
-  }
-  if (normEmail === 'phongdaotao.beezone@gmail.com' || normName.includes('đào tạo') || normName.includes('dao tao')) {
-    return 'Nhân viên';
-  }
-  if (role === 'owner') {
-    return 'Chủ trung tâm';
-  }
-  return 'Nhân viên';
-}
 
 const permissionGroups: { title: string; options: { module: keyof StaffPermissions; action: string; label: string; emphasis?: boolean }[] }[] = [
   {
@@ -76,7 +62,7 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
       { module: 'tuition', action: 'view', label: 'Xem học phí' },
       { module: 'tuition', action: 'collect', label: 'Thu học phí' },
       { module: 'tuition', action: 'delete', label: 'Xóa phiếu thu' },
-      { module: 'tuition', action: 'showDebt', label: 'Xem công nợ', emphasis: true },
+      { module: 'tuition', action: 'showDebt', label: 'Xem số tiền còn lại', emphasis: true },
       { module: 'report', action: 'view', label: 'Xem báo cáo' },
       { module: 'report', action: 'revenue', label: 'Xem doanh thu', emphasis: true },
     ],
@@ -103,10 +89,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('staff');
+  const [role, setRole] = useState<AccountRole>('teacher');
   const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(createEmptyPermissions);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
-  const [editRole, setEditRole] = useState<UserRole>('staff');
+  const [editRole, setEditRole] = useState<AccountRole>('teacher');
   const [editPermissions, setEditPermissions] = useState<StaffPermissions>(createEmptyPermissions);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -228,12 +214,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ email, fullName, role, permissions: role === 'staff' ? staffPermissions : undefined }),
+        body: JSON.stringify({ email, fullName, role, permissions: role !== 'owner' ? staffPermissions : undefined }),
       });
       await readApiJson(response, 'Không thể cấp quyền Google.');
       setEmail('');
       setFullName('');
-      setRole('staff');
+      setRole('teacher');
       setStaffPermissions(createEmptyPermissions());
       setMessage('Đã cấp quyền. Người này chỉ cần đăng nhập Google bằng đúng email để sử dụng hệ thống.');
       toast.success('Đã cấp quyền truy cập thành công!');
@@ -248,7 +234,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const openEditModal = (member: ManagedUser) => {
     setEditingUser(member);
-    setEditRole(member.role || 'staff');
+    setEditRole(normalizeAccountRole(member.role) || 'teacher');
     setEditPermissions(normalizeStaffPermissions(member.permissions));
     setError(null);
   };
@@ -268,7 +254,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           action: 'updatePermissions',
           userId: editingUser.id,
           role: editRole,
-          permissions: editRole === 'staff' ? editPermissions : undefined,
+          permissions: editRole !== 'owner' ? editPermissions : undefined,
         }),
       });
       await readApiJson(response, 'Không thể cập nhật cấp quyền.');
@@ -326,7 +312,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       if (email === member.email) {
         setEmail('');
         setFullName('');
-        setRole('staff');
+        setRole('teacher');
         setStaffPermissions(createEmptyPermissions());
       }
       await loadMembers();
@@ -360,15 +346,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500" />
           </label>
           <label className="text-xs font-bold text-slate-700">Cấp bậc
-            <select value={role} onChange={(event) => setRole(event.target.value as UserRole)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500">
-              <option value="staff">Nhân viên</option>
-              <option value="owner">Chủ trung tâm</option>
+            <select value={role} onChange={(event) => setRole(event.target.value as AccountRole)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500">
+              {ACCOUNT_ROLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
-          {role === 'staff' && (
+          {role !== 'owner' && (
             <fieldset className="sm:col-span-2 rounded-xl border border-amber-200 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                <legend className="px-1 text-xs font-extrabold text-slate-900">Quyền cho nhân viên</legend>
+                <legend className="px-1 text-xs font-extrabold text-slate-900">Quyền cho {accountRoleLabel(role).toLocaleLowerCase('vi-VN')}</legend>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -386,7 +373,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                   </button>
                 </div>
               </div>
-              <p className="mb-3 text-[11px] leading-4 text-slate-500">Chỉ tick các quyền cần thiết hoặc bấm "Chọn tất cả quyền". Quyền doanh thu và công nợ nên cấp riêng nếu cần bảo mật.</p>
+              <p className="mb-3 text-[11px] leading-4 text-slate-500">Chỉ tick các quyền cần thiết hoặc bấm "Chọn tất cả quyền". Quyền doanh thu và số tiền còn lại nên cấp riêng nếu cần bảo mật.</p>
               <div className="grid gap-3 md:grid-cols-3">
                 {permissionGroups.map((group) => (
                   <div key={group.title} className="rounded-lg bg-slate-50 p-2.5">
@@ -405,7 +392,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                   </div>
                 ))}
 
-                {/* Phân công lớp phụ trách cho giáo viên/nhân viên */}
+                  {/* Phân công lớp phụ trách cho tài khoản đào tạo/giáo viên */}
                 <div className="md:col-span-3 rounded-lg bg-amber-50/70 border border-amber-200/80 p-3 mt-1">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <p className="text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
@@ -421,7 +408,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                       </button>
                     )}
                   </div>
-                  <p className="mb-2 text-[10px] text-slate-500">Giáo viên/Nhân viên chỉ có thể thấy và thao tác trên những lớp được tick chọn bên dưới:</p>
+                  <p className="mb-2 text-[10px] text-slate-500">Tài khoản chỉ có thể điểm danh và nhập điểm cho những lớp được chọn bên dưới:</p>
                   {classes.length === 0 ? (
                     <p className="text-[11px] text-slate-400 italic">Chưa có dữ liệu lớp học trong hệ thống.</p>
                   ) : (
@@ -482,7 +469,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
         <div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200">
           {!isLoading && displayedMembers.length === 0 && <p className="p-4 text-sm text-slate-500">Chưa có danh sách tài khoản.</p>}
           {displayedMembers.map(member => <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-            <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{getAccountRoleBadgeLabel(member.email, member.full_name, member.role)} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
+            <div className="min-w-0"><p className="break-words text-sm font-bold">{member.full_name || member.email}</p><p className="break-all text-xs text-slate-500">{member.email}</p><p className="mt-1 text-xs text-slate-600">{accountRoleLabel(member.role)} • {member.is_active ? 'Được truy cập' : 'Đã khóa'}</p></div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -588,7 +575,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                           : 'bg-blue-100 text-blue-900 border border-blue-200'
                       }`}
                     >
-                      {getAccountRoleBadgeLabel(sessionUser.email, sessionUser.name, sessionUser.role)}
+                      {accountRoleLabel(sessionUser.role)}
                     </span>
                     <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 hidden sm:inline-block">
                       ● Đang hoạt động
@@ -627,17 +614,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
               </p>
             </div>
 
-            <ConfirmedForm confirmWhen entityLabel="quyền nhân viên" onSubmit={handleUpdateUserPermissions} className="mt-4 space-y-4">
+            <ConfirmedForm confirmWhen entityLabel="quyền tài khoản" onSubmit={handleUpdateUserPermissions} className="mt-4 space-y-4">
               {error && <p role="alert" className="rounded-lg bg-red-50 p-2.5 text-xs text-red-800">{error}</p>}
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Cấp bậc tài khoản</label>
                 <select
                   value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as UserRole)}
+                  onChange={(e) => setEditRole(e.target.value as AccountRole)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="staff">Nhân viên (Phân quyền theo từng chức năng bên dưới)</option>
-                  <option value="owner">Chủ trung tâm (Toàn quyền tất cả các chức năng và các lớp)</option>
+                  {ACCOUNT_ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label} ({option.description})</option>
+                  ))}
                 </select>
               </div>
 
@@ -648,7 +636,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
               ) : (
                 <fieldset className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <legend className="px-1 text-xs font-extrabold text-slate-900">Tích chọn các quyền cho nhân viên</legend>
+                    <legend className="px-1 text-xs font-extrabold text-slate-900">Tích chọn các quyền cho {accountRoleLabel(editRole).toLocaleLowerCase('vi-VN')}</legend>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"

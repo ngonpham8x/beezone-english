@@ -1,18 +1,20 @@
 import { centerDate, isCalendarDate } from '../../lib/dates';
-import type { ClassRoom, Student, UserAccount } from '../../types';
+import type { AttendanceStudentEntry, ClassRoom, Student, UserAccount } from '../../types';
+import { canEditAttendanceClass } from './access';
 
-export const CONTACT_CHANNELS = ['Zalo', 'Điện thoại', 'Khác'] as const;
+export const CONTACT_CHANNELS = ['Zalo', 'SMS', 'Điện thoại', 'Khác'] as const;
 export type ContactChannel = (typeof CONTACT_CHANNELS)[number];
 export interface ParentContactRequest {
   sessionId: string;
   studentId: string;
   channel: ContactChannel;
   details: string;
+  type?: 'absence' | 'review';
 }
 
 // Human-readable lines in the existing attendance note keep old JSON/Excel compatible.
 const contactLine =
-  /^\[Liên hệ PH \| (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \| (Zalo|Điện thoại|Khác) \| ([^\]|\r\n]+)\] (.+)$/;
+  /^\[Liên hệ PH \| (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \| (Zalo|SMS|Tin nhắn|Điện thoại|Khác) \| ([^\]|\r\n]+)\] (.+)$/;
 export function splitAttendanceNote(note = '') {
   const history: Array<{
     line: string;
@@ -64,7 +66,7 @@ export function appendParentContact(
     second: '2-digit',
     hourCycle: 'h23',
   }).format(now);
-  const line = `[Liên hệ PH | ${centerDate(now)} ${time} | ${channel} | ${oneLine(author).slice(0, 100) || 'Nhân viên'}] ${oneLine(details) || 'Đã thông báo học viên vắng.'}`;
+  const line = `[Liên hệ PH | ${centerDate(now)} ${time} | ${channel} | ${oneLine(author).slice(0, 100) || 'Giáo viên'}] ${oneLine(details) || 'Đã thông báo học viên vắng.'}`;
   return retainContactHistory([note, line].filter(Boolean).join('\n'));
 }
 
@@ -72,14 +74,7 @@ export function canContactParent(
   user: UserAccount | null | undefined,
   classroom: ClassRoom | undefined,
 ): boolean {
-  if (!user?.active || !classroom) return false;
-  if (user.role === 'owner') return true;
-  const permissions = user.permissions;
-  return Boolean(
-    (permissions.student.edit || permissions.teacher.edit) &&
-      (permissions.assignedClassIds?.includes(classroom.id) ||
-        (permissions.teacherId && permissions.teacherId === classroom.teacherId)),
-  );
+  return canEditAttendanceClass(user, classroom);
 }
 
 export function parentPhoneHref(phone: string): string | null {
@@ -93,6 +88,13 @@ export function parentZaloHref(phone?: string): string | null {
   return clean.length >= 9 ? `https://zalo.me/${clean}` : null;
 }
 
+export function parentSmsHref(phone?: string, body?: string): string | null {
+  if (!phone) return null;
+  const clean = phone.replace(/[\s().-]/g, '');
+  if (!/^\+?\d{8,15}$/.test(clean)) return null;
+  return body ? `sms:${clean}?body=${encodeURIComponent(body)}` : `sms:${clean}`;
+}
+
 export function absenceMessage(
   student: Student,
   className: string,
@@ -100,5 +102,62 @@ export function absenceMessage(
   centerName: string,
 ): string {
   const formattedDate = isCalendarDate(date) ? date.split('-').reverse().join('/') : date;
-  return `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''}, ${centerName} ghi nhận học viên ${student.name} vắng buổi học lớp ${className} ngày ${formattedDate}. Mong phụ huynh xác nhận lý do để trung tâm hỗ trợ học viên. Cảm ơn phụ huynh!`;
+  return `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''},\n${centerName} xin thông báo học viên ${student.name} vắng buổi học lớp ${className} ngày ${formattedDate}.\nKính mong phụ huynh xác nhận thông tin để trung tâm tiện theo dõi và sắp xếp lịch học bù kịp thời cho con.\nTrân trọng cảm ơn quý phụ huynh!`;
+}
+
+export function sessionReviewMessage(
+  student: Student,
+  className: string,
+  date: string,
+  centerName: string,
+  entry?: AttendanceStudentEntry | null,
+  lessonTopic?: string,
+): string {
+  const formattedDate = isCalendarDate(date) ? date.split('-').reverse().join('/') : date;
+  const statusLabel =
+    entry?.status === 'present'
+      ? 'Có mặt đầy đủ ✓'
+      : entry?.status === 'late'
+        ? 'Đi muộn'
+        : entry?.status === 'excused'
+          ? 'Nghỉ học có phép'
+          : entry?.status === 'absent'
+            ? 'Vắng mặt'
+            : 'Có mặt';
+
+  const attitudeLabel =
+    entry?.learningAttitude === 'excellent'
+      ? 'Rất tích cực, hăng hái phát biểu'
+      : entry?.learningAttitude === 'good'
+        ? 'Tốt, chú ý nghe giảng'
+        : entry?.learningAttitude === 'needs_focus'
+          ? 'Cần tập trung hơn trong giờ học'
+          : entry?.learningAttitude === 'needs_support'
+            ? 'Cần cô giáo hỗ trợ thêm'
+            : entry?.learningAttitude === 'normal'
+              ? 'Bình thường'
+              : '';
+
+  const stars = entry?.rating && entry.rating > 0 ? '⭐'.repeat(Math.min(entry.rating, 5)) : '';
+  const cleanNote = entry?.note ? splitAttendanceNote(entry.note).text.trim() : '';
+
+  const items = [
+    `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''},`,
+    `${centerName} xin gửi nhận xét buổi học của học viên ${student.name} ngày ${formattedDate} (Lớp ${className}):`,
+    lessonTopic ? `• Chủ đề bài học: ${lessonTopic}` : null,
+    `• Chuyên cần: ${statusLabel}`,
+    entry?.status !== 'absent' && entry?.homeworkCompleted !== undefined
+      ? `• BTVN buổi trước: ${entry.homeworkCompleted ? 'Đã hoàn thành tốt ✓' : 'Chưa hoàn thành'}`
+      : null,
+    attitudeLabel ? `• Thái độ học tập: ${attitudeLabel}` : null,
+    stars ? `• Đánh giá sao buổi học: ${stars}` : null,
+    entry?.sessionScore !== undefined && entry.sessionScore !== null
+      ? `• Điểm số bài học: ${entry.sessionScore}/10`
+      : null,
+    cleanNote ? `• Nhận xét của giáo viên: ${cleanNote}` : null,
+    entry?.homeworkAssignment ? `• BTVN & Dặn dò về nhà: ${entry.homeworkAssignment}` : null,
+    `Kính mong quý phụ huynh cùng đồng hành và nhắc nhở con ôn bài. Trân trọng cảm ơn quý phụ huynh!`,
+  ].filter(Boolean);
+
+  return items.join('\n');
 }

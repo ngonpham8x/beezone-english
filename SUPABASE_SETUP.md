@@ -10,7 +10,7 @@ Trong thư mục dự án, chạy:
 node scripts/create-supabase-setup.mjs
 ```
 
-Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa migration **001–011** theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **staff chưa kích hoạt**, không tin quyền trong metadata.
+Lệnh chỉ tạo `.vercel/setup-new-project.sql` từ các migration hiện có, không kết nối hoặc thay đổi database. File ghép chứa toàn bộ migration theo thứ tự, chạy trong một transaction và từ chối schema `public` đã có bảng/view hoặc các đối tượng BeeZone. Nó không nhúng email, khóa hay dữ liệu mẫu. Tài khoản Auth có trước lúc khởi tạo được thêm profile **Giáo viên chưa kích hoạt**, không tin quyền trong metadata.
 
 1. Mở đúng project mới → **SQL Editor** → **New query**.
 2. Sao chép toàn bộ file SQL vừa tạo, chọn **Run** một lần.
@@ -74,7 +74,7 @@ Các biến này đã được cấu hình trong đợt deploy 14/10/2026. Integ
 ## 5. Kiểm tra trước khi nhập dữ liệu thật
 
 - Owner đăng nhập được, mở được phân quyền và nhật ký tài khoản; người chưa cấp quyền không vào ứng dụng.
-- Cấp một tài khoản staff thử, xác minh API từ chối quản trị và database từ chối ghi ngoài quyền.
+- Cấp một tài khoản Giáo viên thử, xác minh API từ chối quản trị và database từ chối ghi ngoài quyền.
 - Lưu một thay đổi kiểm tra, tải lại và thử xung đột từ hai phiên; không tự ghi đè dữ liệu.
 - Với học phí theo buổi, có mặt/đi trễ mới tính tiền; buổi đã lập phiếu giữ nguyên đơn giá lịch sử và không bị thu hai lần.
 - Khôi phục JSON/nhập Excel riêng trong ứng dụng sau khi xem bản kiểm tra; không đưa file riêng lên Git. Tạo sao lưu trước khi nhập hoặc đổi dữ liệu đang sử dụng.

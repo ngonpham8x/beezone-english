@@ -1,14 +1,15 @@
 -- Authentication and role model for the Phúc Phúc Thịnh internal app.
 -- Run this migration in the Supabase SQL Editor before setting Vercel variables.
 
-create type public.app_role as enum ('owner', 'staff');
+-- `staff` remains in the enum only so existing databases and audit rows can be migrated safely.
+create type public.app_role as enum ('owner', 'admin', 'trainer', 'teacher', 'staff');
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null unique check (email = lower(email) and char_length(email) <= 254),
   full_name text not null default '' check (char_length(full_name) <= 120),
   avatar_url text,
-  role public.app_role not null default 'staff',
+  role public.app_role not null default 'teacher',
   is_active boolean not null default false,
   permissions jsonb not null default jsonb_build_object(
     'student', jsonb_build_object('view', true, 'add', true, 'edit', true, 'delete', false, 'export', false),
@@ -37,7 +38,7 @@ security definer set search_path = public
 as $$
 begin
   -- Do not trust role or activation values from user metadata. New accounts are
-  -- inactive staff by default; the protected admin endpoint activates invitations.
+  -- inactive teachers by default; the protected admin endpoint activates invitations.
   insert into public.profiles (id, email, full_name, avatar_url)
   values (
     new.id,

@@ -40,7 +40,7 @@ begin
     where email = lower(new.email)
   ) into is_bootstrap_owner;
 
-  -- New accounts remain inactive staff unless their verified email was explicitly
+  -- New accounts remain inactive teachers unless their verified email was explicitly
   -- placed in the bootstrap allowlist or a protected owner invitation creates it.
   insert into public.profiles (id, email, full_name, avatar_url, role, is_active)
   values (
@@ -48,7 +48,7 @@ begin
     lower(new.email),
     coalesce(left(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), 120), ''),
     nullif(left(new.raw_user_meta_data ->> 'avatar_url', 2000), ''),
-    case when is_bootstrap_owner then 'owner'::public.app_role else 'staff'::public.app_role end,
+    case when is_bootstrap_owner then 'owner'::public.app_role else 'teacher'::public.app_role end,
     is_bootstrap_owner
   )
   on conflict (id) do nothing;

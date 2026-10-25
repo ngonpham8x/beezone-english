@@ -64,7 +64,7 @@ it('uses only the trusted profile flag for identity privacy and never grants a r
   });
   expect(
     profileToAccount({ ...profile, role: 'staff', is_active: false, is_private: undefined }, user),
-  ).toMatchObject({ isPrivate: false, role: 'staff', active: false });
+  ).toMatchObject({ isPrivate: false, role: 'teacher', active: false });
 });
 
 it('removes only the private account from the local session list', () => {
@@ -237,6 +237,29 @@ it('restores the login button after OAuth fails without exposing private error d
   expect(button.getAttribute('aria-busy')).toBe('false');
   fireEvent.click(button);
   await waitFor(() => expect(auth.signIn).toHaveBeenCalledTimes(2));
+});
+
+it('offers the four account ranks and replaces the retired staff option with teacher', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    JSON.stringify({ users: [], hiddenAccountIds: [] }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )));
+  render(
+    <UserManagementModal
+      isOpen
+      onClose={vi.fn()}
+      accessToken="test-token"
+      currentUser={DEV_OWNER_ACCOUNT}
+    />,
+  );
+  const rank = await screen.findByRole('combobox', { name: 'Cấp bậc' }) as HTMLSelectElement;
+  expect(Array.from(rank.options).map(option => [option.value, option.textContent])).toEqual([
+    ['owner', 'Chủ trung tâm'],
+    ['admin', 'Hành chính'],
+    ['trainer', 'Đào tạo'],
+    ['teacher', 'Giáo viên'],
+  ]);
+  expect(rank.value).toBe('teacher');
 });
 
 it('allows an owner to delete a managed account with confirmation and removes it from active sessions', async () => {

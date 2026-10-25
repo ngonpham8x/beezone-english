@@ -1,4 +1,16 @@
 import type { TuitionReceipt } from '../../types';
+
+export function formatInvoiceBook(
+  item?: { invoiceBook?: string; invoiceNo?: string; bookNo?: string } | null,
+): string {
+  if (!item) return '......... / .........';
+  if (item.invoiceBook?.trim()) return item.invoiceBook.trim();
+  if (item.invoiceNo?.trim() || item.bookNo?.trim()) {
+    return `${item.invoiceNo?.trim() || '.......'} / ${item.bookNo?.trim() || '.......'}`;
+  }
+  return '......... / .........';
+}
+
 export const receiptStatus = (
   receipt: Pick<TuitionReceipt, 'paidAmount' | 'debtAmount' | 'status'>,
 ) => {

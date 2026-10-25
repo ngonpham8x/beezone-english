@@ -21,6 +21,7 @@ export function createExportContext(data: ExcelExportData, workbook: ExcelJS.Wor
       installments.forEach((inst, idx) => {
         const isFirst = idx === 0;
         const isLast = idx === installments.length - 1;
+        const hasInstallmentInvoice = Boolean(inst.invoiceNo || inst.bookNo || inst.invoiceBook);
         expandedReceipts.push({
           ...receipt,
           id: `${receipt.id}_inst_${idx + 1}`,
@@ -36,13 +37,22 @@ export function createExportContext(data: ExcelExportData, workbook: ExcelJS.Wor
           paymentDate: inst.date || receipt.paymentDate,
           paymentMethod: inst.paymentMethod || receipt.paymentMethod,
           collectorName: inst.collectorName || receipt.collectorName,
+          invoiceNo: hasInstallmentInvoice ? inst.invoiceNo : isLast ? receipt.invoiceNo : undefined,
+          bookNo: hasInstallmentInvoice ? inst.bookNo : isLast ? receipt.bookNo : undefined,
+          invoiceBook: hasInstallmentInvoice ? inst.invoiceBook : isLast ? receipt.invoiceBook : undefined,
           notes: inst.notes || `Đóng học phí đợt ${idx + 1}`,
         });
       });
     } else {
       expandedReceipts.push(
         installments.length === 1
-          ? { ...receipt, paymentDate: installments[0].date || receipt.paymentDate }
+          ? {
+              ...receipt,
+              paymentDate: installments[0].date || receipt.paymentDate,
+              invoiceNo: installments[0].invoiceNo || receipt.invoiceNo,
+              bookNo: installments[0].bookNo || receipt.bookNo,
+              invoiceBook: installments[0].invoiceBook || receipt.invoiceBook,
+            }
           : receipt,
       );
     }

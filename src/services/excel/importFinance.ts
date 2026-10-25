@@ -32,7 +32,7 @@ export function importFinance(
     const byId = students.find((student) => student.id === suppliedStudentId);
     const byCode = students.find((student) => student.code === suppliedStudentCode);
     const paid = numberValue(getByAliases(record, ['dathuvnd', 'dathu', 'paidamount']));
-    const debt = numberValue(getByAliases(record, ['congnovnd', 'congno', 'debtamount']));
+    const debt = numberValue(getByAliases(record, ['conlaivnd', 'conlai', 'remainingamount', 'congnovnd', 'congno', 'debtamount']));
     return (
       (Boolean(suppliedStudentId || suppliedStudentCode || paid || debt) && !byId && !byCode) ||
       (Boolean(suppliedStudentId && suppliedStudentCode) && byId?.id !== byCode?.id)
@@ -118,6 +118,9 @@ export function importFinance(
             ],
           };
         const homework = cellText(getByAliases(record, ['baitap']));
+        const ratingText = cellText(getByAliases(record, ['danhgiasao', 'rating']));
+        const scoreText = cellText(getByAliases(record, ['diembuoihoc', 'diembuoi', 'sessionscore']));
+        const learningAttitude = cellText(getByAliases(record, ['thaidohoctap', 'thaido', 'learningattitude']));
         session.entries.push({
           studentId: student.id,
           status: cellText(
@@ -125,6 +128,10 @@ export function importFinance(
           ) as AttendanceSession['entries'][number]['status'],
           note: cellText(getByAliases(record, ['ghichuhocvien'])),
           homeworkCompleted: homework ? homework === 'Có' : undefined,
+          homeworkAssignment: cellText(getByAliases(record, ['dandobtvnrieng', 'dandobtvn', 'homeworkassignment'])) || undefined,
+          rating: ratingText ? numberValue(getByAliases(record, ['danhgiasao', 'rating'])) : undefined,
+          learningAttitude: learningAttitude ? learningAttitude as AttendanceSession['entries'][number]['learningAttitude'] : undefined,
+          sessionScore: scoreText ? numberValue(getByAliases(record, ['diembuoihoc', 'diembuoi', 'sessionscore'])) : undefined,
         });
       }
     }
@@ -141,7 +148,7 @@ export function importFinance(
       );
       const studentId = student?.id || suppliedStudentId;
       const paidAmount = numberValue(getByAliases(record, ['dathuvnd', 'dathu', 'paidamount']));
-      const debtAmount = numberValue(getByAliases(record, ['congnovnd', 'congno', 'debtamount']));
+      const debtAmount = numberValue(getByAliases(record, ['conlaivnd', 'conlai', 'remainingamount', 'congnovnd', 'congno', 'debtamount']));
       const paymentKindLabel = cellText(
         getByAliases(record, ['khoanthu', 'paymentkind']),
       ).toLocaleLowerCase('vi-VN');
@@ -220,6 +227,9 @@ export function importFinance(
         collectorName: cellText(getByAliases(record, ['nguoithu', 'collectorname'])),
         paymentMethod: normalizedPaymentMethod,
         notes: cellText(getByAliases(record, ['ghichu', 'notes'])),
+        invoiceNo: cellText(getByAliases(record, ['sohoadonshd', 'sohoadon', 'invoiceno'])) || undefined,
+        bookNo: cellText(getByAliases(record, ['quyenso', 'bookno'])) || undefined,
+        invoiceBook: cellText(getByAliases(record, ['shdquyen', 'invoicebook'])) || undefined,
       };
     })
     .filter((receipt) => studentIds.has(receipt.studentId));
@@ -293,6 +303,9 @@ export function importFinance(
         debtAmount: finalDebt,
         status: finalStatus,
         paymentDate: last.paymentDate,
+        invoiceNo: last.invoiceNo,
+        bookNo: last.bookNo,
+        invoiceBook: last.invoiceBook,
         notes: group
           .map((r) => r.notes)
           .filter(Boolean)
@@ -304,6 +317,9 @@ export function importFinance(
           amount: r.paidAmount,
           paymentMethod: r.paymentMethod,
           collectorName: r.collectorName,
+          invoiceNo: r.invoiceNo,
+          bookNo: r.bookNo,
+          invoiceBook: r.invoiceBook,
           notes: r.notes || `Đóng học phí đợt ${idx + 1}`,
         })),
       });

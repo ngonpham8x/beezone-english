@@ -267,7 +267,11 @@ export const getReceiptInstallments = (receipt: TuitionReceipt): TuitionInstallm
     if (receipt.paidAmount > recorded) installments.unshift({
       id: `inst_${receipt.id}_init`, date: receipt.paymentDate,
       amount: receipt.paidAmount - recorded, paymentMethod: receipt.paymentMethod,
-      collectorName: receipt.collectorName, notes: 'Khoản đã thu trước các đợt ghi nhận',
+      collectorName: receipt.collectorName,
+      invoiceNo: receipt.invoiceNo,
+      bookNo: receipt.bookNo,
+      invoiceBook: receipt.invoiceBook,
+      notes: 'Khoản đã thu trước các đợt ghi nhận',
     });
     return installments;
   }
@@ -279,6 +283,9 @@ export const getReceiptInstallments = (receipt: TuitionReceipt): TuitionInstallm
         amount: receipt.paidAmount,
         paymentMethod: receipt.paymentMethod,
         collectorName: receipt.collectorName,
+        invoiceNo: receipt.invoiceNo,
+        bookNo: receipt.bookNo,
+        invoiceBook: receipt.invoiceBook,
         notes: 'Đóng học phí đợt 1',
       },
     ];

@@ -276,7 +276,7 @@ export const initialStudents: Student[] = [
     enrollDate: '2026-06-10',
     status: 'active',
     feeStatus: 'partial',
-    notes: 'Lớp Starters 1 (T7, CN 15:00-16:30). Cambridge chuẩn quốc tế. Còn nợ 800.000đ học phí đợt 2.'
+    notes: 'Lớp Starters 1 (T7, CN 15:00-16:30). Cambridge chuẩn quốc tế. Còn lại 800.000đ học phí đợt 2.'
   },
   {
     id: 'STU-004',
@@ -570,7 +570,7 @@ export const initialTuitionReceipts: TuitionReceipt[] = [
     paymentDate: '2026-06-10',
     collectorName: '',
     paymentMethod: 'Chuyển khoản',
-    notes: 'Đóng đợt 1 là 2.000.000đ, còn nợ 800.000đ lớp Starters 1 (có thể bấm Thu nợ để hoàn tất).',
+    notes: 'Đóng đợt 1 là 2.000.000đ, còn lại 800.000đ lớp Starters 1 (có thể bấm Thu tiếp để hoàn tất).',
     installments: [
       {
         id: 'INST-003-1',
@@ -807,7 +807,7 @@ export const initialAccountAuditLogs: AccountAuditLog[] = [
     occurredAt: '2026-10-02T09:15:00Z',
     action: 'ACCOUNT_UPDATED',
     actorName: 'Chủ Trung Tâm',
-    targetName: 'Nhân viên học vụ (thpttranphu.pt@gmail.com)',
+    targetName: 'Giáo viên học vụ (thpttranphu.pt@gmail.com)',
     targetRole: 'staff',
     details: 'Cập nhật phân quyền học viên, học phí, điểm danh và xuất báo cáo.'
   }

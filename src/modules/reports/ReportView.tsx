@@ -259,7 +259,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
         <div className="stats-grid">
           <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} subtitle={activeCount + ' đang học · ' + reservedCount + ' bảo lưu'} onClick={() => onNavigateTab('students')} />
           <StatCard label="Tổng doanh thu" value={totalRevenue.toLocaleString('vi-VN') + ' đ'} icon={DollarSign} tone="emerald" subtitle={periodSubtitle} onClick={() => onNavigateTab('tuition')} />
-          <StatCard label="Tổng công nợ" value={totalDebt.toLocaleString('vi-VN') + ' đ'} tone="rose" subtitle={'Tháng: ' + totalDebtBreakdown.monthly.toLocaleString('vi-VN') + ' · Khóa: ' + totalDebtBreakdown.course.toLocaleString('vi-VN') + ' · Buổi: ' + totalDebtBreakdown.session.toLocaleString('vi-VN')} onClick={() => onNavigateTab('tuition')} />
+          <StatCard label="Tổng còn lại" value={totalDebt.toLocaleString('vi-VN') + ' đ'} tone="rose" subtitle={'Tháng: ' + totalDebtBreakdown.monthly.toLocaleString('vi-VN') + ' · Khóa: ' + totalDebtBreakdown.course.toLocaleString('vi-VN') + ' · Buổi: ' + totalDebtBreakdown.session.toLocaleString('vi-VN')} onClick={() => onNavigateTab('tuition')} />
           <StatCard label="Lớp đang mở" value={classes.length + ' Lớp'} icon={BookOpen} tone="sky" subtitle={teachers.length + ' giáo viên'} onClick={() => onNavigateTab('classes')} />
         </div>
 
@@ -323,8 +323,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
                   <th className="p-2.5">Tên Lớp Học</th>
                   <th className="p-2.5">Sĩ Số</th>
                   <th className="p-2.5">Doanh Thu Thu</th>
-                  <th className="p-2.5">Nợ Tháng</th>
-                  <th className="p-2.5">Nợ Khóa</th><th className="p-2.5">Nợ Buổi</th>
+                  <th className="p-2.5">Còn Lại Tháng</th>
+                  <th className="p-2.5">Còn Lại Khóa</th><th className="p-2.5">Còn Lại Buổi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
@@ -370,20 +370,20 @@ export const ReportView: React.FC<ReportViewProps> = ({
             <div className="pr-9">
               <p className="text-xs font-bold font-mono text-amber-700">{selectedClass.code}</p>
               <h3 className="mt-1 text-lg font-extrabold text-slate-900">{selectedClass.name}</h3>
-              <p className="mt-1 text-xs text-slate-500">Chi tiết sĩ số, phiếu thu và công nợ theo kỳ báo cáo đang chọn.</p>
+              <p className="mt-1 text-xs text-slate-500">Chi tiết sĩ số, phiếu thu và số tiền còn lại theo kỳ báo cáo đang chọn.</p>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
               <div className="rounded-xl bg-slate-50 p-3"><p className="text-slate-500">Sĩ số</p><b className="mt-1 block text-slate-900">{selectedClassStudents.length} / {selectedClass.capacity || 'Chưa cập nhật'} HS</b></div>
               <div className="rounded-xl bg-emerald-50 p-3"><p className="text-emerald-700">Đã thu</p><b className="mt-1 block text-emerald-800">{selectedClassPaid.toLocaleString('vi-VN')} đ</b></div>
-              <div className="rounded-xl bg-rose-50 p-3"><p className="text-rose-700">Nợ tháng</p><b className="mt-1 block text-rose-800">{selectedClassDebt.monthly.toLocaleString('vi-VN')} đ</b></div>
-              <div className="rounded-xl bg-violet-50 p-3"><p className="text-violet-700">Nợ khóa</p><b className="mt-1 block text-violet-800">{selectedClassDebt.course.toLocaleString('vi-VN')} đ</b></div>
-              <div className="rounded-xl bg-amber-50 p-3"><p className="text-amber-700">Nợ buổi</p><b className="mt-1 block text-amber-800">{selectedClassDebt.session.toLocaleString('vi-VN')} đ</b></div>
+              <div className="rounded-xl bg-rose-50 p-3"><p className="text-rose-700">Còn lại tháng</p><b className="mt-1 block text-rose-800">{selectedClassDebt.monthly.toLocaleString('vi-VN')} đ</b></div>
+              <div className="rounded-xl bg-violet-50 p-3"><p className="text-violet-700">Còn lại khóa</p><b className="mt-1 block text-violet-800">{selectedClassDebt.course.toLocaleString('vi-VN')} đ</b></div>
+              <div className="rounded-xl bg-amber-50 p-3"><p className="text-amber-700">Còn lại buổi</p><b className="mt-1 block text-amber-800">{selectedClassDebt.session.toLocaleString('vi-VN')} đ</b></div>
             </div>
 
             <HorizontalScroll label="Học phí theo học viên" className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full min-w-[640px] text-left text-xs">
-                <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Nợ tháng</th><th className="px-3 py-2.5 text-right">Nợ khóa</th><th className="px-3 py-2.5 text-right">Nợ buổi</th></tr></thead>
+                <thead className="bg-slate-800 text-[10px] uppercase text-slate-100"><tr><th className="px-3 py-2.5">Mã HS</th><th className="px-3 py-2.5">Học viên</th><th className="px-3 py-2.5 text-right">Đã thu</th><th className="px-3 py-2.5 text-right">Còn lại tháng</th><th className="px-3 py-2.5 text-right">Còn lại khóa</th><th className="px-3 py-2.5 text-right">Còn lại buổi</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {selectedClassStudents.length === 0 ? <tr><td colSpan={6} className="px-3 py-7 text-center text-slate-500">Chưa có học viên trong lớp.</td></tr> : selectedClassStudents.map((student) => {
                     const studentReceipts = receipts.filter((receipt) => receipt.studentId === student.id);

@@ -77,7 +77,7 @@ export function ParentContactDialog({
   const history = splitAttendanceNote(
     session.entries.find((entry) => entry.studentId === student.id)?.note,
   ).history;
-  const phoneHref = parentPhoneHref(student.parentPhone);
+  const phoneHref = parentPhoneHref(student.parentPhone || '');
   const zaloHref = parentZaloHref(student.parentPhone || student.phone);
   const openZalo = async () => {
     if (!zaloHref) return;
@@ -135,18 +135,18 @@ export function ParentContactDialog({
           <div className="space-y-1 break-words text-slate-600">
             <p className="font-bold text-slate-900">{student.name}</p>
             <p>
-              {className} · {session.date.split('-').reverse().join('/')}
+              Lớp {className} · Ngày {session.date.split('-').reverse().join('/')}
             </p>
             <p>
-              Phụ huynh: {student.parentName || 'Chưa có tên'} ·{' '}
-              {student.parentPhone || 'Chưa có số điện thoại'}
+              Phụ huynh: {student.parentName || 'Chưa có tên'} · SĐT:{' '}
+              {student.parentPhone || student.phone || 'Chưa cập nhật'}
             </p>
           </div>
           {canRecord ? (
             <>
               {!phoneHref && (
                 <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
-                  Số phụ huynh chưa có hoặc chưa hợp lệ. Kiểm tra hồ sơ học viên trước khi liên hệ.
+                  Số phụ huynh chưa có hoặc chưa hợp lệ.
                 </p>
               )}
               <label className="block font-semibold text-slate-700">
@@ -154,28 +154,11 @@ export function ParentContactDialog({
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
-                  rows={5}
-                  className="mt-1 w-full min-w-0 resize-y rounded-xl border border-slate-200 p-3 text-sm font-normal focus:outline-2 focus:outline-sky-600"
+                  rows={4}
+                  className="mt-1 w-full min-w-0 resize-y rounded-xl border border-slate-200 p-3 font-normal focus:outline-2 focus:outline-sky-600"
                 />
               </label>
-              <p className="text-xs text-slate-500">
-                Sao chép và gửi qua Zalo của trung tâm, hoặc gọi phụ huynh. Ghi nhận bên dưới sau
-                khi bạn đã liên hệ.
-              </p>
               <div className="flex flex-wrap gap-2">
-                {zaloHref && (
-                  <button
-                    type="button"
-                    onClick={openZalo}
-                    aria-label={`Mở Zalo phụ huynh ${student.name}`}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0068FF] px-4 font-bold text-white hover:bg-[#0057D9] shadow-sm active:scale-95 transition"
-                  >
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-black text-[#0068FF]">
-                      Zalo
-                    </span>
-                    <span>Gửi qua Zalo</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={copy}
@@ -217,6 +200,7 @@ export function ParentContactDialog({
                     <button
                       type="button"
                       onClick={openZalo}
+                      aria-label={`Mở Zalo phụ huynh ${student.name}`}
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#0068FF] px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#0057D9] active:scale-95 transition cursor-pointer"
                     >
                       <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[8px] font-black text-[#0068FF]">

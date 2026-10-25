@@ -387,10 +387,22 @@ describe('authorization and durable quotas', () => {
       p_scope: 'admin-write',
     });
     const profile = state.writes.mock.calls.find((call) => call[0] === 'profiles')[1];
+    expect(profile.role).toBe('teacher');
     expect(profile.permissions.student.view).toBe(true);
     expect(profile.permissions.student.delete).toBe(false);
     expect(profile.permissions.academic).toEqual({ classes: true, rooms: true, programs: false, classesAdd: true, classesEdit: true, classesDelete: true, roomsAdd: true, roomsEdit: true, roomsDelete: true, programsAdd: false, programsEdit: false, programsDelete: false });
     expect(state.writes.mock.calls.some((call) => call[0] === 'account_audit_logs')).toBe(true);
+  });
+  it.each(['admin', 'trainer', 'teacher'] as const)('stores the explicit %s account rank', async role => {
+    const res = await call(
+      'users',
+      request('POST', {
+        body: { email: `${role}@example.test`, fullName: `Test ${role}`, role },
+      }),
+    );
+    expect(res.statusCode).toBe(201);
+    expect(state.writes).toHaveBeenCalledWith('profiles', expect.objectContaining({ role }));
+    expect(state.writes).toHaveBeenCalledWith('account_audit_logs', expect.objectContaining({ target_role: role }));
   });
   it('removes a partly provisioned account if audit recording fails', async () => {
     state.auditError = true;

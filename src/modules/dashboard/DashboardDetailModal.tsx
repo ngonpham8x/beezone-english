@@ -94,8 +94,8 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     active: 'Học sinh đang học',
     reserved: 'Học sinh bảo lưu',
     dropped: 'Học sinh nghỉ học',
-    debt: 'Học sinh còn nợ học phí',
-    paid: 'Học sinh đã đóng đủ'
+    debt: 'Học sinh chưa hoàn thành học phí',
+    paid: 'Học sinh đã hoàn thành học phí'
   };
 
   const isStudentDetail = detail ? detail in detailStudentMap : false;
@@ -190,11 +190,11 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
           : 'Doanh thu tháng ' + formatMonth(revenueMonth),
         'monthly-debt': selectedDebtClass
           ? `${selectedDebtClass.classroom.code} · ${selectedDebtClass.classroom.name}`
-          : 'Nợ học phí tháng theo lớp',
+          : 'Còn lại học phí tháng theo lớp',
         'course-debt': selectedDebtClass
           ? `${selectedDebtClass.classroom.code} · ${selectedDebtClass.classroom.name}`
-          : 'Nợ học phí khóa theo lớp',
-        'session-debt': selectedDebtClass ? `${selectedDebtClass.classroom.code} · ${selectedDebtClass.classroom.name}` : 'Nợ học phí buổi theo lớp'
+          : 'Còn lại học phí khóa theo lớp',
+        'session-debt': selectedDebtClass ? `${selectedDebtClass.classroom.code} · ${selectedDebtClass.classroom.name}` : 'Còn lại học phí buổi theo lớp'
       } satisfies Partial<Record<DashboardDetailType, string>>)[detail] ?? 'Chi tiết';
 
   const total = isStudentDetail
@@ -240,7 +240,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
               {detail === 'revenue'
                 ? 'Tổng đã thu: ' + formatCurrency(total as number)
                 : debtKind
-                  ? 'Tổng còn nợ: ' + formatCurrency(total as number)
+                  ? 'Tổng còn lại: ' + formatCurrency(total as number)
                 : total + ' bản ghi'}
             </p>
           </div>
@@ -273,7 +273,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                   const program = programById.get(student.programId);
                   const statusLabel = student.status === 'active' ? 'Đang học' : student.status === 'dropped' ? 'Nghỉ học' : 'Bảo lưu';
                   const debt = studentTuitionDebtBreakdown(student, receipts, programs, classes);
-                  const feeLabel = student.feeStatus === 'unpaid' ? 'Chưa đóng' : debt.total > 0 ? 'Đóng thiếu' : student.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa đóng';
+                  const feeLabel = debt.total > 0 || student.feeStatus !== 'paid' ? 'Chưa hoàn thành' : 'Đã hoàn thành';
                   return (
                     <tr key={student.id} className="hover:bg-slate-50">
                       <td className="px-3 py-3 font-semibold text-slate-700">{student.code}</td>
@@ -288,8 +288,8 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                         {canViewDebt || student.feeStatus === 'paid' ? (
                           <div>
                             <div className="font-semibold text-slate-800">{feeLabel}</div>
-                            {canViewDebt && debt.monthly > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Nợ tháng: {formatCurrency(debt.monthly)}</div>}
-                            {canViewDebt && debt.course > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Nợ khóa: {formatCurrency(debt.course)}</div>}{canViewDebt && debt.session > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Nợ buổi: {formatCurrency(debt.session)}</div>}
+                            {canViewDebt && debt.monthly > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại tháng: {formatCurrency(debt.monthly)}</div>}
+                            {canViewDebt && debt.course > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại khóa: {formatCurrency(debt.course)}</div>}{canViewDebt && debt.session > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại buổi: {formatCurrency(debt.session)}</div>}
                           </div>
                         ) : 'Đã hạn chế'}
                       </td>
@@ -365,9 +365,9 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-amber-800">
                     <span>{revenueStudentRows.length} học sinh đã đóng trong tháng</span>
                     <span>Tổng thu: <b>{formatCurrency(selectedRevenueClass.paidAmount)}</b></span>
-                    {canViewDebt && selectedRevenueClass.debt.monthly > 0 && <span>Nợ tháng: <b>{formatCurrency(selectedRevenueClass.debt.monthly)}</b></span>}
-                    {canViewDebt && selectedRevenueClass.debt.course > 0 && <span>Nợ khóa: <b>{formatCurrency(selectedRevenueClass.debt.course)}</b></span>}
-                    {canViewDebt && selectedRevenueClass.debt.session > 0 && <span>Nợ buổi: <b>{formatCurrency(selectedRevenueClass.debt.session)}</b></span>}
+                    {canViewDebt && selectedRevenueClass.debt.monthly > 0 && <span>Còn lại tháng: <b>{formatCurrency(selectedRevenueClass.debt.monthly)}</b></span>}
+                    {canViewDebt && selectedRevenueClass.debt.course > 0 && <span>Còn lại khóa: <b>{formatCurrency(selectedRevenueClass.debt.course)}</b></span>}
+                    {canViewDebt && selectedRevenueClass.debt.session > 0 && <span>Còn lại buổi: <b>{formatCurrency(selectedRevenueClass.debt.session)}</b></span>}
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -382,14 +382,14 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs">
                         <div><p className="text-[10px] font-semibold uppercase text-slate-500">Đã đóng</p><p className="mt-0.5 font-extrabold text-emerald-700">{formatCurrency(paidAmount)}</p></div>
-                        <div><p className="text-[10px] font-semibold uppercase text-slate-500">Còn nợ</p><p className="mt-0.5 font-extrabold text-rose-700">{canViewDebt ? formatCurrency(debt.total) : '—'}</p></div>
+                        <div><p className="text-[10px] font-semibold uppercase text-slate-500">Còn lại</p><p className="mt-0.5 font-extrabold text-rose-700">{canViewDebt ? formatCurrency(debt.total) : '—'}</p></div>
                       </div>
-                      {canViewDebt && debt.total > 0 && <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-rose-700">{debt.monthly > 0 && <span>Nợ tháng: {formatCurrency(debt.monthly)}</span>}{debt.course > 0 && <span>Nợ khóa: {formatCurrency(debt.course)}</span>}{debt.session > 0 && <span>Nợ buổi: {formatCurrency(debt.session)}</span>}</div>}
+                      {canViewDebt && debt.total > 0 && <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-rose-700">{debt.monthly > 0 && <span>Còn lại tháng: {formatCurrency(debt.monthly)}</span>}{debt.course > 0 && <span>Còn lại khóa: {formatCurrency(debt.course)}</span>}{debt.session > 0 && <span>Còn lại buổi: {formatCurrency(debt.session)}</span>}</div>}
                       <div className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-100 text-xs">
                         {studentReceipts.map((receipt) => (
                           <div key={receipt.id} className="flex items-center justify-between gap-2 px-2.5 py-2">
                             <div className="min-w-0"><p className="font-semibold text-slate-700">{receipt.code} · {paymentKindLabel(receipt)}</p><p className="text-[10px] text-slate-500">{paymentPeriodLabel(receipt)} · {receipt.paymentDate} · {paymentMethodLabel(receipt.paymentMethod)}</p></div>
-                            <div className="shrink-0 text-right"><p className="font-bold text-emerald-700">{formatCurrency(receipt.paidAmount)}</p>{canViewDebt && receipt.debtAmount > 0 && <p className="mt-0.5 text-[10px] font-bold text-rose-700">Nợ {formatCurrency(receipt.debtAmount)}</p>}</div>
+                            <div className="shrink-0 text-right"><p className="font-bold text-emerald-700">{formatCurrency(receipt.paidAmount)}</p>{canViewDebt && receipt.debtAmount > 0 && <p className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại {formatCurrency(receipt.debtAmount)}</p>}</div>
                           </div>
                         ))}
                       </div>
@@ -402,7 +402,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                 {revenueClassRows.map((row) => (
                   <button key={row.classroom.id} type="button" onClick={() => setSelectedRevenueClassId(row.classroom.id)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500">
                     <div className="flex items-start justify-between gap-3"><div><p className="font-extrabold text-slate-900">{row.classroom.code}</p><p className="mt-0.5 text-xs text-slate-500">{row.classroom.name}</p></div><ChevronRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-amber-600" /></div>
-                    <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Đã thu</p><p className="mt-0.5 text-lg font-extrabold text-emerald-700">{formatCurrency(row.paidAmount)}</p></div><div className="text-right text-[11px] text-slate-500"><p>{row.studentCount} học sinh</p>{canViewDebt && row.debt.monthly > 0 && <p className="mt-1 font-bold text-rose-700">Nợ tháng: {formatCurrency(row.debt.monthly)}</p>}{canViewDebt && row.debt.course > 0 && <p className="mt-1 font-bold text-rose-700">Nợ khóa: {formatCurrency(row.debt.course)}</p>}{canViewDebt && row.debt.session > 0 && <p className="mt-1 font-bold text-rose-700">Nợ buổi: {formatCurrency(row.debt.session)}</p>}</div></div>
+                    <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Đã thu</p><p className="mt-0.5 text-lg font-extrabold text-emerald-700">{formatCurrency(row.paidAmount)}</p></div><div className="text-right text-[11px] text-slate-500"><p>{row.studentCount} học sinh</p>{canViewDebt && row.debt.monthly > 0 && <p className="mt-1 font-bold text-rose-700">Còn lại tháng: {formatCurrency(row.debt.monthly)}</p>}{canViewDebt && row.debt.course > 0 && <p className="mt-1 font-bold text-rose-700">Còn lại khóa: {formatCurrency(row.debt.course)}</p>}{canViewDebt && row.debt.session > 0 && <p className="mt-1 font-bold text-rose-700">Còn lại buổi: {formatCurrency(row.debt.session)}</p>}</div></div>
                   </button>
                 ))}
               </div>
@@ -415,8 +415,8 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                 <div className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-950">
                   <div className="font-extrabold">{selectedDebtClass.classroom.code} · {selectedDebtClass.classroom.name}</div>
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-rose-800">
-                    <span>{debtStudentRows.length} học sinh còn nợ {debtKind === 'monthly' ? 'tháng' : debtKind === 'session' ? 'buổi' : 'khóa'}</span>
-                    <span>Tổng nợ: <b>{formatCurrency(selectedDebtClass.debtAmount)}</b></span>
+                    <span>{debtStudentRows.length} học sinh chưa hoàn thành học phí {debtKind === 'monthly' ? 'tháng' : debtKind === 'session' ? 'buổi' : 'khóa'}</span>
+                    <span>Tổng còn lại: <b>{formatCurrency(selectedDebtClass.debtAmount)}</b></span>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -430,7 +430,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                         {studentReceipts.map((receipt) => (
                           <div key={receipt.id} className="flex items-center justify-between gap-2 px-2.5 py-2">
                             <div className="min-w-0"><p className="font-semibold text-slate-700">{receipt.code} · {paymentKindLabel(receipt)}</p><p className="text-[10px] text-slate-500">{paymentPeriodLabel(receipt)} · {receipt.paymentDate}</p></div>
-                            <p className="shrink-0 font-bold text-rose-700">Nợ {formatCurrency(receipt.debtAmount)}</p>
+                            <p className="shrink-0 font-bold text-rose-700">Còn lại {formatCurrency(receipt.debtAmount)}</p>
                           </div>
                         ))}
                       </div>
@@ -443,7 +443,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                 {debtClassRows.map((row) => (
                   <button key={row.classroom.id} type="button" onClick={() => setSelectedDebtClassId(row.classroom.id)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500">
                     <div className="flex items-start justify-between gap-3"><div><p className="font-extrabold text-slate-900">{row.classroom.code}</p><p className="mt-0.5 text-xs text-slate-500">{row.classroom.name}</p></div><ChevronRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-rose-700" /></div>
-                    <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Nợ {debtKind === 'monthly' ? 'tháng' : debtKind === 'session' ? 'buổi' : 'khóa'}</p><p className="mt-0.5 text-lg font-extrabold text-rose-700">{formatCurrency(row.debtAmount)}</p></div><p className="text-right text-[11px] text-slate-500">{row.studentCount} học sinh</p></div>
+                    <div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase text-slate-500">Còn lại {debtKind === 'monthly' ? 'tháng' : debtKind === 'session' ? 'buổi' : 'khóa'}</p><p className="mt-0.5 text-lg font-extrabold text-rose-700">{formatCurrency(row.debtAmount)}</p></div><p className="text-right text-[11px] text-slate-500">{row.studentCount} học sinh</p></div>
                   </button>
                 ))}
               </div>

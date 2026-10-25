@@ -1,5 +1,6 @@
 import { studentClassIds } from '../../lib/studentClasses';
 import {
+  Award,
   BookOpen,
   Calendar,
   CalendarDays,
@@ -8,17 +9,24 @@ import {
   DollarSign,
   DoorOpen,
   GraduationCap,
+  MessageSquare,
   Phone,
+  Star,
+  TrendingUp,
   UserCheck,
   Users,
   X,
 } from 'lucide-react';
+import React, { useMemo } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
+import { splitAttendanceNote } from '../attendance/parentContact';
 import { paymentKindLabel, paymentPeriodLabel, studentTuitionDebtBreakdown } from '../../lib/tuition';
 import type {
+  AttendanceSession,
   ClassEnrollment,
   ClassRoom,
   CourseProgram,
+  Grade,
   Room,
   Student,
   Teacher,
@@ -26,6 +34,7 @@ import type {
   TuitionReceipt,
 } from '../../types';
 import { FeeStatusBadge } from './FeeStatusBadge';
+
 interface Props {
   student: Student;
   classes: ClassRoom[];
@@ -35,8 +44,26 @@ interface Props {
   timetableSlots: TimetableSlot[];
   receipts: TuitionReceipt[];
   enrollments: ClassEnrollment[];
+  grades?: Grade[];
+  attendanceSessions?: AttendanceSession[];
   onClose: () => void;
 }
+
+const ATTITUDE_LABELS: Record<string, string> = {
+  excellent: 'Xuất sắc ⭐',
+  good: 'Tốt & Hăng hái 👍',
+  normal: 'Bình thường',
+  needs_focus: 'Cần tập trung hơn 👀',
+  needs_support: 'Cần cô kèm thêm 📖',
+};
+
+function getGradeRank(avg: number): { label: string; color: string } {
+  if (avg >= 8.5) return { label: 'Xuất sắc 🏆', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+  if (avg >= 7.0) return { label: 'Giỏi 🌟', color: 'bg-sky-100 text-sky-800 border-sky-300' };
+  if (avg >= 5.0) return { label: 'Khá / Đạt 👍', color: 'bg-amber-100 text-amber-800 border-amber-300' };
+  return { label: 'Cần cố gắng 📚', color: 'bg-rose-100 text-rose-800 border-rose-300' };
+}
+
 export function StudentProfileDialog({
   student: viewingStudent,
   classes,
@@ -46,9 +73,21 @@ export function StudentProfileDialog({
   timetableSlots,
   receipts,
   enrollments,
+  grades = [],
+  attendanceSessions = [],
   onClose,
 }: Props) {
   const debtForStudent = studentTuitionDebtBreakdown(viewingStudent, receipts, programs, classes);
+
+  const studentGrades = useMemo(() => {
+    return (grades || []).filter((g) => g.studentId === viewingStudent.id);
+  }, [grades, viewingStudent.id]);
+
+  const studentSessions = useMemo(() => {
+    return (attendanceSessions || [])
+      .filter((s) => s.entries.some((e) => e.studentId === viewingStudent.id))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [attendanceSessions, viewingStudent.id]);
   return (
     <DialogFrame
       label="Hồ sơ học viên"
@@ -267,6 +306,203 @@ export function StudentProfileDialog({
             </div>
           );
         })}
+
+        {/* SECTION: ACADEMIC PERFORMANCE & TEACHER COMMENTS */}
+        <div className="space-y-4 my-5 pt-3 border-t border-slate-200">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-amber-600" /> Bảng Điểm & Đánh Giá Năng Lực Học Viên
+            </h4>
+            {studentGrades.length > 0 && (
+              <span className="text-[11px] font-bold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                {studentGrades.length} bài kiểm tra
+              </span>
+            )}
+          </div>
+
+          {studentGrades.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3.5 text-center text-xs text-slate-500">
+              <Award className="w-6 h-6 mx-auto mb-1.5 text-slate-300" />
+              Chưa có dữ liệu bài kiểm tra định kỳ trong hệ thống Điểm số.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {studentGrades.map((grade) => {
+                const gradeClass = classes.find((c) => c.id === grade.classId);
+                const rank = getGradeRank(grade.average);
+                return (
+                  <div
+                    key={grade.id}
+                    className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-amber-50/20 p-4 shadow-2xs space-y-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-900">
+                          {gradeClass?.name || 'Lớp học'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${rank.color}`}>
+                          {rank.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-slate-500 font-medium">Điểm TB:</span>
+                        <span className="text-base font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                          {Number(grade.average).toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Skills breakdown */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Nghe (Listening)</div>
+                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.listening ?? '-'}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Nói (Speaking)</div>
+                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.speaking ?? '-'}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Đọc (Reading)</div>
+                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.reading ?? '-'}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Viết (Writing)</div>
+                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.writing ?? '-'}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="rounded-lg bg-blue-50/60 border border-blue-200/60 p-1.5">
+                        <div className="text-[10px] uppercase font-semibold text-blue-800">Giữa kỳ</div>
+                        <div className="font-bold text-blue-900">{grade.midterm ?? '-'}</div>
+                      </div>
+                      <div className="rounded-lg bg-indigo-50/60 border border-indigo-200/60 p-1.5">
+                        <div className="text-[10px] uppercase font-semibold text-indigo-800">Cuối kỳ</div>
+                        <div className="font-bold text-indigo-900">{grade.finalExam ?? '-'}</div>
+                      </div>
+                      <div className="rounded-lg bg-emerald-50/60 border border-emerald-200/60 p-1.5">
+                        <div className="text-[10px] uppercase font-semibold text-emerald-800">Chuyên cần</div>
+                        <div className="font-bold text-emerald-900">{grade.attendance ?? '-'}</div>
+                      </div>
+                    </div>
+
+                    {/* Teacher's comment on student's ability / performance */}
+                    <div className="rounded-xl bg-amber-50/80 border border-amber-200/80 p-3 text-xs space-y-1">
+                      <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Nhận xét của giáo viên về lực học của bé:</span>
+                      </div>
+                      <p className="text-slate-800 font-medium leading-relaxed italic pl-5">
+                        {grade.comment ? `“${grade.comment}”` : 'Chưa có nhận xét chi tiết cho bài thi này.'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* SECTION: RECENT SESSION REVIEWS & PROGRESS (From Attendance) */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4 text-sky-600" /> Nhận Xét Diễn Biến Học Tập Từng Buổi (Từ Điểm Danh)
+              </h5>
+              {studentSessions.length > 0 && (
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {studentSessions.length} buổi gần nhất
+                </span>
+              )}
+            </div>
+
+            {studentSessions.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3.5 text-center text-xs text-slate-500">
+                <Calendar className="w-6 h-6 mx-auto mb-1.5 text-slate-300" />
+                Chưa có buổi học nào được ghi nhận điểm danh.
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                {studentSessions.slice(0, 8).map((session) => {
+                  const entry = session.entries.find((e) => e.studentId === viewingStudent.id);
+                  if (!entry) return null;
+                  const sessionClass = classes.find((c) => c.id === session.classId);
+                  const cleanRemark = splitAttendanceNote(entry.note).text;
+                  return (
+                    <div
+                      key={session.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs space-y-2 hover:bg-slate-50 transition"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900">
+                            Ngày {session.date.split('-').reverse().join('/')}
+                          </span>
+                          <span className="text-slate-400">·</span>
+                          <span className="font-semibold text-slate-600">{sessionClass?.name || 'Lớp'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            entry.status === 'present'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : entry.status === 'late'
+                                ? 'bg-amber-100 text-amber-800'
+                                : entry.status === 'excused'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {entry.status === 'present'
+                              ? 'Có mặt'
+                              : entry.status === 'late'
+                                ? 'Đi muộn'
+                                : entry.status === 'excused'
+                                  ? 'Nghỉ phép'
+                                  : 'Vắng'}
+                          </span>
+                          {entry.rating && entry.rating > 0 ? (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-0.5">
+                              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                              {entry.rating}/5
+                            </span>
+                          ) : null}
+                          {entry.sessionScore !== undefined && entry.sessionScore !== null ? (
+                            <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 text-[10px] font-bold">
+                              {entry.sessionScore}/10 đ
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {session.lessonTopic && (
+                        <p className="text-[11px] text-slate-600">
+                          <strong className="text-slate-700">Chủ đề bài:</strong> {session.lessonTopic}
+                        </p>
+                      )}
+
+                      {entry.learningAttitude && (
+                        <p className="text-[11px] text-purple-700 font-medium">
+                          <strong>Thái độ học:</strong> {ATTITUDE_LABELS[entry.learningAttitude] || entry.learningAttitude}
+                        </p>
+                      )}
+
+                      {cleanRemark && (
+                        <div className="rounded-lg bg-white border border-slate-200 p-2 text-[11px] text-slate-800 leading-relaxed">
+                          <strong className="text-amber-800">Nhận xét của giáo viên:</strong> {cleanRemark}
+                        </div>
+                      )}
+
+                      {entry.homeworkAssignment && (
+                        <p className="text-[11px] text-slate-500 italic">
+                          <strong>Dặn dò BTVN:</strong> {entry.homeworkAssignment}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* SECTION: PARENT & CONTACT */}
         <div className="space-y-3 my-5 pt-3 border-t border-slate-200">

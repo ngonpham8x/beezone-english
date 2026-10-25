@@ -36,7 +36,7 @@ export const StaffPermissionModal: React.FC<StaffPermissionModalProps> = ({
   };
 
   return (
-    <DialogFrame label="Phân quyền nhân viên" onClose={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+    <DialogFrame label="Phân quyền giáo viên" onClose={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
         <button aria-label="Đóng"
           onClick={onClose}
@@ -50,7 +50,7 @@ export const StaffPermissionModal: React.FC<StaffPermissionModalProps> = ({
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Phân Quyền Nhân Viên Quản Lý</h3>
+            <h3 className="text-lg font-bold text-slate-900">Phân Quyền Giáo Viên</h3>
             <p className="text-xs text-slate-500">Bật/Tắt chi tiết từng thao tác cho tài khoản: <strong>{staffAccount.name.replace(/\s*\(Quản [L|l]ý\)/gi, '')}</strong></p>
           </div>
         </div>
@@ -134,7 +134,7 @@ export const StaffPermissionModal: React.FC<StaffPermissionModalProps> = ({
                   checked={perms.tuition.showDebt ?? false}
                   onChange={() => handleToggle('tuition', 'showDebt')}
                 />
-                <span className="text-[11px] text-slate-700 font-semibold">Hiển thị công nợ học phí cho nhân viên thu</span>
+                <span className="text-[11px] text-slate-700 font-semibold">Hiển thị số tiền học phí còn lại cho giáo viên thu</span>
               </label>
             </div>
           </div>

@@ -32,8 +32,8 @@
     "no_messages": "Không có tin nhắn mới",
     "switch_account": "Chuyển tài khoản",
     "owner": "Chủ cơ sở",
-    "staff": "Nhân viên",
-    "permissions": "Phân quyền nhân viên"
+    "staff": "Giáo viên",
+    "permissions": "Phân quyền tài khoản"
   },
   "actions": {
     "add_student": "Thêm Học Sinh",
@@ -76,7 +76,7 @@
     "program": "Chương trình",
     "phone": "SĐT phụ huynh",
     "status": "Tình trạng",
-    "debt": "Còn nợ",
+    "debt": "Còn lại",
     "actions": "Thao tác"
   },
   "student": {
@@ -98,10 +98,10 @@
     "unassigned": "Chưa xếp lớp",
     "student_phone": "HS:",
     "parent_phone": "PH:",
-    "status_paid": "Đã đóng đủ",
+    "status_paid": "Đã hoàn thành",
     "status_unpaid": "Chưa đóng",
-    "status_debt": "Còn nợ",
-    "status_partial": "Đóng 1 phần",
+    "status_debt": "Chưa hoàn thành",
+    "status_partial": "Chưa hoàn thành",
     "no_matching": "Không tìm thấy học sinh phù hợp với bộ lọc."
   },
   "teacher": {
@@ -137,16 +137,16 @@
   },
   "tuition": {
     "title": "Quản Lý Học Phí & Phiếu Thu",
-    "sub": "Thu học phí, cấp phiếu thu, theo dõi công nợ học viên tại Cơ sở 01",
+    "sub": "Thu học phí, cấp phiếu thu, theo dõi số tiền còn lại tại Cơ sở 01",
     "add_new": "Thu Học Phí Mới",
     "total_collected": "TỔNG THỰC THU HỌC PHÍ",
-    "total_debt": "TỔNG CÔNG NỢ CÒN LẠI",
+    "total_debt": "TỔNG SỐ TIỀN CÒN LẠI",
     "history": "LỊCH SỬ PHIẾU THU HỌC PHÍ",
     "receipt_code": "MÃ PHIẾU THU",
     "student": "HỌC SINH",
     "fee": "HỌC PHÍ KHÓA",
     "paid": "ĐÃ ĐÓNG (VNĐ)",
-    "debt": "CÒN NỢ (VNĐ)",
+    "debt": "CÒN LẠI (VNĐ)",
     "date": "NGÀY THU",
     "method": "HÌNH THỨC",
     "print": "In Phiếu Thu"

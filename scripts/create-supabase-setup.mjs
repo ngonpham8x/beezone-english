@@ -60,7 +60,7 @@ $beezone_setup$;
 
 ${migrations.map(({ name, sql }) => `-- Migration: ${name}\n${sql}`).join("\n\n")}
 
--- Auth accounts created before setup also receive an INACTIVE staff profile.
+-- Auth accounts created before setup also receive an INACTIVE teacher profile.
 -- Administrator activation remains an explicit private Dashboard action.
 insert into public.profiles (id, email, full_name, avatar_url)
 select id, lower(email),

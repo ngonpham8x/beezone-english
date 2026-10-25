@@ -12,7 +12,7 @@ export function writeGuideSheet(context: ExportContext) {
     ],
     [
       '2. Thu trực tiếp cùng học sinh',
-      'Nếu thu ngay khi thêm học sinh, nhập số tiền ở cột “Đã thu nhập trực tiếp”; có thể điền thêm Còn nợ, Khoản thu, Kỳ/Mốc khóa, Ngày thu và Hình thức. Các sheet lớp, TỔNG QUAN và tổng HỌC PHÍ tự cập nhật.',
+      'Nếu thu ngay khi thêm học sinh, nhập số tiền ở cột “Đã thu nhập trực tiếp”; có thể điền thêm Số tiền còn lại, Khoản thu, Kỳ/Mốc khóa, Ngày thu và Hình thức. Các sheet lớp, TỔNG QUAN và tổng HỌC PHÍ tự cập nhật.',
     ],
     [
       '3. Phiếu thu chi tiết',

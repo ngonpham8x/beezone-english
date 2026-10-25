@@ -951,8 +951,8 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                           className="px-2.5 py-2 text-xs border border-slate-200 rounded-xl bg-white font-medium text-slate-700"
                         >
                           <option value="all">Tất cả học phí</option>
-                          <option value="paid">Đã đóng đủ</option>
-                          <option value="unpaid">Chưa đóng / Nợ</option>
+                          <option value="paid">Đã hoàn thành</option>
+                          <option value="unpaid">Chưa hoàn thành</option>
                         </select>
 
                         {onUpdateStudent && canEdit && (
@@ -1159,7 +1159,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
                                             : 'bg-rose-50 text-rose-700 border border-rose-200'
                                         }`}
                                       >
-                                        {st.feeStatus === 'paid' ? 'Đã đóng đủ' : 'Chưa đóng / Nợ'}
+                                        {st.feeStatus === 'paid' ? 'Đã hoàn thành' : 'Chưa hoàn thành'}
                                       </span>
                                     </td>
                                     {onUpdateStudent && canEdit && (

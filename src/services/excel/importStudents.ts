@@ -86,7 +86,7 @@ export function importStudents(
         getByAliases(record, ['dathunhaptructiepvnd', 'dathunhaptructiep', 'quickpaid']),
       );
       const directDebtAmount = numberValue(
-        getByAliases(record, ['connonhaptructiepvnd', 'connonhaptructiep', 'quickdebt']),
+        getByAliases(record, ['conlainhaptructiepvnd', 'conlainhaptructiep', 'connonhaptructiepvnd', 'connonhaptructiep', 'quickdebt']),
       );
       if (directPaidAmount > 0 || directDebtAmount > 0) {
         const directKindLabel = cellText(

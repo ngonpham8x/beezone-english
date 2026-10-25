@@ -37,6 +37,12 @@ const numbers: Partial<Record<typeof arrays[number], string[]>> = {
 };
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const stringArray = (value: unknown) => Array.isArray(value) && value.every((item) => typeof item === 'string');
+const optionalShortText = (value: unknown, maxLength: number) =>
+  value === undefined || (typeof value === 'string' && value.length <= maxLength);
+const validInvoiceFields = (record: Record<string, unknown>) =>
+  optionalShortText(record.invoiceNo, 50) &&
+  optionalShortText(record.bookNo, 50) &&
+  optionalShortText(record.invoiceBook, 110);
 
 /** Validate imported/cloud data before any live state is replaced. Missing legacy arrays start empty. */
 export function parseCenterData(value: unknown, fallbackSettings: CenterSettings): CenterDataPayload {
@@ -73,17 +79,34 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');
       if (key === 'grades' && numbers.grades!.some((field) => (record[field] as number) > 10)) throw new Error('Điểm phải trong khoảng 0–10.');
       if (key === 'receipts') {
+        if (!validInvoiceFields(record)) throw new Error('SHĐ/Quyển của phiếu thu không hợp lệ.');
         if (record.paymentKind !== undefined && !['course','monthly','session'].includes(record.paymentKind as string)) throw new Error('Hình thức học phí không hợp lệ.');
         if (record.paymentKind === 'session' && (!Array.isArray(record.sessionLines) || record.sessionLines.some(line => !isRecord(line) || typeof line.attendanceSessionId !== 'string' || !isCalendarDate(line.date) || !validSessionRate(line.unitPrice)) || !money(record.sessionFee))) throw new Error('Chi tiết phiếu học phí theo buổi không hợp lệ.');
         if (record.dueDate !== undefined && !isCalendarDate(record.dueDate)) throw new Error('Hạn thanh toán không hợp lệ.');
         if (!isCalendarDate(record.paymentDate) || (record.monthlyFee !== undefined && !money(record.monthlyFee))) throw new Error('Ngày thu hoặc học phí tháng không hợp lệ.');
         if (record.installments !== undefined) {
-          if (!Array.isArray(record.installments) || record.installments.some((entry) => !isRecord(entry) || typeof entry.id !== 'string' || !money(entry.amount) || !isCalendarDate(entry.date))) throw new Error('Lịch sử đóng học phí không hợp lệ.');
+          if (!Array.isArray(record.installments) || record.installments.some((entry) => !isRecord(entry) || typeof entry.id !== 'string' || !money(entry.amount) || !isCalendarDate(entry.date) || !validInvoiceFields(entry))) throw new Error('Lịch sử đóng học phí không hợp lệ.');
           const total = record.installments.reduce((sum, entry) => sum + entry.amount, 0);
           if (total > (record.paidAmount as number)) throw new Error('Tổng các đợt đóng vượt quá số tiền đã thu.');
         }
       }
-      if (key === 'attendanceSessions' && (!isCalendarDate(record.date) || !Array.isArray(record.entries) || record.entries.some((entry) => !isRecord(entry) || typeof entry.studentId !== 'string' || !['present', 'absent', 'excused', 'late'].includes(entry.status as string)))) throw new Error('Dữ liệu điểm danh không hợp lệ.');
+      if (key === 'attendanceSessions' && (
+        !isCalendarDate(record.date) ||
+        !optionalShortText(record.lessonTopic, 1000) ||
+        !optionalShortText(record.generalNotes, 3000) ||
+        !Array.isArray(record.entries) ||
+        record.entries.some((entry) =>
+          !isRecord(entry) ||
+          typeof entry.studentId !== 'string' ||
+          !['present', 'absent', 'excused', 'late'].includes(entry.status as string) ||
+          !optionalShortText(entry.note, 5000) ||
+          !optionalShortText(entry.homeworkAssignment, 3000) ||
+          (entry.homeworkCompleted !== undefined && typeof entry.homeworkCompleted !== 'boolean') ||
+          (entry.rating !== undefined && (!Number.isInteger(entry.rating) || (entry.rating as number) < 1 || (entry.rating as number) > 5)) ||
+          (entry.learningAttitude !== undefined && !['excellent', 'good', 'normal', 'needs_focus', 'needs_support'].includes(entry.learningAttitude as string)) ||
+          (entry.sessionScore !== undefined && (typeof entry.sessionScore !== 'number' || !Number.isFinite(entry.sessionScore) || entry.sessionScore < 0 || entry.sessionScore > 10))
+        )
+      )) throw new Error('Dữ liệu điểm danh không hợp lệ.');
       if (key === 'attendanceSessions' && record.billing !== undefined && (!isRecord(record.billing) || !validSessionRate(record.billing.unitPrice) || !['attended','unexcused','all'].includes(record.billing.absencePolicy as string) || new Set((record.entries as {studentId:string}[]).map(entry => entry.studentId)).size !== (record.entries as unknown[]).length)) throw new Error('Đơn giá hoặc danh sách tính phí buổi học không hợp lệ.');
     }
     result[key] = records;

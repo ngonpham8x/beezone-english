@@ -51,7 +51,7 @@ describe('private administrator configuration', () => {
       (await db.query('select role,is_active,is_private from public.profiles order by id')).rows,
     ).toEqual([
       { role: 'owner', is_active: true, is_private: true },
-      { role: 'staff', is_active: false, is_private: false },
+      { role: 'teacher', is_active: false, is_private: false },
     ]);
     await db.exec(buildPrivateOwnerSetup('private@example.test'));
     expect(
@@ -81,7 +81,7 @@ describe('private administrator configuration', () => {
       (await db.query('select role,is_active,is_private from public.profiles order by id')).rows,
     ).toEqual([
       { role: 'owner', is_active: true, is_private: true },
-      { role: 'staff', is_active: false, is_private: false },
+      { role: 'teacher', is_active: false, is_private: false },
     ]);
     expect(
       (await db.query('select action,target_name from public.account_audit_logs')).rows,
