@@ -8,10 +8,10 @@ export const receiptStatus = (
 };
 
 export const receiptStatusLabel: Record<'paid' | 'partial' | 'unpaid' | 'debt', string> = {
-  paid: 'Đã đóng đủ',
-  partial: 'Đóng thiếu',
-  unpaid: 'Chưa đóng',
-  debt: 'Đóng thiếu',
+  paid: 'Đã hoàn thành',
+  partial: 'Chưa hoàn thành',
+  unpaid: 'Chưa hoàn thành',
+  debt: 'Chưa hoàn thành',
 };
 
 export const receiptStatusClass: Record<'paid' | 'partial' | 'unpaid' | 'debt', string> = {

@@ -169,6 +169,9 @@ export interface Grade {
 export interface TuitionInstallment {
   id: string;
   code?: string;
+  invoiceNo?: string;
+  bookNo?: string;
+  invoiceBook?: string;
   date: string; // YYYY-MM-DD
   amount: number;
   paymentMethod?: 'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định';
@@ -179,6 +182,9 @@ export interface TuitionInstallment {
 export interface TuitionReceipt {
   id: string;
   code: string; // e.g. PT-2026-001
+  invoiceNo?: string;
+  bookNo?: string;
+  invoiceBook?: string;
   studentId: string;
   classId: string;
   courseFee: number;

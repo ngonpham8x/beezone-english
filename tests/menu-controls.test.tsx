@@ -218,7 +218,7 @@ it('combines all compact tuition filters and resets them without changing receip
     onAddReceipt={mutate} onUpdateReceipt={mutate} onDeleteReceipt={mutate} />);
   for (const [label, option] of [
     ['Lọc lớp trên phiếu thu', classes[0].name], ['Lọc khoản thu', 'Học phí tháng'],
-    ['Lọc tình trạng phiếu thu', 'Còn nợ / đóng thiếu'], ['Lọc tháng thu', 'Tháng 06/2026'],
+    ['Lọc tình trạng phiếu thu', 'Chưa hoàn thành'], ['Lọc tháng thu', 'Tháng 06/2026'],
     ['Lọc hình thức thanh toán', 'Chuyển khoản'],
   ]) await chooseOption(screen.getByRole('combobox', { name: label }), option);
   expect(screen.getByText('UI-KEEP')).toBeTruthy();

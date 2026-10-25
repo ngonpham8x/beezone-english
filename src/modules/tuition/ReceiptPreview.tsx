@@ -11,6 +11,16 @@ import {
 } from '../../lib/tuition';
 import type { CenterSettings, ClassRoom, Student, TuitionReceipt } from '../../types';
 import { receiptStatus, receiptStatusLabel } from './receiptPresentation';
+
+export function formatInvoiceBook(item?: { invoiceBook?: string; invoiceNo?: string; bookNo?: string; code?: string } | null): string {
+  if (!item) return '......... / .........';
+  if (item.invoiceBook?.trim()) return item.invoiceBook.trim();
+  if (item.invoiceNo?.trim() || item.bookNo?.trim()) {
+    return `${item.invoiceNo?.trim() || '.......'} / ${item.bookNo?.trim() || '.......'}`;
+  }
+  return '......... / .........';
+}
+
 interface Props {
   receipt: TuitionReceipt;
   settings: CenterSettings;
@@ -29,11 +39,12 @@ export function ReceiptPreview({
 }: Props) {
   const handlePrintReceipt = () => {
     const prevTitle = document.title;
-    document.title = `BEEZONE_PhieuThu_${selectedReceipt?.code || 'HocPhi'}`;
+    const invTitle = selectedReceipt?.invoiceBook ? selectedReceipt.invoiceBook.replace(/[^a-zA-Z0-9]/g, '_') : (selectedReceipt?.code || 'HocPhi');
+    document.title = `BEEZONE_PhieuThu_${invTitle}`;
     document.body.dataset.printing = 'tuition-receipt';
     const pageStyle = document.createElement('style');
     pageStyle.id = 'tuition-receipt-page-style';
-    pageStyle.textContent = '@page { size: portrait !important; margin: 6mm !important; }';
+    pageStyle.textContent = '@page { size: A5 portrait !important; margin: 6mm !important; }';
     document.head.appendChild(pageStyle);
     const cleanup = () => {
       delete document.body.dataset.printing;
@@ -54,7 +65,8 @@ export function ReceiptPreview({
     >
       <div
         data-print-receipt
-        className="dialog-panel bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-2xl border border-slate-300 relative print:m-0 print:p-4 print:shadow-none print:border-none"
+        style={{ fontFamily: '"Times New Roman", Times, Georgia, serif', fontSize: '13pt' }}
+        className="dialog-panel bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-300 relative print:m-0 print:p-3 print:shadow-none print:border-none print:w-full leading-normal text-slate-900"
       >
         <button
           aria-label="Đóng"
@@ -76,17 +88,18 @@ export function ReceiptPreview({
               className="absolute left-2 top-0 h-14 w-14 rounded-full border border-slate-200 bg-white object-cover"
             />
             <div className="min-h-14 px-16">
-              <h2 className="whitespace-nowrap font-extrabold text-slate-900 text-[13px] uppercase tracking-tight">
+              <h2 className="whitespace-nowrap font-extrabold text-slate-900 text-[14px] uppercase tracking-tight">
                 {settings.name}
               </h2>
               <p className="text-xs text-slate-600">{settings.address}</p>
-              <p className="text-xs text-slate-600">
-                Hotline: {settings.phone} · Email: {settings.email}
-              </p>
-              <h3 className="text-xl font-black text-slate-900 uppercase mt-3 tracking-widest">
+              <p className="text-xs text-slate-600">Hotline: {settings.phone}</p>
+              <p className="text-xs text-slate-600">Email: {settings.email}</p>
+              <h3 className="text-xl font-black text-slate-900 uppercase mt-2.5 tracking-widest">
                 PHIẾU THU HỌC PHÍ
               </h3>
-              <p className="text-xs font-bold text-amber-800">Số: {selectedReceipt.code}</p>
+              <p className="text-xs font-bold text-amber-900">
+                SHĐ/Quyển: {formatInvoiceBook(selectedReceipt)}
+              </p>
             </div>
           </div>
 
@@ -140,7 +153,7 @@ export function ReceiptPreview({
                 </div>
                 {selectedReceipt.debtAmount > 0 && (
                   <div>
-                    Số tiền còn thiếu:{' '}
+                    Số tiền còn lại:{' '}
                     <strong className="text-rose-700">
                       {selectedReceipt.debtAmount.toLocaleString('vi-VN')} đ
                     </strong>
@@ -169,27 +182,39 @@ export function ReceiptPreview({
                       </span>
                     </div>
                     <div className="space-y-1.5">
-                      {installments.map((inst, idx) => (
-                        <div
-                          key={inst.id || idx}
-                          className="flex justify-between items-center text-[11px] bg-white p-2 rounded-lg border border-slate-200"
-                        >
-                          <div>
-                            <span className="font-bold text-slate-800">
-                              Đợt {idx + 1} ({inst.date}):
-                            </span>
-                            <span className="text-emerald-800 font-bold ml-1.5">
-                              +{inst.amount.toLocaleString('vi-VN')} đ
-                            </span>
-                            <span className="text-slate-500 ml-2">
-                              ({inst.paymentMethod || 'TM/CK'})
+                      {installments.map((inst, idx) => {
+                        const instInvoice =
+                          formatInvoiceBook(inst) !== '......... / .........'
+                            ? formatInvoiceBook(inst)
+                            : idx === 0 && formatInvoiceBook(selectedReceipt) !== '......... / .........'
+                            ? formatInvoiceBook(selectedReceipt)
+                            : '......... / .........';
+
+                        return (
+                          <div
+                            key={inst.id || idx}
+                            className="flex flex-wrap justify-between items-center text-[12px] bg-white p-2.5 rounded-lg border border-slate-200 gap-1"
+                          >
+                            <div>
+                              <span className="font-bold text-slate-900">
+                                Đợt {idx + 1} ({inst.date}):
+                              </span>
+                              <span className="text-emerald-800 font-bold ml-1.5">
+                                +{inst.amount.toLocaleString('vi-VN')} đ
+                              </span>
+                              <span className="text-slate-500 ml-1.5">
+                                ({inst.paymentMethod || 'TM/CK'})
+                              </span>
+                              <span className="text-amber-900 font-bold ml-2">
+                                · SHĐ/Quyển: {instInvoice}
+                              </span>
+                            </div>
+                            <span className="text-slate-500 italic text-[11px]">
+                              {inst.notes || '—'}
                             </span>
                           </div>
-                          <span className="text-slate-500 italic text-[10px]">
-                            {inst.notes || '—'}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

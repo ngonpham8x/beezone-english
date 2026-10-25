@@ -97,7 +97,10 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [collectingClassId, setCollectingClassId] = useState<string>(students[0]?.classId || '');
   const [courseFeeInput, setCourseFeeInput] = useState<number>(0);
   const [monthlyFeeInput, setMonthlyFeeInput] = useState<number>(0);
-  const [paymentKind, setPaymentKind] = useState<'course' | 'monthly'>('monthly');
+  const [paymentKind, setPaymentKind] = useState<'course' | 'monthly'>('course');
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [invoiceNoInput, setInvoiceNoInput] = useState('');
+  const [bookNoInput, setBookNoInput] = useState('');
   // A course label is invalid for <input type="month">. Retaining the two
   // values prevents the period field from appearing blank when switching kind.
   const [monthlyBillingPeriod, setMonthlyBillingPeriod] = useState<string>(currentMonth);
@@ -118,6 +121,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [installmentMethod, setInstallmentMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định'>('Chuyển khoản');
   const [installmentNotes, setInstallmentNotes] = useState<string>('Đóng học phí đợt cuối (hoàn tất học phí)');
   const [installmentCollectorInput, setInstallmentCollectorInput] = useState('');
+  const [installmentInvoiceNo, setInstallmentInvoiceNo] = useState('');
+  const [installmentBookNo, setInstallmentBookNo] = useState('');
   const [installmentError, setInstallmentError] = useState<string | null>(null);
 
   const [receiptQuery, setReceiptQuery] = useState('');
@@ -239,14 +244,17 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const studentReceipts = receipts.filter((r) => r.studentId === student.id && r.classId === classId);
     const debt = debtBreakdown(studentReceipts);
     const fee = debt.total > 0 ? debt.total : (prog?.tuitionFee || 0);
-    const kind = cls?.billingMode === 'course' ? 'course' : 'monthly';
+    const kind = cls?.billingMode === 'monthly' ? 'monthly' : 'course';
 
     setEditingReceipt(null);
     setCollectingStudentId(student.id);
     setCollectingClassId(classId);
-    setCourseFeeInput(kind === 'course' ? fee : 0);
-    setMonthlyFeeInput(kind === 'monthly' ? fee : 0);
+    setCourseFeeInput(fee);
+    setMonthlyFeeInput(fee);
     setPaymentKind(kind);
+    setInvoiceNoInput('');
+    setBookNoInput('');
+    setStudentSearchQuery('');
     setMonthlyBillingPeriod(currentMonth);
     setCourseBillingPeriod(coursePeriodOptions[0] || defaultCoursePeriod);
     setPaidAmountInput(fee);
@@ -277,6 +285,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     setMonthlyFeeInput(receipt.monthlyFee || 0);
     const receiptKind = receipt.paymentKind === 'course' ? 'course' : 'monthly';
     setPaymentKind(receiptKind);
+    setInvoiceNoInput(receipt.invoiceNo || '');
+    setBookNoInput(receipt.bookNo || (receipt.invoiceBook && !receipt.invoiceNo ? receipt.invoiceBook : ''));
+    setStudentSearchQuery('');
     setMonthlyBillingPeriod(receiptKind === 'monthly'
       ? (receipt.billingPeriod || receipt.paymentDate.slice(0, 7))
       : receipt.paymentDate.slice(0, 7));
@@ -301,6 +312,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     setInstallmentMethod(receipt.paymentMethod || 'Chuyển khoản');
     setInstallmentNotes(receipt.debtAmount > 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Thu học phí đợt tiếp theo');
     setInstallmentCollectorInput(receipt.collectorName || '');
+    setInstallmentInvoiceNo('');
+    setInstallmentBookNo('');
     setInstallmentError(null);
   };
 
@@ -325,6 +338,11 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const installmentIndex = existingInstallments.length + 1;
     const isFinalPayment = installmentAmountInput >= collectingInstallmentReceipt.debtAmount;
     const finalCollector = installmentCollectorInput.trim() || collectingInstallmentReceipt.collectorName || '';
+    const instInvNo = installmentInvoiceNo.trim() || undefined;
+    const instBkNo = installmentBookNo.trim() || undefined;
+    const instInvBook = (installmentInvoiceNo.trim() || installmentBookNo.trim())
+      ? `${installmentInvoiceNo.trim() || '.......'} / ${installmentBookNo.trim() || '.......'}`
+      : undefined;
 
     const newInstallment: TuitionInstallment = {
       id: `INST_${Date.now()}`,
@@ -332,6 +350,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       amount: installmentAmountInput,
       paymentMethod: installmentMethod,
       collectorName: finalCollector,
+      invoiceNo: instInvNo,
+      bookNo: instBkNo,
+      invoiceBook: instInvBook,
       notes: installmentNotes || (isFinalPayment ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : `Đóng học phí đợt ${installmentIndex}`),
     };
 
@@ -347,6 +368,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       paymentDate: installmentDateInput,
       collectorName: finalCollector,
       paymentMethod: installmentMethod,
+      invoiceNo: instInvNo || collectingInstallmentReceipt.invoiceNo,
+      bookNo: instBkNo || collectingInstallmentReceipt.bookNo,
+      invoiceBook: instInvBook || collectingInstallmentReceipt.invoiceBook,
       installments: [...existingInstallments, newInstallment],
       notes: collectingInstallmentReceipt.notes
         ? `${collectingInstallmentReceipt.notes} | Đợt ${installmentIndex} (${installmentDateInput}): +${installmentAmountInput.toLocaleString('vi-VN')} đ`
@@ -390,6 +414,11 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const debtAmount = Math.max(finalPrice - paidAmountInput, 0);
     const status = debtAmount > 0 ? (paidAmountInput > 0 ? 'partial' : 'debt') : 'paid';
     const finalCollector = collectorNameInput.trim();
+    const finalInvoiceNo = invoiceNoInput.trim() || undefined;
+    const finalBookNo = bookNoInput.trim() || undefined;
+    const finalInvoiceBook = (invoiceNoInput.trim() || bookNoInput.trim())
+      ? `${invoiceNoInput.trim() || '.......'} / ${bookNoInput.trim() || '.......'}`
+      : undefined;
 
     // Xử lý các đợt đóng tiền
     let nextInstallments = editingReceipt ? getReceiptInstallments(editingReceipt) : [];
@@ -403,11 +432,14 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           amount: addedAmount,
           paymentMethod,
           collectorName: finalCollector,
+          invoiceNo: finalInvoiceNo,
+          bookNo: finalBookNo,
+          invoiceBook: finalInvoiceBook,
           notes: debtAmount === 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Đóng học phí đợt tiếp theo',
         };
         nextInstallments = [...nextInstallments, newInst];
       } else if (addedAmount === 0 && nextInstallments.length === 1 && (paymentDateInput !== editingReceipt.paymentDate || paymentMethod !== editingReceipt.paymentMethod || finalCollector !== editingReceipt.collectorName.trim())) {
-        nextInstallments = [{ ...nextInstallments[0], date: paymentDateInput || editingReceipt.paymentDate, paymentMethod, collectorName: finalCollector }];
+        nextInstallments = [{ ...nextInstallments[0], date: paymentDateInput || editingReceipt.paymentDate, paymentMethod, collectorName: finalCollector, invoiceNo: finalInvoiceNo, bookNo: finalBookNo, invoiceBook: finalInvoiceBook }];
       } else if (paidAmountInput < editingReceipt.paidAmount) {
         nextInstallments = [
           {
@@ -416,6 +448,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
             amount: paidAmountInput,
             paymentMethod,
             collectorName: finalCollector,
+            invoiceNo: finalInvoiceNo,
+            bookNo: finalBookNo,
+            invoiceBook: finalInvoiceBook,
             notes: 'Điều chỉnh số tiền đã đóng',
           }
         ];
@@ -428,6 +463,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
           amount: paidAmountInput,
           paymentMethod,
           collectorName: finalCollector,
+          invoiceNo: finalInvoiceNo,
+          bookNo: finalBookNo,
+          invoiceBook: finalInvoiceBook,
           notes: debtAmount === 0 ? 'Đóng trọn gói 1 lần' : 'Đóng học phí đợt 1',
         }
       ];
@@ -452,6 +490,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       paidAmount: paidAmountInput,
       debtAmount,
       status,
+      invoiceNo: finalInvoiceNo,
+      bookNo: finalBookNo,
+      invoiceBook: finalInvoiceBook,
       paymentDate: paymentDateInput || editingReceipt?.paymentDate || centerDate(),
       collectorName: finalCollector,
       paymentMethod,
@@ -643,7 +684,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
             { value: 'course', label: 'Học phí khóa' }, { value: 'session', label: 'Học phí buổi' },
           ]} />
           <ResponsiveSelect label="Lọc tình trạng phiếu thu" value={filterReceiptStatus} onChange={value => setFilterReceiptStatus(value as typeof filterReceiptStatus)} options={[
-            { value: 'all', label: 'Tất cả tình trạng' }, { value: 'paid', label: 'Đã đóng đủ' }, { value: 'debt', label: 'Còn nợ / đóng thiếu' },
+            { value: 'all', label: 'Tất cả tình trạng' }, { value: 'paid', label: 'Đã hoàn thành' }, { value: 'debt', label: 'Chưa hoàn thành' },
           ]} />
           <ResponsiveSelect label="Lọc tháng thu" value={filterMonth} onChange={setFilterMonth} options={[
             { value: 'all', label: 'Tất cả tháng thu' }, ...receiptMonths.map(month => ({ value: month, label: `Tháng ${month.slice(5)}/${month.slice(0, 4)}` })),
@@ -677,7 +718,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                 <th className="py-3 px-3.5 whitespace-nowrap text-right">Mức Học Phí</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Khoản Thu</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-right">Đã Đóng (VNĐ)</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-right">Còn Thiếu (VNĐ)</th>
+                <th className="py-3 px-3.5 whitespace-nowrap text-right">Còn Lại (VNĐ)</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-center">Tình Trạng</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Ngày Thu</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-center">Hình Thức</th>
@@ -825,6 +866,16 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
             <form onSubmit={handleSaveCollect} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Chọn Học Sinh *</label>
+                <div className="relative mb-2">
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={studentSearchQuery}
+                    onChange={(e) => setStudentSearchQuery(e.target.value)}
+                    placeholder="Nhập tên hoặc mã học sinh để tìm nhanh..."
+                    className="w-full rounded-xl border border-slate-300 py-1.5 pl-8 pr-3 text-xs outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                  />
+                </div>
                 <select
                   value={collectingStudentId}
                   onChange={(e) => {
@@ -851,7 +902,18 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                   required
                 >
                   {students
-                    .filter((s) => editingReceipt || studentClassIds(s).some(id => classes.find(c => c.id === id)?.billingMode !== 'session'))
+                    .filter((s) => {
+                      const matchesEligibility = editingReceipt || studentClassIds(s).some(id => classes.find(c => c.id === id)?.billingMode !== 'session');
+                      if (!matchesEligibility) return false;
+                      if (!studentSearchQuery.trim()) return true;
+                      const q = studentSearchQuery.trim().toLowerCase();
+                      return (
+                        s.name.toLowerCase().includes(q) ||
+                        s.code.toLowerCase().includes(q) ||
+                        (s.parentPhone || '').includes(q) ||
+                        (s.phone || '').includes(q)
+                      );
+                    })
                     .sort((a, b) => {
                       const aOwing = isStudentOwingTuition(a, receipts, classes) ? 0 : 1;
                       const bOwing = isStudentOwingTuition(b, receipts, classes) ? 0 : 1;
@@ -859,7 +921,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                     })
                     .map((s) => {
                       const owing = isStudentOwingTuition(s, receipts, classes);
-                      const tag = owing ? '⚠️ [Chưa đóng/còn nợ]' : '✓ [Đã đóng đủ]';
+                      const tag = owing ? '⚠️ [Chưa hoàn thành]' : '✓ [Đã hoàn thành]';
                       return (
                         <option key={s.id} value={s.id}>
                           {tag} {s.name} ({s.code}) - Phụ huynh: {s.parentName || 'Chưa ghi'}
@@ -900,7 +962,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                             </div>
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-semibold">
                               <span className="text-emerald-700">Đã đóng: {receipt.paidAmount.toLocaleString('vi-VN')} đ</span>
-                              {receipt.debtAmount > 0 && <span className="text-rose-700">Còn nợ: {receipt.debtAmount.toLocaleString('vi-VN')} đ</span>}
+                              {receipt.debtAmount > 0 && <span className="text-rose-700">Còn lại: {receipt.debtAmount.toLocaleString('vi-VN')} đ</span>}
                               {receipt.paymentKind === 'course' && (receipt.monthlyFee || 0) > 0 && <span className="text-slate-500">Giữ HP tháng: {(receipt.monthlyFee || 0).toLocaleString('vi-VN')} đ</span>}
                               {receipt.paymentKind !== 'course' && receipt.courseFee > 0 && <span className="text-slate-500">Giữ HP khóa: {receipt.courseFee.toLocaleString('vi-VN')} đ</span>}
                             </div>
@@ -913,6 +975,45 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                   )}
                 </section>
               )}
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-semibold text-amber-950 text-xs">
+                    Mục SHĐ / Quyển
+                  </label>
+                  <span className="text-[11px] text-amber-800 italic">
+                    (Trung tâm tự nhập khi lập phiếu)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Số Hóa Đơn (SHĐ)</label>
+                    <input
+                      type="text"
+                      value={invoiceNoInput}
+                      onChange={(e) => setInvoiceNoInput(e.target.value)}
+                      placeholder="Ví dụ: 00125"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Quyển Số</label>
+                    <input
+                      type="text"
+                      value={bookNoInput}
+                      onChange={(e) => setBookNoInput(e.target.value)}
+                      placeholder="Ví dụ: 03"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="mt-1.5 text-[11px] text-amber-900 font-semibold flex items-center justify-between">
+                  <span>Hiển thị trên phiếu in:</span>
+                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 text-amber-950">
+                    SHĐ/Quyển: {invoiceNoInput.trim() || '...........'} / {bookNoInput.trim() || '...........'}
+                  </span>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -996,7 +1097,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                     </div>
                     {remaining > 0 && (
                       <div className="mt-2 border-t border-amber-200 pt-2 text-amber-900">
-                        <label className="mb-1 block font-semibold">Tiền còn nợ {paymentKind === 'monthly' ? 'học phí tháng' : 'học phí khóa'} (VNĐ)</label>
+                        <label className="mb-1 block font-semibold">Số tiền còn lại {paymentKind === 'monthly' ? 'học phí tháng' : 'học phí khóa'} (VNĐ)</label>
                         <input
                           type="number"
                           min="0"
@@ -1008,7 +1109,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                           }}
                           className="w-full border border-amber-300 bg-white px-3 py-2 font-extrabold text-amber-900 rounded-xl"
                         />
-                        <p className="mt-1 text-[10px] text-amber-800">Số tiền đã đóng sẽ tự điều chỉnh để khớp với số còn nợ.</p>
+                        <p className="mt-1 text-[10px] text-amber-800">Số tiền đã đóng sẽ tự điều chỉnh để khớp với số tiền còn lại.</p>
                       </div>
                     )}
                   </div>
@@ -1116,13 +1217,10 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-600" />
               Thu Học Phí Đợt Tiếp Theo / Đóng Đợt Cuối
             </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Phiếu thu gốc: <strong className="font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{collectingInstallmentReceipt.code}</strong> · {paymentKindLabel(collectingInstallmentReceipt)}
-            </p>
 
             {(() => {
               const student = students.find(s => s.id === collectingInstallmentReceipt.studentId);
@@ -1140,7 +1238,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                         <div className="text-slate-500 text-[11px] mt-0.5">Lớp: {cls?.name} · Phụ huynh: {student?.parentName} ({student?.parentPhone})</div>
                       </div>
                       <span className="rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[10px]">
-                        Còn nợ: {collectingInstallmentReceipt.debtAmount.toLocaleString('vi-VN')} đ
+                        Còn lại: {collectingInstallmentReceipt.debtAmount.toLocaleString('vi-VN')} đ
                       </span>
                     </div>
 
@@ -1154,7 +1252,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                         <div className="font-bold text-emerald-800 text-xs mt-0.5">{collectingInstallmentReceipt.paidAmount.toLocaleString('vi-VN')} đ</div>
                       </div>
                       <div className="bg-rose-50 p-2 rounded-lg border border-rose-200">
-                        <div className="text-[10px] text-rose-700">Số Tiền Còn Nợ</div>
+                        <div className="text-[10px] text-rose-700">Số Tiền Còn Lại</div>
                         <div className="font-bold text-rose-800 text-xs mt-0.5">{collectingInstallmentReceipt.debtAmount.toLocaleString('vi-VN')} đ</div>
                       </div>
                     </div>
@@ -1189,6 +1287,45 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                       Thông tin đợt thu này (Đợt {installments.length + 1}):
                     </div>
 
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="font-semibold text-amber-950 text-xs">
+                          SHĐ / Quyển đợt này
+                        </label>
+                        <span className="text-[11px] text-amber-800 italic">
+                          (Trung tâm tự nhập)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">Số Hóa Đơn (SHĐ)</label>
+                          <input
+                            type="text"
+                            value={installmentInvoiceNo}
+                            onChange={(e) => setInstallmentInvoiceNo(e.target.value)}
+                            placeholder="Ví dụ: 00126"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">Quyển Số</label>
+                          <input
+                            type="text"
+                            value={installmentBookNo}
+                            onChange={(e) => setInstallmentBookNo(e.target.value)}
+                            placeholder="Ví dụ: 03"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-1.5 text-[11px] text-amber-900 font-semibold flex items-center justify-between">
+                        <span>Hiển thị trên phiếu in:</span>
+                        <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 text-amber-950">
+                          SHĐ/Quyển: {installmentInvoiceNo.trim() || '...........'} / {installmentBookNo.trim() || '...........'}
+                        </span>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Số Tiền Thu Lần Này (VNĐ) *</label>
@@ -1205,13 +1342,13 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                           required
                         />
                         <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                          <span>Còn nợ: {collectingInstallmentReceipt.debtAmount.toLocaleString('vi-VN')} đ</span>
+                          <span>Số tiền còn lại: {collectingInstallmentReceipt.debtAmount.toLocaleString('vi-VN')} đ</span>
                           <button
                             type="button"
                             onClick={() => setInstallmentAmountInput(collectingInstallmentReceipt.debtAmount)}
                             className="text-emerald-700 font-bold hover:underline"
                           >
-                            Đóng đủ hết nợ
+                            Đóng đủ số còn lại
                           </button>
                         </div>
                       </div>
@@ -1279,9 +1416,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                       return (
                         <div className={`p-2.5 rounded-lg border text-[11px] ${isComplete ? 'bg-emerald-100/70 border-emerald-300 text-emerald-950 font-bold' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
                           {isComplete ? (
-                            <span>🎉 Học viên sẽ chuyển sang trạng thái <strong>"Đã đóng đủ"</strong>. Doanh thu tháng {installmentDateInput.slice(0, 7)} tăng thêm <strong>+{installmentAmountInput.toLocaleString('vi-VN')} đ</strong>.</span>
+                            <span>🎉 Học viên sẽ chuyển sang trạng thái <strong>"Đã hoàn thành"</strong>. Doanh thu tháng {installmentDateInput.slice(0, 7)} tăng thêm <strong>+{installmentAmountInput.toLocaleString('vi-VN')} đ</strong>.</span>
                           ) : (
-                            <span>Sau khi thu, học viên còn nợ lại <strong>{remainAfter.toLocaleString('vi-VN')} đ</strong>. Doanh thu tháng {installmentDateInput.slice(0, 7)} tăng thêm <strong>+{installmentAmountInput.toLocaleString('vi-VN')} đ</strong>.</span>
+                            <span>Sau khi thu, học viên còn lại <strong>{remainAfter.toLocaleString('vi-VN')} đ</strong>. Doanh thu tháng {installmentDateInput.slice(0, 7)} tăng thêm <strong>+{installmentAmountInput.toLocaleString('vi-VN')} đ</strong>.</span>
                           )}
                         </div>
                       );
