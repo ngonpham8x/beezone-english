@@ -12,6 +12,7 @@ import {
   History,
   LayoutGrid,
   Save,
+  Send,
   Table as TableIcon,
   Users,
   XCircle,
@@ -29,9 +30,10 @@ import type { ClassEnrollment, ScheduleChange, TimetableSlot } from '../../types
 import { AttendanceSession, AttendanceStatus, AttendanceStudentEntry, ClassRoom, LearningAttitude, Student, Teacher } from '../../types';
 import type { TaskDestination } from '../dashboard/TodayTasks';
 import { ParentContactButton, ParentContactDialog } from './ParentContactDialog';
+import { ShareReviewDialog } from './ShareReviewDialog';
 import { canContactParent, retainContactHistory, splitAttendanceNote } from './parentContact';
 import type { ParentContactRequest } from './parentContact';
-import { canEditAttendanceClass, canViewAttendanceClass, isAttendanceManagementRole } from './access';
+import { canEditAttendanceClass, canViewAttendanceClass, isAttendanceManagementRole, canShareSessionReview } from './access';
 
 import { UserAccount } from '../../types';
 const EMPTY_ENROLLMENTS: ClassEnrollment[] = [];
@@ -62,6 +64,8 @@ const LEARNING_ATTITUDES: Array<{ value: LearningAttitude; label: string }> = [
   { value: 'needs_focus', label: 'Cần tập trung' },
   { value: 'needs_support', label: 'Cần hỗ trợ' },
 ];
+
+const QUICK_NOTES = ['Phát biểu tốt', 'Ngoan, chú ý', 'Cần tập trung', 'Quên làm BTVN', 'Tiến bộ rõ'];
 
 const appendQuickNote = (current: string, quickNote: string) => {
   const parts = current.split(',').map((part) => part.trim()).filter(Boolean);
@@ -133,6 +137,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const [lessonTopic, setLessonTopic] = useState<string>('');
   const [generalNotes, setGeneralNotes] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSavedRecently, setIsSavedRecently] = useState(false);
   const [applyOldSessionBilling, setApplyOldSessionBilling] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<AttendanceSession | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
@@ -292,6 +297,27 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     hasUnsavedChanges ? 'Lưu điểm danh trước khi báo phụ huynh.' : '';
   const contactReady = !contactReason;
   const contactStudent = classStudents.find(student => student.id === contactStudentId);
+
+  const [reviewStudentId, setReviewStudentId] = useState<string | null>(null);
+  const reviewStudent = classStudents.find(student => student.id === reviewStudentId);
+  const canShare = canShareSessionReview(currentUser, selectedClass, isOwner);
+
+  const shareReviewButton = (student: Student) => {
+    if (!canShare) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => setReviewStudentId(student.id)}
+        aria-label={`Chia sẻ nhận xét buổi học của ${student.name} cho phụ huynh`}
+        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100 hover:border-sky-400 active:scale-95 transition cursor-pointer shadow-2xs"
+        title="Chia sẻ nhận xét buổi học cho phụ huynh qua Zalo hoặc tin nhắn SMS"
+      >
+        <Send className="w-3.5 h-3.5 text-[#0068FF] shrink-0" />
+        <span>Gửi nhận xét PH (Zalo/SMS)</span>
+      </button>
+    );
+  };
+
   const parentContactButton = (student: Student) => onRecordParentContact && <ParentContactButton
     studentName={student.name} absent={entries[student.id]?.status === 'absent'}
     note={existingSession?.entries.find(entry => entry.studentId === student.id)?.note}
@@ -349,8 +375,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     };
 
     if (onSaveSession(sessionData) === false) return;
-    setStatusMessage(existingSession ? '✅ Đã cập nhật điểm danh và nhận xét thành công!' : '✅ Đã lưu kết quả điểm danh thành công!');
-    setTimeout(() => setStatusMessage(null), 3500);
+    setIsSavedRecently(true);
+    setStatusMessage(existingSession ? 'Đã cập nhật điểm danh và nhận xét thành công!' : 'Đã lưu kết quả điểm danh thành công!');
+    setTimeout(() => {
+      setStatusMessage(null);
+      setIsSavedRecently(false);
+    }, 4000);
   };
 
   // Stats
@@ -416,11 +446,19 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                 Lịch: <strong className="text-slate-700 font-semibold">{selectedClass.scheduleTime || 'N/A'}</strong>
               </span>
             </div>
-            {hasManagementOverview && (
-              <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-800">
-                Tổng quan quản lý: {permittedClasses.length} lớp · {teachers.length} giáo viên
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {existingSession && (
+                <span className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-bold text-emerald-800 flex items-center gap-1 shadow-2xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Buổi đã điểm danh (Đang xem & chỉnh sửa)
+                </span>
+              )}
+              {hasManagementOverview && (
+                <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-800">
+                  Tổng quan quản lý: {permittedClasses.length} lớp · {teachers.length} giáo viên
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -476,9 +514,17 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       )}
 
       {statusMessage && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          {statusMessage}
+        <div className="p-3.5 bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xs shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-white" />
+            </span>
+            <span className="font-extrabold">{statusMessage}</span>
+          </div>
+          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg border border-emerald-300 shrink-0 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            Đã cập nhật
+          </span>
         </div>
       )}
 
@@ -561,10 +607,23 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             disabled={!canSave || !selectedClass || classStudents.length === 0}
             aria-label={existingSession ? 'Lưu Điểm Danh & Nhận Xét Đã Sửa' : 'Lưu Điểm Danh & Nhận Xét'}
             title={classStudents.length === 0 ? "Lớp học chưa có học viên để điểm danh" : undefined}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            className={`flex items-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+              isSavedRecently
+                ? 'bg-emerald-700 ring-2 ring-emerald-300 shadow-md scale-102'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
           >
-            <Save className="w-4 h-4 shrink-0" />
-            <span>{existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét' : 'Lưu Điểm Danh & Nhận Xét'}</span>
+            {isSavedRecently ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-white animate-bounce" />
+                <span>✓ Đã Cập Nhật Thành Công!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 shrink-0" />
+                <span>{existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét' : 'Lưu Điểm Danh & Nhận Xét'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -584,8 +643,6 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             <div className={`grid grid-cols-1 gap-4 ${classStudents.length === 1 ? 'mx-auto w-full max-w-5xl' : classStudents.length === 2 ? 'mx-auto w-full max-w-6xl sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
               {classStudents.map((st, index) => {
                 const entry = entries[st.id] || DEFAULT_ENTRY;
-
-                const quickNotes = ['Phát biểu tốt', 'Ngoan, chú ý', 'Cần tập trung', 'Quên làm BTVN', 'Tiến bộ rõ'];
 
                 return (
                   <div
@@ -688,31 +745,40 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
                     {/* Student Note Input & Quick Chips */}
                     <div className="space-y-1.5">
-                      <input
-                        type="text"
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+                        <span>Nhận xét buổi học:</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Tự động co giãn dòng khi gõ</span>
+                      </div>
+                      <textarea
+                        rows={3}
+                        disabled={!canSave}
                         placeholder="Nhập nhận xét buổi học..."
                         value={splitAttendanceNote(entry.note).text}
                         onChange={e => handleNoteChange(st.id, e.target.value)}
-                        className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                        className="w-full text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-hidden leading-relaxed resize-y min-h-[72px]"
                       />
                       <div className="flex flex-wrap items-center gap-1">
-                        {quickNotes.map(qn => (
+                        {QUICK_NOTES.map(qn => (
                           <button
                             key={qn}
                             type="button"
+                            disabled={!canSave}
                             onClick={() => {
                               const note = splitAttendanceNote(entry.note).text;
-                              const newNote = note ? `${note}, ${qn}` : qn;
+                              const newNote = appendQuickNote(note, qn);
                               handleNoteChange(st.id, newNote);
                             }}
-                            className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-900 rounded-md font-medium transition cursor-pointer border border-slate-200/60"
+                            className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-900 rounded-md font-medium transition cursor-pointer border border-slate-200/60 disabled:opacity-50"
                           >
                             + {qn}
                           </button>
                         ))}
                       </div>
                     </div>
-                    {parentContactButton(st)}
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      {parentContactButton(st)}
+                      {shareReviewButton(st)}
+                    </div>
                   </div>
                 );
               })}
@@ -831,15 +897,36 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                         </td>
 
                         {/* Note */}
-                        <td className="py-3 px-4">
-                          <input
-                            type="text"
+                        <td className="py-3 px-4 min-w-[320px]">
+                          <textarea
+                            rows={2}
+                            disabled={!canSave}
                             placeholder="VD: Phát biểu tốt, cần chú ý phát âm..."
                             value={splitAttendanceNote(entry.note).text}
                             onChange={e => handleNoteChange(st.id, e.target.value)}
-                            className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:outline-hidden"
+                            className="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:outline-hidden leading-relaxed resize-y min-h-[58px]"
                           />
-                          {parentContactButton(st)}
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                            {QUICK_NOTES.map(qn => (
+                              <button
+                                key={qn}
+                                type="button"
+                                disabled={!canSave}
+                                onClick={() => {
+                                  const note = splitAttendanceNote(entry.note).text;
+                                  const newNote = appendQuickNote(note, qn);
+                                  handleNoteChange(st.id, newNote);
+                                }}
+                                className="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-900 rounded-md font-medium transition cursor-pointer border border-slate-200/60 disabled:opacity-50"
+                              >
+                                + {qn}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {parentContactButton(st)}
+                            {shareReviewButton(st)}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -851,6 +938,46 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         </div>
       )}
 
+      {/* Bottom Save Action Bar */}
+      {classStudents.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
+          <div className="text-xs text-slate-600 font-medium flex flex-wrap items-center gap-2">
+            <span>Tổng số: <strong className="text-slate-900 font-bold">{totalStudents}</strong> học viên</span>
+            <span>·</span>
+            <span className="text-emerald-700 font-semibold">{presentCount} có mặt</span>
+            <span>·</span>
+            <span className="text-amber-700 font-semibold">{lateCount} đi muộn</span>
+            <span>·</span>
+            <span className="text-blue-700 font-semibold">{excusedCount} có phép</span>
+            <span>·</span>
+            <span className="text-rose-700 font-semibold">{absentCount} vắng</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave || !selectedClass}
+            aria-label={existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét Đã Sửa' : 'Lưu Điểm Danh & Nhận Xét'}
+            className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+              isSavedRecently
+                ? 'bg-emerald-700 ring-2 ring-emerald-300 shadow-md scale-102'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            {isSavedRecently ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-white animate-bounce" />
+                <span>✓ Đã Cập Nhật Thành Công!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 shrink-0" />
+                <span>{existingSession ? 'Cập Nhật Điểm Danh & Nhận Xét' : 'Lưu Điểm Danh & Nhận Xét'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {contactStudent && existingSession && onRecordParentContact && <ParentContactDialog
         key={`${existingSession.id}-${contactStudent.id}`}
         student={contactStudent} session={existingSession} className={selectedClass?.name || ''} centerName={centerName}
@@ -858,6 +985,31 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         unavailableReason={contactReason || 'Học viên không còn được ghi nhận vắng trong buổi này.'}
         onRecord={onRecordParentContact} onClose={() => setContactStudentId(null)}
       />}
+
+      {reviewStudent && selectedClass && (() => {
+        const rDraft = entries[reviewStudent.id];
+        return (
+          <ShareReviewDialog
+            key={`review-${selectedClass.id}-${reviewStudent.id}-${sessionDate}`}
+            student={reviewStudent}
+            className={selectedClass.name}
+            sessionDate={sessionDate}
+            centerName={centerName}
+            lessonTopic={lessonTopic}
+            entry={{
+              studentId: reviewStudent.id,
+              status: rDraft?.status || 'present',
+              homeworkCompleted: rDraft?.homeworkCompleted ?? true,
+              note: rDraft?.note || '',
+              homeworkAssignment: rDraft?.homeworkAssignment || '',
+              rating: rDraft?.rating || 0,
+              learningAttitude: (rDraft?.learningAttitude as LearningAttitude) || undefined,
+              sessionScore: typeof rDraft?.sessionScore === 'number' ? rDraft.sessionScore : undefined,
+            }}
+            onClose={() => setReviewStudentId(null)}
+          />
+        );
+      })()}
 
       {/* History of Previous Sessions for This Class */}
       {classHistory.length > 0 && (
