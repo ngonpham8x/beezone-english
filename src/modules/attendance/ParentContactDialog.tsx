@@ -41,18 +41,18 @@ export function ParentContactButton({
   const count = splitAttendanceNote(note).history.length;
   if (!absent && !count) return null;
   return (
-    <div className="mt-2 min-w-0 text-xs">
+    <div className="min-w-0 text-xs">
       <button
         type="button"
         onClick={onOpen}
         disabled={!ready && !count}
         aria-label={`${count ? 'Lịch sử liên hệ phụ huynh' : 'Báo phụ huynh'} của ${studentName}`}
-        className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-lg border border-sky-200 px-3 py-1 text-left font-semibold text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
+        className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-left font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50 cursor-pointer shadow-2xs"
       >
-        <MessageCircle aria-hidden="true" className="h-4 w-4 shrink-0" />
-        <span>{count ? `Đã liên hệ (${count}) · Xem` : 'Báo phụ huynh'}</span>
+        <MessageCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+        <span>{count ? `Đã liên hệ (${count}) · Xem` : 'Nhật ký liên hệ PH'}</span>
       </button>
-      {absent && !ready && <p className="mt-1 text-[11px] text-slate-500">{reason}</p>}
+      {absent && !ready && <p className="mt-0.5 text-[10px] text-slate-500 italic">{reason}</p>}
     </div>
   );
 }

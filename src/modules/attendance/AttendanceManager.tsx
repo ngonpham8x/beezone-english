@@ -130,8 +130,79 @@ const StudentFeedbackFields: React.FC<StudentFeedbackFieldsProps> = ({
   onUpdate,
 }) => {
   const absent = entry.status === 'absent';
+  const excused = entry.status === 'excused';
+  const notAttending = absent || excused;
   const note = splitAttendanceNote(entry.note).text;
 
+  // Khi học sinh VẮNG MẶT hoặc CÓ PHÉP: ẩn hoàn toàn ô nhận xét trên lớp, sao, thái độ & điểm số
+  if (notAttending) {
+    return (
+      <div className="space-y-2.5">
+        {/* Banner trạng thái học sinh vắng / nghỉ học */}
+        <div
+          className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+            absent
+              ? 'border-rose-200 bg-rose-50/80 text-rose-800'
+              : 'border-blue-200 bg-blue-50/80 text-blue-800'
+          }`}
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="text-[11px] font-semibold">
+            {absent
+              ? 'Học viên vắng mặt buổi này — Đã ẩn nhận xét trên lớp, đánh giá sao, thái độ & điểm số.'
+              : 'Học viên nghỉ học có phép — Đã ẩn nhận xét trên lớp, đánh giá sao, thái độ & điểm số.'}
+          </span>
+        </div>
+
+        {/* Ô ghi nhận Lý do vắng mặt / Lý do xin phép */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+            <span>{absent ? 'Lý do vắng mặt / Ghi chú:' : 'Lý do xin phép / Ghi chú:'}</span>
+            <span className="text-[10px] font-normal text-slate-400">Tự động lưu khi nhập</span>
+          </div>
+          <AutoGrowTextarea
+            rows={compact ? 2 : 2}
+            minHeight={compact ? 46 : 56}
+            maxLength={5000}
+            disabled={disabled}
+            aria-label={`Nhận xét trên lớp của ${student.name}`}
+            placeholder={
+              absent
+                ? 'Nhập lý do học viên vắng (ốm sốt, việc gia đình, chưa rõ lý do...)...'
+                : 'Nhập lý do học viên xin nghỉ có phép...'
+            }
+            value={note}
+            onChange={(event) => onNoteChange(event.target.value)}
+            className={`w-full overflow-hidden resize-none rounded-xl border p-2.5 text-xs leading-relaxed focus:bg-white focus:outline-hidden focus:ring-2 disabled:bg-slate-100 ${
+              absent
+                ? 'border-rose-200 bg-rose-50/40 text-slate-800 focus:border-rose-400 focus:ring-rose-200'
+                : 'border-blue-200 bg-blue-50/40 text-slate-800 focus:border-blue-400 focus:ring-blue-200'
+            }`}
+          />
+        </div>
+
+        {/* Dặn dò / Bài tập bù gửi phụ huynh nếu có */}
+        <div className="space-y-1">
+          <label className="block text-[11px] font-semibold text-slate-700">
+            Dặn dò / Bài tập bù gửi phụ huynh (nếu có):
+          </label>
+          <AutoGrowTextarea
+            rows={compact ? 2 : 2}
+            minHeight={compact ? 46 : 56}
+            maxLength={3000}
+            disabled={disabled}
+            aria-label={`Nội dung dặn dò hoặc bài tập về nhà riêng của ${student.name}`}
+            placeholder="VD: Nhắc con xem lại bài Unit 5 trang 30, hoàn thành bài tập bù và đi học bù buổi sau..."
+            value={entry.homeworkAssignment}
+            onChange={(event) => onUpdate({ homeworkAssignment: event.target.value })}
+            className="w-full overflow-hidden resize-none rounded-xl border border-sky-200 bg-sky-50/40 p-2.5 text-xs leading-relaxed text-slate-800 focus:border-sky-500 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-200 disabled:bg-slate-100"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Khi CÓ MẶT hoặc ĐI MUỘN: đầy đủ nhận xét trên lớp, dặn dò, sao, thái độ & điểm số
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
@@ -157,7 +228,7 @@ const StudentFeedbackFields: React.FC<StudentFeedbackFieldsProps> = ({
               type="button"
               disabled={disabled}
               onClick={() => onNoteChange(appendQuickNote(note, quickNote))}
-              className="rounded-md border border-slate-200/60 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:bg-amber-100 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-slate-200/60 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:bg-amber-100 hover:text-amber-900 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               + {quickNote}
             </button>
@@ -171,79 +242,73 @@ const StudentFeedbackFields: React.FC<StudentFeedbackFieldsProps> = ({
         </label>
         <AutoGrowTextarea
           rows={2}
-          minHeight={compact ? 58 : 72}
+          minHeight={compact ? 54 : 64}
           maxLength={3000}
           disabled={disabled}
           aria-label={`Nội dung dặn dò hoặc bài tập về nhà riêng của ${student.name}`}
           placeholder="VD: Ôn lại từ vựng, luyện đọc trang 12 và hoàn thành bài tập riêng..."
           value={entry.homeworkAssignment}
           onChange={(event) => onUpdate({ homeworkAssignment: event.target.value })}
-          className="w-full overflow-hidden resize-none rounded-xl border border-sky-200 bg-sky-50/50 p-3 text-xs leading-relaxed focus:border-sky-500 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-200 disabled:bg-slate-100"
+          className="w-full overflow-hidden resize-none rounded-xl border border-sky-200 bg-sky-50/50 p-2.5 text-xs leading-relaxed focus:border-sky-500 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-200 disabled:bg-slate-100"
         />
       </div>
 
-      <div className={`rounded-xl border p-2.5 ${absent ? 'border-rose-200 bg-rose-50/70' : 'border-slate-200 bg-slate-50/70'}`}>
-        {absent ? (
-          <p className="text-[11px] font-semibold text-rose-800">
-            Học viên đang vắng mặt — không chấm sao, thái độ hoặc điểm cho buổi này.
-          </p>
-        ) : (
-          <div className={`grid gap-2.5 ${compact ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1 sm:grid-cols-3'}`}>
-            <fieldset disabled={disabled} className="min-w-0">
-              <legend className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Đánh giá sao</legend>
-              <div className="flex items-center gap-1" aria-label={`Đánh giá sao của ${student.name}`}>
-                {[1, 2, 3, 4, 5].map((rating) => (
-                  <button
-                    key={rating}
-                    type="button"
-                    aria-label={`${rating} sao cho ${student.name}`}
-                    aria-pressed={entry.rating === rating}
-                    onClick={() => onUpdate({ rating: entry.rating === rating ? 0 : rating })}
-                    className="rounded p-0.5 text-amber-400 transition hover:scale-110 focus:outline-hidden focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Star className={`h-5 w-5 ${rating <= entry.rating ? 'fill-amber-400' : 'fill-transparent text-slate-300'}`} />
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+        <div className={`grid gap-2.5 ${compact ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1 sm:grid-cols-3'}`}>
+          <fieldset disabled={disabled} className="min-w-0">
+            <legend className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Đánh giá sao</legend>
+            <div className="flex items-center gap-1" aria-label={`Đánh giá sao của ${student.name}`}>
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  aria-label={`${rating} sao cho ${student.name}`}
+                  aria-pressed={entry.rating === rating}
+                  onClick={() => onUpdate({ rating: entry.rating === rating ? 0 : rating })}
+                  className="rounded p-0.5 text-amber-400 transition hover:scale-110 focus:outline-hidden focus:ring-2 focus:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                >
+                  <Star className={`h-5 w-5 ${rating <= entry.rating ? 'fill-amber-400' : 'fill-transparent text-slate-300'}`} />
+                </button>
+              ))}
+            </div>
+          </fieldset>
 
-            <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Thái độ học tập
-              <select
-                disabled={disabled}
-                aria-label={`Thái độ học tập của ${student.name}`}
-                value={entry.learningAttitude}
-                onChange={(event) => onUpdate({ learningAttitude: event.target.value as LearningAttitude | '' })}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-medium normal-case tracking-normal text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-100"
-              >
-                <option value="">Chưa đánh giá</option>
-                {LEARNING_ATTITUDES.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
+          <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            Thái độ học tập
+            <select
+              disabled={disabled}
+              aria-label={`Thái độ học tập của ${student.name}`}
+              value={entry.learningAttitude}
+              onChange={(event) => onUpdate({ learningAttitude: event.target.value as LearningAttitude | '' })}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-medium normal-case tracking-normal text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-100"
+            >
+              <option value="">Chưa đánh giá</option>
+              {LEARNING_ATTITUDES.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
 
-            <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Điểm buổi học
-              <input
-                type="number"
-                min={0}
-                max={10}
-                step={0.5}
-                disabled={disabled}
-                aria-label={`Điểm buổi học của ${student.name}`}
-                value={entry.sessionScore}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  const value = raw === '' ? '' : Math.min(10, Math.max(0, Number(raw)));
-                  onUpdate({ sessionScore: value });
-                }}
-                placeholder="0–10"
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-semibold normal-case tracking-normal text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-100"
-              />
-            </label>
-          </div>
-        )}
+          <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            Điểm buổi học
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step={0.5}
+              disabled={disabled}
+              aria-label={`Điểm buổi học của ${student.name}`}
+              value={entry.sessionScore}
+              onChange={(event) => {
+                const raw = event.target.value;
+                const value = raw === '' ? '' : Math.min(10, Math.max(0, Number(raw)));
+                onUpdate({ sessionScore: value });
+              }}
+              placeholder="0–10"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-semibold normal-case tracking-normal text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-100"
+            />
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -500,19 +565,19 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         aria-label={absent
           ? `Gửi thông báo vắng mặt của ${student.name} cho phụ huynh`
           : `Chia sẻ nhận xét buổi học của ${student.name} cho phụ huynh`}
-        className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition shadow-2xs ${
+        className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-bold transition shadow-2xs ${
           absent
-            ? 'border-rose-300 bg-rose-50 text-rose-800 hover:border-rose-400 hover:bg-rose-100'
+            ? 'border-rose-400 bg-rose-600 text-white hover:bg-rose-700 shadow-sm'
             : 'border-sky-300 bg-sky-50 text-sky-800 hover:border-sky-400 hover:bg-sky-100'
-        } disabled:cursor-not-allowed disabled:opacity-50`}
+        } disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer`}
         title={shareReason || (absent
           ? 'Gửi thông báo học viên đang vắng mặt qua Zalo hoặc SMS'
           : 'Chia sẻ nhận xét buổi học cho phụ huynh qua Zalo hoặc SMS')}
       >
         {absent
-          ? <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+          ? <XCircle className="h-4 w-4 shrink-0 text-white" />
           : <Send className="h-3.5 w-3.5 shrink-0 text-[#0068FF]" />}
-        <span>{absent ? 'Thông báo vắng PH' : 'Gửi nhận xét PH'}</span>
+        <span>{absent ? '📲 Báo vắng cho PH (Zalo/SMS)' : '💬 Gửi nhận xét PH'}</span>
       </button>
     );
   };
@@ -899,18 +964,28 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                         </span>
                       </div>
 
-                      <label className="flex items-center gap-1.5 cursor-pointer shrink-0 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                        <input
-                          type="checkbox"
-                          disabled={!canSave}
-                          checked={entry.homeworkCompleted}
-                          onChange={e => handleHomeworkChange(st.id, e.target.checked)}
-                          className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-                        />
-                        <span className={`text-[11px] font-bold ${entry.homeworkCompleted ? 'text-emerald-700' : 'text-slate-400'}`}>
-                          {entry.homeworkCompleted ? 'BTVN: Có' : 'BTVN: Chưa'}
+                      {entry.status === 'absent' ? (
+                        <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 shrink-0">
+                          BTVN: — (Vắng)
                         </span>
-                      </label>
+                      ) : entry.status === 'excused' ? (
+                        <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 shrink-0">
+                          BTVN: — (Phép)
+                        </span>
+                      ) : (
+                        <label className="flex items-center gap-1.5 cursor-pointer shrink-0 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                          <input
+                            type="checkbox"
+                            disabled={!canSave}
+                            checked={entry.homeworkCompleted}
+                            onChange={e => handleHomeworkChange(st.id, e.target.checked)}
+                            className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                          />
+                          <span className={`text-[11px] font-bold ${entry.homeworkCompleted ? 'text-emerald-700' : 'text-slate-400'}`}>
+                            {entry.homeworkCompleted ? 'BTVN: Có' : 'BTVN: Chưa'}
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     {/* 4-way Status Selector with touch-friendly pills */}
@@ -977,8 +1052,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       onUpdate={(changes) => updateEntry(st.id, changes)}
                     />
                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                      {parentContactButton(st)}
                       {shareReviewButton(st)}
+                      {parentContactButton(st)}
                     </div>
                   </div>
                 );
@@ -1088,18 +1163,28 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
                         {/* Homework */}
                         <td className="py-3 px-4 text-center">
-                          <label className="inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              disabled={!canSave}
-                              checked={entry.homeworkCompleted}
-                              onChange={e => handleHomeworkChange(st.id, e.target.checked)}
-                              className="w-4 h-4 text-emerald-600 rounded-sm border-slate-300 focus:ring-emerald-500"
-                            />
-                            <span className={`ml-1.5 text-xs font-semibold ${entry.homeworkCompleted ? 'text-emerald-700' : 'text-slate-400'}`}>
-                              {entry.homeworkCompleted ? 'Đã làm' : 'Chưa làm'}
+                          {entry.status === 'absent' ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-400 bg-slate-100 border border-slate-200">
+                              — (Vắng)
                             </span>
-                          </label>
+                          ) : entry.status === 'excused' ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-400 bg-slate-100 border border-slate-200">
+                              — (Phép)
+                            </span>
+                          ) : (
+                            <label className="inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={!canSave}
+                                checked={entry.homeworkCompleted}
+                                onChange={e => handleHomeworkChange(st.id, e.target.checked)}
+                                className="w-4 h-4 text-emerald-600 rounded-sm border-slate-300 focus:ring-emerald-500"
+                              />
+                              <span className={`ml-1.5 text-xs font-semibold ${entry.homeworkCompleted ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                {entry.homeworkCompleted ? 'Đã làm' : 'Chưa làm'}
+                              </span>
+                            </label>
+                          )}
                         </td>
 
                         {/* Feedback, homework and assessment */}
@@ -1113,8 +1198,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                             onUpdate={(changes) => updateEntry(st.id, changes)}
                           />
                           <div className="mt-2 flex flex-wrap items-center gap-2">
-                            {parentContactButton(st)}
                             {shareReviewButton(st)}
+                            {parentContactButton(st)}
                           </div>
                         </td>
                       </tr>

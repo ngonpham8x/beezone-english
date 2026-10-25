@@ -172,4 +172,49 @@ describe('attendance feedback editor', () => {
     expect(open).toHaveBeenCalledWith('https://zalo.me/0974497030', '_blank', 'noopener,noreferrer');
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('CHƯA CÓ MẶT')));
   });
+
+  it('hides in-class remarks, quick note tags, stars and scores when student is marked absent', () => {
+    render(
+      <AttendanceManager
+        classes={[classroom]}
+        students={[student]}
+        teachers={[teacher]}
+        attendanceSessions={[]}
+        onSaveSession={vi.fn()}
+        isOwner
+      />,
+    );
+
+    // Ban đầu học sinh có mặt: hiển thị nhận xét trên lớp, quick notes, sao, thái độ, điểm
+    expect(screen.getByText('Nhận xét trên lớp:')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '+ Phát biểu tốt' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: `5 sao cho ${student.name}` })).toBeTruthy();
+    expect(screen.getByText(/BTVN:\s*Có/)).toBeTruthy();
+
+    // Chuyển sang Vắng mặt:
+    fireEvent.click(screen.getByRole('button', { name: /^Vắng/ }));
+
+    // Ẩn hoàn toàn ô nhận xét trên lớp và quick tags
+    expect(screen.queryByText('Nhận xét trên lớp:')).toBeNull();
+    expect(screen.queryByRole('button', { name: '+ Phát biểu tốt' })).toBeNull();
+    // Ẩn đánh giá sao, thái độ, điểm số
+    expect(screen.queryByRole('button', { name: `5 sao cho ${student.name}` })).toBeNull();
+    expect(screen.queryByLabelText(`Thái độ học tập của ${student.name}`)).toBeNull();
+    expect(screen.queryByLabelText(`Điểm buổi học của ${student.name}`)).toBeNull();
+
+    // Hiển thị ô Lý do vắng mặt / Ghi chú & banner vắng mặt
+    expect(screen.getByText(/Lý do vắng mặt \/ Ghi chú:/)).toBeTruthy();
+    expect(screen.getByText(/Học viên vắng mặt buổi này/)).toBeTruthy();
+    expect(screen.getByText(/BTVN:\s*— \(Vắng\)/)).toBeTruthy();
+
+    // Nút báo vắng hiển thị rõ ràng
+    expect(screen.getByText('📲 Báo vắng cho PH (Zalo/SMS)')).toBeTruthy();
+
+    // Chuyển lại Có mặt: nhận xét trên lớp xuất hiện lại
+    fireEvent.click(screen.getByRole('button', { name: /^Có mặt/ }));
+    expect(screen.getByText('Nhận xét trên lớp:')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '+ Phát biểu tốt' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: `5 sao cho ${student.name}` })).toBeTruthy();
+    expect(screen.getByText(/BTVN:\s*Có/)).toBeTruthy();
+  });
 });
