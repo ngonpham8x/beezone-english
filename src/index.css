@@ -466,7 +466,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
     position: static !important;
     margin: 0 auto !important;
     width: 100% !important;
-    max-width: 140mm !important;
+    max-width: 138mm !important;
     max-height: none !important;
     height: auto !important;
     overflow: visible !important;
@@ -477,13 +477,13 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
     padding: 0 !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-  }
-
-  body[data-printing="tuition-receipt"] [data-print-receipt],
-  body[data-printing="tuition-receipt"] [data-print-receipt] * {
-    font-family: "Times New Roman", Times, serif !important;
+    font-family: "Times New Roman", Times, Georgia, serif !important;
     font-size: 13pt !important;
     line-height: 1.25 !important;
+  }
+
+  body[data-printing="tuition-receipt"] [data-print-receipt] * {
+    font-family: "Times New Roman", Times, Georgia, serif !important;
   }
 
   body[data-printing="tuition-receipt"] .print\:hidden,

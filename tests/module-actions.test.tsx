@@ -209,6 +209,17 @@ describe('domain command integration', () => {
     expect(result.current.store.receipts).toBe(receipts);
     act(() => expect(result.current.actions.handleSaveAttendanceSession({ ...recorded, entries: [{ studentId: student.id, status: 'present', note: 'Đã học bù' }] })).toBe(true));
     expect(splitAttendanceNote(result.current.store.attendanceSessions[0].entries[0].note).history).toEqual(splitAttendanceNote(recorded.entries[0].note).history);
+    act(() => expect(result.current.actions.handleRecordParentContact({
+      sessionId: recorded.id,
+      studentId: student.id,
+      channel: 'SMS',
+      details: 'Đã mở SMS để gửi nhận xét cuối buổi.',
+      type: 'review',
+    })).toBeNull());
+    expect(splitAttendanceNote(result.current.store.attendanceSessions[0].entries[0].note).history.at(-1)).toMatchObject({
+      channel: 'SMS',
+      details: 'Đã mở SMS để gửi nhận xét cuối buổi.',
+    });
     const parsed = parseCenterData(JSON.parse(JSON.stringify({ ...data, attendanceSessions: result.current.store.attendanceSessions })), data.settings);
     expect(parsed.attendanceSessions![0].entries[0].note).toBe(result.current.store.attendanceSessions[0].entries[0].note);
     act(() => expect(result.current.actions.handleRecordParentContact({ sessionId: recorded.id, studentId: student.id, channel: 'Zalo', details: '' })).toMatch(/không còn/));

@@ -862,29 +862,68 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
             <form onSubmit={handleSaveCollect} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Chọn Học Sinh *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700">Chọn Học Sinh *</label>
+                  {studentSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentSearchQuery('')}
+                      className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold"
+                    >
+                      Xóa tìm kiếm
+                    </button>
+                  )}
+                </div>
                 <div className="relative mb-2">
                   <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                   <input
                     type="text"
                     value={studentSearchQuery}
                     onChange={(e) => setStudentSearchQuery(e.target.value)}
-                    placeholder="Nhập tên hoặc mã học sinh để tìm nhanh..."
-                    className="w-full rounded-xl border border-slate-300 py-1.5 pl-8 pr-3 text-xs outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                    placeholder="Nhập tên, mã học sinh hoặc SĐT để tìm nhanh..."
+                    className="w-full rounded-xl border border-slate-300 py-1.5 pl-8 pr-8 text-xs outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
                   />
+                  {studentSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentSearchQuery('')}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                      title="Xóa tìm kiếm"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
                 <select
                   value={collectingStudentId}
                   onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const nextStudent = students.find((s) => s.id === selectedId);
+                    if (!nextStudent) return;
+
                     if (!editingReceipt) {
-                      const nextStudent = students.find(s => s.id === e.target.value);
-                      if (nextStudent) handleOpenCollectForStudent(nextStudent);
+                      const nextClassId =
+                        studentClassIds(nextStudent).find(
+                          (id) => classes.find((c) => c.id === id)?.billingMode !== 'session',
+                        ) || nextStudent.classId;
+                      const nextCls = classes.find((c) => c.id === nextClassId);
+                      const prog = programs.find((p) => p.id === (nextCls?.programId || nextStudent.programId));
+                      const fee = prog?.tuitionFee || 0;
+
+                      setCollectingStudentId(nextStudent.id);
+                      setCollectingClassId(nextClassId);
+                      setCourseFeeInput(fee);
+                      setMonthlyFeeInput(fee);
+                      setPaymentKind('course');
+                      setPaidAmountInput(fee);
+                      setDiscountInput(0);
+                      setCollectError(null);
                       return;
                     }
-                    setCollectingStudentId(e.target.value);
+
+                    setCollectingStudentId(nextStudent.id);
                     setCollectError(null);
-                    const st = students.find(s => s.id === e.target.value);
-                    const prog = programs.find(p => p.id === st?.programId);
+                    const prog = programs.find((p) => p.id === nextStudent.programId);
                     if (prog) {
                       if (paymentKind === 'monthly') {
                         setMonthlyFeeInput(prog.tuitionFee);
@@ -900,7 +939,12 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                 >
                   {students
                     .filter((s) => {
-                      const matchesEligibility = editingReceipt || studentClassIds(s).some(id => classes.find(c => c.id === id)?.billingMode !== 'session');
+                      if (s.id === collectingStudentId) return true;
+                      const matchesEligibility =
+                        editingReceipt ||
+                        studentClassIds(s).some(
+                          (id) => classes.find((c) => c.id === id)?.billingMode !== 'session',
+                        );
                       if (!matchesEligibility) return false;
                       if (!studentSearchQuery.trim()) return true;
                       const q = studentSearchQuery.trim().toLowerCase();

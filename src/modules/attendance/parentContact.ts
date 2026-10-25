@@ -102,7 +102,15 @@ export function absenceMessage(
   centerName: string,
 ): string {
   const formattedDate = isCalendarDate(date) ? date.split('-').reverse().join('/') : date;
-  return `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''},\n${centerName} xin thông báo học viên ${student.name} vắng buổi học lớp ${className} ngày ${formattedDate}.\nKính mong phụ huynh xác nhận thông tin để trung tâm tiện theo dõi và sắp xếp lịch học bù kịp thời cho con.\nTrân trọng cảm ơn quý phụ huynh!`;
+  return [
+    '⚠️ THÔNG BÁO HỌC VIÊN VẮNG MẶT',
+    `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''},`,
+    `Hiện tại, ${centerName} ghi nhận học viên ${student.name} CHƯA CÓ MẶT tại lớp ${className} trong buổi học ngày ${formattedDate}.`,
+    '• Trạng thái chuyên cần: VẮNG MẶT',
+    'Kính mong phụ huynh kiểm tra và phản hồi lý do vắng mặt để trung tâm kịp thời hỗ trợ, theo dõi và sắp xếp nội dung học bù cho con.',
+    'Nếu học viên đang trên đường đến lớp, phụ huynh vui lòng thông báo lại cho trung tâm.',
+    'Trân trọng cảm ơn quý phụ huynh!',
+  ].join('\n');
 }
 
 export function sessionReviewMessage(
@@ -112,6 +120,8 @@ export function sessionReviewMessage(
   centerName: string,
   entry?: AttendanceStudentEntry | null,
   lessonTopic?: string,
+  generalNotes?: string,
+  teacherName?: string,
 ): string {
   const formattedDate = isCalendarDate(date) ? date.split('-').reverse().join('/') : date;
   const statusLabel =
@@ -141,12 +151,30 @@ export function sessionReviewMessage(
   const stars = entry?.rating && entry.rating > 0 ? '⭐'.repeat(Math.min(entry.rating, 5)) : '';
   const cleanNote = entry?.note ? splitAttendanceNote(entry.note).text.trim() : '';
 
+  if (entry?.status === 'absent') {
+    return [
+      '⚠️ THÔNG BÁO HỌC VIÊN VẮNG MẶT',
+      `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''},`,
+      `Hiện tại, ${centerName} ghi nhận học viên ${student.name} CHƯA CÓ MẶT tại lớp ${className} trong buổi học ngày ${formattedDate}.`,
+      '• Trạng thái chuyên cần: VẮNG MẶT',
+      teacherName ? `• Giáo viên phụ trách: ${teacherName}` : null,
+      lessonTopic ? `• Chủ đề / nội dung buổi học: ${lessonTopic}` : null,
+      generalNotes ? `• Dặn dò / BTVN chung của lớp: ${generalNotes}` : null,
+      entry.homeworkAssignment ? `• BTVN riêng cần bổ sung: ${entry.homeworkAssignment}` : null,
+      cleanNote ? `• Ghi chú của giáo viên: ${cleanNote}` : null,
+      'Kính mong phụ huynh kiểm tra và phản hồi lý do vắng mặt để trung tâm kịp thời hỗ trợ, theo dõi và sắp xếp nội dung học bù cho con.',
+      'Nếu học viên đang trên đường đến lớp, phụ huynh vui lòng thông báo lại cho trung tâm.',
+      'Trân trọng cảm ơn quý phụ huynh!',
+    ].filter(Boolean).join('\n');
+  }
+
   const items = [
     `Kính gửi phụ huynh${student.parentName ? ` ${student.parentName}` : ''},`,
     `${centerName} xin gửi nhận xét buổi học của học viên ${student.name} ngày ${formattedDate} (Lớp ${className}):`,
+    teacherName ? `• Giáo viên phụ trách: ${teacherName}` : null,
     lessonTopic ? `• Chủ đề bài học: ${lessonTopic}` : null,
     `• Chuyên cần: ${statusLabel}`,
-    entry?.status !== 'absent' && entry?.homeworkCompleted !== undefined
+    entry?.homeworkCompleted !== undefined
       ? `• BTVN buổi trước: ${entry.homeworkCompleted ? 'Đã hoàn thành tốt ✓' : 'Chưa hoàn thành'}`
       : null,
     attitudeLabel ? `• Thái độ học tập: ${attitudeLabel}` : null,
@@ -155,6 +183,7 @@ export function sessionReviewMessage(
       ? `• Điểm số bài học: ${entry.sessionScore}/10`
       : null,
     cleanNote ? `• Nhận xét của giáo viên: ${cleanNote}` : null,
+    generalNotes ? `• Dặn dò / BTVN chung của lớp: ${generalNotes}` : null,
     entry?.homeworkAssignment ? `• BTVN & Dặn dò về nhà: ${entry.homeworkAssignment}` : null,
     `Kính mong quý phụ huynh cùng đồng hành và nhắc nhở con ôn bài. Trân trọng cảm ơn quý phụ huynh!`,
   ].filter(Boolean);

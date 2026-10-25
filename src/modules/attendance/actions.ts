@@ -14,7 +14,7 @@ import {
   splitAttendanceNote,
 } from './parentContact';
 import type { ParentContactRequest } from './parentContact';
-import { canEditAttendanceClass } from './access';
+import { canEditAttendanceClass, canShareSessionReview } from './access';
 
 type Context = Pick<
   CenterStore,
@@ -79,7 +79,11 @@ export function createAttendanceActions({
   const handleRecordParentContact = (request: ParentContactRequest): string | null => {
     const session = attendanceSessions.find((item) => item.id === request.sessionId);
     const classroom = classes.find((item) => item.id === session?.classId);
-    if (!canContactParent(currentUser, classroom))
+    const isReviewShare = request.type === 'review';
+    const canRecord = isReviewShare
+      ? canShareSessionReview(currentUser, classroom)
+      : canContactParent(currentUser, classroom);
+    if (!canRecord)
       return 'Bạn không có quyền ghi nhận liên hệ cho lớp này.';
     if (!session || !isCalendarDate(session.date) || session.date > centerDate())
       return 'Chỉ liên hệ cho buổi học đã diễn ra và đã lưu điểm danh.';
@@ -87,7 +91,7 @@ export function createAttendanceActions({
     const entry = session.entries.find((e) => e.studentId === request.studentId);
     if (!student || !entry)
       return 'Học viên không có trong danh sách buổi học này.';
-    if (request.type !== 'review' && entry.status !== 'absent')
+    if (!isReviewShare && entry.status !== 'absent')
       return 'Học viên không còn được ghi nhận vắng trong buổi này. Kiểm tra lại điểm danh.';
     if (
       !CONTACT_CHANNELS.includes(request.channel) ||
@@ -119,8 +123,12 @@ export function createAttendanceActions({
           : item,
       ),
     );
-    addLog('SỬA', 'Liên hệ phụ huynh', `Ghi nhận liên hệ qua ${request.channel} cho ${student.code}, lớp ${classroom!.name}, buổi ${session.date}.`);
-    toast.success('Đã ghi nhận liên hệ phụ huynh thành công!');
+    addLog(
+      'SỬA',
+      'Liên hệ phụ huynh',
+      `${isReviewShare ? 'Chia sẻ nhận xét cuối buổi' : 'Ghi nhận liên hệ'} qua ${request.channel} cho ${student.code}, lớp ${classroom!.name}, buổi ${session.date}.`,
+    );
+    toast.success(isReviewShare ? 'Đã ghi nhận chia sẻ nhận xét cho phụ huynh!' : 'Đã ghi nhận liên hệ phụ huynh thành công!');
     return null;
   };
 

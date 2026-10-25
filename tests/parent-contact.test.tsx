@@ -12,6 +12,7 @@ import {
   canContactParent,
   parentPhoneHref,
   retainContactHistory,
+  sessionReviewMessage,
   splitAttendanceNote,
 } from '../src/modules/attendance/parentContact';
 import type { AttendanceSession, AttendanceStatus, UserAccount } from '../src/types';
@@ -62,6 +63,32 @@ afterEach(() => {
 });
 
 describe('manual parent contact rules', () => {
+  it('creates an explicit current absence alert with the lesson details for parents', () => {
+    const message = sessionReviewMessage(
+      student,
+      classroom.name,
+      '2026-10-25',
+      'Trung tâm BeeZone',
+      {
+        studentId: student.id,
+        status: 'absent',
+        note: 'Chưa rõ lý do vắng',
+        homeworkAssignment: 'Bổ sung Workbook trang 18',
+      },
+      'Unit 5: Wild Animals',
+      'Ôn lại từ vựng của Unit 5',
+      'Cô Thảo Linh',
+    );
+
+    expect(message).toContain('THÔNG BÁO HỌC VIÊN VẮNG MẶT');
+    expect(message).toContain('Hiện tại');
+    expect(message).toContain(`${student.name} CHƯA CÓ MẶT`);
+    expect(message).toContain('Trạng thái chuyên cần: VẮNG MẶT');
+    expect(message).toContain('Giáo viên phụ trách: Cô Thảo Linh');
+    expect(message).toContain('Dặn dò / BTVN chung của lớp');
+    expect(message).not.toContain('Điểm số bài học');
+  });
+
   it('preserves teacher notes, Vietnam time and contact history across later edits', () => {
     const parsed = splitAttendanceNote(contactNote);
     expect(parsed.text).toBe('Cần ôn bài');
@@ -139,6 +166,9 @@ it.each([320, 1366])(
     expect(
       (screen.getByLabelText('Nội dung gửi phụ huynh') as HTMLTextAreaElement).value,
     ).toContain('Trung tâm kiểm tra');
+    expect(
+      (screen.getByLabelText('Nội dung gửi phụ huynh') as HTMLTextAreaElement).value,
+    ).toContain('CHƯA CÓ MẶT');
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     fireEvent.click(screen.getByRole('button', { name: 'Sao chép' }));
@@ -204,7 +234,7 @@ it('keeps unsaved remarks until attendance is saved and excludes contact lines f
       currentUser={DEV_OWNER_ACCOUNT}
     />,
   );
-  const note = screen.getByPlaceholderText('Nhập nhận xét buổi học...') as HTMLInputElement;
+  const note = screen.getByLabelText(`Nhận xét trên lớp của ${student.name}`) as HTMLTextAreaElement;
   expect(note.value).toBe('Cần ôn bài');
   fireEvent.change(note, { target: { value: 'Chưa lưu nhận xét' } });
   fireEvent.click(screen.getByRole('button', { name: /Lịch sử liên hệ phụ huynh/ }));

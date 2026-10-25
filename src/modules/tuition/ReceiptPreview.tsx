@@ -28,6 +28,9 @@ export function ReceiptPreview({
   onClose,
   onCollectInstallment,
 }: Props) {
+  const cleanPhone = (settings.phone || '').replace(/[-–•|]?\s*Email\s*:?.*$/i, '').trim() || '0847 163 670 - 038 440 6157';
+  const cleanEmail = (settings.email || '').trim() || 'beezone.englishcenter@gmail.com';
+
   const handlePrintReceipt = () => {
     const prevTitle = document.title;
     const invTitle = selectedReceipt?.invoiceBook ? selectedReceipt.invoiceBook.replace(/[^a-zA-Z0-9]/g, '_') : (selectedReceipt?.code || 'HocPhi');
@@ -35,7 +38,7 @@ export function ReceiptPreview({
     document.body.dataset.printing = 'tuition-receipt';
     const pageStyle = document.createElement('style');
     pageStyle.id = 'tuition-receipt-page-style';
-    pageStyle.textContent = '@page { size: A5 portrait !important; margin: 6mm !important; }';
+    pageStyle.textContent = '@page { size: A5 portrait !important; margin: 5mm !important; }';
     document.head.appendChild(pageStyle);
     const cleanup = () => {
       delete document.body.dataset.printing;
@@ -52,12 +55,12 @@ export function ReceiptPreview({
       label="In phiếu thu"
       onClose={onClose}
       data-print-receipt-overlay
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50"
     >
       <div
         data-print-receipt
         style={{ fontFamily: '"Times New Roman", Times, Georgia, serif', fontSize: '13pt' }}
-        className="dialog-panel bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-300 relative print:m-0 print:p-3 print:shadow-none print:border-none print:w-full leading-normal text-slate-900"
+        className="dialog-panel bg-white rounded-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl border border-slate-300 relative print:m-0 print:p-2 print:shadow-none print:border-none print:w-full leading-normal text-slate-900"
       >
         <button
           aria-label="Đóng"
@@ -68,27 +71,27 @@ export function ReceiptPreview({
         </button>
 
         {/* Receipt Content */}
-        <div className="border-2 border-slate-900 p-6 rounded-xl space-y-4">
-          <div className="relative border-b-2 border-slate-900 pb-4 text-center">
+        <div className="border-2 border-slate-900 p-5 rounded-xl space-y-3.5 print:border-2 print:p-4">
+          <div className="relative border-b-2 border-slate-900 pb-3 text-center">
             <img
               src={logoImg}
               onError={(event) => {
                 event.currentTarget.src = '/beezone-logo.png';
               }}
               alt="Logo BeeZone English"
-              className="absolute left-2 top-0 h-14 w-14 rounded-full border border-slate-200 bg-white object-cover"
+              className="absolute left-1 top-0 h-14 w-14 rounded-full border border-slate-200 bg-white object-cover print:h-12 print:w-12"
             />
-            <div className="min-h-14 px-16">
-              <h2 className="whitespace-nowrap font-extrabold text-slate-900 text-[14px] uppercase tracking-tight">
-                {settings.name}
+            <div className="min-h-14 px-12 sm:px-14">
+              <h2 className="whitespace-nowrap font-extrabold text-slate-900 text-[15px] uppercase tracking-tight">
+                {settings.name || 'ANH NGỮ BEEZONE'}
               </h2>
-              <p className="text-xs text-slate-600">{settings.address}</p>
-              <p className="text-xs text-slate-600">Hotline: {settings.phone}</p>
-              <p className="text-xs text-slate-600">Email: {settings.email}</p>
-              <h3 className="text-xl font-black text-slate-900 uppercase mt-2.5 tracking-widest">
+              <p className="text-[12px] text-slate-700 leading-tight">{settings.address}</p>
+              <p className="text-[12px] text-slate-700 leading-tight">Hotline: {cleanPhone}</p>
+              <p className="text-[12px] text-slate-700 leading-tight">Email: {cleanEmail}</p>
+              <h3 className="text-xl font-black text-slate-900 uppercase mt-2 tracking-widest">
                 PHIẾU THU HỌC PHÍ
               </h3>
-              <p className="text-xs font-bold text-amber-900">
+              <p className="text-sm font-bold text-amber-900 mt-0.5">
                 SHĐ/Quyển: {formatInvoiceBook(selectedReceipt)}
               </p>
             </div>
@@ -100,9 +103,12 @@ export function ReceiptPreview({
             const installments = getReceiptInstallments(selectedReceipt);
 
             return (
-              <div className="space-y-2 text-xs text-slate-800">
+              <div
+                className="space-y-1.5 text-[13pt] text-slate-900 leading-snug"
+                style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
+              >
                 <div>
-                  Họ và tên học sinh: <strong className="text-sm">{student?.name}</strong> (Mã HS:{' '}
+                  Họ và tên học sinh: <strong className="text-[13.5pt]">{student?.name}</strong> (Mã HS:{' '}
                   {student?.code})
                 </div>
                 <div>
@@ -117,12 +123,12 @@ export function ReceiptPreview({
                   <strong>{receiptFee(selectedReceipt).toLocaleString('vi-VN')} đ</strong>
                 </div>
                 {selectedReceipt.paymentKind === 'session' && (
-                  <div className="my-3 rounded-lg border border-slate-200 p-3">
+                  <div className="my-2 rounded-lg border border-slate-300 p-2.5">
                     <strong>Chi tiết {selectedReceipt.sessionLines?.length || 0} buổi học</strong>
                     {selectedReceipt.sessionLines?.map((line) => (
                       <div
                         key={line.attendanceSessionId}
-                        className="mt-1 flex justify-between gap-3"
+                        className="mt-1 flex justify-between gap-3 text-[12pt]"
                       >
                         <span>{line.date.split('-').reverse().join('/')}</span>
                         <span>{line.unitPrice.toLocaleString('vi-VN')} đ</span>
@@ -138,13 +144,13 @@ export function ReceiptPreview({
                 </div>
                 <div>
                   Số tiền thực đóng:{' '}
-                  <strong className="text-base text-slate-950 font-black">
+                  <strong className="text-[14pt] text-slate-950 font-black">
                     {selectedReceipt.paidAmount.toLocaleString('vi-VN')} đ
                   </strong>
                 </div>
                 <div>
                   Số tiền còn lại:{' '}
-                  <strong className={selectedReceipt.debtAmount > 0 ? 'text-rose-700' : 'text-emerald-700'}>
+                  <strong className={selectedReceipt.debtAmount > 0 ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
                     {selectedReceipt.debtAmount.toLocaleString('vi-VN')} đ
                   </strong>
                 </div>
@@ -163,8 +169,8 @@ export function ReceiptPreview({
                 </div>
 
                 {installments.length > 0 && (
-                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                    <div className="font-extrabold text-slate-900 mb-2 flex items-center justify-between text-xs">
+                  <div className="mt-2.5 rounded-xl border border-slate-300 bg-slate-50/80 p-2.5">
+                    <div className="font-extrabold text-slate-900 mb-1.5 flex items-center justify-between text-[12.5pt]">
                       <span>Chi tiết các đợt đóng tiền ({installments.length} đợt)</span>
                       <span className="text-emerald-700 font-bold">
                         {selectedReceipt.paidAmount.toLocaleString('vi-VN')} đ
@@ -182,7 +188,7 @@ export function ReceiptPreview({
                         return (
                           <div
                             key={inst.id || idx}
-                            className="flex flex-wrap justify-between items-center text-[12px] bg-white p-2.5 rounded-lg border border-slate-200 gap-1"
+                            className="flex flex-wrap justify-between items-center text-[12pt] bg-white p-2 rounded-lg border border-slate-200 gap-1 leading-snug"
                           >
                             <div>
                               <span className="font-bold text-slate-900">
@@ -191,14 +197,14 @@ export function ReceiptPreview({
                               <span className="text-emerald-800 font-bold ml-1.5">
                                 +{inst.amount.toLocaleString('vi-VN')} đ
                               </span>
-                              <span className="text-slate-500 ml-1.5">
+                              <span className="text-slate-600 ml-1.5">
                                 ({inst.paymentMethod || 'TM/CK'})
                               </span>
                               <span className="text-amber-900 font-bold ml-2">
                                 · SHĐ/Quyển: {instInvoice}
                               </span>
                             </div>
-                            <span className="text-slate-500 italic text-[11px]">
+                            <span className="text-slate-500 italic text-[11pt]">
                               {inst.notes || '—'}
                             </span>
                           </div>
@@ -211,22 +217,22 @@ export function ReceiptPreview({
             );
           })()}
 
-          <div className="pt-8 grid grid-cols-2 text-center text-xs font-bold">
+          <div className="pt-6 grid grid-cols-2 text-center text-[12pt] font-bold">
             <div>
               <p>HỌC SINH / PHỤ HUYNH</p>
-              <p className="text-[10px] text-slate-400 font-normal">(Ký & ghi rõ họ tên)</p>
-              <div className="h-14 flex items-end justify-center text-slate-400 text-[11px] font-normal italic print:text-transparent">
+              <p className="text-[10pt] text-slate-500 font-normal">(Ký & ghi rõ họ tên)</p>
+              <div className="h-12 flex items-end justify-center text-slate-400 text-[10pt] font-normal italic print:text-transparent">
                 (Ký tay)
               </div>
             </div>
             <div>
               <p>NGƯỜI THU TIỀN</p>
-              <p className="text-[10px] text-slate-400 font-normal">(Ký & ghi rõ họ tên)</p>
-              <div className="h-14 flex items-end justify-center font-bold text-slate-900">
+              <p className="text-[10pt] text-slate-500 font-normal">(Ký & ghi rõ họ tên)</p>
+              <div className="h-12 flex items-end justify-center font-bold text-slate-900">
                 {selectedReceipt.collectorName ? (
                   <span>{selectedReceipt.collectorName}</span>
                 ) : (
-                  <span className="text-slate-400 text-[11px] font-normal italic print:text-transparent">
+                  <span className="text-slate-400 text-[10pt] font-normal italic print:text-transparent">
                     (Ký tay)
                   </span>
                 )}
@@ -235,7 +241,7 @@ export function ReceiptPreview({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3 print:hidden">
+        <div className="mt-5 flex justify-end gap-3 print:hidden">
           <button
             onClick={onClose}
             className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold"
