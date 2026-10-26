@@ -65,14 +65,17 @@ export function ShareReviewDialog({
     ),
   );
   const [feedback, setFeedback] = useState('');
+  const [pendingConfirmation, setPendingConfirmation] = useState<'Zalo' | 'SMS' | null>(null);
+  const [recordedChannel, setRecordedChannel] = useState<'Zalo' | 'SMS' | null>(null);
   const absent = entry.status === 'absent';
 
   const phone = student.parentPhone || student.phone || '';
   const zaloHref = parentZaloHref(phone);
   const smsHref = parentSmsHref(phone, message);
   const callHref = parentPhoneHref(phone);
+  const canRecordShare = Boolean(onRecord && sessionId);
 
-  const recordShare = (channel: 'Zalo' | 'SMS') => {
+  const confirmShare = (channel: 'Zalo' | 'SMS') => {
     if (!onRecord || !sessionId) return true;
     const error = onRecord({
       sessionId,
@@ -80,13 +83,16 @@ export function ShareReviewDialog({
       channel,
       type: 'review',
       details: absent
-        ? `Đã mở ${channel} để gửi thông báo học viên đang vắng mặt.`
-        : `Đã mở ${channel} để gửi nhận xét cuối buổi cho phụ huynh.`,
+        ? `Đã xác nhận gửi thông báo học viên vắng mặt qua ${channel}.`
+        : `Đã xác nhận gửi nhận xét cuối buổi cho phụ huynh qua ${channel}.`,
     });
     if (error) {
       setFeedback(error);
       return false;
     }
+    setPendingConfirmation(null);
+    setRecordedChannel(channel);
+    setFeedback(`Đã ghi nhận liên hệ phụ huynh qua ${channel}.`);
     return true;
   };
 
@@ -104,18 +110,22 @@ export function ShareReviewDialog({
   };
 
   const handleOpenZalo = () => {
-    if (!zaloHref || !recordShare('Zalo')) return;
+    if (!zaloHref) return;
     window.open(zaloHref, '_blank', 'noopener,noreferrer');
-    void handleCopy(absent
-      ? 'Đã sao chép nội dung và mở Zalo phụ huynh để gửi thông báo vắng mặt.'
-      : 'Đã sao chép nội dung và mở Zalo phụ huynh. Bạn chỉ cần bấm Dán (Ctrl+V) trong khung chat Zalo để gửi.');
+    setPendingConfirmation(canRecordShare ? 'Zalo' : null);
+    setRecordedChannel(null);
+    void handleCopy(canRecordShare
+      ? 'Đã sao chép nội dung và mở Zalo. Sau khi gửi, hãy xác nhận bên dưới để ghi lịch sử.'
+      : 'Đã sao chép nội dung và mở Zalo.');
   };
 
   const handleOpenSms = () => {
-    if (!smsHref || !recordShare('SMS')) return;
-    void handleCopy(absent
-      ? 'Đã mở ứng dụng SMS với nội dung thông báo học viên vắng mặt.'
-      : 'Đã sao chép nội dung và mở ứng dụng tin nhắn SMS.');
+    if (!smsHref) return;
+    setPendingConfirmation(canRecordShare ? 'SMS' : null);
+    setRecordedChannel(null);
+    void handleCopy(canRecordShare
+      ? 'Đã mở SMS. Sau khi gửi, hãy xác nhận bên dưới để ghi lịch sử.'
+      : 'Đã mở SMS với nội dung tin nhắn.');
     window.open(smsHref, '_self');
   };
 
@@ -233,6 +243,25 @@ export function ShareReviewDialog({
             <div className="rounded-xl bg-sky-50 border border-sky-200 p-2.5 text-xs font-medium text-sky-900">
               {feedback}
             </div>
+          )}
+
+          {pendingConfirmation && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <span>Chỉ xác nhận sau khi tin nhắn đã được gửi thành công.</span>
+              <button
+                type="button"
+                onClick={() => confirmShare(pendingConfirmation)}
+                className="inline-flex min-h-9 items-center rounded-lg bg-amber-700 px-3 font-bold text-white transition hover:bg-amber-800 focus:outline-hidden focus:ring-2 focus:ring-amber-300 cursor-pointer"
+              >
+                Xác nhận đã gửi qua {pendingConfirmation}
+              </button>
+            </div>
+          )}
+
+          {recordedChannel && (
+            <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs font-semibold text-emerald-900">
+              Đã ghi lịch sử liên hệ qua {recordedChannel}.
+            </p>
           )}
 
           {/* Action buttons */}

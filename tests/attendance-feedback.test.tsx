@@ -51,8 +51,27 @@ afterEach(() => {
 });
 
 describe('attendance feedback editor', () => {
-  it('saves separate class remarks, private homework, stars, attitude and session score', () => {
-    const onSave = vi.fn(() => true);
+  it('keeps class-wide lesson details collapsed until requested', () => {
+    render(
+      <AttendanceManager
+        classes={[classroom]}
+        students={[student]}
+        teachers={[teacher]}
+        attendanceSessions={[]}
+        onSaveSession={vi.fn()}
+        isOwner
+      />,
+    );
+
+    expect(screen.queryByLabelText('Chủ đề bài học / Giáo trình hôm nay')).toBeNull();
+    expect(screen.queryByLabelText('Nội dung dặn dò / BTVN chung cả lớp')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Nội dung buổi học' }));
+    expect(screen.getByLabelText('Chủ đề bài học / Giáo trình hôm nay')).toBeTruthy();
+    expect(screen.getByLabelText('Nội dung dặn dò / BTVN chung cả lớp')).toBeTruthy();
+  });
+
+  it('keeps the roster compact and saves optional feedback only when expanded', () => {
+    const onSave = vi.fn((_session: AttendanceSession) => true);
     render(
       <AttendanceManager
         classes={[classroom]}
@@ -66,6 +85,9 @@ describe('attendance feedback editor', () => {
 
     const note = screen.getByLabelText(`Nhận xét trên lớp của ${student.name}`) as HTMLTextAreaElement;
     fireEvent.change(note, { target: { value: 'Bé hiểu bài, ,' } });
+    expect(screen.queryByRole('button', { name: '+ Phát biểu tốt' })).toBeNull();
+    expect(screen.queryByLabelText(`Thái độ học tập của ${student.name}`)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Dặn dò & đánh giá thêm' }));
     fireEvent.click(screen.getByRole('button', { name: '+ Phát biểu tốt' }));
     expect(note.value).toBe('Bé hiểu bài, Phát biểu tốt');
 
@@ -73,7 +95,6 @@ describe('attendance feedback editor', () => {
       screen.getByLabelText(`Nội dung dặn dò hoặc bài tập về nhà riêng của ${student.name}`),
       { target: { value: 'Luyện đọc trang 12 và gửi ghi âm cho cô.' } },
     );
-    fireEvent.click(screen.getByRole('button', { name: `5 sao cho ${student.name}` }));
     fireEvent.change(screen.getByLabelText(`Thái độ học tập của ${student.name}`), {
       target: { value: 'excellent' },
     });
@@ -89,13 +110,49 @@ describe('attendance feedback editor', () => {
             studentId: student.id,
             note: 'Bé hiểu bài, Phát biểu tốt',
             homeworkAssignment: 'Luyện đọc trang 12 và gửi ghi âm cho cô.',
-            rating: 5,
             learningAttitude: 'excellent',
             sessionScore: 9.5,
           }),
         ],
       }),
     );
+    expect(onSave.mock.calls[0]?.[0].entries[0]?.rating).toBeUndefined();
+  });
+
+  it('preserves a legacy star rating while saving the simplified attendance form', () => {
+    const onSave = vi.fn((_session: AttendanceSession) => true);
+    const previous: AttendanceSession = {
+      id: 'legacy-rating-session',
+      classId: classroom.id,
+      date: centerDate(),
+      lessonTopic: 'Speaking',
+      entries: [{
+        studentId: student.id,
+        status: 'present',
+        homeworkCompleted: true,
+        note: 'Nhận xét cũ',
+        rating: 5,
+      }],
+    };
+    render(
+      <AttendanceManager
+        classes={[classroom]}
+        students={[student]}
+        teachers={[teacher]}
+        attendanceSessions={[previous]}
+        onSaveSession={onSave}
+        isOwner
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(`Nhận xét trên lớp của ${student.name}`), {
+      target: { value: 'Nhận xét đã cập nhật' },
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: /Lưu Điểm Danh & Nhận Xét Đã Sửa/i })[0]);
+    expect(onSave.mock.calls[0]?.[0].entries[0]).toMatchObject({
+      note: 'Nhận xét đã cập nhật',
+      rating: 5,
+    });
   });
 
   it('requires saved data before sharing and sends a clear absence notice with an audit event', async () => {
@@ -162,18 +219,20 @@ describe('attendance feedback editor', () => {
     expect(screen.queryByText('⚠ BTVN: Chưa hoàn thành')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mở Zalo gửi phụ huynh' }));
+    expect(onRecord).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đã gửi qua Zalo' }));
     expect(onRecord).toHaveBeenCalledWith({
       sessionId: savedSession.id,
       studentId: student.id,
       channel: 'Zalo',
       type: 'review',
-      details: 'Đã mở Zalo để gửi thông báo học viên đang vắng mặt.',
+      details: 'Đã xác nhận gửi thông báo học viên vắng mặt qua Zalo.',
     });
     expect(open).toHaveBeenCalledWith('https://zalo.me/0974497030', '_blank', 'noopener,noreferrer');
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('CHƯA CÓ MẶT')));
   });
 
-  it('hides in-class remarks, quick note tags, stars and scores when student is marked absent', () => {
+  it('shows only essential fields by default and hides learning feedback when absent', () => {
     render(
       <AttendanceManager
         classes={[classroom]}
@@ -185,36 +244,30 @@ describe('attendance feedback editor', () => {
       />,
     );
 
-    // Ban đầu học sinh có mặt: hiển thị nhận xét trên lớp, quick notes, sao, thái độ, điểm
-    expect(screen.getByText('Nhận xét trên lớp:')).toBeTruthy();
+    expect(screen.getByText('Nhận xét nhanh (không bắt buộc)')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '+ Phát biểu tốt' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Dặn dò & đánh giá thêm' }));
     expect(screen.getByRole('button', { name: '+ Phát biểu tốt' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: `5 sao cho ${student.name}` })).toBeTruthy();
+    expect(screen.queryByText(/Đánh giá sao/i)).toBeNull();
+    expect(screen.getByLabelText(`Thái độ học tập của ${student.name}`)).toBeTruthy();
+    expect(screen.getByLabelText(`Điểm buổi học của ${student.name}`)).toBeTruthy();
     expect(screen.getByText(/BTVN:\s*Có/)).toBeTruthy();
 
-    // Chuyển sang Vắng mặt:
     fireEvent.click(screen.getByRole('button', { name: /^Vắng/ }));
 
-    // Ẩn hoàn toàn ô nhận xét trên lớp và quick tags
-    expect(screen.queryByText('Nhận xét trên lớp:')).toBeNull();
     expect(screen.queryByRole('button', { name: '+ Phát biểu tốt' })).toBeNull();
-    // Ẩn đánh giá sao, thái độ, điểm số
-    expect(screen.queryByRole('button', { name: `5 sao cho ${student.name}` })).toBeNull();
     expect(screen.queryByLabelText(`Thái độ học tập của ${student.name}`)).toBeNull();
     expect(screen.queryByLabelText(`Điểm buổi học của ${student.name}`)).toBeNull();
 
-    // Hiển thị ô Lý do vắng mặt / Ghi chú & banner vắng mặt
-    expect(screen.getByText(/Lý do vắng mặt \/ Ghi chú:/)).toBeTruthy();
-    expect(screen.getByText(/Học viên vắng mặt buổi này/)).toBeTruthy();
+    expect(screen.getByText('Lý do vắng / Ghi chú')).toBeTruthy();
+    expect(screen.getByLabelText(`Ghi chú điểm danh của ${student.name}`)).toBeTruthy();
     expect(screen.getByText(/BTVN:\s*— \(Vắng\)/)).toBeTruthy();
+    expect(screen.getByText('Báo vắng phụ huynh')).toBeTruthy();
 
-    // Nút báo vắng hiển thị rõ ràng
-    expect(screen.getByText('📲 Báo vắng cho PH (Zalo/SMS)')).toBeTruthy();
-
-    // Chuyển lại Có mặt: nhận xét trên lớp xuất hiện lại
     fireEvent.click(screen.getByRole('button', { name: /^Có mặt/ }));
-    expect(screen.getByText('Nhận xét trên lớp:')).toBeTruthy();
+    expect(screen.getByText('Nhận xét nhanh (không bắt buộc)')).toBeTruthy();
     expect(screen.getByRole('button', { name: '+ Phát biểu tốt' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: `5 sao cho ${student.name}` })).toBeTruthy();
+    expect(screen.getByLabelText(`Thái độ học tập của ${student.name}`)).toBeTruthy();
     expect(screen.getByText(/BTVN:\s*Có/)).toBeTruthy();
   });
 });

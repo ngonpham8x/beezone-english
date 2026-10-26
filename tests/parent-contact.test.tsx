@@ -234,7 +234,7 @@ it('keeps unsaved remarks until attendance is saved and excludes contact lines f
       currentUser={DEV_OWNER_ACCOUNT}
     />,
   );
-  const note = screen.getByLabelText(`Nhận xét trên lớp của ${student.name}`) as HTMLTextAreaElement;
+  const note = screen.getByLabelText(`Ghi chú điểm danh của ${student.name}`) as HTMLTextAreaElement;
   expect(note.value).toBe('Cần ôn bài');
   fireEvent.change(note, { target: { value: 'Chưa lưu nhận xét' } });
   fireEvent.click(screen.getByRole('button', { name: /Lịch sử liên hệ phụ huynh/ }));
