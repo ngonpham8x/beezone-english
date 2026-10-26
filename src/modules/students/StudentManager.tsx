@@ -79,6 +79,7 @@ interface StudentManagerProps {
   onOpenTuition: () => void;
   onCreateProgram: (program: CourseProgram) => void;
   onAddClass?: (c: ClassRoom) => void;
+  onUpdateGrade?: (updatedGrade: Grade) => boolean | void;
 }
 
 export const StudentManager: React.FC<StudentManagerProps> = ({
@@ -105,6 +106,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   onOpenTuition,
   onCreateProgram,
   onAddClass,
+  onUpdateGrade,
 }) => {
   const { t, language } = useLanguage();
   const [filterProgram, setFilterProgram] = useState<string>('all');
@@ -1014,6 +1016,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           enrollments={enrollments}
           grades={grades}
           attendanceSessions={attendanceSessions}
+          onUpdateGrade={onUpdateGrade}
           onClose={() => setViewingStudent(null)}
         />
       )}

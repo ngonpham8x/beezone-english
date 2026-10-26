@@ -364,6 +364,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           aria-label={`Nhận xét lực học - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
                           placeholder="Nhập nhận xét lực học của bé..."
                           value={grade.comment || ''}
+                          maxLength={2000}
                           disabled={!canEdit}
                           onChange={(e) => handleCommentChange(st.id, st.classId, e.target.value)}
                           className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white placeholder:text-slate-400 placeholder:italic"
@@ -561,6 +562,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                     aria-label={`Nhận xét lực học - ${st.code} - ${classes.find(c => c.id === st.classId)?.name || st.classId}`}
                     placeholder="VD: Bé tiếp thu nhanh, ngữ pháp tốt, cần luyện thêm phản xạ nói..."
                     value={grade.comment || ''}
+                    maxLength={2000}
                     disabled={!canEdit}
                     onChange={(e) => handleCommentChange(st.id, st.classId, e.target.value)}
                     className="w-full p-2 text-xs border border-amber-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white placeholder:text-slate-400 resize-none leading-relaxed"

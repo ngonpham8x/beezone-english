@@ -337,6 +337,30 @@ describe('authorization and durable quotas', () => {
     expect(state.rpc).not.toHaveBeenCalled();
     expect(state.reads).not.toHaveBeenCalled();
   });
+  it('allows Hành chính to manage non-owner accounts but keeps owner controls restricted', async () => {
+    state.profile = { ...state.profile, role: 'admin', full_name: 'BeeZone Hành Chính' };
+    expect((await call('users')).statusCode).toBe(200);
+    expect((await call('audit-logs')).statusCode).toBe(403);
+
+    const provisioned = await call('users', request('POST', {
+      body: { email: 'teacher@example.test', fullName: 'Test Teacher', role: 'teacher' },
+    }));
+    expect(provisioned.statusCode).toBe(201);
+    expect(state.writes).toHaveBeenCalledWith('profiles', expect.objectContaining({ role: 'teacher' }));
+
+    state.existing = null;
+    const ownerPromotion = await call('users', request('POST', {
+      body: { email: 'owner2@example.test', fullName: 'Second Owner', role: 'owner' },
+    }));
+    expect(ownerPromotion.statusCode).toBe(403);
+
+    const ownerId = '00000000-0000-4000-8000-000000000003';
+    state.target = { id: ownerId, full_name: 'Another Owner', role: 'owner', is_active: true };
+    const ownerUpdate = await call('users', request('PATCH', {
+      body: { action: 'updatePermissions', userId: ownerId, role: 'teacher' },
+    }));
+    expect(ownerUpdate.statusCode).toBe(403);
+  });
   it('rejects invalid live sessions rather than trusting JWT contents', async () => {
     state.auth.mockResolvedValue({ data: { user: null }, error: { message: 'expired' } });
     expect((await call()).statusCode).toBe(401);

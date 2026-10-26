@@ -253,6 +253,8 @@ export function buildWorkPeople(
           ...existingByEmail,
           display_name: acc.display_name,
           department: acc.department,
+          role: acc.role,
+          branch: acc.branch,
         });
       } else {
         peopleMap.set(acc.user_id, acc);
@@ -321,9 +323,10 @@ export function buildWorkPeople(
         ...existing,
         ...p,
         department: isSpecialHanhChinh ? 'Hành chính' : (p.department || existing.department),
-        display_name: p.display_name || existing.display_name,
+        display_name: isSpecialHanhChinh ? 'BeeZone Hành Chính' : (p.display_name || existing.display_name),
         email: p.email ?? existing.email,
-        role: p.role || existing.role,
+        role: isSpecialHanhChinh ? 'admin' : (p.role || existing.role),
+        branch: isSpecialHanhChinh ? 'admin' : (p.branch || existing.branch),
       });
     } else {
       const existing = peopleMap.get(p.user_id);
@@ -332,14 +335,18 @@ export function buildWorkPeople(
           ...existing,
           ...p,
           department: isSpecialHanhChinh ? 'Hành chính' : (p.department || existing.department),
-          display_name: p.display_name || existing.display_name,
+          display_name: isSpecialHanhChinh ? 'BeeZone Hành Chính' : (p.display_name || existing.display_name),
           email: p.email ?? existing.email,
-          role: p.role || existing.role,
+          role: isSpecialHanhChinh ? 'admin' : (p.role || existing.role),
+          branch: isSpecialHanhChinh ? 'admin' : (p.branch || existing.branch),
         });
       } else {
         peopleMap.set(p.user_id, {
           ...p,
           department: isSpecialHanhChinh ? 'Hành chính' : p.department,
+          display_name: isSpecialHanhChinh ? 'BeeZone Hành Chính' : p.display_name,
+          role: isSpecialHanhChinh ? 'admin' : p.role,
+          branch: isSpecialHanhChinh ? 'admin' : p.branch,
         });
       }
     }

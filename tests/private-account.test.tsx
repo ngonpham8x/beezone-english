@@ -260,6 +260,29 @@ it('offers the four account ranks and replaces the retired staff option with tea
     ['teacher', 'Giáo viên'],
   ]);
   expect(rank.value).toBe('teacher');
+  fireEvent.change(rank, { target: { value: 'admin' } });
+  expect(screen.getByText(/Phụ trách hành chính, tài khoản và vận hành hằng ngày/i)).toBeTruthy();
+  expect((screen.getByLabelText('Thu học phí') as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByLabelText('Xóa học viên') as HTMLInputElement).checked).toBe(false);
+});
+
+it('lets Hành chính open account management without exposing the owner rank', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    JSON.stringify({ users: [], hiddenAccountIds: [] }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )));
+  const adminAccount = { ...DEV_OWNER_ACCOUNT, role: 'admin' as const, name: 'BeeZone Hành Chính' };
+  render(
+    <UserManagementModal
+      isOpen
+      onClose={vi.fn()}
+      accessToken="test-token"
+      currentUser={adminAccount}
+    />,
+  );
+  const rank = await screen.findByRole('combobox', { name: 'Cấp bậc' }) as HTMLSelectElement;
+  expect(Array.from(rank.options).map(option => option.value)).toEqual(['admin', 'trainer', 'teacher']);
+  expect(screen.getByText(/Hành chính không được thay đổi Chủ trung tâm/i)).toBeTruthy();
 });
 
 it('allows an owner to delete a managed account with confirmation and removes it from active sessions', async () => {

@@ -25,7 +25,7 @@ beforeEach(async () => {
   await db.query("select set_config('request.jwt.claim.sub',$1,false), set_config('request.jwt.claim.role','authenticated',false)", [owner]);
   await db.exec('delete from public.center_data');
   await db.query("insert into public.center_data(id,payload) values ('primary',$1::jsonb)", [JSON.stringify(base)]);
-  await db.query("update public.profiles set permissions='{}',is_active=true where id=$1", [staff]);
+  await db.query("update public.profiles set role='teacher',permissions='{}',is_active=true where id=$1", [staff]);
 });
 afterAll(async () => { await db?.close(); });
 async function asStaff(permissions: object = {}) {
@@ -34,6 +34,27 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('lets student viewers edit only an existing grade comment and gives training/admin ranks centre-wide class scope', async () => {
+    const grade = { id: 'g1', studentId: 's1', classId: 'c1', listening: 8, speaking: 8, reading: 8, writing: 8, midterm: 8, finalExam: 8, attendance: 8, average: 8, comment: 'Nhận xét cũ' };
+    const payload = {
+      ...base,
+      classes: [{ id: 'c1', teacherId: 'teacher-1', studentIds: ['s1'] }],
+      students: [{ id: 's1', classId: 'c1', status: 'active', feeStatus: 'unpaid' }],
+      grades: [grade],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+
+    await asStaff({ student: { view: true } });
+    const withComment = { ...payload, grades: [{ ...grade, comment: 'Nhận xét đã cập nhật' }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(withComment)]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withComment, grades: [{ ...withComment.grades[0], listening: 9 }] })])).rejects.toThrow(/denied/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withComment, grades: [{ ...withComment.grades[0], comment: 'x'.repeat(2001) }] })])).rejects.toThrow(/Invalid grade comment/);
+
+    await db.exec('reset role');
+    await db.query("update public.profiles set role='trainer' where id=$1", [staff]);
+    await asStaff({ grade: { edit: true } });
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...withComment, grades: [{ ...withComment.grades[0], listening: 9 }] })]);
+  });
   it.each(['programs', 'rooms', 'classes', 'teachers'] as const)('enforces separate add/edit/delete grants for %s and respects explicit revocation of legacy grants', async (scope) => {
     const entity = { id: 'new', name: 'Independent record', ...(scope === 'classes' ? { studentIds: [] } : scope === 'teachers' ? { assignedClassIds: [] } : {}) };
     const payload = { ...base, [scope]: [entity] };

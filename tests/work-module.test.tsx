@@ -270,6 +270,31 @@ describe('BeeZoneWork Module', () => {
     expect(people.some((person) => person.email === privateUser.email)).toBe(false);
   });
 
+  it('keeps the designated office account classified as Hành chính across directory sources', () => {
+    const officeUser: UserAccount = {
+      ...DEV_OWNER_ACCOUNT,
+      id: 'office-live-id',
+      email: 'phonghanhchinh.beezone@gmail.com',
+      name: 'Tên cũ',
+      role: 'teacher',
+    };
+    const people = buildWorkPeople(officeUser, [], [{
+      user_id: officeUser.id,
+      display_name: 'Tên từ máy chủ',
+      email: officeUser.email,
+      department: 'Giáo viên',
+      branch: 'training',
+      role: 'teacher',
+      active: true,
+    }]);
+    expect(people.find((person) => person.email === officeUser.email)).toMatchObject({
+      display_name: 'BeeZone Hành Chính',
+      department: 'Hành chính',
+      branch: 'admin',
+      role: 'admin',
+    });
+  });
+
   it('renders without error and displays 4 interactive stat cards', async () => {
     render(
       <BeeZoneWork

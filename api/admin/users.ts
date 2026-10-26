@@ -85,7 +85,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default adminApi(
   ['GET', 'POST', 'PATCH', 'DELETE'],
-  async (req, res, { client, callerId, callerName }, body) => {
+  async (req, res, { client, callerId, callerName, callerRole }, body) => {
+    const callerIsOwner = callerRole === 'owner';
     const hiddenAccountIds = await hiddenAccountsForViewer(client, callerId);
     if (req.method === 'GET') {
       const { data, error } = await client
@@ -114,6 +115,9 @@ export default adminApi(
       ) {
         return json(res, 400, { error: 'Họ tên, email hoặc cấp bậc không hợp lệ.' });
       }
+      if (!callerIsOwner && role === 'owner') {
+        return json(res, 403, { error: 'Hành chính không được cấp quyền Chủ trung tâm.' });
+      }
       if (!process.env.APP_URL?.startsWith('https://')) {
         return json(res, 500, { error: 'APP_URL phải là địa chỉ HTTPS đã cấu hình trên máy chủ.' });
       }
@@ -130,6 +134,9 @@ export default adminApi(
 
       // A known Google user can be promoted without an email invitation or password.
       if (existing) {
+        if (!callerIsOwner && (existing.id === callerId || existing.role === 'owner')) {
+          return json(res, 403, { error: 'Hành chính không được thay đổi tài khoản này.' });
+        }
         if (existing.id === callerId && role !== 'owner')
           return json(res, 400, { error: 'Bạn không thể tự hạ quyền Chủ trung tâm.' });
         if (existing.role === 'owner' && existing.is_active && role !== 'owner') {
@@ -256,6 +263,9 @@ export default adminApi(
         .maybeSingle();
       if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
       if (target.is_private === true || hiddenAccountIds.has(target.id)) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+      if (!callerIsOwner && target.role === 'owner') {
+        return json(res, 403, { error: 'Hành chính không được xóa Chủ trung tâm.' });
+      }
 
       if (target.role === 'owner' && target.is_active) {
         const { count, error: ownerCountError } = await client
@@ -324,6 +334,9 @@ export default adminApi(
         return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
 
       const finalRole = newRole || target.role;
+      if (!callerIsOwner && (userId === callerId || target.role === 'owner' || finalRole === 'owner')) {
+        return json(res, 403, { error: 'Hành chính không được thay đổi tài khoản này.' });
+      }
       if (userId === callerId && finalRole !== 'owner') {
         return json(res, 400, { error: 'Bạn không thể tự hạ quyền Chủ trung tâm.' });
       }
@@ -393,6 +406,9 @@ export default adminApi(
       .maybeSingle();
     if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
     if (target.is_private === true || hiddenAccountIds.has(target.id)) return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
+    if (!callerIsOwner && target.role === 'owner') {
+      return json(res, 403, { error: 'Hành chính không được khóa hoặc mở khóa Chủ trung tâm.' });
+    }
 
     if (!active && target.role === 'owner' && target.is_active) {
       const { count, error: ownerCountError } = await client
@@ -433,4 +449,5 @@ export default adminApi(
     }
     return json(res, 200, { success: true });
   },
+  { allowedRoles: ['owner', 'admin'] },
 );

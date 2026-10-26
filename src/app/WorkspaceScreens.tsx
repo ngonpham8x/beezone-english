@@ -220,6 +220,7 @@ export function WorkspaceScreens({
           onOpenTuition={() => navigateTo('tuition')}
           onCreateProgram={handleCreateProgram}
           onAddClass={handleAddClass}
+          onUpdateGrade={handleUpdateGrade}
         />
       );
     case 'teachers':

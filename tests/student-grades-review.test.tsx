@@ -94,6 +94,36 @@ describe('Teacher comments & grades in StudentProfileDialog', () => {
     expect(screen.getByText(/Hăng hái phát biểu, phát âm tốt/i)).toBeTruthy();
     expect(screen.getByText(/Làm bài tập trang 42 sách Workbook/i)).toBeTruthy();
   });
+
+  it('edits the teacher comment directly from the student profile', () => {
+    const onUpdateGrade = vi.fn(() => true);
+    render(
+      <StudentProfileDialog
+        student={dummyStudent}
+        classes={[dummyClass]}
+        programs={[]}
+        teachers={[]}
+        rooms={[]}
+        timetableSlots={[]}
+        receipts={[]}
+        enrollments={[]}
+        grades={dummyGrades}
+        onUpdateGrade={onUpdateGrade}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Sửa nhận xét cho Kiddy 3A/i }));
+    const editor = screen.getByRole('textbox', { name: 'Nội dung nhận xét lực học' });
+    fireEvent.change(editor, { target: { value: '  Bé tiến bộ rõ rệt và cần luyện nói thêm.  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /Lưu nhận xét/i }));
+
+    expect(onUpdateGrade).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'grd-01',
+      comment: 'Bé tiến bộ rõ rệt và cần luyện nói thêm.',
+    }));
+    expect(screen.queryByRole('textbox', { name: 'Nội dung nhận xét lực học' })).toBeNull();
+  });
 });
 
 describe('ShareReviewDialog & permissions', () => {

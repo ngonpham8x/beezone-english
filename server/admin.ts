@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { PRIVATE_ACCOUNT_LABEL } from '../src/lib/accountPrivacy.js';
+import type { AccountRole } from '../src/types.js';
 import { admitAdminRequest, rateLimited } from './rateLimit.js';
 import {
   getBearerToken,
@@ -28,7 +29,7 @@ function serverClient() {
   });
 }
 
-async function authorizeOwner(req: ApiRequest, res: any) {
+async function authorizeAdmin(req: ApiRequest, res: any, allowedRoles: readonly AccountRole[]) {
   const token = getBearerToken(req);
   if (!token) {
     json(res, 401, { error: 'Thiếu thông tin xác thực hợp lệ.' });
@@ -53,14 +54,26 @@ async function authorizeOwner(req: ApiRequest, res: any) {
     json(res, 503, { error: 'Chưa thể kiểm tra quyền truy cập.' });
     return null;
   }
-  if (!profile || profile.is_active !== true || profile.role !== 'owner') {
-    json(res, 403, { error: 'Chỉ Chủ trung tâm đang hoạt động được phép truy cập.' });
+  if (!profile || profile.is_active !== true || !allowedRoles.includes(profile.role as AccountRole)) {
+    json(res, 403, {
+      error: allowedRoles.includes('admin')
+        ? 'Chỉ Chủ trung tâm hoặc Hành chính đang hoạt động được phép truy cập.'
+        : 'Chỉ Chủ trung tâm đang hoạt động được phép truy cập.',
+    });
     return null;
   }
-  return { client, callerId: data.user.id, callerName: profile.is_private === true ? PRIVATE_ACCOUNT_LABEL : profile.full_name || 'Chủ trung tâm' };
+  return {
+    client,
+    callerId: data.user.id,
+    callerName: profile.is_private === true
+      ? PRIVATE_ACCOUNT_LABEL
+      : profile.full_name || (profile.role === 'admin' ? 'Hành chính' : 'Chủ trung tâm'),
+    callerRole: profile.role as AccountRole,
+  };
 }
 
-type AuthorizedOwner = NonNullable<Awaited<ReturnType<typeof authorizeOwner>>>;
+type AuthorizedAdmin = NonNullable<Awaited<ReturnType<typeof authorizeAdmin>>>;
+type AdminApiOptions = { allowedRoles?: readonly AccountRole[] };
 
 /** Shared boundary for every admin route: validate, authenticate, authorize, quota, execute. */
 export function adminApi(
@@ -68,9 +81,10 @@ export function adminApi(
   action: (
     req: ApiRequest,
     res: any,
-    owner: AuthorizedOwner,
+    owner: AuthorizedAdmin,
     body: Record<string, unknown>,
   ) => Promise<unknown>,
+  options: AdminApiOptions = {},
 ) {
   return async (req: ApiRequest, res: any) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -92,7 +106,7 @@ export function adminApi(
       body = parsed;
     }
     try {
-      const owner = await authorizeOwner(req, res);
+      const owner = await authorizeAdmin(req, res, options.allowedRoles || ['owner']);
       if (!owner) return;
       const { data, error } = await owner.client.rpc('consume_admin_request_quota', {
         p_actor_id: owner.callerId,
