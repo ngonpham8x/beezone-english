@@ -111,11 +111,15 @@ describe('BeeZoneWork Module', () => {
 
   it('loads shared work and authorized people from Supabase when connected', async () => {
     seedTestTasks();
+    const requestOrder: string[] = [];
     const people = [{ user_id: DEV_OWNER_ACCOUNT.id, display_name: 'BeeZone Owner', email: DEV_OWNER_ACCOUNT.email, role: 'manager', active: true, branch: 'admin' }];
-    const from = vi.fn((table: string) => ({
+    const from = vi.fn((table: string) => {
+      requestOrder.push(table);
+      return ({
       select: () => ({ order: async () => ({ data: table === 'bz_work_tasks' ? [{ id: '11111111-1111-4111-8111-111111111111', title: 'Việc đã đồng bộ', branch: 'admin', assigned_uid: DEV_OWNER_ACCOUNT.id, work_date: localISODate(), status: 'todo', priority: 'normal', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }] : [], error: null }) }),
-    }));
-    const serverClient = { rpc: vi.fn(async () => ({ data: people, error: null })), from };
+      });
+    });
+    const serverClient = { rpc: vi.fn(async () => { requestOrder.push('people'); return { data: people, error: null }; }), from };
 
     const data = await fetchWorkModuleData(serverClient as never, localISODate(), DEV_OWNER_ACCOUNT.id);
 
@@ -123,6 +127,65 @@ describe('BeeZoneWork Module', () => {
     expect(data.tasks.map((task) => task.title)).toEqual(['Việc đã đồng bộ']);
     expect(data.people?.[0].role).toBe('manager');
     expect(from).toHaveBeenCalledTimes(4);
+    expect(requestOrder[0]).toBe('people');
+  });
+
+  it.each(['owner', 'admin'] as const)('shows %s every training update, note and assigned task', async (role) => {
+    const now = new Date().toISOString();
+    saveLocalWorkData({
+      tasks: [{
+        id: 'training-visibility-task',
+        title: 'Giáo viên cập nhật tiến độ lớp Kiddy',
+        description: 'Nội dung công việc do phòng đào tạo giao',
+        branch: 'training',
+        assigned_uid: mockTeacher.id,
+        work_date: localISODate(),
+        shift_label: 'Ca tối',
+        class_label: mockClass.name,
+        priority: 'normal',
+        status: 'progress',
+        needs_handover: false,
+        completed_at: null,
+        email_sent_at: null,
+        email_sent_to: null,
+        created_at: now,
+        updated_at: now,
+      }],
+      notes: [{
+        id: 'training-note',
+        task_id: 'training-visibility-task',
+        author_uid: mockTeacher.id,
+        author_name: mockTeacher.name,
+        body: 'Giáo viên đã cập nhật nội dung mới nhất.',
+        created_at: now,
+      }],
+      reasons: [{
+        id: 'training-reason',
+        task_id: 'training-visibility-task',
+        author_uid: 'training-office',
+        author_name: 'Phòng Đào tạo',
+        kind: 'progress',
+        body: 'Phòng đào tạo đang theo dõi tiến độ.',
+        created_at: now,
+      }],
+      handoffs: [],
+    });
+    const account: UserAccount = { ...DEV_OWNER_ACCOUNT, role, name: role === 'admin' ? 'BeeZone Hành Chính' : 'Chủ trung tâm' };
+
+    render(
+      <BeeZoneWork
+        currentUser={account}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    expect(await screen.findByText('Giáo viên cập nhật tiến độ lớp Kiddy')).toBeTruthy();
+    expect(screen.getByText('Giáo viên đã cập nhật nội dung mới nhất.')).toBeTruthy();
+    expect(screen.getByText(/Phòng đào tạo đang theo dõi tiến độ/i)).toBeTruthy();
+    expect(screen.getByText(/Việc giáo viên theo lớp/i)).toBeTruthy();
   });
 
   it('refreshes the assignee directory after an account permission change', async () => {

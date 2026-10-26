@@ -62,12 +62,14 @@ export function ShareReviewDialog({
       lessonTopic,
       generalNotes,
       teacherName,
+      Boolean(sessionId),
     ),
   );
   const [feedback, setFeedback] = useState('');
   const [pendingConfirmation, setPendingConfirmation] = useState<'Zalo' | 'SMS' | null>(null);
   const [recordedChannel, setRecordedChannel] = useState<'Zalo' | 'SMS' | null>(null);
   const absent = entry.status === 'absent';
+  const hasExplicitDraftStatus = entry.status !== 'present';
 
   const phone = student.parentPhone || student.phone || '';
   const zaloHref = parentZaloHref(phone);
@@ -175,6 +177,12 @@ export function ShareReviewDialog({
             </div>
           </div>
 
+          {!sessionId && (
+            <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-[11px] font-medium leading-5 text-sky-900">
+              Có thể gửi tin nhắn hoặc mở Zalo ngay, không cần lưu điểm danh trước. Nội dung đang nhập được dùng để soạn tin; lịch sử liên hệ chỉ được ghi sau khi buổi học đã lưu.
+            </p>
+          )}
+
           {absent && (
             <div role="alert" className="rounded-xl border-2 border-rose-300 bg-rose-50 p-3.5 text-rose-950 shadow-xs">
               <div className="flex items-start gap-2.5">
@@ -191,8 +199,8 @@ export function ShareReviewDialog({
 
           {/* Highlights summary */}
           <div className="flex flex-wrap gap-1.5 items-center">
-            <span className={`px-2 py-1 rounded-lg border font-semibold ${absent ? 'border-rose-300 bg-rose-100 text-rose-900' : entry.status === 'excused' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
-              {STATUS_LABELS[entry.status] || 'Có mặt'}
+            <span className={`px-2 py-1 rounded-lg border font-semibold ${!sessionId && !hasExplicitDraftStatus ? 'border-slate-200 bg-slate-100 text-slate-700' : absent ? 'border-rose-300 bg-rose-100 text-rose-900' : entry.status === 'excused' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+              {!sessionId && !hasExplicitDraftStatus ? 'Chưa lưu điểm danh' : STATUS_LABELS[entry.status] || 'Có mặt'}
             </span>
             {!absent && entry.homeworkCompleted !== undefined && (
               <span className={`px-2 py-1 rounded-lg border font-medium ${

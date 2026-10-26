@@ -504,13 +504,9 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
 
   const reviewStudent = classStudents.find(student => student.id === reviewStudentId);
   const canShare = canShareSessionReview(currentUser, selectedClass, isOwner);
-  const shareReason = !existingSession
-    ? 'Hãy lưu điểm danh và nhận xét trước khi chia sẻ cho phụ huynh.'
-    : !isCalendarDate(sessionDate) || sessionDate > centerDate()
-      ? 'Chỉ chia sẻ nhận xét của buổi học đã diễn ra.'
-      : hasUnsavedChanges
-        ? 'Có thay đổi chưa lưu. Hãy cập nhật điểm danh trước khi chia sẻ.'
-        : '';
+  const shareReason = !isCalendarDate(sessionDate)
+    ? 'Ngày gửi nội dung không hợp lệ.'
+    : '';
   const shareReady = canShare && !shareReason;
 
   const shareReviewButton = (student: Student) => {
@@ -541,7 +537,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     );
   };
 
-  const parentContactButton = (student: Student) => onRecordParentContact && <ParentContactButton
+  const parentContactButton = (student: Student) => onRecordParentContact && existingSession && <ParentContactButton
     studentName={student.name} absent={entries[student.id]?.status === 'absent'}
     note={existingSession?.entries.find(entry => entry.studentId === student.id)?.note}
     ready={contactReady && existingSession?.entries.find(entry => entry.studentId === student.id)?.status === 'absent'}
@@ -1227,23 +1223,34 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         onRecord={onRecordParentContact} onClose={() => setContactStudentId(null)}
       />}
 
-      {reviewStudent && selectedClass && existingSession && (() => {
-        const savedEntry = existingSession.entries.find((entry) => entry.studentId === reviewStudent.id);
-        if (!savedEntry) return null;
-        const sessionTeacher = teachers.find((item) => item.id === (existingSession.teacherId || selectedClass.teacherId));
+      {reviewStudent && selectedClass && (() => {
+        const draft = entries[reviewStudent.id] || DEFAULT_ENTRY;
+        const sharedEntry: AttendanceStudentEntry = {
+          studentId: reviewStudent.id,
+          status: draft.status,
+          homeworkCompleted: draft.homeworkCompleted,
+          note: draft.note || undefined,
+          homeworkAssignment: draft.homeworkAssignment.trim() || undefined,
+          rating: draft.rating || undefined,
+          learningAttitude: draft.learningAttitude || undefined,
+          sessionScore: typeof draft.sessionScore === 'number' ? draft.sessionScore : undefined,
+        };
+        const sessionTeacher = teachers.find((item) => item.id === (
+          existingSession?.teacherId || datedLesson?.teacherId || selectedClass.teacherId
+        ));
         return (
           <ShareReviewDialog
             key={`review-${selectedClass.id}-${reviewStudent.id}-${sessionDate}`}
-            sessionId={existingSession.id}
+            sessionId={existingSession?.id}
             student={reviewStudent}
             className={selectedClass.name}
             sessionDate={sessionDate}
             centerName={centerName}
             teacherName={sessionTeacher?.name || teacher?.name}
-            lessonTopic={existingSession.lessonTopic}
-            generalNotes={existingSession.generalNotes}
-            entry={savedEntry}
-            onRecord={onRecordParentContact}
+            lessonTopic={lessonTopic.trim() || existingSession?.lessonTopic}
+            generalNotes={generalNotes.trim() || existingSession?.generalNotes}
+            entry={sharedEntry}
+            onRecord={existingSession ? onRecordParentContact : undefined}
             onClose={() => setReviewStudentId(null)}
           />
         );

@@ -155,7 +155,7 @@ describe('attendance feedback editor', () => {
     });
   });
 
-  it('requires saved data before sharing and sends a clear absence notice with an audit event', async () => {
+  it('allows sending before attendance is saved and records history after a saved absence', async () => {
     const savedSession: AttendanceSession = {
       id: 'saved-feedback-session',
       classId: classroom.id,
@@ -187,9 +187,24 @@ describe('attendance feedback editor', () => {
         isOwner
       />,
     );
-    expect(
-      (screen.getByRole('button', { name: `Chia sẻ nhận xét buổi học của ${student.name} cho phụ huynh` }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    fireEvent.change(screen.getByLabelText(`Nhận xét trên lớp của ${student.name}`), {
+      target: { value: 'Nội dung giáo viên vừa nhập, chưa lưu điểm danh.' },
+    });
+    const immediateShare = screen.getByRole('button', {
+      name: `Chia sẻ nhận xét buổi học của ${student.name} cho phụ huynh`,
+    });
+    expect((immediateShare as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(immediateShare);
+    expect(screen.getByText(/không cần lưu điểm danh trước/i)).toBeTruthy();
+    expect((screen.getByPlaceholderText('Nhập nội dung tin nhắn gửi phụ huynh...') as HTMLTextAreaElement).value)
+      .toContain('Nội dung giáo viên vừa nhập, chưa lưu điểm danh.');
+    expect((screen.getByPlaceholderText('Nhập nội dung tin nhắn gửi phụ huynh...') as HTMLTextAreaElement).value)
+      .toContain('Chuyên cần: Chưa lưu điểm danh');
+    fireEvent.click(screen.getByRole('button', { name: 'Mở Zalo gửi phụ huynh' }));
+    expect(onRecord).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Xác nhận đã gửi qua Zalo/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng chia sẻ nhận xét' }));
+    open.mockClear();
 
     view.rerender(
       <AttendanceManager

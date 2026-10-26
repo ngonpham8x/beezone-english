@@ -1836,7 +1836,7 @@ export function BeeZoneWork({
                   : '↪ Cần bàn giao'}{' '}
                 (
                 {
-                  tasks.filter((t) =>
+                  accessibleTasks.filter((t) =>
                     !day || t.work_date === day
                       ? statModal === 'all'
                         ? true
@@ -1858,7 +1858,7 @@ export function BeeZoneWork({
             </div>
             <div className="bzw-modal-content">
               <div className="bzw-stack" style={{ padding: 0, minHeight: 'auto' }}>
-                {tasks
+                {accessibleTasks
                   .filter((t) =>
                     !day || t.work_date === day
                       ? statModal === 'all'

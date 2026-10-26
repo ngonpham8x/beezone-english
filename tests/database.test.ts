@@ -22,6 +22,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.exec('reset role');
   await db.exec('delete from public.request_quotas');
+  await db.exec('delete from public.bz_work_handoffs; delete from public.bz_work_events; delete from public.bz_work_notes; delete from public.bz_work_reasons; delete from public.bz_work_tasks; delete from public.bz_work_people');
   await db.query("select set_config('request.jwt.claim.sub',$1,false), set_config('request.jwt.claim.role','authenticated',false)", [owner]);
   await db.exec('delete from public.center_data');
   await db.query("insert into public.center_data(id,payload) values ('primary',$1::jsonb)", [JSON.stringify(base)]);
@@ -34,6 +35,40 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('lets an active Hành chính profile read all teacher/training work even when the work projection is stale', async () => {
+    const taskId = '10000000-0000-4000-8000-000000000001';
+    await db.query("update public.profiles set role='admin' where id=$1", [staff]);
+    await db.query(
+      `insert into public.bz_work_people(user_id,display_name,email,role,active) values
+       ($1,'Owner','owner@example.test','manager',true),
+       ($2,'Office','staff@example.test','teacher',true)`,
+      [owner, staff],
+    );
+    await db.query(
+      `insert into public.bz_work_tasks(id,branch,title,assigned_uid,created_by,work_date)
+       values ($1,'training','Teacher update',$2,$2,'2026-10-26')`,
+      [taskId, owner],
+    );
+    await db.query(
+      "insert into public.bz_work_notes(task_id,author_uid,body) values ($1,$2,'Teacher note')",
+      [taskId, owner],
+    );
+    await db.query(
+      "insert into public.bz_work_reasons(task_id,author_uid,kind,body) values ($1,$2,'progress','Training update')",
+      [taskId, owner],
+    );
+    await db.query(
+      "insert into public.bz_work_handoffs(task_id,from_uid,to_uid,note) values ($1,$2,$3,'Shift handoff')",
+      [taskId, owner, staff],
+    );
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [staff]);
+    await db.exec('set role authenticated');
+
+    expect((await db.query('select title from public.bz_work_tasks')).rows).toEqual([{ title: 'Teacher update' }]);
+    expect((await db.query('select body from public.bz_work_notes')).rows).toEqual([{ body: 'Teacher note' }]);
+    expect((await db.query('select body from public.bz_work_reasons')).rows).toEqual([{ body: 'Training update' }]);
+    expect((await db.query('select note from public.bz_work_handoffs')).rows).toEqual([{ note: 'Shift handoff' }]);
+  });
   it('lets student viewers edit only an existing grade comment and gives training/admin ranks centre-wide class scope', async () => {
     const grade = { id: 'g1', studentId: 's1', classId: 'c1', listening: 8, speaking: 8, reading: 8, writing: 8, midterm: 8, finalExam: 8, attendance: 8, average: 8, comment: 'Nhận xét cũ' };
     const payload = {

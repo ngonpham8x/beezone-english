@@ -461,14 +461,18 @@ export async function fetchWorkModuleData(
   currentUserId: string,
 ): Promise<WorkStorageState> {
   if (supabase) {
-    const [peopleResult, tasksResult, notesResult, reasonsResult, handoffsResult] = await Promise.all([
-      supabase.rpc('bz_work_sync_people'),
+    // Refresh the server-side role projection before RLS evaluates the shared
+    // task queries. This prevents a newly promoted owner/admin from receiving
+    // a first response filtered with their previous role.
+    const peopleResult = await supabase.rpc('bz_work_sync_people');
+    if (peopleResult.error) throw peopleResult.error;
+    const [tasksResult, notesResult, reasonsResult, handoffsResult] = await Promise.all([
       supabase.from('bz_work_tasks').select('*').order('work_date', { ascending: false }),
       supabase.from('bz_work_notes').select('*').order('created_at', { ascending: true }),
       supabase.from('bz_work_reasons').select('*').order('created_at', { ascending: true }),
       supabase.from('bz_work_handoffs').select('*').order('handed_at', { ascending: false }),
     ]);
-    const error = peopleResult.error || tasksResult.error || notesResult.error || reasonsResult.error || handoffsResult.error;
+    const error = tasksResult.error || notesResult.error || reasonsResult.error || handoffsResult.error;
     if (error) throw error;
     const serverPeople = mapServerWorkPeople((peopleResult.data || []) as Array<Record<string, unknown>>);
     const mapTask = (row: Record<string, unknown>): WorkTask => ({

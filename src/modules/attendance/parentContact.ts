@@ -122,6 +122,7 @@ export function sessionReviewMessage(
   lessonTopic?: string,
   generalNotes?: string,
   teacherName?: string,
+  attendanceSaved = true,
 ): string {
   const formattedDate = isCalendarDate(date) ? date.split('-').reverse().join('/') : date;
   const statusLabel =
@@ -173,7 +174,11 @@ export function sessionReviewMessage(
     `${centerName} xin gửi nhận xét buổi học của học viên ${student.name} ngày ${formattedDate} (Lớp ${className}):`,
     teacherName ? `• Giáo viên phụ trách: ${teacherName}` : null,
     lessonTopic ? `• Chủ đề bài học: ${lessonTopic}` : null,
-    `• Chuyên cần: ${statusLabel}`,
+    `• Chuyên cần: ${attendanceSaved
+      ? statusLabel
+      : entry?.status && entry.status !== 'present'
+        ? `${statusLabel} (chưa lưu)`
+        : 'Chưa lưu điểm danh'}`,
     entry?.homeworkCompleted !== undefined
       ? `• BTVN buổi trước: ${entry.homeworkCompleted ? 'Đã hoàn thành tốt ✓' : 'Chưa hoàn thành'}`
       : null,
