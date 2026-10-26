@@ -262,7 +262,17 @@ export const getReceiptPaymentEntries = (receipts: TuitionReceipt[]): ReceiptPay
  */
 export const getReceiptInstallments = (receipt: TuitionReceipt): TuitionInstallment[] => {
   if (Array.isArray(receipt.installments) && receipt.installments.length > 0) {
-    const installments = [...receipt.installments];
+    const installments = receipt.installments.map((inst, idx) => {
+      if (idx === 0 && !inst.invoiceBook && !inst.invoiceNo && !inst.bookNo && (receipt.invoiceBook || receipt.invoiceNo || receipt.bookNo)) {
+        return {
+          ...inst,
+          invoiceNo: receipt.invoiceNo,
+          bookNo: receipt.bookNo,
+          invoiceBook: receipt.invoiceBook,
+        };
+      }
+      return inst;
+    });
     const recorded = installments.reduce((sum, entry) => sum + Math.max(entry.amount, 0), 0);
     if (receipt.paidAmount > recorded) installments.unshift({
       id: `inst_${receipt.id}_init`, date: receipt.paymentDate,

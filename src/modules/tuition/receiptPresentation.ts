@@ -11,6 +11,11 @@ export function formatInvoiceBook(
   return '......... / .........';
 }
 
+export function formatReceiptDate(date?: string | null): string {
+  if (!date) return '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.split('-').reverse().join('/') : date;
+}
+
 export const receiptStatus = (
   receipt: Pick<TuitionReceipt, 'paidAmount' | 'debtAmount' | 'status'>,
 ) => {

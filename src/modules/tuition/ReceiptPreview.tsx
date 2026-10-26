@@ -10,7 +10,7 @@ import {
   receiptFee,
 } from '../../lib/tuition';
 import type { CenterSettings, ClassRoom, Student, TuitionReceipt } from '../../types';
-import { formatInvoiceBook, receiptStatus, receiptStatusLabel } from './receiptPresentation';
+import { formatInvoiceBook, formatReceiptDate, receiptStatus, receiptStatusLabel } from './receiptPresentation';
 
 interface Props {
   receipt: TuitionReceipt;
@@ -162,7 +162,7 @@ export function ReceiptPreview({
                   <strong>{paymentMethodLabel(selectedReceipt.paymentMethod)}</strong>
                 </div>
                 <div>
-                  Ngày lập phiếu: <strong>{selectedReceipt.paymentDate}</strong>
+                  Ngày lập phiếu: <strong>{formatReceiptDate(selectedReceipt.paymentDate)}</strong>
                 </div>
                 <div>
                   Ghi chú: <em>{selectedReceipt.notes || 'Đã hoàn tất thanh toán'}</em>
@@ -181,7 +181,7 @@ export function ReceiptPreview({
                         const instInvoice =
                           formatInvoiceBook(inst) !== '......... / .........'
                             ? formatInvoiceBook(inst)
-                            : idx === 0 && formatInvoiceBook(selectedReceipt) !== '......... / .........'
+                            : installments.length === 1 && formatInvoiceBook(selectedReceipt) !== '......... / .........'
                             ? formatInvoiceBook(selectedReceipt)
                             : '......... / .........';
 
@@ -192,7 +192,7 @@ export function ReceiptPreview({
                           >
                             <div>
                               <span className="font-bold text-slate-900">
-                                Đợt {idx + 1} ({inst.date}):
+                                Đợt {idx + 1} ({formatReceiptDate(inst.date)}):
                               </span>
                               <span className="text-emerald-800 font-bold ml-1.5">
                                 +{inst.amount.toLocaleString('vi-VN')} đ

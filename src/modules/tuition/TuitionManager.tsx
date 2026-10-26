@@ -50,7 +50,7 @@ import {
 import { ReceiptPreview } from './ReceiptPreview';
 import { SessionTuitionManager } from './SessionTuitionManager';
 import { TuitionDuePanel } from './TuitionDuePanel';
-import { formatInvoiceBook, receiptStatus, receiptStatusClass, receiptStatusLabel } from './receiptPresentation';
+import { formatInvoiceBook, formatReceiptDate, receiptStatus, receiptStatusClass, receiptStatusLabel } from './receiptPresentation';
 
 interface TuitionManagerProps {
   attendanceSessions?: AttendanceSession[];
@@ -112,6 +112,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Thẻ' | 'Chưa xác định'>('Chưa xác định');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [collectorNameInput, setCollectorNameInput] = useState('');
+  const [editingInstallments, setEditingInstallments] = useState<TuitionInstallment[]>([]);
   const [collectError, setCollectError] = useState<string | null>(null);
 
   // Thu học phí đợt tiếp theo / đóng đợt cuối cho học viên đóng nhiều đợt
@@ -244,6 +245,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const fee = prog?.tuitionFee || 0;
 
     setEditingReceipt(null);
+    setEditingInstallments([]);
     setCollectingStudentId(student.id);
     setCollectingClassId(classId);
     setCourseFeeInput(fee);
@@ -282,8 +284,20 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     setMonthlyFeeInput(receipt.monthlyFee || 0);
     const receiptKind = receipt.paymentKind === 'course' ? 'course' : 'monthly';
     setPaymentKind(receiptKind);
-    setInvoiceNoInput(receipt.invoiceNo || '');
-    setBookNoInput(receipt.bookNo || (receipt.invoiceBook && !receipt.invoiceNo ? receipt.invoiceBook : ''));
+    const insts = getReceiptInstallments(receipt).map((inst, idx) => {
+      if (idx === 0 && (!inst.invoiceBook || inst.invoiceBook === '......... / .........') && !inst.invoiceNo && !inst.bookNo && (receipt.invoiceBook || receipt.invoiceNo || receipt.bookNo)) {
+        return {
+          ...inst,
+          invoiceNo: receipt.invoiceNo,
+          bookNo: receipt.bookNo,
+          invoiceBook: receipt.invoiceBook,
+        };
+      }
+      return inst;
+    });
+    setEditingInstallments(insts);
+    setInvoiceNoInput(insts[0]?.invoiceNo || receipt.invoiceNo || '');
+    setBookNoInput(insts[0]?.bookNo || (receipt.invoiceBook && !receipt.invoiceNo ? receipt.invoiceBook : receipt.bookNo || ''));
     setStudentSearchQuery('');
     setMonthlyBillingPeriod(receiptKind === 'monthly'
       ? (receipt.billingPeriod || receipt.paymentDate.slice(0, 7))
@@ -332,7 +346,18 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     }
 
     const existingInstallments = getReceiptInstallments(collectingInstallmentReceipt);
-    const installmentIndex = existingInstallments.length + 1;
+    const normalizedExistingInstallments = existingInstallments.map((inst, idx) => {
+      if (idx === 0 && (!inst.invoiceBook || inst.invoiceBook === '......... / .........') && !inst.invoiceNo && !inst.bookNo && (collectingInstallmentReceipt.invoiceBook || collectingInstallmentReceipt.invoiceNo || collectingInstallmentReceipt.bookNo)) {
+        return {
+          ...inst,
+          invoiceNo: collectingInstallmentReceipt.invoiceNo,
+          bookNo: collectingInstallmentReceipt.bookNo,
+          invoiceBook: collectingInstallmentReceipt.invoiceBook,
+        };
+      }
+      return inst;
+    });
+    const installmentIndex = normalizedExistingInstallments.length + 1;
     const isFinalPayment = installmentAmountInput >= collectingInstallmentReceipt.debtAmount;
     const finalCollector = installmentCollectorInput.trim() || collectingInstallmentReceipt.collectorName || '';
     const instInvNo = installmentInvoiceNo.trim() || undefined;
@@ -357,6 +382,8 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const nextDebtAmount = Math.max(collectingInstallmentReceipt.debtAmount - installmentAmountInput, 0);
     const nextStatus = nextDebtAmount > 0 ? 'partial' : 'paid';
 
+    const formattedInstallmentDate = formatReceiptDate(installmentDateInput);
+
     const updatedReceipt: TuitionReceipt = {
       ...collectingInstallmentReceipt,
       paidAmount: nextPaidAmount,
@@ -368,10 +395,10 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       invoiceNo: instInvNo || collectingInstallmentReceipt.invoiceNo,
       bookNo: instBkNo || collectingInstallmentReceipt.bookNo,
       invoiceBook: instInvBook || collectingInstallmentReceipt.invoiceBook,
-      installments: [...existingInstallments, newInstallment],
+      installments: [...normalizedExistingInstallments, newInstallment],
       notes: collectingInstallmentReceipt.notes
-        ? `${collectingInstallmentReceipt.notes} | Đợt ${installmentIndex} (${installmentDateInput}): +${installmentAmountInput.toLocaleString('vi-VN')} đ`
-        : `Đợt ${installmentIndex} (${installmentDateInput}): +${installmentAmountInput.toLocaleString('vi-VN')} đ`
+        ? `${collectingInstallmentReceipt.notes} | Đợt ${installmentIndex} (${formattedInstallmentDate}): +${installmentAmountInput.toLocaleString('vi-VN')} đ`
+        : `Đợt ${installmentIndex} (${formattedInstallmentDate}): +${installmentAmountInput.toLocaleString('vi-VN')} đ`
     };
 
     if (onUpdateReceipt(updatedReceipt) === false) return;
@@ -418,39 +445,75 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       : undefined;
 
     // Xử lý các đợt đóng tiền
-    let nextInstallments = editingReceipt ? getReceiptInstallments(editingReceipt) : [];
+    let nextInstallments = editingReceipt ? (editingInstallments.length > 0 ? editingInstallments : getReceiptInstallments(editingReceipt)) : [];
     if (editingReceipt) {
-      const addedAmount = paidAmountInput - editingReceipt.paidAmount;
-      if (addedAmount > 0) {
-        // Tăng số tiền đóng: thêm đợt thanh toán mới vào ngày thu được chọn
-        const newInst: TuitionInstallment = {
-          id: `INST_${Date.now()}`,
-          date: paymentDateInput || centerDate(),
-          amount: addedAmount,
-          paymentMethod,
-          collectorName: finalCollector,
-          invoiceNo: finalInvoiceNo,
-          bookNo: finalBookNo,
-          invoiceBook: finalInvoiceBook,
-          notes: debtAmount === 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Đóng học phí đợt tiếp theo',
-        };
-        nextInstallments = [...nextInstallments, newInst];
-      } else if (addedAmount === 0 && nextInstallments.length === 1 && (paymentDateInput !== editingReceipt.paymentDate || paymentMethod !== editingReceipt.paymentMethod || finalCollector !== editingReceipt.collectorName.trim())) {
-        nextInstallments = [{ ...nextInstallments[0], date: paymentDateInput || editingReceipt.paymentDate, paymentMethod, collectorName: finalCollector, invoiceNo: finalInvoiceNo, bookNo: finalBookNo, invoiceBook: finalInvoiceBook }];
-      } else if (paidAmountInput < editingReceipt.paidAmount) {
-        nextInstallments = [
-          {
+      if (editingInstallments.length > 1) {
+        nextInstallments = editingInstallments;
+      } else {
+        const addedAmount = paidAmountInput - editingReceipt.paidAmount;
+        if (addedAmount > 0) {
+          // Tăng số tiền đóng: thêm đợt thanh toán mới vào ngày thu được chọn
+          const newInst: TuitionInstallment = {
             id: `INST_${Date.now()}`,
-            date: paymentDateInput || editingReceipt.paymentDate,
-            amount: paidAmountInput,
+            date: paymentDateInput || centerDate(),
+            amount: addedAmount,
             paymentMethod,
             collectorName: finalCollector,
             invoiceNo: finalInvoiceNo,
             bookNo: finalBookNo,
             invoiceBook: finalInvoiceBook,
-            notes: 'Điều chỉnh số tiền đã đóng',
+            notes: debtAmount === 0 ? 'Đóng học phí đợt cuối (hoàn tất học phí)' : 'Đóng học phí đợt tiếp theo',
+          };
+          nextInstallments = [...nextInstallments, newInst];
+        } else if (addedAmount === 0 && nextInstallments.length === 1) {
+          const hasPaymentDateChange = paymentDateInput !== editingReceipt.paymentDate;
+          const hasMethodChange = paymentMethod !== editingReceipt.paymentMethod;
+          const hasCollectorChange = finalCollector !== (editingReceipt.collectorName || '').trim();
+          const hasInvoiceChange = finalInvoiceNo !== editingReceipt.invoiceNo || finalBookNo !== editingReceipt.bookNo || finalInvoiceBook !== editingReceipt.invoiceBook;
+
+          if (hasPaymentDateChange || hasMethodChange || hasCollectorChange || hasInvoiceChange) {
+            nextInstallments = [{
+              ...nextInstallments[0],
+              ...(hasPaymentDateChange ? { date: paymentDateInput } : {}),
+              ...(hasMethodChange ? { paymentMethod } : {}),
+              ...(hasCollectorChange ? { collectorName: finalCollector } : {}),
+              ...(hasInvoiceChange ? {
+                invoiceNo: finalInvoiceNo,
+                bookNo: finalBookNo,
+                invoiceBook: finalInvoiceBook,
+              } : {}),
+            }];
+          } else if (editingReceipt.installments && editingReceipt.installments.length === 1) {
+            nextInstallments = editingReceipt.installments;
           }
-        ];
+        } else if (paidAmountInput < editingReceipt.paidAmount) {
+          nextInstallments = [
+            {
+              id: `INST_${Date.now()}`,
+              date: paymentDateInput || editingReceipt.paymentDate,
+              amount: paidAmountInput,
+              paymentMethod,
+              collectorName: finalCollector,
+              invoiceNo: finalInvoiceNo,
+              bookNo: finalBookNo,
+              invoiceBook: finalInvoiceBook,
+              notes: 'Điều chỉnh số tiền đã đóng',
+            }
+          ];
+        }
+      }
+      if (nextInstallments.length > 0 && (!nextInstallments[0].invoiceBook || nextInstallments[0].invoiceBook === '......... / .........')) {
+        const fallbackInvNo = finalInvoiceNo || editingReceipt.invoiceNo;
+        const fallbackBkNo = finalBookNo || editingReceipt.bookNo;
+        const fallbackInvBook = finalInvoiceBook || editingReceipt.invoiceBook;
+        if (fallbackInvBook || fallbackInvNo || fallbackBkNo) {
+          nextInstallments[0] = {
+            ...nextInstallments[0],
+            invoiceNo: nextInstallments[0].invoiceNo || fallbackInvNo,
+            bookNo: nextInstallments[0].bookNo || fallbackBkNo,
+            invoiceBook: nextInstallments[0].invoiceBook || fallbackInvBook,
+          };
+        }
       }
     } else {
       nextInstallments = [
@@ -467,6 +530,11 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         }
       ];
     }
+
+    const latestWithInvoice = [...nextInstallments].reverse().find(i => i.invoiceBook || i.invoiceNo || i.bookNo);
+    const resolvedInvoiceNo = latestWithInvoice?.invoiceNo || finalInvoiceNo;
+    const resolvedBookNo = latestWithInvoice?.bookNo || finalBookNo;
+    const resolvedInvoiceBook = latestWithInvoice?.invoiceBook || finalInvoiceBook;
 
     const retainContextFee = Boolean(editingReceipt);
     const nextReceipt: TuitionReceipt = {
@@ -487,9 +555,9 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       paidAmount: paidAmountInput,
       debtAmount,
       status,
-      invoiceNo: finalInvoiceNo,
-      bookNo: finalBookNo,
-      invoiceBook: finalInvoiceBook,
+      invoiceNo: resolvedInvoiceNo,
+      bookNo: resolvedBookNo,
+      invoiceBook: resolvedInvoiceBook,
       paymentDate: paymentDateInput || editingReceipt?.paymentDate || centerDate(),
       collectorName: finalCollector,
       paymentMethod,
@@ -1017,48 +1085,126 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                 </section>
               )}
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-semibold text-amber-950 text-xs">
-                    Mục SHĐ / Quyển
-                  </label>
-                  <span className="text-[11px] text-amber-800 italic">
-                    (Trung tâm tự nhập khi lập phiếu)
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Số Hóa Đơn (SHĐ)</label>
-                    <input
-                      type="text"
-                      aria-label="Số Hóa Đơn (SHĐ)"
-                      maxLength={50}
-                      value={invoiceNoInput}
-                      onChange={(e) => setInvoiceNoInput(e.target.value)}
-                      placeholder="Ví dụ: 00125"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
-                    />
+              {editingReceipt && editingInstallments.length > 1 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-amber-950 text-xs">
+                      SHĐ / Quyển của từng đợt đóng tiền ({editingInstallments.length} đợt)
+                    </label>
+                    <span className="text-[11px] text-amber-800 italic">
+                      (Trung tâm tự nhập cho từng đợt)
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Quyển Số</label>
-                    <input
-                      type="text"
-                      aria-label="Quyển Số"
-                      maxLength={50}
-                      value={bookNoInput}
-                      onChange={(e) => setBookNoInput(e.target.value)}
-                      placeholder="Ví dụ: 03"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
-                    />
+                  <div className="space-y-2">
+                    {editingInstallments.map((inst, i) => (
+                      <div key={inst.id || i} className="bg-white p-2.5 rounded-lg border border-amber-200 space-y-1.5 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-800">Đợt {i + 1} ({formatReceiptDate(inst.date)})</span>
+                          <span className="text-emerald-700 font-bold">+{inst.amount.toLocaleString('vi-VN')} đ ({inst.paymentMethod || 'TM/CK'})</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div>
+                            <label className="block text-slate-600 font-semibold mb-0.5">SHĐ đợt {i + 1}</label>
+                            <input
+                              type="text"
+                              aria-label={`SHĐ đợt ${i + 1}`}
+                              maxLength={50}
+                              value={inst.invoiceNo || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditingInstallments((prev) =>
+                                  prev.map((item, idx) => {
+                                    if (idx !== i) return item;
+                                    const bk = item.bookNo?.trim() || '';
+                                    return {
+                                      ...item,
+                                      invoiceNo: val.trim() || undefined,
+                                      invoiceBook: val.trim() || bk ? `${val.trim() || '.......'} / ${bk || '.......'}` : undefined,
+                                    };
+                                  })
+                                );
+                              }}
+                              placeholder="Ví dụ: 00125"
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-600 font-semibold mb-0.5">Quyển số đợt {i + 1}</label>
+                            <input
+                              type="text"
+                              aria-label={`Quyển số đợt ${i + 1}`}
+                              maxLength={50}
+                              value={inst.bookNo || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditingInstallments((prev) =>
+                                  prev.map((item, idx) => {
+                                    if (idx !== i) return item;
+                                    const inv = item.invoiceNo?.trim() || '';
+                                    return {
+                                      ...item,
+                                      bookNo: val.trim() || undefined,
+                                      invoiceBook: inv || val.trim() ? `${inv || '.......'} / ${val.trim() || '.......'}` : undefined,
+                                    };
+                                  })
+                                );
+                              }}
+                              placeholder="Ví dụ: 03"
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white font-mono"
+                            />
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-amber-900 font-medium">
+                          In trên phiếu đợt {i + 1}: <strong>SHĐ/Quyển: {formatInvoiceBook(inst)}</strong>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="mt-1.5 text-[11px] text-amber-900 font-semibold flex items-center justify-between">
-                  <span>Hiển thị trên phiếu in:</span>
-                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 text-amber-950">
-                    SHĐ/Quyển: {invoiceNoInput.trim() || '...........'} / {bookNoInput.trim() || '...........'}
-                  </span>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-semibold text-amber-950 text-xs">
+                      Mục SHĐ / Quyển
+                    </label>
+                    <span className="text-[11px] text-amber-800 italic">
+                      (Trung tâm tự nhập khi lập phiếu)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Số Hóa Đơn (SHĐ)</label>
+                      <input
+                        type="text"
+                        aria-label="Số Hóa Đơn (SHĐ)"
+                        maxLength={50}
+                        value={invoiceNoInput}
+                        onChange={(e) => setInvoiceNoInput(e.target.value)}
+                        placeholder="Ví dụ: 00125"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Quyển Số</label>
+                      <input
+                        type="text"
+                        aria-label="Quyển Số"
+                        maxLength={50}
+                        value={bookNoInput}
+                        onChange={(e) => setBookNoInput(e.target.value)}
+                        placeholder="Ví dụ: 03"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-amber-900 font-semibold flex items-center justify-between">
+                    <span>Hiển thị trên phiếu in:</span>
+                    <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 text-amber-950">
+                      SHĐ/Quyển: {invoiceNoInput.trim() || '...........'} / {bookNoInput.trim() || '...........'}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1225,7 +1371,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                   <div className="space-y-1">
                     {editingReceipt.installments.map((inst, i) => (
                       <div key={inst.id || i} className="flex justify-between items-center text-[11px] text-slate-700 bg-white px-2.5 py-1.5 rounded-lg border border-blue-100">
-                        <span>Đợt {i + 1} ({inst.date}): <strong>{inst.amount.toLocaleString('vi-VN')} đ</strong> - {inst.paymentMethod}</span>
+                        <span>Đợt {i + 1} ({formatReceiptDate(inst.date)}): <strong>{inst.amount.toLocaleString('vi-VN')} đ</strong> - {inst.paymentMethod}</span>
                         <span className="text-slate-500 italic">{inst.notes || '—'}</span>
                       </div>
                     ))}
@@ -1317,7 +1463,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                           <div key={inst.id || i} className="flex flex-wrap justify-between items-center gap-1 text-[11px] p-2 rounded-lg bg-slate-50 border border-slate-100">
                             <div>
                               <span className="font-bold text-slate-800">Đợt {i + 1}</span>
-                              <span className="text-slate-500 ml-2">({inst.date})</span>
+                              <span className="text-slate-500 ml-2">({formatReceiptDate(inst.date)})</span>
                               <span className="text-slate-500 ml-2">· {inst.paymentMethod || 'TM/CK'}</span>
                               <span className="block mt-0.5 font-semibold text-amber-900">SHĐ/Quyển: {formatInvoiceBook(inst)}</span>
                             </div>

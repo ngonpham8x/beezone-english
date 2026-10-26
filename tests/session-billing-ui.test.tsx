@@ -353,8 +353,91 @@ it('always shows the remaining amount and each installment SHĐ/Quyển on the r
   const dialog = screen.getByRole('dialog', { name: 'In phiếu thu' });
   expect(within(dialog).getByText(/Số tiền còn lại:/)).toBeTruthy();
   expect(within(dialog).getByText('Đã hoàn thành')).toBeTruthy();
+  expect(within(dialog).getByText('13/10/2026')).toBeTruthy();
+  expect(within(dialog).getByText(/Đợt 1 \(01\/10\/2026\):/)).toBeTruthy();
+  expect(within(dialog).getByText(/Đợt 2 \(13\/10\/2026\):/)).toBeTruthy();
+  expect(within(dialog).getByText(/· SHĐ\/Quyển: 00125 \/ 03/)).toBeTruthy();
+  expect(within(dialog).getByText(/· SHĐ\/Quyển: 00126 \/ 03/)).toBeTruthy();
   expect(within(dialog).getAllByText(/SHĐ\/Quyển: 0012[56] \/ 03/)).toHaveLength(3);
   expect((document.querySelector('[data-print-receipt]') as HTMLElement).style.fontSize).toBe('13pt');
+});
+
+it('preserves distinct SHĐ/Quyển for installment 1 and installment 2 when paying subsequent installments', () => {
+  const courseClass = { ...initial.initialClasses[0], id: 'course-class-inst', billingMode: 'course' as const };
+  const learner = { ...initial.initialStudents[0], id: 'student-inst', classId: courseClass.id };
+  const partialReceipt: TuitionReceipt = {
+    id: 'receipt-partial-inst',
+    code: 'PT-2026-0005',
+    invoiceNo: '5',
+    bookNo: '1',
+    invoiceBook: '5 / 1',
+    studentId: learner.id,
+    classId: courseClass.id,
+    courseFee: 3_300_000,
+    paymentKind: 'course',
+    billingPeriod: 'Khóa 2026',
+    discount: 0,
+    paidAmount: 1_200_000,
+    debtAmount: 2_100_000,
+    status: 'partial',
+    paymentDate: '2026-10-26',
+    collectorName: 'Bích Tuyền',
+    paymentMethod: 'Tiền mặt',
+    installments: [
+      {
+        id: 'i1',
+        date: '2026-10-26',
+        amount: 1_200_000,
+        paymentMethod: 'Tiền mặt',
+        collectorName: 'Bích Tuyền',
+        invoiceNo: '5',
+        bookNo: '1',
+        invoiceBook: '5 / 1',
+      },
+    ],
+  };
+
+  const onUpdateReceipt = vi.fn();
+  render(
+    <TuitionManager
+      receipts={[partialReceipt]}
+      attendanceSessions={[]}
+      students={[learner]}
+      classes={[courseClass]}
+      programs={initial.initialPrograms}
+      settings={initial.initialSettings}
+      permissions={DEV_OWNER_ACCOUNT.permissions}
+      isOwner
+      onAddReceipt={vi.fn()}
+      onUpdateReceipt={onUpdateReceipt}
+      onDeleteReceipt={vi.fn()}
+    />,
+  );
+
+  // Click on "Thu tiếp" button in the receipt row
+  fireEvent.click(screen.getByRole('button', { name: /Thu tiếp/i }));
+
+  expect(screen.getByText('Thu Học Phí Đợt Tiếp Theo / Đóng Đợt Cuối')).toBeTruthy();
+  expect(screen.getByText(/Lịch sử các đợt đã đóng/)).toBeTruthy();
+  expect(screen.getByText(/SHĐ\/Quyển: 5 \/ 1/)).toBeTruthy();
+
+  // Enter SHĐ 6 and Quyển 1 for installment 2
+  fireEvent.change(screen.getByLabelText('Số Hóa Đơn (SHĐ) đợt này'), { target: { value: '6' } });
+  fireEvent.change(screen.getByLabelText('Quyển Số đợt này'), { target: { value: '1' } });
+  fireEvent.click(screen.getByRole('button', { name: /Xác Nhận Thu Tiền/i }));
+
+  expect(onUpdateReceipt).toHaveBeenCalledWith(
+    expect.objectContaining({
+      paidAmount: 3_300_000,
+      debtAmount: 0,
+      status: 'paid',
+      invoiceBook: '6 / 1',
+      installments: [
+        expect.objectContaining({ amount: 1_200_000, invoiceBook: '5 / 1' }),
+        expect.objectContaining({ amount: 2_100_000, invoiceBook: '6 / 1' }),
+      ],
+    }),
+  );
 });
 
 it('lists both classes in tuition debt and opens collection for the unpaid second class', () => {
