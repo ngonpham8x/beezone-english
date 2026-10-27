@@ -541,10 +541,7 @@ describe('BeeZoneWork Module', () => {
     saveLocalWorkData({
       ...seeded,
       tasks: seeded.tasks.map((task) => task.id === 'task-2' ? { ...task, branch: 'teacher' as const } : task),
-      handoffs: [{
-        id: 'handoff-1', task_id: 'task-2', from_uid: DEV_OWNER_ACCOUNT.id, to_uid: 't-linh',
-        note: 'Bàn giao đúng người nhận', handed_at: new Date().toISOString(), acknowledged_at: null,
-      }],
+      handoffs: [],
     });
     const teacherUser: UserAccount = {
       id: 't-linh',
@@ -564,7 +561,7 @@ describe('BeeZoneWork Module', () => {
       },
     };
 
-    // 1. As Manager, check handover task in list
+    // 1. As Manager, choose the recipient and create the pending handover.
     const { unmount } = render(
       <BeeZoneWork
         currentUser={DEV_OWNER_ACCOUNT}
@@ -578,6 +575,15 @@ describe('BeeZoneWork Module', () => {
     await waitFor(() => {
       expect(screen.getAllByText(/Kiểm tra và chốt học phí/i).length).toBeGreaterThan(0);
     });
+    fireEvent.click(screen.getAllByRole('button', { name: /Chọn người nhận/i })[0]);
+    expect(screen.getByRole('dialog', { name: 'Bàn giao công việc' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Người nhận bàn giao *'), { target: { value: 't-linh' } });
+    fireEvent.change(screen.getByLabelText('Nội dung bàn giao *'), { target: { value: 'Bàn giao đúng người nhận' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi bàn giao' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Bàn giao công việc' })).toBeNull());
+    expect(loadLocalWorkData(localISODate(), DEV_OWNER_ACCOUNT.id).handoffs).toEqual([
+      expect.objectContaining({ task_id: 'task-2', to_uid: 't-linh', note: 'Bàn giao đúng người nhận' }),
+    ]);
 
     unmount();
 

@@ -35,7 +35,14 @@ import { ParentContactButton, ParentContactDialog } from './ParentContactDialog'
 import { ShareReviewDialog } from './ShareReviewDialog';
 import { canContactParent, retainContactHistory, splitAttendanceNote } from './parentContact';
 import type { ParentContactRequest } from './parentContact';
-import { canEditAttendanceClass, canViewAttendanceClass, isAttendanceManagementRole, canShareSessionReview } from './access';
+import {
+  canEditAttendanceClass,
+  canShareSessionReview,
+  canViewAttendanceClass,
+  hasRegularAttendanceClassAccess,
+  isAttendanceManagementRole,
+  isSubstituteTeacherForClassOnDate,
+} from './access';
 
 import { UserAccount } from '../../types';
 const EMPTY_ENROLLMENTS: ClassEnrollment[] = [];
@@ -303,18 +310,16 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   currentUser,
   timetableSlots, scheduleChanges = [], enrollments = EMPTY_ENROLLMENTS, request, onRequestHandled
 }) => {
+  const [sessionDate, setSessionDate] = useState<string>(centerDate());
   // Chủ trung tâm, Hành chính và Đào tạo có phạm vi quản lý toàn trung tâm.
-  // Giáo viên chỉ thấy lớp được phân công; quyền sửa vẫn được kiểm tra riêng.
-  const permittedClasses = useMemo(() => {
-    if (isOwner) return classes;
-    if (!currentUser) return [];
-    if (isAttendanceManagementRole(currentUser)) return classes.filter((classroom) => canViewAttendanceClass(currentUser, classroom));
-
+  // Giáo viên chỉ thấy lớp được phân công hoặc lớp dạy thay đúng ngày đã duyệt.
+  const attendanceUser = useMemo(() => {
+    if (!currentUser || isAttendanceManagementRole(currentUser)) return currentUser;
     const teacherProfile = teachers.find((teacher) =>
       (currentUser.permissions.teacherId && teacher.id === currentUser.permissions.teacherId) ||
       (currentUser.email && teacher.email && teacher.email.toLowerCase() === currentUser.email.toLowerCase()),
     );
-    const accountWithTeacherAssignments = teacherProfile
+    return teacherProfile
       ? {
           ...currentUser,
           permissions: {
@@ -324,13 +329,18 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           },
         }
       : currentUser;
-    return classes.filter((classroom) => canViewAttendanceClass(accountWithTeacherAssignments, classroom));
-  }, [classes, isOwner, currentUser, teachers]);
+  }, [currentUser, teachers]);
+  const accessContext = useMemo(
+    () => ({ date: sessionDate, scheduleChanges, teachers }),
+    [sessionDate, scheduleChanges, teachers],
+  );
+  const permittedClasses = useMemo(() => {
+    if (isOwner) return classes;
+    if (!attendanceUser) return [];
+    return classes.filter((classroom) => canViewAttendanceClass(attendanceUser, classroom, accessContext));
+  }, [classes, isOwner, attendanceUser, accessContext]);
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => permittedClasses[0]?.id || '');
-  const [sessionDate, setSessionDate] = useState<string>(
-    centerDate()
-  );
   const [lessonTopic, setLessonTopic] = useState<string>('');
   const [generalNotes, setGeneralNotes] = useState<string>('');
   const [showSessionDetails, setShowSessionDetails] = useState(false);
@@ -358,7 +368,13 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     () => permittedClasses.find(c => c.id === selectedClassId),
     [permittedClasses, selectedClassId]
   );
-  const canSave = isOwner || canEditAttendanceClass(currentUser, selectedClass);
+  const canSave = isOwner || canEditAttendanceClass(attendanceUser, selectedClass, accessContext);
+  const substituteOnlyAccess = Boolean(
+    selectedClass &&
+    attendanceUser &&
+    !hasRegularAttendanceClassAccess(attendanceUser, selectedClass) &&
+    isSubstituteTeacherForClassOnDate(attendanceUser, selectedClass, accessContext),
+  );
 
   // Existing session for this class on this date if any
   const existingSession = useMemo(
@@ -390,15 +406,22 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     [teachers, selectedClass]
   );
   const datedLesson = timetableSlots ? lessonsOn(sessionDate, classes, timetableSlots, scheduleChanges).find(item => item.classId === selectedClassId) : undefined;
+  const substituteTeacher = datedLesson?.substituteTeacherId
+    ? teachers.find((item) => item.id === datedLesson.substituteTeacherId)
+    : undefined;
   const hasSchedule = timetableSlots?.some(slot => slot.classId === selectedClassId) || scheduleChanges.some(c => c.classId === selectedClassId);
   const noLesson = Boolean(hasSchedule && !datedLesson && !existingSession);
   React.useEffect(() => {
     if (!request?.classId) return;
+    if (request.date && request.date !== sessionDate) {
+      setSessionDate(request.date);
+      return;
+    }
     if (permittedClasses.some(c => c.id === request.classId)) {
-      setSelectedClassId(request.classId); if (request.date) setSessionDate(request.date);
+      setSelectedClassId(request.classId);
     }
     onRequestHandled?.();
-  }, [request, permittedClasses, onRequestHandled]);
+  }, [request, permittedClasses, onRequestHandled, sessionDate]);
 
   // Working entries state
   const [entries, setEntries] = useState<Record<string, AttendanceDraftEntry>>({});
@@ -496,14 +519,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         draft.learningAttitude !== (saved.learningAttitude || '') ||
         draft.sessionScore !== (saved.sessionScore ?? '');
     });
-  const contactReason = !canContactParent(currentUser, selectedClass) ? 'Bạn không có quyền ghi nhận liên hệ cho lớp này.' :
+  const contactReason = !canContactParent(attendanceUser, selectedClass, accessContext) ? 'Bạn không có quyền ghi nhận liên hệ cho lớp này.' :
     !isCalendarDate(sessionDate) || sessionDate > centerDate() ? 'Chỉ báo vắng cho buổi học đã diễn ra.' :
     hasUnsavedChanges ? 'Lưu điểm danh trước khi báo phụ huynh.' : '';
   const contactReady = !contactReason;
   const contactStudent = classStudents.find(student => student.id === contactStudentId);
 
   const reviewStudent = classStudents.find(student => student.id === reviewStudentId);
-  const canShare = canShareSessionReview(currentUser, selectedClass, isOwner);
+  const canShare = canShareSessionReview(attendanceUser, selectedClass, isOwner, accessContext);
   const shareReason = !isCalendarDate(sessionDate)
     ? 'Ngày gửi nội dung không hợp lệ.'
     : '';
@@ -581,7 +604,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       classId: selectedClassId,
       date: sessionDate,
       lessonTopic: lessonTopic.trim() || 'Buổi học theo thời khóa biểu',
-      teacherId: existingSession?.teacherId || datedLesson?.teacherId || selectedClass?.teacherId,
+      teacherId: datedLesson?.teacherId || existingSession?.teacherId || selectedClass?.teacherId,
       billing: snapshotForSession(selectedClass, sessionDate, applyOldSessionBilling ? undefined : existingSession),
       generalNotes: generalNotes.trim(),
       entries: [
@@ -626,9 +649,9 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   // Class session history
   const classHistory = useMemo(
     () => attendanceSessions
-      .filter(s => isStudentInClass(s, selectedClassId))
+      .filter(s => isStudentInClass(s, selectedClassId) && (!substituteOnlyAccess || s.date === sessionDate))
       .sort((a, b) => b.date.localeCompare(a.date)),
-    [attendanceSessions, selectedClassId]
+    [attendanceSessions, selectedClassId, sessionDate, substituteOnlyAccess]
   );
 
   return (
@@ -671,6 +694,11 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
               <span>
                 GV: <strong className="text-indigo-700 font-bold">{teacher?.name || 'Chưa phân công'}</strong>
               </span>
+              {substituteTeacher && (
+                <span className="rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800">
+                  Dạy thay hôm nay: <strong className="font-bold">{substituteTeacher.name}</strong>
+                </span>
+              )}
               <span className="text-slate-500">
                 Lịch: <strong className="text-slate-700 font-semibold">{selectedClass.scheduleTime || 'N/A'}</strong>
               </span>
@@ -697,6 +725,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                 {showSessionDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </button>
             </div>
+          </div>
+        )}
+
+        {substituteOnlyAccess && substituteTeacher && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-900">
+            Bạn được bàn giao lớp <strong>{selectedClass?.name}</strong> để điểm danh, cập nhật nội dung buổi học và liên hệ phụ huynh trong ngày {sessionDate.split('-').reverse().join('/')}. Quyền này không mở lịch sử các buổi khác hoặc lớp khác của giáo viên chính.
           </div>
         )}
 

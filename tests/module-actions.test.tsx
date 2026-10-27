@@ -224,6 +224,53 @@ describe('domain command integration', () => {
     expect(parsed.attendanceSessions![0].entries[0].note).toBe(result.current.store.attendanceSessions[0].entries[0].note);
     act(() => expect(result.current.actions.handleRecordParentContact({ sessionId: recorded.id, studentId: student.id, channel: 'Zalo', details: '' })).toMatch(/không còn/));
   });
+  it('allows a substitute to save only the attendance session assigned for that date', () => {
+    const substituteId = 'teacher-substitute';
+    const date = centerDate();
+    const user: UserAccount = {
+      ...DEV_TEACHER_ACCOUNT,
+      id: 'account-substitute',
+      email: 'substitute@beezone.test',
+      permissions: {
+        ...DEV_TEACHER_ACCOUNT.permissions,
+        teacherId: substituteId,
+        assignedClassIds: [],
+      },
+    };
+    const { result } = renderHook(() => useTestCenter(user));
+    const data = dataset();
+    const classroom = data.classes[0];
+    data.teachers.push({
+      id: substituteId,
+      name: 'Giáo viên dạy thay',
+      email: user.email,
+      phone: '',
+      address: '',
+      specialty: '',
+      assignedClassIds: [],
+    });
+    data.scheduleChanges = [{
+      id: 'substitute-day',
+      classId: classroom.id,
+      kind: 'teacher_off',
+      date,
+      sourceSlotId: data.timetableSlots.find((slot) => slot.classId === classroom.id)?.id,
+      startTime: '18:00',
+      endTime: '19:30',
+      teacherId: classroom.teacherId,
+      roomId: classroom.roomId,
+      substituteTeacherId: substituteId,
+      reason: 'Giáo viên chính nghỉ',
+    }];
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+
+    const session = { id: 'substitute-attendance', classId: classroom.id, date, teacherId: substituteId, lessonTopic: 'Dạy thay', entries: [] };
+    act(() => expect(result.current.actions.handleSaveAttendanceSession(session)).toBe(true));
+    expect(result.current.store.attendanceSessions).toEqual([expect.objectContaining({ id: session.id, teacherId: substituteId })]);
+
+    act(() => expect(result.current.actions.handleSaveAttendanceSession({ ...session, id: 'wrong-date', date: '2099-01-01' })).toBe(false));
+    expect(result.current.store.attendanceSessions).toHaveLength(1);
+  });
 
   it('rejects parent contact outside assigned classes, for inactive users, future lessons and invalid inputs', () => {
     const data = dataset();

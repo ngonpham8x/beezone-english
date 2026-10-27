@@ -201,6 +201,14 @@ export function BeeZoneWork({
   const [emailTask, setEmailTask] = useState<WorkTask | null>(null);
   const [handoverTask, setHandoverTask] = useState<WorkTask | null>(null);
   const [ackTask, setAckTask] = useState<WorkTask | null>(null);
+  const handoverCandidates = useMemo(
+    () => handoverTask
+      ? getAssignableWorkPeople(selectablePeople, handoverTask.branch).filter(
+          (person) => person.user_id !== handoverTask.assigned_uid && person.user_id !== uid,
+        )
+      : [],
+    [handoverTask, selectablePeople, uid],
+  );
   const [directoryModal, setDirectoryModal] = useState(false);
   const [staffEditor, setStaffEditor] = useState<WorkPerson | null | undefined>(undefined);
   const [customizeModal, setCustomizeModal] = useState(false);
@@ -586,23 +594,6 @@ export function BeeZoneWork({
     showToast(nextStatus === 'progress' ? 'Đã chuyển sang Đang làm.' : 'Đã chuyển về Chưa làm.');
   };
 
-  const handleToggleHandover = (t: WorkTask) => {
-    if (t.status === 'done') {
-      showToast('Công việc đã hoàn thành không cần bàn giao.');
-      return;
-    }
-    const nextNeeds = !t.needs_handover;
-    const now = new Date().toISOString();
-    const updated: WorkTask = {
-      ...t,
-      needs_handover: nextNeeds,
-      updated_at: now,
-    };
-    const nextTasks = tasks.map((x) => (x.id === t.id ? updated : x));
-    syncStorage(nextTasks, notes, reasons, handoffs);
-    showToast(nextNeeds ? 'Đã đánh dấu cần bàn giao.' : 'Đã bỏ đánh dấu bàn giao.');
-  };
-
   const handleToggleEmailSent = (t: WorkTask) => {
     const sent = !t.email_sent_at;
     const now = new Date().toISOString();
@@ -731,7 +722,8 @@ export function BeeZoneWork({
   };
 
   const handleSaveTask = () => {
-    if (!canManageBranch(form.branch)) {
+    const savedBranch: Branch = form.is_teacher_off ? 'teacher' : form.branch;
+    if (!canManageBranch(savedBranch)) {
       showToast('Cấp bậc hiện tại không được phép lưu công việc trong nhóm này.');
       return;
     }
@@ -826,7 +818,7 @@ export function BeeZoneWork({
         ...editorTask,
         title: form.title.trim(),
         description: form.description.trim(),
-        branch: form.branch,
+        branch: savedBranch,
         assigned_uid: form.assigned_uid,
         work_date: form.work_date,
         shift_label: form.shift_label,
@@ -853,7 +845,7 @@ export function BeeZoneWork({
         id: newWorkId(),
         title: form.title.trim(),
         description: form.description.trim(),
-        branch: form.branch,
+        branch: savedBranch,
         assigned_uid: form.assigned_uid,
         work_date: form.work_date,
         shift_label: form.shift_label,
@@ -1023,8 +1015,24 @@ export function BeeZoneWork({
 
   // Handover flow
   const handleOpenHandoverModal = (t: WorkTask) => {
+    if (t.status === 'done') {
+      showToast('Công việc đã hoàn thành không cần bàn giao.');
+      return;
+    }
+    if (handoffs.some((handoff) => handoff.task_id === t.id && !handoff.acknowledged_at)) {
+      showToast('Công việc này đang chờ người nhận xác nhận bàn giao.');
+      return;
+    }
+    const candidates = getAssignableWorkPeople(selectablePeople, t.branch).filter(
+      (person) => person.user_id !== t.assigned_uid && person.user_id !== uid,
+    );
+    const preferred = t.substitute_teacher_id
+      ? candidates.find((person) =>
+          person.teacherId === t.substitute_teacher_id || person.user_id === t.substitute_teacher_id,
+        )
+      : undefined;
     setHandoverTask(t);
-    setHandoverToUid(people.find((p) => p.user_id !== t.assigned_uid)?.user_id || '');
+    setHandoverToUid(preferred?.user_id || candidates[0]?.user_id || '');
     setHandoverNoteContent('');
   };
 
@@ -1035,6 +1043,11 @@ export function BeeZoneWork({
     }
     if (handoverNoteContent.trim().length < 2) {
       showToast('Vui lòng nhập ghi chú bàn giao (ít nhất 2 ký tự).');
+      return;
+    }
+    if (handoffs.some((handoff) => handoff.task_id === handoverTask.id && !handoff.acknowledged_at)) {
+      showToast('Công việc này đã có một bàn giao đang chờ xác nhận.');
+      setHandoverTask(null);
       return;
     }
     const now = new Date().toISOString();
@@ -1372,14 +1385,18 @@ export function BeeZoneWork({
           )}
 
           {/* Row 2 */}
-          {canManageTask && !inHandover ? (
+          {canManageTask && !pendingHandoff ? (
             <button
               type="button"
               className="bzw-btn bzw-sm"
-              onClick={() => handleToggleHandover(t)}
+              onClick={() => handleOpenHandoverModal(t)}
             >
-              {t.needs_handover ? 'Bỏ bàn giao' : '↪ Bàn giao'}
+              {t.needs_handover ? '↪ Chọn người nhận' : '↪ Bàn giao'}
             </button>
+          ) : canManageTask && pendingHandoff ? (
+            <span className="bzw-chip handover">
+              Đang chờ {getPerson(pendingHandoff.to_uid).display_name} nhận
+            </span>
           ) : canAcknowledge && inHandover ? (
             <>
               <button
@@ -2212,7 +2229,7 @@ export function BeeZoneWork({
                         );
                         if (matched) {
                           nextAssignee = matched.user_id;
-                          if (form.branch !== 'admin') {
+                          if (form.is_teacher_off || form.branch !== 'admin') {
                             nextBranch = 'teacher';
                           }
                         }
@@ -2588,23 +2605,22 @@ export function BeeZoneWork({
                       checked={Boolean(form.is_teacher_off)}
                       onChange={(e) => {
                         const checked = e.target.checked;
-                        const selPerson = people.find(
-                          (p) => p.user_id === form.assigned_uid,
-                        );
-                        const selTeacher = teachers.find(
-                          (t) =>
-                            t.id === selPerson?.teacherId ||
-                            t.id === selPerson?.user_id ||
-                            t.name === selPerson?.display_name,
-                        );
                         const selClass = classes.find((c) => c.id === form.classId);
-                        const teacherName =
-                          selTeacher?.name ||
-                          (selClass?.teacherId
-                            ? teachers.find((t) => t.id === selClass.teacherId)?.name
-                            : 'giáo viên');
+                        const classTeacher = teachers.find((t) => t.id === selClass?.teacherId);
+                        const classTeacherPerson = classTeacher
+                          ? people.find((person) =>
+                              person.teacherId === classTeacher.id ||
+                              person.user_id === classTeacher.id ||
+                              person.display_name === classTeacher.name,
+                            )
+                          : undefined;
+                        const teacherName = classTeacher?.name || 'giáo viên';
                         setForm((prev) => ({
                           ...prev,
+                          branch: checked ? 'teacher' : prev.branch,
+                          assigned_uid: checked && classTeacherPerson
+                            ? classTeacherPerson.user_id
+                            : prev.assigned_uid,
                           is_teacher_off: checked,
                           needs_handover: checked ? true : prev.needs_handover,
                           priority: checked ? 'high' : prev.priority,
@@ -3132,6 +3148,87 @@ export function BeeZoneWork({
                 onClick={handleOpenGmail}
               >
                 📧 Mở Gmail để gửi
+              </button>
+            </div>
+          </div>
+        </BzwModalOverlay>
+      )}
+
+      {/* MODAL: CHỌN NGƯỜI NHẬN BÀN GIAO */}
+      {handoverTask && (
+        <BzwModalOverlay onClick={() => setHandoverTask(null)} aria-label="Bàn giao công việc">
+          <div className="bzw-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bzw-modal-head">
+              <h2>Bàn giao công việc</h2>
+              <button
+                type="button"
+                className="bzw-xbtn"
+                onClick={() => setHandoverTask(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="bzw-modal-content">
+              <div className="bzw-hint">
+                <b>{handoverTask.title}</b>
+                <div>
+                  {handoverTask.class_label ? `Lớp ${handoverTask.class_label} · ` : ''}
+                  {dateVN(handoverTask.work_date)} · {handoverTask.shift_label}
+                </div>
+                {handoverTask.is_teacher_off && (
+                  <div>
+                    Giáo viên dạy thay đề xuất:{' '}
+                    <b>{teachers.find((teacher) => teacher.id === handoverTask.substitute_teacher_id)?.name || 'Chưa xác định'}</b>
+                  </div>
+                )}
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="handover_recipient">Người nhận bàn giao *</label>
+                <select
+                  id="handover_recipient"
+                  value={handoverToUid}
+                  onChange={(event) => setHandoverToUid(event.target.value)}
+                >
+                  <option value="">-- Chọn người nhận --</option>
+                  {handoverCandidates.map((person) => (
+                    <option key={person.user_id} value={person.user_id}>
+                      {person.display_name} · {person.department || 'Nhân sự'}
+                    </option>
+                  ))}
+                </select>
+                {handoverCandidates.length === 0 && (
+                  <small>Chưa có tài khoản phù hợp trong nhóm công việc này.</small>
+                )}
+              </div>
+
+              <div className="bzw-field">
+                <label htmlFor="handover_note">Nội dung bàn giao *</label>
+                <textarea
+                  id="handover_note"
+                  rows={5}
+                  maxLength={3000}
+                  value={handoverNoteContent}
+                  onChange={(event) => setHandoverNoteContent(event.target.value)}
+                  placeholder="Nêu rõ nội dung đang làm, lớp/buổi học, việc cần tiếp tục và lưu ý cho người nhận..."
+                />
+              </div>
+
+              <div className="bzw-warning">
+                Chủ trung tâm và Hành chính thấy toàn bộ bàn giao. Đào tạo thấy bàn giao thuộc nhóm Đào tạo hoặc Giáo viên. Người nhận phải xác nhận trước khi công việc được chuyển sang tài khoản của họ.
+              </div>
+            </div>
+            <div className="bzw-modal-bottom">
+              <button type="button" className="bzw-btn" onClick={() => setHandoverTask(null)}>
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="bzw-btn bzw-green"
+                disabled={!handoverToUid || handoverCandidates.length === 0}
+                onClick={handleSaveHandover}
+              >
+                Gửi bàn giao
               </button>
             </div>
           </div>

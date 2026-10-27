@@ -1,6 +1,7 @@
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import type { AttendanceStudentEntry, ClassRoom, Student, UserAccount } from '../../types';
 import { canEditAttendanceClass } from './access';
+import type { AttendanceAccessContext } from './access';
 
 export const CONTACT_CHANNELS = ['Zalo', 'SMS', 'Điện thoại', 'Khác'] as const;
 export type ContactChannel = (typeof CONTACT_CHANNELS)[number];
@@ -73,8 +74,9 @@ export function appendParentContact(
 export function canContactParent(
   user: UserAccount | null | undefined,
   classroom: ClassRoom | undefined,
+  context: AttendanceAccessContext = {},
 ): boolean {
-  return canEditAttendanceClass(user, classroom);
+  return canEditAttendanceClass(user, classroom, context);
 }
 
 export function parentPhoneHref(phone: string): string | null {

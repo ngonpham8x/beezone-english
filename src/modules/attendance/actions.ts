@@ -18,7 +18,7 @@ import { canEditAttendanceClass, canShareSessionReview } from './access';
 
 type Context = Pick<
   CenterStore,
-  'classes' | 'students' | 'attendanceSessions' | 'receipts' | 'setAttendanceSessions'
+  'classes' | 'students' | 'teachers' | 'scheduleChanges' | 'attendanceSessions' | 'receipts' | 'setAttendanceSessions'
 > & {
   currentUser: UserAccount | null;
   addLog: ActivityLogger;
@@ -26,6 +26,8 @@ type Context = Pick<
 export function createAttendanceActions({
   classes,
   students,
+  teachers,
+  scheduleChanges,
   attendanceSessions,
   receipts,
   setAttendanceSessions,
@@ -35,7 +37,8 @@ export function createAttendanceActions({
   // Attendance Handler
   const handleSaveAttendanceSession = (sessionData: AttendanceSession) => {
     const classroom = classes.find((item) => item.id === sessionData.classId);
-    if (!canEditAttendanceClass(currentUser, classroom)) {
+    const accessContext = { date: sessionData.date, scheduleChanges, teachers };
+    if (!canEditAttendanceClass(currentUser, classroom, accessContext)) {
       showAlert('Bạn không có quyền sửa điểm danh hoặc nhận xét của lớp này.');
       return false;
     }
@@ -80,9 +83,10 @@ export function createAttendanceActions({
     const session = attendanceSessions.find((item) => item.id === request.sessionId);
     const classroom = classes.find((item) => item.id === session?.classId);
     const isReviewShare = request.type === 'review';
+    const accessContext = { date: session?.date, scheduleChanges, teachers };
     const canRecord = isReviewShare
-      ? canShareSessionReview(currentUser, classroom)
-      : canContactParent(currentUser, classroom);
+      ? canShareSessionReview(currentUser, classroom, false, accessContext)
+      : canContactParent(currentUser, classroom, accessContext);
     if (!canRecord)
       return 'Bạn không có quyền ghi nhận liên hệ cho lớp này.';
     if (!session || !isCalendarDate(session.date) || session.date > centerDate())

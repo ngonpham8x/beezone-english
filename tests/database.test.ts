@@ -358,6 +358,56 @@ describe('database migrations and permission enforcement', () => {
     await asStaff({ academic: { classesDelete: true } });
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...payload, scheduleChanges: [] })]);
   });
+
+  it('lets a substitute record only the approved class session without inheriting grades or other dates', async () => {
+    const lessonDate = '2026-10-13';
+    const payload = {
+      ...base,
+      teachers: [
+        { id: 'main', name: 'Main teacher', email: 'main@example.test', assignedClassIds: ['a'] },
+        { id: 'sub', name: 'Substitute teacher', email: 'staff@example.test', assignedClassIds: [] },
+      ],
+      rooms: [{ id: 'r', name: 'Room' }],
+      classes: [{ id: 'a', teacherId: 'main', roomId: 'r', studentIds: ['student'] }],
+      students: [{ id: 'student', classId: 'a', status: 'active', feeStatus: 'unpaid' }],
+      timetableSlots: [{ id: 'slot', classId: 'a', teacherId: 'main', roomId: 'r', dayOfWeek: 'Thứ 3', startTime: '18:00', endTime: '19:00' }],
+      scheduleChanges: [{
+        id: 'off', kind: 'teacher_off', classId: 'a', sourceSlotId: 'slot', date: lessonDate,
+        startTime: '18:00', endTime: '19:00', teacherId: 'main', roomId: 'r',
+        substituteTeacherId: 'sub', reason: 'Approved leave',
+      }],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({
+      student: { view: true, edit: true },
+      teacher: { view: true, edit: false },
+      grade: { view: true, edit: true },
+      teacherId: 'sub',
+      assignedClassIds: [],
+    });
+
+    const approvedSession = {
+      id: 'attendance-sub', classId: 'a', date: lessonDate, teacherId: 'sub',
+      lessonTopic: 'Substitute lesson', entries: [],
+    };
+    const withAttendance = { ...payload, attendanceSessions: [approvedSession] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(withAttendance)]);
+
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({
+      ...withAttendance,
+      attendanceSessions: [{ ...approvedSession, teacherId: 'main' }],
+    })])).rejects.toThrow(/Attendance permission denied/);
+
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({
+      ...withAttendance,
+      attendanceSessions: [{ ...approvedSession, date: '2026-10-14' }],
+    })])).rejects.toThrow(/Attendance permission denied/);
+
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({
+      ...withAttendance,
+      grades: [{ id: 'grade-sub', studentId: 'student', classId: 'a', listening: 0, speaking: 0, reading: 0, writing: 0, midterm: 0, finalExam: 0, attendance: 0, average: 0 }],
+    })])).rejects.toThrow(/Class grade permission denied/);
+  });
   it('permits enrollment history for a student editor and denies a viewer', async () => {
     const payload = { ...base, students: [{ id: 's', classId: 'a', feeStatus: 'unpaid' }], classes: [{ id: 'a', teacherId: 't', studentIds: ['s'] }] };
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);

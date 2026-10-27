@@ -109,3 +109,7 @@ Sau khi áp dụng 001–014, chạy toàn bộ `supabase/migrations/015_teacher
 ## Ba nhóm Giao việc và khôi phục đầy đủ (migration 023–024)
 
 Áp dụng `023_work_branch_teacher.sql` rồi `024_full_backup_restore.sql` theo đúng thứ tự trên staging trước khi phát hành. Migration 023 thêm nhóm Giáo viên riêng; migration 024 đồng bộ quyền đọc công việc với ghi chú/lý do/bàn giao và thêm RPC khôi phục nguyên tử chỉ dành cho Chủ trung tâm. Không đổi thứ tự hoặc chạy bản 024 cũ trước 023. Sau khi áp dụng, kiểm tra một công việc nhóm Giáo viên bằng tài khoản Hành chính, Đào tạo, Giáo viên được giao và một Giáo viên khác; người không được giao không được thấy công việc hay lịch sử con. Thử khôi phục bằng tệp JSON schema 2 trên staging và xác nhận tệp sai mã SHA-256 bị từ chối trước khi ghi dữ liệu.
+
+## Quyền điểm danh của giáo viên dạy thay (migration 025)
+
+Sau migration 024, áp dụng `025_substitute_attendance_access.sql` trên staging. Migration chỉ mở quyền ghi điểm danh cho giáo viên có `teacherId` (hoặc email hồ sơ khớp giáo viên) đúng với `scheduleChanges.substituteTeacherId`, đúng lớp và đúng ngày đã duyệt. Nó không đổi giáo viên chính, không thêm lớp vào `assignedClassIds` và không cấp quyền điểm số, học phí hay ngày khác. Kiểm tra ba trường hợp trước production: giáo viên thay thế lưu được buổi được giao; cùng lớp nhưng ngày khác bị từ chối; sửa điểm của lớp đó vẫn bị từ chối. Không chạy lại bộ khởi tạo trên dự án đang sử dụng.
