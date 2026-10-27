@@ -20,4 +20,8 @@ const config = JSON.parse(readFileSync(resolve('vercel.json'), 'utf8'));
 const csp = config.headers.flatMap(rule => rule.headers).find(header => header.key === 'Content-Security-Policy')?.value;
 const scripts = csp?.split(';').find(directive => directive.trim().startsWith('script-src '));
 if (!scripts || /unsafe-inline|unsafe-eval/.test(scripts)) throw new Error('Production CSP must disallow inline/eval scripts.');
+const spaFallback = config.rewrites?.find(rule => rule.destination === '/index.html');
+if (!spaFallback || !/assets/.test(spaFallback.source) || !/api/.test(spaFallback.source)) throw new Error('SPA fallback must exclude missing assets and API routes.');
+const dailyBackup = config.crons?.find(job => job.path === '/api/cron/daily-backup');
+if (dailyBackup?.schedule !== '0 19 * * *') throw new Error('Daily backup cron must run at 19:00 UTC (02:00 Asia/Ho_Chi_Minh).');
 console.log('Production CSP: external scripts only; no executable inline shell scripts.');

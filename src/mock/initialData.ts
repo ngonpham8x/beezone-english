@@ -23,7 +23,7 @@ export const initialSettings: CenterSettings = {
   secondaryEmail: 'chauoaingua679@gmail.com',
   adminReportEmail: 'beezone.englishcenter@gmail.com',
   autoEmailReport: false,
-  autoBackup: false,
+  autoBackup: true,
   sheetsConfig: { spreadsheetId: '', sheetName: '', autoSync: false, syncInterval: 'weekly', connected: false }
 };
 

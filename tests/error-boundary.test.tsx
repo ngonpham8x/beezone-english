@@ -32,6 +32,7 @@ it.each(['Failed to fetch dynamically imported module: /assets/old.js', 'Importi
   render(<ErrorBoundary><FailedScreen /></ErrorBoundary>);
   expect(screen.getByRole('alert').textContent).toContain('UI-MODULE');
   expect(screen.queryByRole('button', { name: 'Thử lại mục này' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Tải lại trang' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Khắc phục & tải lại' })).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toContain('dữ liệu nghiệp vụ đã lưu không bị xóa');
   expect(screen.getByRole('alert').textContent).not.toContain('/assets/old.js');
 });

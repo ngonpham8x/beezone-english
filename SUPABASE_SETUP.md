@@ -68,6 +68,9 @@ Trong [Production Environment Variables](https://vercel.com/ngonpham/beezone-eng
 | `SUPABASE_URL` | Cùng Project URL, cho máy chủ |
 | `SUPABASE_SECRET_KEY` | Secret key chỉ cho máy chủ; có thể dùng `SUPABASE_SERVICE_ROLE_KEY` legacy |
 | `APP_URL` | `https://beezone-english.vercel.app` |
+| `CRON_SECRET` | Chuỗi ngẫu nhiên tối thiểu 16 ký tự, chỉ dùng cho lịch sao lưu |
+| `RESEND_API_KEY` | Khóa Resend phía máy chủ để gửi tệp đính kèm |
+| `BACKUP_FROM_EMAIL` | Người gửi thuộc tên miền đã xác minh trên Resend |
 
 Các biến này đã được cấu hình trong đợt deploy 14/10/2026. Integration có `NEXT_PUBLIC_` chưa đủ cho Vite; khóa máy chủ không bao giờ có tiền tố `VITE_`. Nếu đổi biến Vercel, redeploy để nạp giá trị mới. Không cần redeploy chỉ vì vừa chạy SQL hoặc bật provider trong Supabase.
 
@@ -102,3 +105,7 @@ Excel giữ nguyên các cột cũ và bổ sung cột AA **Mã lớp học thê
 ## Giáo viên nghỉ và dạy thay (migration 015)
 
 Sau khi áp dụng 001–014, chạy toàn bộ `supabase/migrations/015_teacher_off_substitution.sql` trong SQL Editor của đúng dự án trước khi dùng chức năng **Đăng ký giáo viên off**. Migration chỉ thay quy tắc kiểm tra `scheduleChanges` trên máy chủ; không tự sửa dữ liệu, quyền tài khoản hay lịch đã lưu. Kiểm tra bằng một ngày có ca học: đăng ký giáo viên nghỉ, chọn giáo viên thay thế, lưu rồi xem cùng buổi ở Thời khóa biểu và Lịch giáo viên. Trường hợp chưa chọn người thay sẽ hiện là chờ xếp và chưa tính là buổi đang dạy.
+
+## Ba nhóm Giao việc và khôi phục đầy đủ (migration 023–024)
+
+Áp dụng `023_work_branch_teacher.sql` rồi `024_full_backup_restore.sql` theo đúng thứ tự trên staging trước khi phát hành. Migration 023 thêm nhóm Giáo viên riêng; migration 024 đồng bộ quyền đọc công việc với ghi chú/lý do/bàn giao và thêm RPC khôi phục nguyên tử chỉ dành cho Chủ trung tâm. Không đổi thứ tự hoặc chạy bản 024 cũ trước 023. Sau khi áp dụng, kiểm tra một công việc nhóm Giáo viên bằng tài khoản Hành chính, Đào tạo, Giáo viên được giao và một Giáo viên khác; người không được giao không được thấy công việc hay lịch sử con. Thử khôi phục bằng tệp JSON schema 2 trên staging và xác nhận tệp sai mã SHA-256 bị từ chối trước khi ghi dữ liệu.

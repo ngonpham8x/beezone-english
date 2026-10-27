@@ -1,4 +1,4 @@
-import type { TimetableSlot } from '../types';
+import type { TimetableSlot } from '../types.js';
 export function timeMinutes(value: string): number | null {
   const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return null;

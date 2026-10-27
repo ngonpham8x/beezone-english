@@ -24,7 +24,15 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateSettings({ ...formData, name: formData.name.trim(), autoEmailReport: false, autoBackup: false });
+    onUpdateSettings({
+      ...formData,
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      secondaryEmail: formData.secondaryEmail?.trim(),
+      adminReportEmail: formData.adminReportEmail.trim(),
+      autoEmailReport: false,
+      autoBackup: true,
+    });
     onClose();
   };
 
@@ -122,7 +130,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Email Admin Nhận Báo Cáo Hằng Tuần (SMTP/Resend) *</label>
+            <label className="block font-semibold text-slate-700 mb-1">Email Mặc Định Nhận Bản Sao Hằng Ngày *</label>
             <input
               type="email"
               value={formData.adminReportEmail}
@@ -149,15 +157,15 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
 
             <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
               <div>
-                <div className="font-bold text-slate-800">Tự động sao lưu PostgreSQL hàng ngày</div>
-                <div className="text-[10px] text-slate-500">Chưa thiết lập lịch sao lưu máy chủ. Hãy tải bản JSON tại mục Sao lưu.</div>
+                <div className="font-bold text-slate-800">Tự động gửi bản sao JSON toàn hệ thống hằng ngày</div>
+                <div className="text-[10px] text-slate-500">Lịch chạy khoảng 02:00 giờ Việt Nam; bắt đầu gửi sau khi Vercel được cấu hình Cron/Resend.</div>
               </div>
               <input
                 type="checkbox"
-                checked={false}
+                checked={true}
                 disabled
                 onChange={(e) => setFormData({ ...formData, autoBackup: e.target.checked })}
-                className="w-4 h-4 text-red-700 rounded"
+                className="w-4 h-4 text-emerald-700 rounded"
               />
             </label>
           </div>

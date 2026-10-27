@@ -24,6 +24,9 @@ Set the following separately for Production and Preview where relevant. Values p
 | `SUPABASE_SECRET_KEY` | Protected Vercel API only. Never use a `VITE_` prefix. |
 | `APP_URL` | Exact production HTTPS URL accepted as a protected API origin |
 | `ALLOWED_ORIGINS` | Optional comma-separated production/preview URL allow-list |
+| `CRON_SECRET` | Random server-only secret used by Vercel to invoke the daily backup route |
+| `RESEND_API_KEY` | Server-only Resend key used only to send the backup attachment |
+| `BACKUP_FROM_EMAIL` | Verified sender used for the daily backup email |
 
 Use `SUPABASE_SERVICE_ROLE_KEY` only for legacy Supabase projects that do not provide `SUPABASE_SECRET_KEY`.
 
@@ -48,7 +51,7 @@ Production business data is stored in the RLS-protected `center_data` document. 
 
 Account management uses compensating rollback if audit insertion fails; Supabase Auth and database audit changes do not share one atomic transaction. Rollback results are checked; an unconfirmed rollback asks the owner to inspect the account and audit history instead of claiming it succeeded. Inspect failed account-management operations rather than assuming no external change occurred.
 
-Use JSON backups for complete recovery. Excel exports contain reporting data and formulas; legacy VBA templates remain historical assets and are no longer embedded in newly generated reports. Do not use preview storage for operational data.
+Use schema-v2 JSON backups for complete business-data recovery. They include `center_data` and `bz_work_*`, carry a SHA-256 integrity code, and intentionally exclude Auth passwords, sessions and secrets. Only an active owner can run the atomic full restore after migration 024. Excel exports contain reporting data and formulas; legacy VBA templates remain historical assets and are no longer embedded in newly generated reports. Do not use preview storage for operational data.
 
 ## Chống spam, bot và quá tải — 14/10/2026
 

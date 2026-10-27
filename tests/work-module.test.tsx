@@ -7,7 +7,7 @@ import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../src/lib/appEvents';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { ClassRoom, CourseProgram, Room, Teacher, TimetableSlot, UserAccount } from '../src/types';
 import type { WorkPerson, WorkTask } from '../src/modules/work/types';
-import { buildWorkPeople, fetchWorkModuleData, getAssignableWorkPeople, localISODate, prepareLocalWorkSync, saveLocalWorkData, syncWorkModuleData } from '../src/modules/work/workStorage';
+import { buildWorkPeople, fetchWorkModuleData, getAssignableWorkPeople, loadLocalWorkData, localISODate, prepareLocalWorkSync, saveLocalWorkData, syncWorkModuleData } from '../src/modules/work/workStorage';
 
 const mockTeacher: Teacher = {
   id: 't-linh',
@@ -305,10 +305,7 @@ describe('BeeZoneWork Module', () => {
       expect(screen.queryByText('Tư vấn lịch học thử cho phụ huynh')).toBeNull();
     });
     expect(screen.queryByText(/Việc hôm nay · Hành chính/i)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
-    const branchVal = (screen.getByLabelText(/Nhóm|Nhánh công việc/i) as HTMLSelectElement).value;
-    expect(['training', 'teacher']).toContain(branchVal);
-    expect(branchVal).not.toBe('admin');
+    expect(screen.queryByRole('button', { name: /Tạo công việc/i })).toBeNull();
   });
 
   it('refreshes the assignee list when the center adds a teacher', async () => {
@@ -540,6 +537,15 @@ describe('BeeZoneWork Module', () => {
 
   it('supports handover and acknowledgment flow', async () => {
     seedTestTasks();
+    const seeded = loadLocalWorkData(localISODate(), DEV_OWNER_ACCOUNT.id);
+    saveLocalWorkData({
+      ...seeded,
+      tasks: seeded.tasks.map((task) => task.id === 'task-2' ? { ...task, branch: 'teacher' as const } : task),
+      handoffs: [{
+        id: 'handoff-1', task_id: 'task-2', from_uid: DEV_OWNER_ACCOUNT.id, to_uid: 't-linh',
+        note: 'Bàn giao đúng người nhận', handed_at: new Date().toISOString(), acknowledged_at: null,
+      }],
+    });
     const teacherUser: UserAccount = {
       id: 't-linh',
       name: 'Cô Mai Linh',
@@ -861,6 +867,24 @@ describe('BeeZoneWork Module', () => {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
+        {
+          id: 'task-teacher-other',
+          title: 'Công việc riêng của giáo viên khác',
+          description: 'Không hiển thị cho giáo viên hiện tại',
+          branch: 'teacher',
+          assigned_uid: 'teacher-other',
+          work_date: today,
+          shift_label: 'Ca chiều',
+          class_label: '',
+          priority: 'normal',
+          status: 'todo',
+          needs_handover: false,
+          completed_at: null,
+          email_sent_at: null,
+          email_sent_to: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
       ],
       notes: [],
       reasons: [],
@@ -887,6 +911,7 @@ describe('BeeZoneWork Module', () => {
     expect(await screen.findByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeTruthy();
     expect(screen.getByText('Soạn đề thi giữa kỳ Starter')).toBeTruthy();
     expect(screen.getByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeTruthy();
+    expect(screen.getByText('Công việc riêng của giáo viên khác')).toBeTruthy();
 
     // 3. Test filtering by group
     const filterSelect = screen.getByLabelText(/Lọc theo bộ phận/i) as HTMLSelectElement;
@@ -945,5 +970,7 @@ describe('BeeZoneWork Module', () => {
     expect(screen.getByText(/Bàn giao cuối ca \/ cuối buổi/i)).toBeTruthy();
     expect(screen.getByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeTruthy();
     expect(screen.queryByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeNull();
+    expect(screen.queryByText('Công việc riêng của giáo viên khác')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Tạo công việc/i })).toBeNull();
   });
 });

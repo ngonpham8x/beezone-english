@@ -440,6 +440,35 @@ it('preserves distinct SHĐ/Quyển for installment 1 and installment 2 when pay
   );
 });
 
+it('keeps the paid total read-only when editing a receipt with multiple installments', () => {
+  const courseClass = { ...initial.initialClasses[0], id: 'course-class-edit', billingMode: 'course' as const };
+  const learner = { ...initial.initialStudents[0], id: 'student-edit', classId: courseClass.id };
+  const receipt: TuitionReceipt = {
+    id: 'receipt-edit-installments', code: 'PT-2026-0006', studentId: learner.id, classId: courseClass.id,
+    courseFee: 3_300_000, paymentKind: 'course', billingPeriod: 'Khóa 2026', discount: 0,
+    paidAmount: 2_000_000, debtAmount: 1_300_000, status: 'partial', paymentDate: '2026-10-26',
+    collectorName: 'Hành chính', paymentMethod: 'Tiền mặt',
+    installments: [
+      { id: 'i1', date: '2026-10-20', amount: 1_200_000, invoiceNo: '5', bookNo: '1' },
+      { id: 'i2', date: '2026-10-26', amount: 800_000, invoiceNo: '6', bookNo: '1' },
+    ],
+  };
+  render(
+    <TuitionManager
+      receipts={[receipt]} attendanceSessions={[]} students={[learner]} classes={[courseClass]}
+      programs={initial.initialPrograms} settings={initial.initialSettings}
+      permissions={DEV_OWNER_ACCOUNT.permissions} isOwner onAddReceipt={vi.fn()}
+      onUpdateReceipt={vi.fn()} onDeleteReceipt={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Sửa' }));
+  const total = screen.getByLabelText('Tổng Đã Đóng (VNĐ)') as HTMLInputElement;
+  expect(total.value).toBe('2000000');
+  expect(total.disabled).toBe(true);
+  expect(screen.getByText(/dùng “Thu tiếp” để thêm khoản thanh toán/i)).toBeTruthy();
+});
+
 it('lists both classes in tuition debt and opens collection for the unpaid second class', () => {
   const programs = initial.initialPrograms.slice(0, 2).map((program, index) => ({ ...program, tuitionFee: index ? 2400000 : 3400000 }));
   const classes = initial.initialClasses.slice(0, 2).map((item, index) => ({ ...item, programId: programs[index].id, billingMode: 'course' as const }));

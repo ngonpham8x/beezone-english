@@ -20,9 +20,16 @@ import {
 import React, { useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
-import { parseBackupArchive, type BackupArchive } from '../../lib/centerData';
+import {
+  backupRecordCounts,
+  createBackupArchive,
+  verifyBackupArchive,
+  type BackupArchive,
+} from '../../lib/centerData';
 import { centerDate } from '../../lib/dates';
+import { supabase } from '../../lib/supabase';
 import { generateMasterExcelWorkbook } from '../../services/excelService';
+import { fetchWorkBackupSnapshot, restoreFullBackupArchive } from './backupStorage';
 import {
   ActivityLog,
   AttendanceSession,
@@ -40,8 +47,6 @@ import {
   TimetableSlot,
   TuitionReceipt,
 } from '../../types';
-
-const BACKUP_SCHEMA_VERSION = 1;
 
 interface BackupManagerProps {
   backups: SystemBackup[];
@@ -81,6 +86,8 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   onRestoreBackup,
 }) => {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingJson, setIsExportingJson] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [restoreCandidate, setRestoreCandidate] = useState<{ archive: BackupArchive; filename: string } | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
@@ -137,30 +144,30 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   };
 
   // 2. Export Entire System JSON Database Backup
-  const handleExportSystemJson = () => {
+  const handleExportSystemJson = async () => {
     setStatusMessage(null);
+    setRestoreError(null);
+    setIsExportingJson(true);
     try {
       const fileName = `BEEZONE_DatabaseBackup_Full_${centerDate()}.json`;
       const backupRecord = makeBackupRecord(fileName, 0);
-      const systemData: BackupArchive = {
-        app: 'BEEZONE',
-        schemaVersion: BACKUP_SCHEMA_VERSION,
-        centerName: settings.name,
-        exportedAt: new Date().toISOString(),
-        data: {
-          settings,
-          programs,
-          students,
-          teachers,
-          rooms,
-          classes,
-          timetableSlots,
-          receipts,
-          grades,
-          backups: [backupRecord, ...backups],
-          activityLogs,
-          attendanceSessions, enrollments, scheduleChanges, sessionBillingVersion: 1,
-        },
+      const workData = supabase ? await fetchWorkBackupSnapshot(supabase) : undefined;
+      const data: CenterBackupData = {
+        settings,
+        programs,
+        students,
+        teachers,
+        rooms,
+        classes,
+        timetableSlots,
+        receipts,
+        grades,
+        backups: [backupRecord, ...backups],
+        activityLogs,
+        attendanceSessions,
+        enrollments,
+        scheduleChanges,
+        sessionBillingVersion: 1,
       };
 
       // Calculate the final file size before serialising it one last time so
@@ -169,21 +176,25 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
       let jsonStr = '';
       for (let attempt = 0; attempt < 3; attempt += 1) {
         backupRecord.sizeKb = sizeKb;
+        const systemData = await createBackupArchive(data, settings.name, workData);
         jsonStr = JSON.stringify(systemData, null, 2);
         const nextSizeKb = Math.max(1, Math.ceil(new Blob([jsonStr]).size / 1024));
         if (nextSizeKb === sizeKb) break;
         sizeKb = nextSizeKb;
       }
       backupRecord.sizeKb = sizeKb;
+      const systemData = await createBackupArchive(data, settings.name, workData);
       jsonStr = JSON.stringify(systemData, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       downloadBlob(blob, fileName);
       onBackupCreated?.(backupRecord);
 
-      setStatusMessage(`Đã tải xuống toàn bộ CSDL dữ liệu hệ thống JSON (${fileName}) thành công!`);
+      setStatusMessage(`Đã tải bản JSON có kiểm tra toàn vẹn${workData ? ', gồm cả dữ liệu Giao việc' : ''} (${fileName}) thành công!`);
     } catch (err) {
       reportError('backup.file', err);
-      setStatusMessage('Không thể đóng gói CSDL JSON.');
+      setRestoreError(err instanceof Error ? err.message : 'Không thể đóng gói CSDL JSON.');
+    } finally {
+      setIsExportingJson(false);
     }
   };
 
@@ -191,7 +202,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   // Offer a fresh full export instead of implying that a historic file exists.
   const handleDownloadBackup = (bk: SystemBackup) => {
     setStatusMessage(`Tệp gốc “${bk.filename}” không được lưu trên máy chủ. Đang tạo một bản JSON đầy đủ mới từ dữ liệu hiện tại.`);
-    handleExportSystemJson();
+    void handleExportSystemJson();
   };
 
   const handleRestoreFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,19 +214,36 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
     setRestoreCandidate(null);
     try {
       if (file.size > 25 * 1024 * 1024) throw new Error('Tệp sao lưu vượt quá giới hạn 25 MB.');
-      const archive = parseBackupArchive(JSON.parse(await file.text()), settings);
-      if (!archive) throw new Error('Tệp không đúng định dạng sao lưu đầy đủ của trung tâm BeeZone, hoặc được tạo bởi phiên bản cũ.');
+      const archive = await verifyBackupArchive(JSON.parse(await file.text()), settings);
       setRestoreCandidate({ archive, filename: file.name });
     } catch (error) {
       setRestoreError(error instanceof Error ? error.message : 'Không thể đọc tệp JSON sao lưu.');
     }
   };
 
-  const handleConfirmRestore = () => {
+  const handleConfirmRestore = async () => {
     if (!restoreCandidate || !onRestoreBackup) return;
-    onRestoreBackup(restoreCandidate.archive.data, restoreCandidate.filename);
-    setStatusMessage(`Đã khôi phục dữ liệu từ ${restoreCandidate.filename}. Dữ liệu mới sẽ được đồng bộ sau ít phút.`);
-    setRestoreCandidate(null);
+    setIsRestoring(true);
+    setRestoreError(null);
+    try {
+      if (restoreCandidate.archive.workData && !supabase) {
+        throw new Error('Bản sao có dữ liệu Giao việc cần kết nối máy chủ để khôi phục đầy đủ; chưa có dữ liệu nào bị thay đổi.');
+      }
+      if (restoreCandidate.archive.workData && supabase) {
+        await restoreFullBackupArchive(supabase, restoreCandidate.archive);
+        setStatusMessage(`Đã khôi phục đầy đủ dữ liệu trung tâm và Giao việc từ ${restoreCandidate.filename}.`);
+        setRestoreCandidate(null);
+        window.location.reload();
+        return;
+      }
+      onRestoreBackup(restoreCandidate.archive.data, restoreCandidate.filename);
+      setStatusMessage(`Đã khôi phục dữ liệu từ ${restoreCandidate.filename}. Dữ liệu mới sẽ được đồng bộ sau ít phút.`);
+      setRestoreCandidate(null);
+    } catch (error) {
+      setRestoreError(error instanceof Error ? error.message : 'Không thể khôi phục bản sao lưu.');
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   return (
@@ -294,11 +322,12 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
             </div>
 
             <button
-              onClick={handleExportSystemJson}
-              className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+              onClick={() => void handleExportSystemJson()}
+              disabled={isExportingJson}
+              className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-colors disabled:opacity-60"
             >
               <Download className="w-4 h-4 text-blue-200" />
-              Tải Xuất CSDL JSON Toàn Bộ
+              {isExportingJson ? 'Đang kiểm tra & đóng gói dữ liệu…' : 'Tải Xuất CSDL JSON Toàn Bộ'}
             </button>
           </div>
 
@@ -376,7 +405,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
             <Mail className="w-4 h-4 text-blue-600" /> Email Báo Cáo
           </div>
           <div className="text-slate-500">
-            Chưa có máy chủ gửi email tự động. Email nhận báo cáo đã cấu hình: <strong>{settings.adminReportEmail || 'Chưa cấu hình'}</strong>.
+            Bản sao JSON toàn hệ thống đã được lập lịch khoảng 02:00 mỗi ngày tới <strong>{settings.adminReportEmail || settings.email || 'email mặc định chưa cấu hình'}</strong>. Lịch bắt đầu gửi sau khi Vercel có đủ cấu hình Cron/Resend; tệp luôn được kiểm tra toàn vẹn trước khi khôi phục.
           </div>
         </div>
 
@@ -464,12 +493,17 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
               </div>
               <button type="button" onClick={() => setRestoreCandidate(null)} aria-label="Đóng" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Tệp <b>{restoreCandidate.filename}</b> chứa {restoreCandidate.archive.data.students.length} học sinh, {restoreCandidate.archive.data.classes.length} lớp và {restoreCandidate.archive.data.receipts.length} phiếu thu. Dữ liệu hiện tại sẽ bị thay thế.
-            </p>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+              <p>
+                Tệp <b>{restoreCandidate.filename}</b> đã qua kiểm tra định dạng{restoreCandidate.archive.schemaVersion === 2 ? ' và mã toàn vẹn SHA-256' : ' (bản tương thích cũ)'}.
+              </p>
+              <p>
+                Đã nhận diện <b>{Object.keys(backupRecordCounts(restoreCandidate.archive)).length} nhóm dữ liệu</b>, tổng cộng <b>{Object.values(backupRecordCounts(restoreCandidate.archive)).reduce((sum, count) => sum + count, 0)} bản ghi</b>, gồm {restoreCandidate.archive.data.students.length} học viên, {restoreCandidate.archive.data.classes.length} lớp, {restoreCandidate.archive.data.receipts.length} phiếu thu{restoreCandidate.archive.workData ? ` và ${restoreCandidate.archive.workData.tasks.length} công việc` : ''}. Dữ liệu hiện tại sẽ bị thay thế.
+              </p>
+            </div>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setRestoreCandidate(null)} className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Hủy</button>
-              <button type="button" onClick={handleConfirmRestore} className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800">Xác nhận khôi phục</button>
+              <button type="button" disabled={isRestoring} onClick={() => void handleConfirmRestore()} className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-60">{isRestoring ? 'Đang khôi phục…' : 'Xác nhận khôi phục'}</button>
             </div>
           </section>
         </DialogFrame>

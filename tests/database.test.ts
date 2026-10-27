@@ -35,6 +35,40 @@ async function asStaff(permissions: object = {}) {
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('restores center data and every work-history table atomically for an active owner', async () => {
+    const taskId = '10000000-0000-4000-8000-000000000010';
+    const work = {
+      people: [],
+      tasks: [{
+        id: taskId, branch: 'training', title: 'Restored task', description: 'Full content',
+        assigned_uid: staff, created_by: owner, work_date: '2026-10-26', priority: 'high', status: 'progress',
+      }],
+      notes: [{ id: '20000000-0000-4000-8000-000000000010', task_id: taskId, author_uid: owner, body: 'Restored note' }],
+      reasons: [{ id: '30000000-0000-4000-8000-000000000010', task_id: taskId, author_uid: owner, kind: 'progress', body: 'Restored reason' }],
+      handoffs: [{ id: '40000000-0000-4000-8000-000000000010', task_id: taskId, from_uid: owner, to_uid: staff, note: 'Restored handoff' }],
+      events: [{ id: 9, task_id: taskId, actor_uid: owner, action: 'restored', payload: { source: 'backup' } }],
+    };
+    await db.exec('set role authenticated');
+    expect((await db.query('select role from public.bz_work_sync_people() where user_id=$1', [owner])).rows).toEqual([{ role: 'manager' }]);
+    await db.query('select public.bz_restore_full_backup($1::jsonb,$2::jsonb)', [
+      JSON.stringify({ ...base, settings: { name: 'Restored BeeZone' } }),
+      JSON.stringify(work),
+    ]);
+
+    expect((await db.query("select payload->'settings'->>'name' as name from public.center_data where id='primary'")).rows).toEqual([{ name: 'Restored BeeZone' }]);
+    expect((await db.query('select title from public.bz_work_tasks')).rows).toEqual([{ title: 'Restored task' }]);
+    expect((await db.query('select body from public.bz_work_notes')).rows).toEqual([{ body: 'Restored note' }]);
+    expect((await db.query('select body from public.bz_work_reasons')).rows).toEqual([{ body: 'Restored reason' }]);
+    expect((await db.query('select note from public.bz_work_handoffs')).rows).toEqual([{ note: 'Restored handoff' }]);
+    expect((await db.query('select action from public.bz_work_events')).rows).toEqual([{ action: 'restored' }]);
+  });
+  it('rejects full backup restore from a non-owner account', async () => {
+    await asStaff({});
+    await expect(db.query('select public.bz_restore_full_backup($1::jsonb,$2::jsonb)', [
+      JSON.stringify(base),
+      JSON.stringify({ people: [], tasks: [], notes: [], reasons: [], handoffs: [], events: [] }),
+    ])).rejects.toThrow(/Only an active owner/);
+  });
   it('lets an active Hành chính profile read all teacher/training work even when the work projection is stale', async () => {
     const taskId = '10000000-0000-4000-8000-000000000001';
     await db.query("update public.profiles set role='admin' where id=$1", [staff]);
@@ -68,6 +102,37 @@ describe('database migrations and permission enforcement', () => {
     expect((await db.query('select body from public.bz_work_notes')).rows).toEqual([{ body: 'Teacher note' }]);
     expect((await db.query('select body from public.bz_work_reasons')).rows).toEqual([{ body: 'Training update' }]);
     expect((await db.query('select note from public.bz_work_handoffs')).rows).toEqual([{ note: 'Shift handoff' }]);
+  });
+  it('applies one consistent RLS rule to native teacher tasks and their history', async () => {
+    const taskId = '10000000-0000-4000-8000-000000000020';
+    expect((await db.query<{ policyname: string }>(
+      "select policyname from pg_policies where schemaname='public' and tablename='bz_work_tasks' order by policyname",
+    )).rows).toEqual([{ policyname: 'bz_work_tasks_read' }]);
+    await db.query("update public.profiles set role='trainer' where id=$1", [staff]);
+    await db.query(
+      `insert into public.bz_work_people(user_id,display_name,email,role,active) values
+       ($1,'Owner','owner@example.test','manager',true),
+       ($2,'Training','staff@example.test','trainer',true)`,
+      [owner, staff],
+    );
+    await db.query(
+      `insert into public.bz_work_tasks(id,branch,title,assigned_uid,created_by,work_date)
+       values ($1,'teacher','Teacher-only task',$2,$3,'2026-10-27')`,
+      [taskId, staff, owner],
+    );
+    await db.query("insert into public.bz_work_notes(task_id,author_uid,body) values ($1,$2,'Teacher history')", [taskId, owner]);
+
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [staff]);
+    await db.exec('set role authenticated');
+    expect((await db.query('select title from public.bz_work_tasks')).rows).toEqual([{ title: 'Teacher-only task' }]);
+    expect((await db.query('select body from public.bz_work_notes')).rows).toEqual([{ body: 'Teacher history' }]);
+
+    await db.exec('reset role');
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
+    await db.query("update public.profiles set role='teacher' where id=$1", [staff]);
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [staff]);
+    await db.exec('set role authenticated');
+    expect((await db.query('select body from public.bz_work_notes')).rows).toEqual([{ body: 'Teacher history' }]);
   });
   it('lets student viewers edit only an existing grade comment and gives training/admin ranks centre-wide class scope', async () => {
     const grade = { id: 'g1', studentId: 's1', classId: 'c1', listening: 8, speaking: 8, reading: 8, writing: 8, midterm: 8, finalExam: 8, attendance: 8, average: 8, comment: 'Nhận xét cũ' };

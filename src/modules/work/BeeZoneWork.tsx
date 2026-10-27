@@ -289,7 +289,6 @@ export function BeeZoneWork({
   const [customShiftNote, setCustomShiftNote] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const workChannelRef = useRef<any>(null);
   const pendingSyncCountRef = useRef(0);
   const deferredToastRef = useRef('');
   const syncErrorRef = useRef('');
@@ -379,49 +378,15 @@ export function BeeZoneWork({
   useEffect(() => {
     if (!supabase) return;
     const channel = supabase
-      .channel('beezone-work-cross-device', { config: { broadcast: { self: false } } })
-      .on('broadcast', { event: 'work_sync' }, ({ payload }: { payload?: any }) => {
-        if (!payload) return;
-        const { tasks: incTasks, notes: incNotes, reasons: incReasons, handoffs: incHandoffs } = payload;
-        if (Array.isArray(incTasks)) setTasks(incTasks);
-        if (Array.isArray(incNotes)) setNotes(incNotes);
-        if (Array.isArray(incReasons)) setReasons(incReasons);
-        if (Array.isArray(incHandoffs)) setHandoffs(incHandoffs);
-        saveLocalWorkData({
-          tasks: Array.isArray(incTasks) ? incTasks : tasks,
-          notes: Array.isArray(incNotes) ? incNotes : notes,
-          reasons: Array.isArray(incReasons) ? incReasons : reasons,
-          handoffs: Array.isArray(incHandoffs) ? incHandoffs : handoffs,
-        });
-        setDataSource('supabase');
-      })
-      .on('broadcast', { event: 'request_sync' }, () => {
-        const local = loadLocalWorkData(day, uid);
-        if (local && (local.tasks?.length || local.notes?.length || local.handoffs?.length)) {
-          channel.send({
-            type: 'broadcast',
-            event: 'work_sync',
-            payload: local,
-          });
-        }
-      })
+      .channel('beezone-work-cross-device')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_tasks' }, () => void loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_notes' }, () => void loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_reasons' }, () => void loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bz_work_handoffs' }, () => void loadData())
       .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') {
-          workChannelRef.current = channel;
-          setDataSource('supabase');
-          channel.send({
-            type: 'broadcast',
-            event: 'request_sync',
-            payload: {},
-          });
-        }
+        if (status === 'SUBSCRIBED') setDataSource('supabase');
       });
     return () => {
-      workChannelRef.current = null;
       void supabase.removeChannel(channel);
     };
   }, [supabase, day, uid]);
@@ -433,6 +398,7 @@ export function BeeZoneWork({
     nextReasons: WorkReason[],
     nextHandoffs: WorkHandoff[],
   ) => {
+    const previousState = { tasks, notes, reasons, handoffs };
     const nextState = {
       tasks: nextTasks,
       notes: nextNotes,
@@ -446,19 +412,6 @@ export function BeeZoneWork({
     setHandoffs(nextHandoffs);
     saveLocalWorkData(nextState);
 
-    // Broadcast across all connected devices in realtime
-    if (workChannelRef.current) {
-      try {
-        workChannelRef.current.send({
-          type: 'broadcast',
-          event: 'work_sync',
-          payload: nextState,
-        });
-      } catch {
-        // Silently continue
-      }
-    }
-
     if (supabase) {
       pendingSyncCountRef.current += 1;
       setBusy(true);
@@ -466,17 +419,25 @@ export function BeeZoneWork({
         await syncWorkModuleData(supabase, nextState, tasks);
         setDataSource('supabase');
       } catch (error) {
-        console.warn('Work module DB sync skipped or pending migration:', error instanceof Error ? error.message : 'unknown error');
+        console.warn('Work module DB sync failed:', error instanceof Error ? error.message : 'unknown error');
+        syncErrorRef.current = 'Không thể lưu công việc do quyền hoặc dữ liệu máy chủ không hợp lệ. Danh sách đã được tải lại.';
+        setTasks(previousState.tasks);
+        setNotes(previousState.notes);
+        setReasons(previousState.reasons);
+        setHandoffs(previousState.handoffs);
+        saveLocalWorkData(previousState);
+        await loadData();
         setDataSource('supabase');
       } finally {
         pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
         if (pendingSyncCountRef.current === 0) {
           setBusy(false);
           const finalToast = deferredToastRef.current;
+          const syncError = syncErrorRef.current;
           deferredToastRef.current = '';
           syncErrorRef.current = '';
-          if (finalToast) {
-            setToastMsg(finalToast);
+          if (syncError || finalToast) {
+            setToastMsg(syncError || finalToast);
             setTimeout(() => setToastMsg(''), 3000);
           }
         }
@@ -491,21 +452,25 @@ export function BeeZoneWork({
   // - Giáo viên (teacher): xem nhóm Giáo viên, Bàn giao + việc được phân công cho mình
   const canSeeAdminBranch = role === 'manager' || role === 'admin';
   const canSeeTrainingBranch = role === 'manager' || role === 'admin' || role === 'trainer';
+  const canManageBranch = (branch: Branch) =>
+    canSeeAdminBranch || (role === 'trainer' && (branch === 'training' || branch === 'teacher'));
+  const isAssignedToCurrentUser = (task: WorkTask) =>
+    task.assigned_uid === uid || Boolean(currentUser?.permissions?.teacherId && task.assigned_uid === currentUser.permissions.teacherId);
+  const isPendingHandoffRecipient = (task: WorkTask) => handoffs.some(
+    (handoff) => handoff.task_id === task.id && handoff.to_uid === uid && !handoff.acknowledged_at,
+  );
+  const canUpdateTaskStatus = (task: WorkTask) =>
+    canManageBranch(task.branch) || (role === 'teacher' && isAssignedToCurrentUser(task));
+  const canCreateWork = role !== 'teacher';
 
   const accessibleTasks = useMemo(() => {
     if (canSeeAdminBranch) return tasks;
     if (role === 'trainer') {
-      return tasks.filter((t) => t.branch === 'training' || t.branch === 'teacher' || t.needs_handover);
+      return tasks.filter((t) => t.branch === 'training' || t.branch === 'teacher');
     }
-    // Giáo viên chỉ thấy việc thuộc nhóm giáo viên, việc được giao cho mình hoặc cần bàn giao
-    return tasks.filter(
-      (t) =>
-        t.branch === 'teacher' ||
-        t.assigned_uid === currentUser?.id ||
-        (currentUser?.permissions?.teacherId && t.assigned_uid === currentUser.permissions.teacherId) ||
-        t.needs_handover,
-    );
-  }, [tasks, canSeeAdminBranch, role, currentUser?.id, currentUser?.permissions?.teacherId]);
+    // Giáo viên chỉ thấy việc được giao cho mình hoặc đang chờ chính mình nhận bàn giao.
+    return tasks.filter((task) => isAssignedToCurrentUser(task) || isPendingHandoffRecipient(task));
+  }, [tasks, canSeeAdminBranch, role, uid, currentUser?.permissions?.teacherId, handoffs]);
 
   // Filtered tasks for Daily view
   const dailyTasks = useMemo(() => {
@@ -655,6 +620,10 @@ export function BeeZoneWork({
 
   // Open Task Editor
   const handleOpenEditor = (t?: WorkTask) => {
+    if (t ? !canManageBranch(t.branch) : !canCreateWork) {
+      showToast('Cấp bậc hiện tại không được phép tạo hoặc sửa nội dung công việc này.');
+      return;
+    }
     setShowQuickAddPerson(false);
     if (t) {
       setEditorTask(t);
@@ -762,6 +731,10 @@ export function BeeZoneWork({
   };
 
   const handleSaveTask = () => {
+    if (!canManageBranch(form.branch)) {
+      showToast('Cấp bậc hiện tại không được phép lưu công việc trong nhóm này.');
+      return;
+    }
     if (!form.title.trim()) {
       showToast('Vui lòng nhập tên công việc.');
       return;
@@ -1223,6 +1196,9 @@ export function BeeZoneWork({
     const taskReasons = reasons.filter((r) => r.task_id === t.id);
     const latestReason = taskReasons.at(-1);
     const pendingHandoff = handoffs.find((h) => h.task_id === t.id && !h.acknowledged_at);
+    const canManageTask = canManageBranch(t.branch);
+    const canUpdateStatus = canUpdateTaskStatus(t);
+    const canAcknowledge = pendingHandoff?.to_uid === uid;
 
     return (
       <article
@@ -1237,6 +1213,7 @@ export function BeeZoneWork({
             className="bzw-check"
             style={{ width: 18, height: 18, minWidth: 18, minHeight: 18, flexShrink: 0, margin: '2px 0 0' }}
             checked={t.status === 'done'}
+            disabled={!canUpdateStatus}
             onChange={() => handleToggleDone(t)}
             aria-label={`Đánh dấu hoàn thành ${t.title}`}
           />
@@ -1350,13 +1327,15 @@ export function BeeZoneWork({
         {/* Actions */}
         <div className="bzw-actions">
           {/* Row 1 */}
-          <button
-            type="button"
-            className="bzw-btn bzw-sm"
-            onClick={() => handleOpenEditor(t)}
-          >
-            ✎ Sửa
-          </button>
+          {canManageTask && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => handleOpenEditor(t)}
+            >
+              ✎ Sửa
+            </button>
+          )}
           <button
             type="button"
             className="bzw-btn bzw-sm"
@@ -1364,14 +1343,16 @@ export function BeeZoneWork({
           >
             ☷ Ghi chú
           </button>
-          <button
-            type="button"
-            className="bzw-btn bzw-sm bzw-green"
-            onClick={() => handleToggleDone(t)}
-          >
-            {t.status === 'done' ? '↶ Mở lại' : '✓ Hoàn thành'}
-          </button>
-          {t.status !== 'done' && (
+          {canUpdateStatus && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm bzw-green"
+              onClick={() => handleToggleDone(t)}
+            >
+              {t.status === 'done' ? '↶ Mở lại' : '✓ Hoàn thành'}
+            </button>
+          )}
+          {canUpdateStatus && t.status !== 'done' && (
             <button
               type="button"
               className="bzw-btn bzw-sm"
@@ -1380,7 +1361,7 @@ export function BeeZoneWork({
               ◷ Còn dang dở
             </button>
           )}
-          {t.status !== 'done' && (
+          {canUpdateStatus && t.status !== 'done' && (
             <button
               type="button"
               className="bzw-btn bzw-sm"
@@ -1391,7 +1372,7 @@ export function BeeZoneWork({
           )}
 
           {/* Row 2 */}
-          {!inHandover ? (
+          {canManageTask && !inHandover ? (
             <button
               type="button"
               className="bzw-btn bzw-sm"
@@ -1399,7 +1380,7 @@ export function BeeZoneWork({
             >
               {t.needs_handover ? 'Bỏ bàn giao' : '↪ Bàn giao'}
             </button>
-          ) : (
+          ) : canAcknowledge && inHandover ? (
             <>
               <button
                 type="button"
@@ -1408,15 +1389,8 @@ export function BeeZoneWork({
               >
                 ✓ Nhận ca
               </button>
-              <button
-                type="button"
-                className="bzw-btn bzw-sm"
-                onClick={() => handleToggleHandover(t)}
-              >
-                Bỏ bàn giao
-              </button>
             </>
-          )}
+          ) : null}
 
           {pendingHandoff && pendingHandoff.to_uid === uid && !inHandover && (
             <button
@@ -1435,29 +1409,35 @@ export function BeeZoneWork({
           >
             📝 Lý do ({taskReasons.length})
           </button>
-          <button
-            type="button"
-            className="bzw-btn bzw-sm"
-            onClick={() => handleOpenReasonAdd(t)}
-          >
-            ＋ Thêm mới
-          </button>
-          <button
-            type="button"
-            className="bzw-btn bzw-sm"
-            onClick={() => handleToggleEmailSent(t)}
-          >
-            {t.email_sent_at ? '☑ Đã gửi' : '☐ Chưa gửi'}
-          </button>
+          {canUpdateStatus && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => handleOpenReasonAdd(t)}
+            >
+              ＋ Thêm mới
+            </button>
+          )}
+          {canManageTask && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm"
+              onClick={() => handleToggleEmailSent(t)}
+            >
+              {t.email_sent_at ? '☑ Đã gửi' : '☐ Chưa gửi'}
+            </button>
+          )}
 
           {/* Row 3 */}
-          <button
-            type="button"
-            className="bzw-btn bzw-sm bzw-btn-mail"
-            onClick={() => handleOpenEmailModal(t)}
-          >
-            📧 Gửi email công việc
-          </button>
+          {canManageTask && (
+            <button
+              type="button"
+              className="bzw-btn bzw-sm bzw-btn-mail"
+              onClick={() => handleOpenEmailModal(t)}
+            >
+              📧 Gửi email công việc
+            </button>
+          )}
         </div>
       </article>
     );
@@ -1496,13 +1476,15 @@ export function BeeZoneWork({
           >
             🎨 Tùy chỉnh
           </button>
-          <button
-            type="button"
-            className="bzw-btn bzw-gold bzw-big"
-            onClick={() => handleOpenEditor()}
-          >
-            ＋ Tạo công việc
-          </button>
+          {canCreateWork && (
+            <button
+              type="button"
+              className="bzw-btn bzw-gold bzw-big"
+              onClick={() => handleOpenEditor()}
+            >
+              ＋ Tạo công việc
+            </button>
+          )}
           <span
             className={`bzw-sync-badge ${dataSource === 'supabase' ? 'bzw-sync-ok' : 'bzw-sync-local'}`}
             title={

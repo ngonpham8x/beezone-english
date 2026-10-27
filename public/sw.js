@@ -48,7 +48,9 @@ self.addEventListener('fetch', (event) => {
 
   // Network first, falling back to this app's cached shell only.
   event.respondWith(
-    fetch(event.request).then(async (response) => {
+    fetch(event.request.mode === 'navigate'
+      ? new Request(event.request, { cache: 'no-store' })
+      : event.request).then(async (response) => {
       // A deployment can remove a hashed chunk still referenced by an open tab.
       // Reuse that exact cached asset; never substitute HTML for JavaScript.
       const invalidAsset = requestUrl.pathname.startsWith('/assets/') &&

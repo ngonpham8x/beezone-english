@@ -1,8 +1,8 @@
-import type { CenterBackupData, CenterSettings } from '../types';
-import { centerDate, isCalendarDate } from './dates';
-import { timeMinutes } from './schedule';
-import { validSessionRate, validateSessionReceipt } from './sessionBilling';
-import type { AttendanceSession, TuitionReceipt } from '../types';
+import type { CenterBackupData, CenterSettings } from '../types.js';
+import { centerDate, isCalendarDate } from './dates.js';
+import { timeMinutes } from './schedule.js';
+import { validSessionRate, validateSessionReceipt } from './sessionBilling.js';
+import type { AttendanceSession, TuitionReceipt } from '../types.js';
 
 export interface CenterDataPayload extends CenterBackupData {
   sessionBillingVersion: 1;
@@ -10,12 +10,24 @@ export interface CenterDataPayload extends CenterBackupData {
   enrollments: NonNullable<CenterBackupData['enrollments']>;
   scheduleChanges: NonNullable<CenterBackupData['scheduleChanges']>;
 }
+
+export interface WorkBackupSnapshot {
+  people: Array<Record<string, unknown>>;
+  tasks: Array<Record<string, unknown>>;
+  notes: Array<Record<string, unknown>>;
+  reasons: Array<Record<string, unknown>>;
+  handoffs: Array<Record<string, unknown>>;
+  events: Array<Record<string, unknown>>;
+}
+
 export interface BackupArchive {
   app: 'BEEZONE' | 'PHUC_PHUC_THINH';
-  schemaVersion: number;
+  schemaVersion: 1 | 2;
   exportedAt: string;
   centerName: string;
   data: CenterDataPayload;
+  workData?: WorkBackupSnapshot;
+  integrity?: { algorithm: 'SHA-256'; digest: string };
 }
 export const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const arrays = ['programs', 'teachers', 'rooms', 'classes', 'students', 'timetableSlots', 'grades', 'receipts', 'backups', 'activityLogs', 'attendanceSessions', 'enrollments', 'scheduleChanges'] as const;
@@ -130,6 +142,94 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
 }
 
 export function parseBackupArchive(value: unknown, fallbackSettings: CenterSettings): BackupArchive {
-  if (!isRecord(value) || !['BEEZONE', 'PHUC_PHUC_THINH'].includes(value.app as string) || value.schemaVersion !== 1 || !isRecord(value.data) || arrays.filter((key) => !['attendanceSessions', 'enrollments', 'scheduleChanges'].includes(key)).some((key) => !Array.isArray((value.data as Record<string, unknown>)[key]))) throw new Error('Tệp không đúng định dạng sao lưu BeeZone.');
-  return { ...value, data: parseCenterData(value.data, fallbackSettings) } as unknown as BackupArchive;
+  if (!isRecord(value) || !['BEEZONE', 'PHUC_PHUC_THINH'].includes(value.app as string) || ![1, 2].includes(value.schemaVersion as number) || !isRecord(value.data) || arrays.filter((key) => !['attendanceSessions', 'enrollments', 'scheduleChanges'].includes(key)).some((key) => !Array.isArray((value.data as Record<string, unknown>)[key]))) throw new Error('Tệp không đúng định dạng sao lưu BeeZone.');
+  const workData = value.workData === undefined ? undefined : parseWorkBackupSnapshot(value.workData);
+  if (value.schemaVersion === 2 && (!isRecord(value.integrity) || value.integrity.algorithm !== 'SHA-256' || typeof value.integrity.digest !== 'string' || !/^[a-f0-9]{64}$/.test(value.integrity.digest))) throw new Error('Tệp sao lưu thiếu mã kiểm tra toàn vẹn.');
+  return { ...value, data: parseCenterData(value.data, fallbackSettings), workData } as unknown as BackupArchive;
+}
+
+const workArrays = ['people', 'tasks', 'notes', 'reasons', 'handoffs', 'events'] as const;
+
+function parseWorkBackupSnapshot(value: unknown): WorkBackupSnapshot {
+  if (!isRecord(value)) throw new Error('Dữ liệu Giao việc trong bản sao lưu không hợp lệ.');
+  const result = {} as WorkBackupSnapshot;
+  for (const key of workArrays) {
+    const rows = value[key];
+    if (!Array.isArray(rows) || rows.some((row) => !isRecord(row))) throw new Error(`Danh sách Giao việc ${key} không hợp lệ.`);
+    result[key] = rows as Array<Record<string, unknown>>;
+  }
+  const peopleIds = new Set<string>();
+  for (const person of result.people) {
+    if (typeof person.user_id !== 'string' || peopleIds.has(person.user_id)) throw new Error('Danh bạ Giao việc thiếu tài khoản hoặc trùng ID.');
+    peopleIds.add(person.user_id);
+  }
+  const taskIds = new Set<string>();
+  for (const task of result.tasks) {
+    if (
+      typeof task.id !== 'string' || taskIds.has(task.id) ||
+      !['admin', 'training', 'teacher'].includes(task.branch as string) ||
+      typeof task.title !== 'string' || typeof task.assigned_uid !== 'string' ||
+      typeof task.created_by !== 'string' || !isCalendarDate(task.work_date)
+    ) throw new Error('Công việc trong bản sao lưu thiếu thông tin hoặc trùng ID.');
+    taskIds.add(task.id);
+  }
+  for (const [key, idField] of [['notes', 'id'], ['reasons', 'id'], ['handoffs', 'id'], ['events', 'id']] as const) {
+    const ids = new Set<string>();
+    for (const row of result[key]) {
+      const id = String(row[idField] ?? '');
+      if (!id || ids.has(id) || typeof row.task_id !== 'string' || !taskIds.has(row.task_id)) throw new Error(`Lịch sử Giao việc ${key} thiếu liên kết hoặc trùng ID.`);
+      ids.add(id);
+    }
+  }
+  return result;
+}
+
+const integrityContent = (data: unknown, workData?: unknown) =>
+  JSON.stringify({ data, workData: workData || null });
+
+async function sha256(value: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function createBackupArchive(
+  data: CenterBackupData,
+  centerName: string,
+  workData?: WorkBackupSnapshot,
+  exportedAt = new Date().toISOString(),
+): Promise<BackupArchive> {
+  const parsedData = parseCenterData(data, data.settings);
+  const parsedWork = workData ? parseWorkBackupSnapshot(workData) : undefined;
+  return {
+    app: 'BEEZONE',
+    schemaVersion: 2,
+    centerName,
+    exportedAt,
+    data: parsedData,
+    workData: parsedWork,
+    integrity: {
+      algorithm: 'SHA-256',
+      digest: await sha256(integrityContent(parsedData, parsedWork)),
+    },
+  };
+}
+
+export async function verifyBackupArchive(
+  value: unknown,
+  fallbackSettings: CenterSettings,
+): Promise<BackupArchive> {
+  const archive = parseBackupArchive(value, fallbackSettings);
+  if (archive.schemaVersion === 2) {
+    const raw = value as Record<string, unknown>;
+    const actual = await sha256(integrityContent(raw.data, raw.workData));
+    if (actual !== archive.integrity?.digest) throw new Error('Tệp sao lưu đã bị thay đổi hoặc hư hỏng; mã toàn vẹn không khớp.');
+  }
+  return archive;
+}
+
+export function backupRecordCounts(archive: BackupArchive): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const key of arrays) counts[key] = archive.data[key]?.length || 0;
+  if (archive.workData) for (const key of workArrays) counts[`work.${key}`] = archive.workData[key].length;
+  return counts;
 }

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { centerDate, isCalendarDate } from '../src/lib/dates';
 import { nextReceiptCode, nextStudentCode } from '../src/lib/identifiers';
-import { parseCenterData, parseBackupArchive } from '../src/lib/centerData';
+import {
+  backupRecordCounts,
+  createBackupArchive,
+  parseCenterData,
+  parseBackupArchive,
+  verifyBackupArchive,
+} from '../src/lib/centerData';
 import { getReceiptInstallments, getReceiptPaymentEntries, feeStatusForReceipts } from '../src/lib/tuition';
 import { mergePermissions } from '../src/lib/auth';
 import { parseRequestBody } from '../server/request';
@@ -50,6 +56,25 @@ describe('backup and cloud validation', () => {
   it('starts missing legacy attendance empty', () => {
     const data = fixture(); delete (data as any).attendanceSessions;
     expect(parseCenterData(data, data.settings).attendanceSessions).toEqual([]);
+  });
+  it('creates a complete schema-v2 archive, verifies integrity and detects tampering', async () => {
+    const data = { ...fixture(), enrollments: [], scheduleChanges: [] };
+    const workData = {
+      people: [{ user_id: '00000000-0000-4000-8000-000000000001' }],
+      tasks: [{ id: '10000000-0000-4000-8000-000000000001', branch: 'teacher', title: 'Theo dõi lớp', assigned_uid: '00000000-0000-4000-8000-000000000001', created_by: '00000000-0000-4000-8000-000000000001', work_date: '2026-10-26' }],
+      notes: [{ id: '20000000-0000-4000-8000-000000000001', task_id: '10000000-0000-4000-8000-000000000001' }],
+      reasons: [], handoffs: [], events: [],
+    };
+    const archive = await createBackupArchive(data, data.settings.name, workData);
+    const parsed = await verifyBackupArchive(JSON.parse(JSON.stringify(archive)), data.settings);
+    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.workData?.tasks).toHaveLength(1);
+    expect(parsed.workData?.tasks[0].branch).toBe('teacher');
+    expect(backupRecordCounts(parsed)['work.tasks']).toBe(1);
+
+    const changed = JSON.parse(JSON.stringify(archive));
+    changed.data.students[0].name = 'Dữ liệu đã bị sửa';
+    await expect(verifyBackupArchive(changed, data.settings)).rejects.toThrow(/toàn vẹn/);
   });
   it('rejects malformed records and duplicate IDs before restore', () => {
     const data = fixture(); data.students = [{ id: 'bad' } as any];

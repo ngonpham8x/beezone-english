@@ -138,6 +138,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
   const [filterMonth, setFilterMonth] = useState('all');
   const canCollect = isOwner || permissions.tuition.collect;
   const canDelete = isOwner || permissions.tuition.delete;
+  const locksInstallmentTotal = Boolean(editingReceipt && editingInstallments.length > 1);
   useEffect(() => {
     if (!requestReceiptId || requestReceiptId.startsWith('pending-session:')) return;
     const receipt = receipts.find(r => r.id === requestReceiptId);
@@ -408,6 +409,10 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
   const handleSaveCollect = (e: React.FormEvent) => {
     e.preventDefault();
+    if (locksInstallmentTotal && editingInstallments.reduce((sum, installment) => sum + installment.amount, 0) !== paidAmountInput) {
+      setCollectError('Tổng tiền đã đóng phải khớp với lịch sử các đợt. Hãy dùng “Thu tiếp” để ghi nhận khoản mới.');
+      return;
+    }
     if (dueDateInput && !isCalendarDate(dueDateInput)) { setCollectError('Hạn thanh toán không hợp lệ.'); return; }
     const student = students.find(s => s.id === collectingStudentId);
     if (!student) return;
@@ -1269,8 +1274,18 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Số Tiền Đóng Lần Này (VNĐ) *</label>
-                  <input type="number" min="0" value={paidAmountInput} onChange={(e) => setPaidAmountInput(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-emerald-800" required />
+                  <label className="block font-semibold text-slate-700 mb-1">{locksInstallmentTotal ? 'Tổng Đã Đóng (VNĐ)' : 'Số Tiền Đóng Lần Này (VNĐ) *'}</label>
+                  <input
+                    type="number"
+                    aria-label={locksInstallmentTotal ? 'Tổng Đã Đóng (VNĐ)' : 'Số Tiền Đóng Lần Này (VNĐ)'}
+                    min="0"
+                    value={paidAmountInput}
+                    disabled={locksInstallmentTotal}
+                    onChange={(e) => setPaidAmountInput(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-emerald-800 disabled:bg-slate-100 disabled:text-slate-600"
+                    required
+                  />
+                  {locksInstallmentTotal && <p className="mt-1 text-[10px] text-slate-500">Được tính từ lịch sử các đợt; dùng “Thu tiếp” để thêm khoản thanh toán.</p>}
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Giảm Giá / Miễn Giảm</label>
@@ -1296,6 +1311,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
                           min="0"
                           max={due}
                           value={remaining}
+                          disabled={locksInstallmentTotal}
                           onChange={(e) => {
                             const enteredDebt = Math.min(Math.max(Number(e.target.value), 0), due);
                             setPaidAmountInput(Math.max(due - enteredDebt, 0));

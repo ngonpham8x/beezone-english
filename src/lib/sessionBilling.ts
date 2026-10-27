@@ -6,8 +6,8 @@ import type {
   SessionBillingSnapshot,
   SessionChargeLine,
   TuitionReceipt,
-} from '../types';
-import { isCalendarDate } from './dates';
+} from '../types.js';
+import { isCalendarDate } from './dates.js';
 
 export const absencePolicyLabels: Record<SessionAbsencePolicy, string> = {
   attended: 'Có mặt / đi trễ mới tính phí',
