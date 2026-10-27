@@ -110,7 +110,7 @@ export const canAccessTab = (tab: string, user: UserAccount): tab is TabId => {
     case 'attendance':
       return permissions.student.view || permissions.teacher.view;
     case 'admissions':
-      return permissions.student.view || permissions.student.add || permissions.student.edit || permissions.student.delete;
+      return permissions.student.add || permissions.student.edit || permissions.student.delete;
     case 'programs':
       return permissions.student.view || (['add', 'edit', 'delete'] as const).some(action => academicPermission(permissions, 'programs', action));
     case 'students':

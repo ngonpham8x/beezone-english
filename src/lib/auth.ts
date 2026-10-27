@@ -2,7 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import type { StaffPermissions, UserAccount, UserRole } from '../types';
 import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy';
 import { normalizeAccountRole } from './accountRoles';
-import { createStaffPermissions, normalizeStaffPermissions } from './permissions';
+import { createRolePermissions, createStaffPermissions, normalizeStaffPermissions } from './permissions';
 
 export interface ProfileRow {
   id: string;
@@ -46,9 +46,20 @@ export const DEV_OWNER_ACCOUNT_2: UserAccount = {
   permissions: OWNER_PERMISSIONS,
 };
 
+export const DEV_TRAINER_ACCOUNT: UserAccount = {
+  id: 'acc-daotao',
+  name: 'BeeZone Đào Tạo',
+  email: 'phongdaotao.beezone@gmail.com',
+  avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+  role: 'trainer',
+  active: true,
+  permissions: createRolePermissions('trainer'),
+};
+
 export const ADMIN_ACCOUNTS: UserAccount[] = [
   DEV_OWNER_ACCOUNT,
   DEV_OWNER_ACCOUNT_2,
+  DEV_TRAINER_ACCOUNT,
 ];
 
 export function findAdminAccountByEmail(email: string): UserAccount | null {

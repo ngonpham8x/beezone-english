@@ -32,15 +32,13 @@ export function createRolePermissions(role: AccountRole): StaffPermissions {
     allow('excel', ['export']);
     allow('report', ['view', 'revenue']);
   } else if (role === 'trainer') {
-    allow('student', ['view', 'add', 'edit', 'export']);
+    allow('student', ['view']);
     allow('teacher', ['view', 'add', 'edit']);
-    allow('tuition', ['view', 'showDebt']);
     allow('grade', ['view', 'edit']);
-    allow('excel', ['import', 'export']);
     allow('academic', [
-      'programsAdd', 'programsEdit',
-      'classesAdd', 'classesEdit',
-      'roomsAdd', 'roomsEdit',
+      'programs', 'programsAdd', 'programsEdit',
+      'classes', 'classesAdd', 'classesEdit',
+      'rooms', 'roomsAdd', 'roomsEdit',
     ]);
   } else {
     allow('student', ['view', 'edit']);

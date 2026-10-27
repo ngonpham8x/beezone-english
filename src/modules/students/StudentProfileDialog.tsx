@@ -50,6 +50,8 @@ interface Props {
   attendanceSessions?: AttendanceSession[];
   onUpdateGrade?: (updatedGrade: Grade) => boolean | void;
   onClose: () => void;
+  canViewTuition?: boolean;
+  canViewContactInfo?: boolean;
 }
 
 const ATTITUDE_LABELS: Record<string, string> = {
@@ -80,11 +82,13 @@ export function StudentProfileDialog({
   attendanceSessions = [],
   onUpdateGrade,
   onClose,
+  canViewTuition = true,
+  canViewContactInfo = true,
 }: Props) {
   const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
-  const debtForStudent = studentTuitionDebtBreakdown(viewingStudent, receipts, programs, classes);
+  const debtForStudent = canViewTuition ? studentTuitionDebtBreakdown(viewingStudent, receipts, programs, classes) : { monthly: 0, course: 0, session: 0, total: 0 };
 
   const studentGrades = useMemo(() => {
     return (grades || []).filter((g) => g.studentId === viewingStudent.id);
@@ -580,6 +584,7 @@ export function StudentProfileDialog({
         </div>
 
         {/* SECTION: PARENT & CONTACT */}
+        {canViewContactInfo && (
         <div className="space-y-3 my-5 pt-3 border-t border-slate-200">
           <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
             <Users className="w-4 h-4 text-emerald-700" /> Thông Tin Phụ Huynh & Liên Hệ
@@ -620,9 +625,11 @@ export function StudentProfileDialog({
             </div>
           </div>
         </div>
+        )}
 
         {/* SECTION: TUITION & NOTES */}
-        <div className="space-y-3 my-5 pt-3 border-t border-slate-200">
+        {canViewTuition ? (
+          <div className="space-y-3 my-5 pt-3 border-t border-slate-200">
           <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
             <DollarSign className="w-4 h-4 text-emerald-700" /> Tình Trạng Học Phí & Ghi Chú
           </h4>
@@ -695,6 +702,42 @@ export function StudentProfileDialog({
             );
           })()}
         </div>
+        ) : (
+          (viewingStudent.notes || enrollments.some((e) => e.studentId === viewingStudent.id)) && (
+            <div className="space-y-3 my-5 pt-3 border-t border-slate-200">
+              {viewingStudent.notes && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                  <div className="text-slate-500 font-medium">Ghi chú học viên:</div>
+                  <div className="mt-1 italic text-slate-800">{viewingStudent.notes}</div>
+                </div>
+              )}
+              {enrollments.some((e) => e.studentId === viewingStudent.id) && (
+                <section className="my-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs">
+                  <h4 className="mb-2 font-bold">Lịch sử đăng ký đợt học</h4>
+                  {enrollments
+                    .filter((e) => e.studentId === viewingStudent.id)
+                    .map((e) => (
+                      <div key={e.id} className="border-t border-sky-100 py-2">
+                        <strong>{classes.find((c) => c.id === e.classId)?.name || e.classId}</strong> ·{' '}
+                        {
+                          {
+                            active: 'Đang học',
+                            reserved: 'Bảo lưu',
+                            completed: 'Hoàn thành',
+                            transferred: 'Đã chuyển lớp',
+                            dropped: 'Nghỉ học',
+                          }[e.status]
+                        }
+                        <div>
+                          {e.startDate || 'Chưa ghi ngày bắt đầu'} → {e.endDate || 'Chưa kết thúc'}
+                        </div>
+                      </div>
+                    ))}
+                </section>
+              )}
+            </div>
+          )
+        )}
 
         <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center">
           <span className="text-xs text-slate-500 font-medium">Trung tâm ngoại ngữ BeeZone</span>

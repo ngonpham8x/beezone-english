@@ -21,7 +21,11 @@ export function canEditAttendanceClass(
   classroom: Pick<ClassRoom, 'id' | 'teacherId'> | undefined,
 ): boolean {
   if (!canViewAttendanceClass(user, classroom)) return false;
-  return Boolean(user?.permissions.student.edit || user?.permissions.teacher.edit);
+  return Boolean(
+    isAttendanceManagementRole(user) ||
+      user?.permissions.student.edit ||
+      user?.permissions.teacher.edit,
+  );
 }
 
 export function canShareSessionReview(
@@ -34,4 +38,3 @@ export function canShareSessionReview(
   if (isAttendanceManagementRole(user)) return true;
   return canViewAttendanceClass(user, classroom);
 }
-

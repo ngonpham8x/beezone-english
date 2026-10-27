@@ -31,11 +31,11 @@ export const ACCOUNT_ROLE_GUIDES: Record<AccountRole, {
     caution: 'Hành chính không thể cấp cấp bậc Chủ trung tâm hoặc thay đổi tài khoản Chủ trung tâm.',
   },
   trainer: {
-    summary: 'Phụ trách chương trình, lớp học, giáo viên và chất lượng đào tạo.',
+    summary: 'Phụ trách chương trình, lớp học, giáo viên, điểm số và chất lượng đào tạo.',
     capabilities: [
-      'Quản lý chương trình, lớp, phòng, lịch học và phân công giáo viên theo quyền được tích chọn.',
-      'Theo dõi điểm danh, nhập điểm và nhận xét học viên.',
-      'Xem hồ sơ học viên và dữ liệu học vụ; không mặc định có quyền doanh thu hoặc quản trị tài khoản.',
+      'Quản lý chương trình, lớp, phòng, lịch học, thời khóa biểu và phân công giáo viên.',
+      'Theo dõi điểm danh, nhập điểm, ghi nhận xét buổi học và giao việc / bàn giao ca.',
+      'Xem danh sách học viên theo lớp; không xem học phí và thông tin cá nhân học viên.',
     ],
   },
   teacher: {

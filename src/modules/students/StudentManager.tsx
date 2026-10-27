@@ -429,7 +429,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const canDelete = isOwner || permissions.student.delete;
   // Báo cáo workbook có cả dữ liệu học phí, nên chỉ quyền Excel mới được mở.
   const canExport = isOwner || permissions.excel.import || permissions.excel.export;
-  const debtForStudent = (student: Student) => studentTuitionDebtBreakdown(student, receipts, programs, classes);
+  const canViewTuition = isOwner || Boolean(permissions.tuition?.view);
+  const canViewContactInfo = isOwner || Boolean(permissions.student?.edit || permissions.tuition?.view);
+  const debtForStudent = (student: Student) => canViewTuition ? studentTuitionDebtBreakdown(student, receipts, programs, classes) : { monthly: 0, course: 0, session: 0, total: 0 };
 
   // Filtered list
   const filteredStudents = students.filter(s => {
@@ -617,7 +619,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} />
         <StatCard label="Đang theo học" value={students.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
         <StatCard label="Đang bảo lưu" value={students.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
-        <StatCard label="Chưa hoàn thành học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
+        {canViewTuition && (
+          <StatCard label="Chưa hoàn thành học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
+        )}
       </div>
 
       {/* Filters & View Mode Bar */}
@@ -686,8 +690,12 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   <th className="py-3.5 px-4 sticky left-[110px] bg-slate-800 z-20 shadow-r border-r border-slate-700 min-w-[200px]">{t('student.table_name')}</th>
                   <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_grade_school')}</th>
                   <th className="py-3.5 px-4 min-w-[160px]">{t('student.table_program_class')}</th>
-                  <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_phone')}</th>
-                  <th className="py-3.5 px-4 min-w-[140px]">{t('student.table_fee')}</th>
+                  {canViewContactInfo && (
+                    <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_phone')}</th>
+                  )}
+                  {canViewTuition && (
+                    <th className="py-3.5 px-4 min-w-[140px]">{t('student.table_fee')}</th>
+                  )}
                   <th className="py-3.5 px-4 min-w-[120px]">{t('student.table_status')}</th>
                   <th className="py-3.5 px-4 text-right min-w-[140px]">{t('student.table_actions')}</th>
                 </tr>
@@ -695,7 +703,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               <tbody className="divide-y divide-slate-100 font-medium">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400">
+                    <td colSpan={4 + (canViewContactInfo ? 1 : 0) + (canViewTuition ? 1 : 0) + 2} className="py-8 text-center text-slate-400">
                       {t('student.no_matching')}
                     </td>
                   </tr>
@@ -758,20 +766,24 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                           <div className="text-[11px] text-amber-700 font-medium">{program ? program.name : ''}</div>
                         </td>
 
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                            <Phone className="w-3 h-3 text-amber-600 flex-shrink-0" />
-                            <span>{t('student.student_phone')} <span className="font-bold text-slate-900">{st.phone || (language === 'vi' ? 'Chưa cập nhật' : 'N/A')}</span></span>
-                          </div>
-                          <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                            <span>PH ({st.parentName}): <a href={`tel:${st.parentPhone}`} className="font-medium text-slate-800 hover:text-amber-700">{st.parentPhone}</a></span>
-                          </div>
-                        </td>
+                        {canViewContactInfo && (
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                              <Phone className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                              <span>{t('student.student_phone')} <span className="font-bold text-slate-900">{st.phone || (language === 'vi' ? 'Chưa cập nhật' : 'N/A')}</span></span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
+                              <Phone className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                              <span>PH ({st.parentName}): <a href={`tel:${st.parentPhone}`} className="font-medium text-slate-800 hover:text-amber-700">{st.parentPhone}</a></span>
+                            </div>
+                          </td>
+                        )}
 
-                        <td className="py-3 px-4">
-                          <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
-                        </td>
+                        {canViewTuition && (
+                          <td className="py-3 px-4">
+                            <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
+                          </td>
+                        )}
 
                         <td className="py-3 px-4">
                           <StudentStatusBadge status={st.status} />
@@ -894,9 +906,11 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                       </div>
 
                       {/* Fee Badge */}
-                      <div className="shrink-0 text-right">
-                        <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
-                      </div>
+                      {canViewTuition && (
+                        <div className="shrink-0 text-right">
+                          <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
+                        </div>
+                      )}
                     </div>
 
                     {/* Class & Schedule Pill */}
@@ -917,17 +931,19 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     </div>
 
                     {/* Parent Contact */}
-                    <div className="text-xs text-slate-600 space-y-1 mb-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Phụ huynh: <strong>{st.parentName}</strong></span>
-                        <a
-                          href={`tel:${st.parentPhone}`}
-                          className="font-bold text-emerald-700 hover:underline flex items-center gap-1"
-                        >
-                          <Phone className="w-3 h-3 text-emerald-600" /> {st.parentPhone}
-                        </a>
+                    {canViewContactInfo && (
+                      <div className="text-xs text-slate-600 space-y-1 mb-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Phụ huynh: <strong>{st.parentName}</strong></span>
+                          <a
+                            href={`tel:${st.parentPhone}`}
+                            className="font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600" /> {st.parentPhone}
+                          </a>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Card Actions */}
@@ -1018,6 +1034,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           attendanceSessions={attendanceSessions}
           onUpdateGrade={onUpdateGrade}
           onClose={() => setViewingStudent(null)}
+          canViewTuition={canViewTuition}
+          canViewContactInfo={canViewContactInfo}
         />
       )}
 
