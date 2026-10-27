@@ -41,8 +41,10 @@ export function createRolePermissions(role: AccountRole): StaffPermissions {
       'rooms', 'roomsAdd', 'roomsEdit',
     ]);
   } else {
-    allow('student', ['view', 'edit']);
-    allow('teacher', ['view']);
+    allow('student', ['view']);
+    // Internal capability used by the existing attendance guard. The teacher
+    // role ceiling prevents this flag from opening teacher-directory CRUD.
+    allow('teacher', ['edit']);
     allow('grade', ['view', 'edit']);
   }
   return permissions;
@@ -63,8 +65,31 @@ export function normalizeStaffPermissions(candidate: unknown): StaffPermissions 
       target[action] = (Object.prototype.hasOwnProperty.call(source, action) ? source[action] : fallback) === true;
     }
   }
+  // Editing grades is unusable without opening the grade screen. Preserve the
+  // administrator's intent when an older/custom profile only stored edit=true.
+  if (result.grade.edit) result.grade.view = true;
   if (Array.isArray(input.assignedClassIds)) result.assignedClassIds = input.assignedClassIds.filter((id): id is string => typeof id === 'string');
   if (typeof input.teacherId === 'string' && input.teacherId.trim()) result.teacherId = input.teacherId.trim();
+  return result;
+}
+
+/**
+ * Apply the non-overridable ceiling attached to an account rank.
+ * Teacher accounts only receive learning access for assigned classes; legacy
+ * checkboxes must not reopen admissions, personal records, finance or catalog
+ * management after the UI hides those options.
+ */
+export function normalizeRolePermissions(role: AccountRole, candidate: unknown): StaffPermissions {
+  const normalized = normalizeStaffPermissions(candidate);
+  if (role !== 'teacher') return normalized;
+
+  const result = createStaffPermissions();
+  result.student.view = normalized.student.view;
+  result.teacher.edit = normalized.student.view;
+  result.grade.view = normalized.grade.view || normalized.grade.edit;
+  result.grade.edit = normalized.grade.edit;
+  result.assignedClassIds = normalized.assignedClassIds || [];
+  result.teacherId = normalized.teacherId;
   return result;
 }
 

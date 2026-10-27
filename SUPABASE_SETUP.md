@@ -113,3 +113,9 @@ Sau khi áp dụng 001–014, chạy toàn bộ `supabase/migrations/015_teacher
 ## Quyền điểm danh của giáo viên dạy thay (migration 025)
 
 Sau migration 024, áp dụng `025_substitute_attendance_access.sql` trên staging. Migration chỉ mở quyền ghi điểm danh cho giáo viên có `teacherId` (hoặc email hồ sơ khớp giáo viên) đúng với `scheduleChanges.substituteTeacherId`, đúng lớp và đúng ngày đã duyệt. Nó không đổi giáo viên chính, không thêm lớp vào `assignedClassIds` và không cấp quyền điểm số, học phí hay ngày khác. Kiểm tra ba trường hợp trước production: giáo viên thay thế lưu được buổi được giao; cùng lớp nhưng ngày khác bị từ chối; sửa điểm của lớp đó vẫn bị từ chối. Không chạy lại bộ khởi tạo trên dự án đang sử dụng.
+
+## Giới hạn cố định của cấp bậc Giáo viên (migration 026)
+
+Sau migration 025, áp dụng `026_teacher_role_scope.sql` trên staging. Migration này chặn ở database mọi thay đổi ngoài nghiệp vụ giảng dạy của cấp bậc Giáo viên, kể cả hồ sơ cũ còn lưu cờ quyền rộng: không được sửa hồ sơ/học phí học viên, danh mục giáo viên, chương trình, lớp, phòng, thời khóa biểu, điều chỉnh lịch, phiếu thu, đăng ký học, cài đặt hoặc sao lưu. Giáo viên vẫn được cập nhật điểm danh và điểm số đúng lớp được phân công; giáo viên dạy thay chỉ có thêm quyền điểm danh đúng lớp và ngày đã duyệt theo migration 025. Việc điểm danh có thể cập nhật trạng thái học phí được suy ra tự động nhưng không cho sửa bất kỳ trường hồ sơ nào khác.
+
+Trước production, kiểm tra tối thiểu bằng một tài khoản Giáo viên có cờ quyền cũ: sửa thông tin cá nhân học viên và phòng học phải bị từ chối; điểm danh lớp được giao và nhập điểm lớp được giao phải lưu được; cùng thao tác trên lớp khác phải bị từ chối. Tài khoản Đào tạo có `Nhập / sửa điểm` phải chấm điểm được cho mọi lớp của trung tâm. Không chạy lại bộ khởi tạo và không tự chạy migration production từ mã nguồn.

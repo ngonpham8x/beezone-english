@@ -41,6 +41,7 @@ interface DashboardDetailModalProps {
   programs: CourseProgram[];
   revenueMonth: string | null;
   canViewDebt: boolean;
+  canViewStudentSensitiveInfo?: boolean;
   onClose: () => void;
   onViewFull: (tab: string) => void;
 }
@@ -63,6 +64,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
   programs,
   revenueMonth,
   canViewDebt,
+  canViewStudentSensitiveInfo = true,
   onClose,
   onViewFull
 }) => {
@@ -264,7 +266,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                   <th className="px-3 py-2.5">Lớp</th>
                   <th className="px-3 py-2.5">Chương trình</th>
                   <th className="px-3 py-2.5">Trạng thái</th>
-                  <th className="px-3 py-2.5">Học phí</th>
+                  {canViewStudentSensitiveInfo && <th className="px-3 py-2.5">Học phí</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -279,12 +281,14 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                       <td className="px-3 py-3 font-semibold text-slate-700">{student.code}</td>
                       <td className="px-3 py-3">
                         <div className="font-bold text-slate-900">{student.name}</div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">{student.phone}</div>
+                        {canViewStudentSensitiveInfo && (
+                          <div className="mt-0.5 text-[11px] text-slate-500">{student.phone}</div>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-slate-700">{studentClassIds(student).map(id => classById.get(id)?.code || id).join(' · ') || 'Chưa xếp lớp'}</td>
                       <td className="px-3 py-3 text-slate-700">{program?.name ?? 'Chưa xác định'}</td>
                       <td className="px-3 py-3 text-slate-700">{statusLabel}</td>
-                      <td className="px-3 py-3">
+                      {canViewStudentSensitiveInfo && <td className="px-3 py-3">
                         {canViewDebt || student.feeStatus === 'paid' ? (
                           <div>
                             <div className="font-semibold text-slate-800">{feeLabel}</div>
@@ -292,7 +296,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                             {canViewDebt && debt.course > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại khóa: {formatCurrency(debt.course)}</div>}{canViewDebt && debt.session > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại buổi: {formatCurrency(debt.session)}</div>}
                           </div>
                         ) : 'Đã hạn chế'}
-                      </td>
+                      </td>}
                     </tr>
                   );
                 })}

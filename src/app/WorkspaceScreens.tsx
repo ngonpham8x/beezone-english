@@ -1,4 +1,5 @@
 import { canManageAcademic } from '../lib/permissions';
+import { classesVisibleToAccount, isTeachingRole, studentsVisibleToAccount } from '../lib/accountScope';
 import { supabase } from '../lib/supabase';
 import { lazy, Suspense } from 'react';
 import type { CenterActions } from '../modules/center/createCenterActions';
@@ -149,20 +150,53 @@ export function WorkspaceScreens({
   } = navigation;
   const { setIsImportExportModalOpen, setIsSettingsModalOpen } = dialogs;
   const { accountAuditError, isAccountAuditLoading, loadAccountAuditLogs, visibleActivityLogs, visibleAccountLogs } = audit;
+  const teacherAccount = isTeachingRole(currentUser.role);
+  const scopedClasses = teacherAccount
+    ? classesVisibleToAccount(currentUser, classes, teachers)
+    : classes;
+  const scopedClassIds = new Set(scopedClasses.map((classroom) => classroom.id));
+  const scopedStudents = teacherAccount
+    ? studentsVisibleToAccount(currentUser, students, classes, teachers)
+    : students;
+  const scopedProgramIds = new Set(scopedClasses.flatMap((classroom) => [
+    classroom.programId,
+    ...(classroom.additionalProgramIds || []),
+  ]));
+  const scopedPrograms = teacherAccount
+    ? programs.filter((program) => scopedProgramIds.has(program.id))
+    : programs;
+  const scopedTeacherIds = new Set(scopedClasses.map((classroom) => classroom.teacherId));
+  const scopedTeachers = teacherAccount
+    ? teachers.filter((teacher) => scopedTeacherIds.has(teacher.id))
+    : teachers;
+  const scopedRoomIds = new Set(scopedClasses.map((classroom) => classroom.roomId));
+  const scopedRooms = teacherAccount ? rooms.filter((room) => scopedRoomIds.has(room.id)) : rooms;
+  const scopedSlots = teacherAccount
+    ? timetableSlots.filter((slot) => scopedClassIds.has(slot.classId))
+    : timetableSlots;
+  const scopedAttendance = teacherAccount
+    ? attendanceSessions.filter((session) => scopedClassIds.has(session.classId))
+    : attendanceSessions;
+  const scopedGrades = teacherAccount
+    ? grades.filter((grade) => scopedClassIds.has(grade.classId))
+    : grades;
+  const scopedEnrollments = teacherAccount
+    ? enrollments.filter((enrollment) => scopedClassIds.has(enrollment.classId))
+    : enrollments;
   switch (activeTab) {
     case 'dashboard':
       return (
         <DashboardView
-          students={students}
-          teachers={teachers}
-          classes={classes}
-          rooms={rooms}
-          receipts={billingReceipts}
-          programs={programs}
+          students={scopedStudents}
+          teachers={scopedTeachers}
+          classes={scopedClasses}
+          rooms={scopedRooms}
+          receipts={teacherAccount ? [] : billingReceipts}
+          programs={scopedPrograms}
           currentUser={currentUser}
-          timetableSlots={timetableSlots}
+          timetableSlots={scopedSlots}
           scheduleChanges={scheduleChanges}
-          attendanceSessions={attendanceSessions}
+          attendanceSessions={scopedAttendance}
           onOpenTask={(destination) => {
             if (!canAccessTab(destination.tab, currentUser)) return;
             setTaskRequest(destination);
@@ -197,19 +231,20 @@ export function WorkspaceScreens({
     case 'students':
       return (
         <StudentManager
-          students={students}
-          programs={programs}
-          classes={classes}
-          receipts={billingReceipts}
-          timetableSlots={timetableSlots}
-          teachers={teachers}
-          rooms={rooms}
-          grades={grades}
-          attendanceSessions={attendanceSessions}
+          students={scopedStudents}
+          programs={scopedPrograms}
+          classes={scopedClasses}
+          receipts={teacherAccount ? [] : billingReceipts}
+          timetableSlots={scopedSlots}
+          teachers={scopedTeachers}
+          rooms={scopedRooms}
+          grades={scopedGrades}
+          attendanceSessions={scopedAttendance}
           permissions={currentUser.permissions}
           isOwner={currentUser.role === 'owner'}
+          currentUser={currentUser}
           searchQuery={searchQuery}
-          enrollments={enrollments}
+          enrollments={scopedEnrollments}
           onAddStudent={handleAddStudent}
           onUpdateStudent={handleUpdateStudent}
           onDeleteStudent={handleDeleteStudent}
@@ -311,6 +346,7 @@ export function WorkspaceScreens({
           classes={classes}
           rooms={rooms}
           isOwner={currentUser.role === 'owner'}
+          currentUser={currentUser}
           permissions={currentUser.permissions}
           onAddSlot={handleAddSlot}
           onSaveSlots={handleSaveSlots}

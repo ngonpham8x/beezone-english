@@ -153,21 +153,23 @@ export function StudentProfileDialog({
               </span>
             </div>
             <h3 className="text-xl font-black text-slate-900 mt-1">{viewingStudent.name}</h3>
-            <div className="text-xs text-slate-500 font-medium flex items-center justify-center sm:justify-start gap-3 mt-0.5">
-              <span>
-                {viewingStudent.gender === 'Nam'
-                  ? 'Nam 👦'
-                  : viewingStudent.gender === 'Nữ'
-                    ? 'Nữ 👧'
-                    : 'Chưa xác định'}
-              </span>
-              <span>•</span>
-              <span>NS: {viewingStudent.dob}</span>
-              <span>•</span>
-              <span className="font-bold text-slate-700">
-                {viewingStudent.gradeLevel} ({viewingStudent.school})
-              </span>
-            </div>
+            {canViewContactInfo && (
+              <div className="text-xs text-slate-500 font-medium flex items-center justify-center sm:justify-start gap-3 mt-0.5">
+                <span>
+                  {viewingStudent.gender === 'Nam'
+                    ? 'Nam 👦'
+                    : viewingStudent.gender === 'Nữ'
+                      ? 'Nữ 👧'
+                      : 'Chưa xác định'}
+                </span>
+                <span>•</span>
+                <span>NS: {viewingStudent.dob}</span>
+                <span>•</span>
+                <span className="font-bold text-slate-700">
+                  {viewingStudent.gradeLevel} ({viewingStudent.school})
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

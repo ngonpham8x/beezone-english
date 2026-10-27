@@ -7,7 +7,7 @@ import { ActiveSession, getActiveSessions, removeActiveSession } from '../../lib
 import { readApiJson } from '../../lib/http';
 import { isLocalPreview } from '../../lib/supabase';
 import { toast } from '../../lib/toast';
-import { createRolePermissions, createStaffPermissions, normalizeStaffPermissions } from '../../lib/permissions';
+import { createRolePermissions, createStaffPermissions, normalizeRolePermissions } from '../../lib/permissions';
 import { ACCOUNT_DIRECTORY_CHANGED_EVENT } from '../../lib/appEvents';
 import { saveCachedManagedUsers } from '../work/workStorage';
 import { ACCOUNT_ROLE_GUIDES, ACCOUNT_ROLE_OPTIONS, accountRoleLabel, normalizeAccountRole } from '../../lib/accountRoles';
@@ -101,6 +101,17 @@ const permissionGroups: { title: string; options: { module: keyof StaffPermissio
   },
 ];
 
+const permissionGroupsForRole = (role: AccountRole) => role === 'teacher'
+  ? permissionGroups
+      .map((group) => ({
+        ...group,
+        options: group.options.filter((option) =>
+          (option.module === 'student' && option.action === 'view') ||
+          (option.module === 'grade' && ['view', 'edit'].includes(option.action))),
+      }))
+      .filter((group) => group.options.length > 0)
+  : permissionGroups;
+
 export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, accessToken, currentUser, classes = [], teachers = [], onAccountChanged }) => {
   const [members, setMembers] = useState<ManagedUser[]>([]);
   const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>([]);
@@ -128,6 +139,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     assignedClassIds: current.assignedClassIds,
     teacherId: current.teacherId,
   });
+  const createPermissionGroups = permissionGroupsForRole(role);
+  const editPermissionGroups = permissionGroupsForRole(editRole);
   const adminCannotManage = (member: ManagedUser) => currentUser?.role === 'admin' && (
     member.id === currentUser.id || normalizeAccountRole(member.role) === 'owner'
   );
@@ -211,11 +224,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const selectAllPermissions = () => {
     setStaffPermissions((current) => {
-      return {
+      return normalizeRolePermissions(role, {
         ...createStaffPermissions(true),
         assignedClassIds: current.assignedClassIds,
         teacherId: current.teacherId,
-      } as StaffPermissions;
+      });
     });
   };
 
@@ -244,7 +257,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ email, fullName, role, permissions: role !== 'owner' ? staffPermissions : undefined }),
+        body: JSON.stringify({
+          email,
+          fullName,
+          role,
+          permissions: role !== 'owner' ? normalizeRolePermissions(role, staffPermissions) : undefined,
+        }),
       });
       await readApiJson(response, 'Không thể cấp quyền Google.');
       setEmail('');
@@ -264,9 +282,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
   const openEditModal = (member: ManagedUser) => {
     if (adminCannotManage(member)) return;
+    const nextRole = normalizeAccountRole(member.role) || 'teacher';
     setEditingUser(member);
-    setEditRole(normalizeAccountRole(member.role) || 'teacher');
-    setEditPermissions(normalizeStaffPermissions(member.permissions));
+    setEditRole(nextRole);
+    setEditPermissions(normalizeRolePermissions(nextRole, member.permissions));
     setError(null);
   };
 
@@ -285,7 +304,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
           action: 'updatePermissions',
           userId: editingUser.id,
           role: editRole,
-          permissions: editRole !== 'owner' ? editPermissions : undefined,
+          permissions: editRole !== 'owner' ? normalizeRolePermissions(editRole, editPermissions) : undefined,
         }),
       });
       await readApiJson(response, 'Không thể cập nhật cấp quyền.');
@@ -411,7 +430,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
               </div>
               <p className="mb-3 text-[11px] leading-4 text-slate-500">Chỉ tick các quyền cần thiết hoặc bấm "Chọn tất cả quyền". Quyền doanh thu và số tiền còn lại nên cấp riêng nếu cần bảo mật.</p>
               <div className="grid gap-3 md:grid-cols-3">
-                {permissionGroups.map((group) => (
+                {createPermissionGroups.map((group) => (
                   <div key={group.title} className="rounded-lg bg-slate-50 p-2.5">
                     <p className="mb-2 text-[11px] font-extrabold uppercase text-slate-700">{group.title}</p>
                     <div className="space-y-1.5">
@@ -428,8 +447,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                   </div>
                 ))}
 
-                  {/* Phân công lớp phụ trách cho tài khoản đào tạo/giáo viên */}
-                {(role === 'trainer' || role === 'teacher') && <div className="md:col-span-3 rounded-lg bg-amber-50/70 border border-amber-200/80 p-3 mt-1">
+                {role === 'trainer' && (
+                  <div className="md:col-span-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-[11px] font-semibold text-sky-900">
+                    Đào tạo có phạm vi học vụ toàn trung tâm. Quyền Xem điểm/Nhập sửa điểm áp dụng cho tất cả lớp, không cần chọn từng lớp bên dưới.
+                  </div>
+                )}
+
+                {/* Chỉ Giáo viên bị giới hạn theo danh sách lớp phụ trách. */}
+                {role === 'teacher' && <div className="md:col-span-3 rounded-lg bg-amber-50/70 border border-amber-200/80 p-3 mt-1">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <p className="text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
                       Phân công lớp phụ trách (Chỉ được Điểm danh & Chấm điểm các lớp này)
@@ -685,7 +710,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                       <button
                         type="button"
                         onClick={() => {
-                          setEditPermissions((prev) => ({
+                          setEditPermissions((prev) => normalizeRolePermissions(editRole, {
                             ...createStaffPermissions(true),
                             assignedClassIds: prev.assignedClassIds,
                             teacherId: prev.teacherId,
@@ -712,7 +737,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-3">
-                    {permissionGroups.map((group) => (
+                    {editPermissionGroups.map((group) => (
                       <div key={group.title} className="rounded-lg bg-white p-3 border border-slate-200 shadow-xs">
                         <p className="mb-2 text-[11px] font-extrabold uppercase text-slate-700">{group.title}</p>
                         <div className="space-y-1.5">
@@ -749,8 +774,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                       </div>
                     ))}
 
-                    {/* Phân công lớp phụ trách */}
-                    {(editRole === 'trainer' || editRole === 'teacher') && <div className="md:col-span-3 rounded-lg bg-white border border-amber-300 p-3 shadow-xs">
+                    {editRole === 'trainer' && (
+                      <div className="md:col-span-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-[11px] font-semibold text-sky-900">
+                        Đào tạo có phạm vi học vụ toàn trung tâm. Quyền Xem điểm/Nhập sửa điểm áp dụng cho tất cả lớp, không cần chọn từng lớp bên dưới.
+                      </div>
+                    )}
+
+                    {/* Phân công lớp phụ trách chỉ áp dụng cho Giáo viên. */}
+                    {editRole === 'teacher' && <div className="md:col-span-3 rounded-lg bg-white border border-amber-300 p-3 shadow-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                         <p className="text-[11px] font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
                           Phân công lớp phụ trách (Chỉ được Điểm danh & Chấm điểm các lớp này)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACCOUNT_ROLE_GUIDES, ACCOUNT_ROLE_OPTIONS, accountRoleLabel, normalizeAccountRole } from '../src/lib/accountRoles';
-import { createRolePermissions } from '../src/lib/permissions';
+import { createRolePermissions, createStaffPermissions, normalizeRolePermissions } from '../src/lib/permissions';
 
 describe('account ranks', () => {
   it('lists the four assignable ranks in management order', () => {
@@ -32,8 +32,25 @@ describe('account ranks', () => {
       grade: { view: true, edit: true },
     });
     expect(createRolePermissions('teacher')).toMatchObject({
-      student: { view: true, edit: true, delete: false },
+      student: { view: true, edit: false, delete: false },
+      teacher: { view: false, edit: true, delete: false },
       grade: { view: true, edit: true },
     });
+  });
+
+  it('keeps legacy teacher grants inside the fixed teaching ceiling', () => {
+    const broad = createStaffPermissions(true);
+    const permissions = normalizeRolePermissions('teacher', {
+      ...broad,
+      assignedClassIds: ['class-a'],
+      teacherId: 'teacher-a',
+    });
+    expect(permissions.student).toMatchObject({ view: true, add: false, edit: false, delete: false, export: false });
+    expect(permissions.grade).toEqual({ view: true, edit: true });
+    expect(permissions.teacher).toMatchObject({ view: false, edit: true, delete: false });
+    expect(permissions.tuition).toMatchObject({ view: false, collect: false, showDebt: false });
+    expect(permissions.academic).toMatchObject({ programs: false, classes: false, rooms: false });
+    expect(permissions.assignedClassIds).toEqual(['class-a']);
+    expect(permissions.teacherId).toBe('teacher-a');
   });
 });

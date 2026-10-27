@@ -414,7 +414,7 @@ describe('authorization and durable quotas', () => {
     expect(profile.role).toBe('teacher');
     expect(profile.permissions.student.view).toBe(true);
     expect(profile.permissions.student.delete).toBe(false);
-    expect(profile.permissions.academic).toEqual({ classes: true, rooms: true, programs: false, classesAdd: true, classesEdit: true, classesDelete: true, roomsAdd: true, roomsEdit: true, roomsDelete: true, programsAdd: false, programsEdit: false, programsDelete: false });
+    expect(profile.permissions.academic).toEqual({ classes: false, rooms: false, programs: false, classesAdd: false, classesEdit: false, classesDelete: false, roomsAdd: false, roomsEdit: false, roomsDelete: false, programsAdd: false, programsEdit: false, programsDelete: false });
     expect(state.writes.mock.calls.some((call) => call[0] === 'account_audit_logs')).toBe(true);
   });
   it.each(['admin', 'trainer', 'teacher'] as const)('stores the explicit %s account rank', async role => {

@@ -35,6 +35,7 @@ interface ShareReportCardModalProps {
   settings: CenterSettings;
   onUpdateGrade?: (updatedGrade: Grade) => void;
   onPrintPdf?: () => void;
+  showPersonalInfo?: boolean;
 }
 
 export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
@@ -47,7 +48,8 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   program,
   settings,
   onUpdateGrade,
-  onPrintPdf
+  onPrintPdf,
+  showPersonalInfo = true,
 }) => {
   const [activeTab, setActiveTab] = useState<'image' | 'text' | 'files'>('image');
   const [copiedText, setCopiedText] = useState(false);
@@ -82,7 +84,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     }
   };
 
-  const dobText = formatDob(student.dob);
+  const dobText = showPersonalInfo ? formatDob(student.dob) : '';
 
   const getRank = (avg: number) => {
     if (avg >= 9.0)
@@ -121,7 +123,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
 
   const initialFeedback =
     grade.comment ||
-    student.notes?.trim() ||
+    (showPersonalInfo ? student.notes?.trim() : '') ||
     `Em ${student.name} có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm. Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh hằng ngày để sẵn sàng cho cấp độ tiếp theo.`;
 
   const [feedback, setFeedback] = useState(initialFeedback);

@@ -3,7 +3,7 @@ import * as dialogs from '../src/lib/dialogs';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NAVIGATION_GROUPS, canAccessTab, getNavigationGroups } from '../src/app/navigation';
-import { DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT } from '../src/lib/auth';
+import { DEV_OWNER_ACCOUNT, DEV_TEACHER_ACCOUNT, DEV_TRAINER_ACCOUNT } from '../src/lib/auth';
 import { createStaffPermissions } from '../src/lib/permissions';
 import { parseCenterData } from '../src/lib/centerData';
 import { centerDate } from '../src/lib/dates';
@@ -65,6 +65,43 @@ afterEach(() => {
 });
 
 describe('domain command integration', () => {
+  it('lets the training rank edit grades across the centre without per-class assignments', () => {
+    const trainer = {
+      ...DEV_TRAINER_ACCOUNT,
+      permissions: { ...DEV_TRAINER_ACCOUNT.permissions, assignedClassIds: [] },
+    };
+    const { result } = renderHook(() => useTestCenter(trainer));
+    const data = dataset();
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const grade = result.current.store.grades[0];
+    act(() => expect(result.current.actions.handleUpdateGrade({
+      ...grade,
+      listening: 9,
+      average: 8.1,
+    })).toBe(true));
+    expect(result.current.store.grades[0]).toMatchObject({ listening: 9, average: 8.1 });
+  });
+
+  it('blocks teacher-rank student profile mutations even with legacy broad flags', () => {
+    const teacher = {
+      ...DEV_TEACHER_ACCOUNT,
+      permissions: {
+        ...createStaffPermissions(true),
+        teacherId: DEV_TEACHER_ACCOUNT.permissions.teacherId,
+        assignedClassIds: DEV_TEACHER_ACCOUNT.permissions.assignedClassIds,
+      },
+    };
+    const { result } = renderHook(() => useTestCenter(teacher));
+    const data = dataset();
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const original = result.current.store.students[0];
+    act(() => expect(result.current.actions.handleUpdateStudent({
+      ...original,
+      address: 'Không được phép đổi',
+    })).toBeUndefined());
+    expect(result.current.store.students[0]).toEqual(original);
+  });
+
   it('preserves absence and late histories when students change and permits deleting only empty attendance as an active owner', () => {
     const { result, rerender } = renderHook(({ user }) => useTestCenter(user), { initialProps: { user: DEV_OWNER_ACCOUNT } });
     const data = dataset();
@@ -158,7 +195,7 @@ describe('domain command integration', () => {
     expect(dialogs.showAlert).toHaveBeenCalledWith(expect.stringContaining('lịch sử'));
   });
   it('creates academic records, teachers and students only with the corresponding active staff grants', () => {
-    const user = { ...limitedStaff, permissions: createStaffPermissions() };
+    const user = { ...limitedStaff, role: 'admin' as const, permissions: createStaffPermissions() };
     const { result, rerender } = renderHook(({ account }) => useTestCenter(account), { initialProps: { account: user } });
     const snapshot = () => Object.fromEntries(Object.entries(result.current.store).filter(([, value]) => typeof value !== 'function'));
     const data = dataset();

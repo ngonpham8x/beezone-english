@@ -1,4 +1,5 @@
 import { matchesSearch } from '../lib/search';
+import { isTeachingRole, studentsVisibleToAccount } from '../lib/accountScope';
 import type { ClassRoom, Student, Teacher, UserAccount } from '../types';
 import { canAccessTab } from './navigation';
 import type { WorkspaceNavigation } from './useWorkspaceNavigation';
@@ -11,11 +12,17 @@ interface Props {
 }
 export function QuickSearch({ currentUser, students, classes, teachers, navigation }: Props) {
   const { searchQuery, setSearchQuery, navigateTo } = navigation;
+  const teacherAccount = isTeachingRole(currentUser.role);
+  const visibleStudents = teacherAccount
+    ? studentsVisibleToAccount(currentUser, students, classes, teachers)
+    : students;
   const searchResults = searchQuery.trim()
     ? [
         ...(canAccessTab('students', currentUser)
-          ? students
-              .filter((s) => matchesSearch(searchQuery, s.name, s.code, s.phone, s.parentPhone))
+          ? visibleStudents
+              .filter((s) => teacherAccount
+                ? matchesSearch(searchQuery, s.name, s.code)
+                : matchesSearch(searchQuery, s.name, s.code, s.phone, s.parentPhone))
               .map((s) => ({
                 id: s.id,
                 name: `${s.name} • ${s.code}`,

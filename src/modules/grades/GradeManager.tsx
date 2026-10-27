@@ -4,6 +4,7 @@ import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { isStudentInClass } from '../../lib/studentClasses';
+import { classesVisibleToAccount, hasCenterWideClassScope, isTeachingRole } from '../../lib/accountScope';
 import {
   CenterSettings,
   ClassRoom,
@@ -52,38 +53,28 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     sheetsConfig: { spreadsheetId: '', sheetName: '', autoSync: false, syncInterval: 'weekly', connected: false }
   }
 }) => {
-  // Determine classes the teacher/staff is permitted to grade
+  const centerWideScope = isOwner || hasCenterWideClassScope(currentUser);
+  const showPersonalInfo = !isTeachingRole(currentUser?.role);
+  // Hành chính/Đào tạo có phạm vi toàn trung tâm. Giáo viên chỉ chấm các lớp
+  // được gán trực tiếp hoặc liên kết qua hồ sơ giáo viên/email.
   const permittedClasses = useMemo(() => {
-    if (isOwner) return classes;
+    if (centerWideScope) return classes;
     if (!currentUser) return [];
-
-    const assignedIds = currentUser.permissions.assignedClassIds || [];
-    const teacherId = currentUser.permissions.teacherId;
-
-    const teacherProfile = teachers.find(
-      t => (teacherId && t.id === teacherId) || (currentUser.email && t.email && t.email.toLowerCase() === currentUser.email.toLowerCase())
-    );
-
-    return classes.filter(c => {
-      if (assignedIds.includes(c.id)) return true;
-      if (teacherProfile && (c.teacherId === teacherProfile.id || teacherProfile.assignedClassIds?.includes(c.id))) return true;
-      if (teacherId && c.teacherId === teacherId) return true;
-      return false;
-    });
-  }, [classes, isOwner, currentUser, teachers]);
+    return classesVisibleToAccount(currentUser, classes, teachers);
+  }, [classes, centerWideScope, currentUser, teachers]);
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    return isOwner ? 'all' : (permittedClasses[0]?.id || 'all');
+    return centerWideScope ? 'all' : (permittedClasses[0]?.id || 'all');
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
   useEffect(() => {
-    if (!isOwner && permittedClasses.length > 0 && selectedClassId !== 'all' && !permittedClasses.some(c => c.id === selectedClassId)) {
+    if (!centerWideScope && permittedClasses.length > 0 && selectedClassId !== 'all' && !permittedClasses.some(c => c.id === selectedClassId)) {
       setSelectedClassId(permittedClasses[0].id);
     }
-  }, [permittedClasses, isOwner, selectedClassId]);
+  }, [permittedClasses, centerWideScope, selectedClassId]);
 
   const canEdit = isOwner || permissions.grade.edit;
 
@@ -147,7 +138,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         <div className="class-picker">
           <ResponsiveSelect label="Lớp xem điểm" value={selectedClassId} onChange={setSelectedClassId}
             disabled={permittedClasses.length === 0} placeholder="Chưa có lớp được phân quyền" options={[
-              ...(isOwner ? [{ value: 'all', label: 'Tất cả lớp học' }] : permittedClasses.length > 1 ? [{ value: 'all', label: 'Tất cả lớp được phân công' }] : []),
+              ...(centerWideScope ? [{ value: 'all', label: 'Tất cả lớp học' }] : permittedClasses.length > 1 ? [{ value: 'all', label: 'Tất cả lớp được phân công' }] : []),
               ...permittedClasses.map(c => ({ value: c.id, label: c.name })),
             ]} />
         </div>
@@ -621,6 +612,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           settings={settings}
           onClose={() => setReportingStudent(null)}
           onUpdateGrade={onUpdateGrade}
+          showPersonalInfo={showPersonalInfo}
         />
       )}
 
@@ -652,6 +644,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           program={programs.find(p => p.id === sharingStudent.programId)}
           settings={settings}
           onUpdateGrade={onUpdateGrade}
+          showPersonalInfo={showPersonalInfo}
           onPrintPdf={() => {
             setReportingStudent(sharingStudent);
             setSharingStudent(null);

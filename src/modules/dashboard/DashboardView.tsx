@@ -1,4 +1,5 @@
 import { studentClassIds, isStudentInClass } from '../../lib/studentClasses';
+import { isTeachingRole } from '../../lib/accountScope';
 import {
   AlertTriangle,
   Building2,
@@ -80,12 +81,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
     });
   };
   const isOwner = currentUser.role === 'owner';
+  const teacherAccount = isTeachingRole(currentUser.role);
   const canViewStudents = isOwner || currentUser.permissions.student.view;
-  const canViewTeachers = isOwner || currentUser.permissions.teacher.view;
-  const canViewClasses = canViewStudents || canViewTeachers;
-  const canViewRooms = canViewClasses;
-  const canViewTuition = isOwner || currentUser.permissions.tuition.view;
-  const showRevenue = isOwner || (currentUser.permissions.report?.view && currentUser.permissions.report?.revenue);
+  const canViewTeachers = !teacherAccount && (isOwner || currentUser.permissions.teacher.view);
+  const canViewClasses = !teacherAccount && (canViewStudents || canViewTeachers);
+  const canViewRooms = !teacherAccount && canViewClasses;
+  const canViewTuition = !teacherAccount && (isOwner || currentUser.permissions.tuition.view);
+  const showRevenue = !teacherAccount && (isOwner || (currentUser.permissions.report?.view && currentUser.permissions.report?.revenue));
   const showDebt = isOwner || (canViewTuition && currentUser.permissions.tuition.showDebt);
   const activeStudents = students.filter((student) => student.status === 'active');
   const reservedStudents = students.filter((student) => student.status === 'reserved');
@@ -410,7 +412,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="text-sm font-bold text-slate-800">Danh sách học sinh</h2><p className="mt-1 text-[11px] text-slate-500">Dữ liệu từ hồ sơ và phiếu thu đã chuẩn hoá.</p></div><button onClick={() => onNavigateTab('students')} className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition shadow-xs">Xem tất cả</button></div><HorizontalScroll label="Danh sách học viên" className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Học sinh</th><th className="px-4 py-3">Lớp</th>{showDebt && <th className="px-4 py-3 text-right">Còn lại theo loại</th>}</tr></thead><tbody className="divide-y divide-slate-100">{studentRows.map((student) => <tr key={student.id}><td className="px-4 py-3 font-bold text-slate-700">{student.code}</td><td className="px-4 py-3"><b className="text-slate-900">{student.name}</b><span className="mt-0.5 block text-[11px] text-slate-500">{student.status === 'reserved' ? 'Bảo lưu' : student.status === 'dropped' ? 'Nghỉ học' : 'Đang học'}</span></td><td className="px-4 py-3 text-slate-600">{studentClassIds(student).map(id => classById.get(id)?.code || id).join(' · ') || 'Chưa xếp'}</td>{showDebt && <td className="px-4 py-3 text-right font-bold text-rose-700">{student.debt.total > 0 ? <><div>{currency(student.debt.total)}</div>{student.debt.monthly > 0 && <div className="mt-0.5 text-[10px]">Tháng: {currency(student.debt.monthly)}</div>}{student.debt.course > 0 && <div className="mt-0.5 text-[10px]">Khóa: {currency(student.debt.course)}</div>}{student.debt.session > 0 && <div className="mt-0.5 text-[10px]">Buổi: {currency(student.debt.session)}</div>}</> : '—'}</td>}</tr>)}</tbody></table></HorizontalScroll></div>
       </section>
 
-      <DashboardDetailModal detail={selectedDetail} students={students} teachers={teachers} classes={classes} rooms={rooms} receipts={receipts} programs={programs} revenueMonth={latestReceiptMonth || null} canViewDebt={showDebt} onClose={() => setSelectedDetail(null)} onViewFull={onNavigateTab} />
+      <DashboardDetailModal detail={selectedDetail} students={students} teachers={teachers} classes={classes} rooms={rooms} receipts={receipts} programs={programs} revenueMonth={latestReceiptMonth || null} canViewDebt={showDebt} canViewStudentSensitiveInfo={!teacherAccount} onClose={() => setSelectedDetail(null)} onViewFull={onNavigateTab} />
     </div>
   );
 };

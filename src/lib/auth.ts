@@ -2,7 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import type { StaffPermissions, UserAccount, UserRole } from '../types';
 import { PRIVATE_ACCOUNT_LABEL } from './accountPrivacy';
 import { normalizeAccountRole } from './accountRoles';
-import { createRolePermissions, createStaffPermissions, normalizeStaffPermissions } from './permissions';
+import { createRolePermissions, createStaffPermissions, normalizeRolePermissions, normalizeStaffPermissions } from './permissions';
 
 export interface ProfileRow {
   id: string;
@@ -75,7 +75,7 @@ export const DEV_TEACHER_ACCOUNT: UserAccount = {
   role: 'teacher',
   active: true,
   permissions: {
-    ...DEFAULT_STAFF_PERMISSIONS,
+    ...createRolePermissions('teacher'),
     teacherId: 'TEA-002',
     assignedClassIds: ['CLS-KIDDY-1', 'CLS-STARTERS-1'],
   },
@@ -109,14 +109,17 @@ export function profileToAccount(profile: ProfileRow, authUser: User): UserAccou
   const fallbackName = authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Người dùng';
   const fallbackAvatar = authUser.user_metadata?.avatar_url || '';
 
+  const role = normalizeAccountRole(profile.role) || 'teacher';
   return {
     id: profile.id,
     name: profile.is_private === true ? PRIVATE_ACCOUNT_LABEL : profile.full_name || fallbackName,
     email: authUser.email || '',
     avatar: profile.is_private === true ? '' : profile.avatar_url || fallbackAvatar,
-    role: normalizeAccountRole(profile.role) || 'teacher',
+    role,
     active: profile.is_active,
     isPrivate: profile.is_private === true,
-    permissions: profile.role === 'owner' ? OWNER_PERMISSIONS : mergePermissions(profile.permissions),
+    permissions: role === 'owner'
+      ? OWNER_PERMISSIONS
+      : normalizeRolePermissions(role, profile.permissions),
   };
 }

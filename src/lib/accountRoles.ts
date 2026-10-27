@@ -42,9 +42,10 @@ export const ACCOUNT_ROLE_GUIDES: Record<AccountRole, {
     summary: 'Thực hiện nghiệp vụ giảng dạy trên các lớp được phân công.',
     capabilities: [
       'Xem học viên, điểm danh, nhập điểm và nhận xét ở lớp được phân công.',
-      'Xem lịch dạy và thông tin học vụ cần thiết.',
-      'Không mặc định có quyền học phí, doanh thu, xóa dữ liệu hoặc quản trị tài khoản.',
+      'Chỉ xem lịch của chính giáo viên đã liên kết; không xem lịch của giáo viên khác.',
+      'Không xem thông tin cá nhân, học phí; không truy cập Tuyển sinh, danh mục đào tạo, giáo viên, phòng học hoặc thời khóa biểu trung tâm.',
     ],
+    caution: 'Phải gán đúng hồ sơ giáo viên và lớp phụ trách; các giới hạn này không thể mở lại bằng quyền tùy chỉnh.',
   },
 };
 

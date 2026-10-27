@@ -1,4 +1,5 @@
 import type { ClassRoom, ScheduleChange, Teacher, UserAccount } from '../../types';
+import { isTeachingRole, linkedTeacherId } from '../../lib/accountScope';
 
 export interface AttendanceAccessContext {
   date?: string;
@@ -13,11 +14,7 @@ export function attendanceTeacherId(
   user: UserAccount | null | undefined,
   teachers: AttendanceAccessContext['teachers'] = [],
 ): string | undefined {
-  const explicit = user?.permissions.teacherId?.trim();
-  if (explicit) return explicit;
-  const email = user?.email?.trim().toLowerCase();
-  if (!email) return undefined;
-  return teachers.find((teacher) => teacher.email?.trim().toLowerCase() === email)?.id;
+  return linkedTeacherId(user, teachers || []);
 }
 
 export function isSubstituteTeacherForClassOnDate(
@@ -67,6 +64,7 @@ export function canEditAttendanceClass(
   if (!canViewAttendanceClass(user, classroom, context)) return false;
   return Boolean(
     isAttendanceManagementRole(user) ||
+      isTeachingRole(user?.role) ||
       user?.permissions.student.edit ||
       user?.permissions.teacher.edit,
   );

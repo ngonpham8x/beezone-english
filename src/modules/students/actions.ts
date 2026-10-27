@@ -4,6 +4,7 @@ import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
 import { centerDate, isCalendarDate } from '../../lib/dates';
+import { isTeachingRole } from '../../lib/accountScope';
 import { hasStaffPermission } from '../../lib/permissions';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
@@ -42,9 +43,10 @@ export function createStudentActions({
   currentUser,
   addLog,
 }: Context) {
+  const teacherAccount = isTeachingRole(currentUser?.role);
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
-    if (!hasStaffPermission(currentUser, 'student', 'add')) return;
+    if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'add')) return;
     const error = validateStudentClasses(newStudent, classes, students);
     if (error) { showAlert(error); return; }
     if (newStudent.classId)
@@ -63,7 +65,7 @@ export function createStudentActions({
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
-    if (!hasStaffPermission(currentUser, 'student', 'edit')) return;
+    if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'edit')) return;
     const previous = students.find(student => student.id === updatedStudent.id);
     if (!previous) return;
     if (previous.classId !== updatedStudent.classId || previous.status !== updatedStudent.status || JSON.stringify(previous.additionalClassIds) !== JSON.stringify(updatedStudent.additionalClassIds)) {
@@ -88,7 +90,7 @@ export function createStudentActions({
   };
 
   const handleDeleteStudent = (id: string): string | null => {
-    if (!hasStaffPermission(currentUser, 'student', 'delete')) {
+    if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'delete')) {
       return 'Bạn chưa được cấp quyền xóa học sinh.';
     }
     const st = students.find((s) => s.id === id);
@@ -129,6 +131,7 @@ export function createStudentActions({
   const handleEnrollStudent = (studentId: string, classId: string, enrollDate: string) => {
     if (
       !currentUser ||
+      teacherAccount ||
       (currentUser.role !== 'owner' &&
         (!currentUser.permissions.student.edit ||
           (classes.find((c) => c.id === classId)?.billingMode !== 'session' &&
@@ -267,6 +270,7 @@ export function createStudentActions({
     expectedReturnDate: string,
     reason: string,
   ) => {
+    if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'edit')) return false;
     const student = students.find((s) => s.id === studentId);
     if (!student) return;
     setEnrollments((prev) =>
@@ -290,6 +294,7 @@ export function createStudentActions({
   };
 
   const handleDropStudent = (studentId: string, dropDate: string, reason: string) => {
+    if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'edit')) return false;
     const student = students.find((s) => s.id === studentId);
     if (!student) return;
     setEnrollments((prev) =>
@@ -318,7 +323,7 @@ export function createStudentActions({
     returnDate: string,
     note?: string,
   ) => {
-    if (!currentUser || (currentUser.role !== 'owner' && !currentUser.permissions.student.edit))
+    if (!currentUser || teacherAccount || (currentUser.role !== 'owner' && !currentUser.permissions.student.edit))
       return false;
     if (!isCalendarDate(returnDate)) {
       showAlert('Ngày đăng ký không hợp lệ.');

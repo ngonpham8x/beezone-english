@@ -26,7 +26,8 @@ import { validateRecurringChanges, addDays, formatShortDate, weekDatesForDate } 
 import { formatDateForDisplay } from '../../lib/dates';
 import type { AttendanceSession, ScheduleChange, StaffPermissions } from '../../types';
 import { academicPermission } from '../../lib/permissions';
-import { ClassRoom, Room, Teacher, TimetableSlot } from '../../types';
+import { isTeachingRole, linkedTeacherId } from '../../lib/accountScope';
+import { ClassRoom, Room, Teacher, TimetableSlot, UserAccount } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
 
 interface TeacherScheduleMatrixProps {
@@ -39,6 +40,7 @@ interface TeacherScheduleMatrixProps {
   isOwner?: boolean;
   canManage?: boolean;
   permissions?: StaffPermissions;
+  currentUser?: UserAccount;
   onAddSlot?: (slot: TimetableSlot) => void;
   onSaveSlots?: (slots: TimetableSlot[]) => string | null;
   onUpdateSlot?: (slot: TimetableSlot) => void;
@@ -60,15 +62,16 @@ const normaliseTime = (value: string) => {
 };
 
 export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
-  teachers,
-  timetableSlots,
-  classes,
-  rooms,
-  scheduleChanges,
-  attendanceSessions = [],
+  teachers: sourceTeachers,
+  timetableSlots: sourceTimetableSlots,
+  classes: sourceClasses,
+  rooms: sourceRooms,
+  scheduleChanges: sourceScheduleChanges,
+  attendanceSessions: sourceAttendanceSessions = [],
   isOwner = false,
   canManage = false,
   permissions,
+  currentUser,
   onAddSlot,
   onSaveSlots,
   onUpdateSlot,
@@ -79,6 +82,35 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   onCreateTeacher,
   onCreateRoom,
 }) => {
+  const teacherAccount = isTeachingRole(currentUser?.role);
+  const ownTeacherId = teacherAccount ? linkedTeacherId(currentUser, sourceTeachers) : undefined;
+  const teachers = teacherAccount
+    ? sourceTeachers.filter((teacher) => teacher.id === ownTeacherId)
+    : sourceTeachers;
+  const timetableSlots = teacherAccount
+    ? sourceTimetableSlots.filter((slot) => slot.teacherId === ownTeacherId)
+    : sourceTimetableSlots;
+  const scheduleChanges = teacherAccount
+    ? (sourceScheduleChanges || []).filter((change) =>
+        change.teacherId === ownTeacherId || change.substituteTeacherId === ownTeacherId)
+    : sourceScheduleChanges;
+  const visibleClassIds = new Set([
+    ...timetableSlots.map((slot) => slot.classId),
+    ...(scheduleChanges || []).map((change) => change.classId),
+  ]);
+  const classes = teacherAccount
+    ? sourceClasses.filter((classroom) => visibleClassIds.has(classroom.id))
+    : sourceClasses;
+  const visibleRoomIds = new Set([
+    ...classes.map((classroom) => classroom.roomId),
+    ...(scheduleChanges || []).map((change) => change.roomId),
+  ]);
+  const rooms = teacherAccount
+    ? sourceRooms.filter((room) => visibleRoomIds.has(room.id))
+    : sourceRooms;
+  const attendanceSessions = teacherAccount
+    ? sourceAttendanceSessions.filter((session) => visibleClassIds.has(session.classId))
+    : sourceAttendanceSessions;
   const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
   const todayDay = days[(new Date(`${centerDate()}T12:00:00`).getDay() + 6) % 7];
   const [selectedDay, setSelectedDay] = useResponsiveView<string>(todayDay, 'all');
@@ -89,9 +121,9 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   const handleCurrentWeek = () => setActiveDate(centerDate());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const canEdit = isOwner || (permissions ? academicPermission(permissions, 'classes', 'edit') : canManage);
-  const canAdd = isOwner || (permissions ? academicPermission(permissions, 'classes', 'add') : canManage);
-  const canDelete = isOwner || (permissions ? academicPermission(permissions, 'classes', 'delete') : canManage);
+  const canEdit = !teacherAccount && (isOwner || (permissions ? academicPermission(permissions, 'classes', 'edit') : canManage));
+  const canAdd = !teacherAccount && (isOwner || (permissions ? academicPermission(permissions, 'classes', 'add') : canManage));
+  const canDelete = !teacherAccount && (isOwner || (permissions ? academicPermission(permissions, 'classes', 'delete') : canManage));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null);
@@ -348,9 +380,9 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             teachers={teachers}
             rooms={rooms}
             attendance={attendanceSessions}
-            permissions={permissions}
-            isOwner={isOwner}
-            canManage={canManage}
+            permissions={teacherAccount ? undefined : permissions}
+            isOwner={teacherAccount ? false : isOwner}
+            canManage={teacherAccount ? false : canManage}
             selectedDate={activeDate}
             onSelectDate={setActiveDate}
             onSave={onSaveChange || (() => 'Chỉ Chủ trung tâm được đổi lịch.')}
@@ -416,7 +448,9 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
             Bảng Lịch Giảng Dạy Giáo Viên (Excel Grid View)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Trực quan hóa ca dạy của tất cả giáo viên dưới dạng Ma Trận Excel chuẩn. Bạn có thể thêm, chỉnh sửa hoặc xóa ca dạy trực tiếp tại đây.
+            {teacherAccount
+              ? 'Chỉ hiển thị lịch dạy của tài khoản giáo viên đang đăng nhập, gồm cả ca dạy thay đã được phân công.'
+              : 'Trực quan hóa ca dạy của tất cả giáo viên dưới dạng Ma Trận Excel chuẩn. Bạn có thể thêm, chỉnh sửa hoặc xóa ca dạy trực tiếp tại đây.'}
           </p>
         </div>
 
@@ -438,6 +472,12 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
           </button>
         </div>
       </div>
+
+      {teacherAccount && !ownTeacherId && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900 print:hidden">
+          Tài khoản chưa được liên kết với hồ sơ giáo viên. Hành chính hoặc Đào tạo cần gán đúng hồ sơ giáo viên trong mục Cấp quyền.
+        </div>
+      )}
 
       {/* Day Selector Bar & Scroll Shortcuts */}
       <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5 print:hidden">

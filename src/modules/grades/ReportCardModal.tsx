@@ -25,6 +25,7 @@ interface ReportCardModalProps {
   settings: CenterSettings;
   onClose: () => void;
   onUpdateGrade?: (updatedGrade: Grade) => void;
+  showPersonalInfo?: boolean;
 }
 
 export const ReportCardModal: React.FC<ReportCardModalProps> = ({
@@ -35,11 +36,12 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
   program,
   settings,
   onClose,
-  onUpdateGrade
+  onUpdateGrade,
+  showPersonalInfo = true,
 }) => {
   const defaultFeedback =
     grade.comment ||
-    student.notes?.trim() ||
+    (showPersonalInfo ? student.notes?.trim() : '') ||
     `Em ${student.name} có thái độ học tập nghiêm túc, tích cực đóng góp trong các giờ thảo luận nhóm. Kỹ năng Nghe và Nói có tiến bộ vượt bậc so với đầu khóa. Cần duy trì thói quen luyện nghe tin tức tiếng Anh hằng ngày và mở rộng thêm vốn từ vựng học thuật để sẵn sàng cho cấp độ tiếp theo.`;
 
   const [feedback, setFeedback] = useState(defaultFeedback);
@@ -218,7 +220,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
                       {student.code}
                     </span>
                   </div>
-                  {student.dob && (
+                  {showPersonalInfo && student.dob && (
                     <div>
                       <span className="text-slate-500 text-[10px] print:text-[9px] font-medium block">Ngày sinh:</span>
                       <span className="font-bold text-slate-800 text-xs print:text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200">

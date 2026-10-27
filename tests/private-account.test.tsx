@@ -442,7 +442,7 @@ it.each([true, false])('confirms owner promotion above the editor and reports it
   }
 });
 
-it('opens edit permissions dialog for a user, allows batch selection and updates permissions', async () => {
+it('opens edit permissions dialog and keeps a legacy staff account inside the teacher ceiling', async () => {
   const staffMember = {
     id: 'staff-edit',
     email: 'staffedit@example.test',
@@ -513,15 +513,17 @@ it('opens edit permissions dialog for a user, allows batch selection and updates
   // Success message is displayed
   const update = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')?.[1];
   const grants = JSON.parse(String(update?.body)).permissions;
-  expect(Object.values(grants.academic).every(value => value === true)).toBe(true);
-  expect(grants.academic.classesAdd).toBe(true);
-  expect(grants.academic.classesEdit).toBe(true);
-  expect(grants.academic.classesDelete).toBe(true);
-  expect(grants.teacher.add).toBe(true);
-  expect(grants.student.add).toBe(true);
+  expect(Object.values(grants.academic).every(value => value === false)).toBe(true);
+  expect(grants.academic.classesAdd).toBe(false);
+  expect(grants.academic.classesEdit).toBe(false);
+  expect(grants.academic.classesDelete).toBe(false);
+  expect(grants.teacher.add).toBe(false);
+  expect(grants.student.add).toBe(false);
   expect(grants.teacher.edit).toBe(true);
-  expect(grants.teacher.delete).toBe(true);
-  expect(grants.tuition.delete).toBe(true);
+  expect(grants.teacher.delete).toBe(false);
+  expect(grants.tuition.delete).toBe(false);
+  expect(grants.grade.view).toBe(true);
+  expect(grants.grade.edit).toBe(true);
   expect(await screen.findByText(/Cập nhật cấp quyền thành công cho tài khoản "Staff To Edit"!/)).toBeTruthy();
   // Edit dialog is closed
   expect(screen.queryByRole('dialog', { name: /Sửa quyền Staff To Edit/ })).toBeNull();

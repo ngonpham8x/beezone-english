@@ -2,7 +2,7 @@ import { adminApi } from '../../server/admin.js';
 import { hiddenAccountsForViewer } from '../../server/accountVisibility.js';
 import { json } from '../../server/request.js';
 import { accountRoleLabel, normalizeAccountRole } from '../../src/lib/accountRoles.js';
-import { createStaffPermissions, normalizeStaffPermissions } from '../../src/lib/permissions.js';
+import { createStaffPermissions, normalizeRolePermissions } from '../../src/lib/permissions.js';
 import type { AccountRole, UserRole } from '../../src/types.js';
 
 const OWNER_PERMISSIONS = createStaffPermissions(true);
@@ -13,7 +13,7 @@ type AccountAuditAction =
   | 'ACCOUNT_LOCKED'
   | 'ACCOUNT_UNLOCKED';
 
-function permissionSummary(permissions: ReturnType<typeof createStaffPermissions>) {
+function permissionSummary(permissions: ReturnType<typeof createStaffPermissions>, role?: AccountRole) {
   const labels: Record<string, Record<string, string>> = {
     student: {
       view: 'xem học viên',
@@ -36,6 +36,7 @@ function permissionSummary(permissions: ReturnType<typeof createStaffPermissions
   };
   const granted = Object.entries(labels).flatMap(([module, actions]) =>
     Object.entries(actions)
+      .filter(([action]) => !(role === 'teacher' && module === 'teacher' && action === 'edit'))
       .filter(([action]) => (permissions[module as keyof typeof permissions] as Record<string, boolean>)?.[action] === true)
       .map(([, label]) => label),
   );
@@ -123,7 +124,7 @@ export default adminApi(
       }
 
       const permissions =
-        role === 'owner' ? OWNER_PERMISSIONS : normalizeStaffPermissions(body.permissions);
+        role === 'owner' ? OWNER_PERMISSIONS : normalizeRolePermissions(role, body.permissions);
       const { data: existing, error: existingError } = await client
         .from('profiles')
         .select('*')
@@ -159,7 +160,7 @@ export default adminApi(
           .eq('id', existing.id);
         if (profileUpdateError)
           return json(res, 500, { error: 'Không thể cập nhật quyền cho tài khoản.' });
-        const details = `Cập nhật cấp bậc: ${accountRoleLabel(existing.role)} → ${accountRoleLabel(role)}. ${role === 'owner' ? 'Cấp toàn quyền Chủ trung tâm.' : permissionSummary(permissions)}`;
+        const details = `Cập nhật cấp bậc: ${accountRoleLabel(existing.role)} → ${accountRoleLabel(role)}. ${role === 'owner' ? 'Cấp toàn quyền Chủ trung tâm.' : permissionSummary(permissions, role)}`;
         const auditRecorded = await writeAccountAudit(client, {
           action: 'ACCOUNT_UPDATED',
           actorId: callerId,
@@ -230,7 +231,7 @@ export default adminApi(
         targetId: provisionedUser.user.id,
         targetName: fullName,
         targetRole: role,
-        details: `Cấp quyền Google mới: ${accountRoleLabel(role)}. ${role === 'owner' ? 'Cấp toàn quyền Chủ trung tâm.' : permissionSummary(permissions)}`,
+        details: `Cấp quyền Google mới: ${accountRoleLabel(role)}. ${role === 'owner' ? 'Cấp toàn quyền Chủ trung tâm.' : permissionSummary(permissions, role)}`,
       });
       if (!auditRecorded) {
         const removed = await compensate(() =>
@@ -322,8 +323,6 @@ export default adminApi(
         return json(res, 400, { error: 'ID tài khoản không hợp lệ.' });
       }
       const newRole: AccountRole | null = normalizeAccountRole(body.role);
-      const permissions =
-        newRole === 'owner' ? OWNER_PERMISSIONS : normalizeStaffPermissions(body.permissions);
       const { data: target, error: targetError } = await client
         .from('profiles')
         .select('id, full_name, role, is_active, permissions, is_private')
@@ -332,8 +331,10 @@ export default adminApi(
       if (targetError || !target) return json(res, 404, { error: 'Không tìm thấy tài khoản.' });
       if (target.is_private === true || hiddenAccountIds.has(target.id))
         return json(res, 404, { error: 'Tài khoản không có trong danh sách quản lý.' });
-
-      const finalRole = newRole || target.role;
+      const finalRole = normalizeAccountRole(newRole || target.role) || 'teacher';
+      const permissions = finalRole === 'owner'
+        ? OWNER_PERMISSIONS
+        : normalizeRolePermissions(finalRole, body.permissions);
       if (!callerIsOwner && (userId === callerId || target.role === 'owner' || finalRole === 'owner')) {
         return json(res, 403, { error: 'Hành chính không được thay đổi tài khoản này.' });
       }
@@ -352,7 +353,7 @@ export default adminApi(
       }
 
       const updates: any = {
-        permissions: finalRole === 'owner' ? OWNER_PERMISSIONS : permissions,
+        permissions,
       };
       if (newRole) updates.role = newRole;
 
@@ -369,7 +370,7 @@ export default adminApi(
         targetId: userId,
         targetName: target.full_name || 'Tài khoản BeeZone',
         targetRole: finalRole,
-        details: `Cập nhật cấp bậc và quyền: ${accountRoleLabel(finalRole)}. ${finalRole === 'owner' ? 'Toàn quyền Chủ trung tâm.' : permissionSummary(permissions)}`,
+        details: `Cập nhật cấp bậc và quyền: ${accountRoleLabel(finalRole)}. ${finalRole === 'owner' ? 'Toàn quyền Chủ trung tâm.' : permissionSummary(permissions, finalRole)}`,
       });
       if (!auditRecorded) {
         const restored = await compensate(() =>

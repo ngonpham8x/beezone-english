@@ -89,11 +89,11 @@ it('does not reload business data or erase unsaved edits when the same session r
   expect(state.centerReads).toBe(1); expect(screen.getByText('Edited locally')).toBeTruthy();
   await waitFor(() => expect(state.writes.some(payload => payload.students[0].name === 'Edited locally')).toBe(true), { timeout: 3000 });
 });
-it('refreshes changed staff grants on return without reloading edited data or duplicating focus checks', async () => {
+it('refreshes changed administrative grants on return without reloading edited data or duplicating focus checks', async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Edit student' }));
-  state.profileRole = 'staff';
+  state.profileRole = 'admin';
   state.profilePermissions = { student: { view: true, add: false, edit: true } };
   const now = Date.now();
   const time = vi.spyOn(Date, 'now').mockReturnValue(now + 4000);

@@ -1,4 +1,5 @@
 import { academicPermission } from '../../lib/permissions';
+import { isTeachingRole, studentsVisibleToAccount } from '../../lib/accountScope';
 import { showAlert } from '../../lib/dialogs';
 import { nextStudentCode } from '../../lib/identifiers';
 import { ConfirmedForm } from '../../components/ConfirmedForm';
@@ -50,6 +51,7 @@ import {
   Teacher,
   TimetableSlot,
   TuitionReceipt,
+  UserAccount,
 } from '../../types';
 import { FeeStatusBadge } from './FeeStatusBadge';
 import { StudentStatusBadge } from './StudentStatusBadge';
@@ -68,6 +70,7 @@ interface StudentManagerProps {
   attendanceSessions?: AttendanceSession[];
   permissions: StaffPermissions;
   isOwner: boolean;
+  currentUser?: UserAccount;
   searchQuery: string;
   onAddStudent: (newStudent: Student) => void;
   onUpdateStudent: (updatedStudent: Student) => void;
@@ -95,6 +98,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   attendanceSessions = [],
   permissions,
   isOwner,
+  currentUser,
   searchQuery,
   onAddStudent,
   onUpdateStudent,
@@ -424,19 +428,29 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     setReEnrollingStudent(null);
   };
 
-  const canAdd = isOwner || permissions.student.add;
-  const canEdit = isOwner || permissions.student.edit;
-  const canDelete = isOwner || permissions.student.delete;
+  const teacherAccount = isTeachingRole(currentUser?.role);
+  const canAdd = !teacherAccount && (isOwner || permissions.student.add);
+  const canEdit = !teacherAccount && (isOwner || permissions.student.edit);
+  const canDelete = !teacherAccount && (isOwner || permissions.student.delete);
   // Báo cáo workbook có cả dữ liệu học phí, nên chỉ quyền Excel mới được mở.
-  const canExport = isOwner || permissions.excel.import || permissions.excel.export;
-  const canViewTuition = isOwner || Boolean(permissions.tuition?.view);
-  const canViewContactInfo = isOwner || Boolean(permissions.student?.edit || permissions.tuition?.view);
+  const canExport = !teacherAccount && (isOwner || permissions.excel.import || permissions.excel.export);
+  const canViewTuition = !teacherAccount && (isOwner || Boolean(permissions.tuition?.view));
+  const canViewContactInfo = !teacherAccount && (isOwner || Boolean(permissions.student?.edit || permissions.tuition?.view));
+  const accessibleStudents = teacherAccount
+    ? studentsVisibleToAccount(currentUser, students, classes, teachers)
+    : students;
   const debtForStudent = (student: Student) => canViewTuition ? studentTuitionDebtBreakdown(student, receipts, programs, classes) : { monthly: 0, course: 0, session: 0, total: 0 };
 
   // Filtered list
-  const filteredStudents = students.filter(s => {
-    const matchesSearch =
-      matchesSearchText(searchQuery, s.name, s.code, s.phone, s.parentName, s.parentPhone, studentClassNames(s, classes), ...classes.filter(c => isStudentInClass(s, c.id)).map(c => c.code));
+  const filteredStudents = accessibleStudents.filter(s => {
+    const matchesSearch = matchesSearchText(
+      searchQuery,
+      s.name,
+      s.code,
+      ...(canViewContactInfo ? [s.phone, s.parentName, s.parentPhone] : []),
+      studentClassNames(s, classes),
+      ...classes.filter(c => isStudentInClass(s, c.id)).map(c => c.code),
+    );
 
     const matchesProgram = filterProgram === 'all' || s.programId === filterProgram || classes.some(c => isStudentInClass(s, c.id) && c.programId === filterProgram);
     const matchesClass = filterClass === 'all' || isStudentInClass(s, filterClass);
@@ -579,7 +593,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             Quản Lý Học Sinh
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Hiển thị {filteredStudents.length} / {students.length} học sinh toàn trung tâm
+            {teacherAccount
+              ? `Hiển thị ${filteredStudents.length} / ${accessibleStudents.length} học viên thuộc lớp được phân công`
+              : `Hiển thị ${filteredStudents.length} / ${students.length} học sinh toàn trung tâm`}
           </p>
         </div>
 
@@ -616,9 +632,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       </div>
 
       <div className="stats-grid">
-        <StatCard label="Tổng học sinh" value={students.length + ' HS'} icon={Users} />
-        <StatCard label="Đang theo học" value={students.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
-        <StatCard label="Đang bảo lưu" value={students.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
+        <StatCard label={teacherAccount ? 'Học viên lớp phụ trách' : 'Tổng học sinh'} value={accessibleStudents.length + ' HS'} icon={Users} />
+        <StatCard label="Đang theo học" value={accessibleStudents.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
+        <StatCard label="Đang bảo lưu" value={accessibleStudents.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
         {canViewTuition && (
           <StatCard label="Chưa hoàn thành học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
         )}
@@ -688,7 +704,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 <tr>
                   <th className="py-3.5 px-4 sticky left-0 bg-slate-800 z-20 min-w-[110px]">{t('student.table_code')}</th>
                   <th className="py-3.5 px-4 sticky left-[110px] bg-slate-800 z-20 shadow-r border-r border-slate-700 min-w-[200px]">{t('student.table_name')}</th>
-                  <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_grade_school')}</th>
+                  {canViewContactInfo && (
+                    <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_grade_school')}</th>
+                  )}
                   <th className="py-3.5 px-4 min-w-[160px]">{t('student.table_program_class')}</th>
                   {canViewContactInfo && (
                     <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_phone')}</th>
@@ -703,7 +721,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               <tbody className="divide-y divide-slate-100 font-medium">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={4 + (canViewContactInfo ? 1 : 0) + (canViewTuition ? 1 : 0) + 2} className="py-8 text-center text-slate-400">
+                    <td colSpan={5 + (canViewContactInfo ? 2 : 0) + (canViewTuition ? 1 : 0)} className="py-8 text-center text-slate-400">
                       {t('student.no_matching')}
                     </td>
                   </tr>
@@ -729,15 +747,19 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             />
                             <div>
                               <div className="font-bold text-slate-900 text-sm">{st.name}</div>
-                              <div className="text-[10px] text-slate-500">{st.gender === 'Nam' ? (language === 'vi' ? 'Nam' : 'Male') : (st.gender === 'Nữ' ? (language === 'vi' ? 'Nữ' : 'Female') : (language === 'vi' ? 'Chưa xác định' : 'Unspecified'))} • {language === 'vi' ? 'NS' : 'DOB'}: {st.dob || '—'}</div>
+                              {canViewContactInfo && (
+                                <div className="text-[10px] text-slate-500">{st.gender === 'Nam' ? (language === 'vi' ? 'Nam' : 'Male') : (st.gender === 'Nữ' ? (language === 'vi' ? 'Nữ' : 'Female') : (language === 'vi' ? 'Chưa xác định' : 'Unspecified'))} • {language === 'vi' ? 'NS' : 'DOB'}: {st.dob || '—'}</div>
+                              )}
                             </div>
                           </div>
                         </td>
 
-                        <td className="py-3 px-4">
-                          <div className="text-slate-800 font-medium">{st.gradeLevel}</div>
-                          <div className="text-[11px] text-slate-500">{st.school}</div>
-                        </td>
+                        {canViewContactInfo && (
+                          <td className="py-3 px-4">
+                            <div className="text-slate-800 font-medium">{st.gradeLevel}</div>
+                            <div className="text-[11px] text-slate-500">{st.school}</div>
+                          </td>
+                        )}
 
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-800">
@@ -899,9 +921,11 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             <StudentStatusBadge status={st.status} />
                           </div>
                           <h3 className="font-bold text-slate-900 text-base mt-1">{st.name}</h3>
-                          <div className="text-[11px] text-slate-500 font-medium">
-                            {st.gradeLevel} • {st.school}
-                          </div>
+                          {canViewContactInfo && (
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              {st.gradeLevel} • {st.school}
+                            </div>
+                          )}
                         </div>
                       </div>
 

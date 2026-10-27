@@ -2,6 +2,7 @@ import React from 'react';
 import { isStudentInClass } from '../../lib/studentClasses';
 import { centerDate } from '../../lib/dates';
 import { addDays, lessonsOn, tuitionDueStatus } from '../../lib/operations';
+import { isTeachingRole } from '../../lib/accountScope';
 import type {
   AttendanceSession,
   ClassRoom,
@@ -44,6 +45,7 @@ export function TodayTasks({
 }: Props) {
   const today = centerDate();
   const owner = user.role === 'owner';
+  const teacherAccount = isTeachingRole(user.role);
   const studentView = owner || user.permissions.student.view;
   const teacher = teachers.find(
     (t) =>
@@ -60,7 +62,7 @@ export function TodayTasks({
   );
   const lessons = lessonsOn(today, visible, slots, changes);
   const due =
-    owner || (user.permissions.tuition.view && user.permissions.tuition.showDebt)
+    !teacherAccount && (owner || (user.permissions.tuition.view && user.permissions.tuition.showDebt))
       ? receipts
           .filter((r) => ['overdue', 'soon'].includes(tuitionDueStatus(r, today)))
           .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))
@@ -114,7 +116,7 @@ export function TodayTasks({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(owner || user.permissions.student.add) && (
+          {!teacherAccount && (owner || user.permissions.student.add) && (
             <button
               onClick={() => onOpen({ tab: 'admissions' })}
               className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950"
@@ -149,7 +151,7 @@ export function TodayTasks({
               })
             : empty,
         )}
-        {(owner || (user.permissions.tuition.view && user.permissions.tuition.showDebt)) &&
+        {!teacherAccount && (owner || (user.permissions.tuition.view && user.permissions.tuition.showDebt)) &&
           tile(
             `Học phí cần nhắc (${due.length})`,
             due.length
@@ -183,13 +185,15 @@ export function TodayTasks({
                   >
                     <strong>{s.name}</strong>
                     <span className="block text-xs">
-                      Liên hệ phụ huynh · {s.parentPhone || s.phone || 'Chưa có số điện thoại'}
+                      {teacherAccount
+                        ? 'Theo dõi tình hình nghỉ học trong lớp phụ trách'
+                        : `Liên hệ phụ huynh · ${s.parentPhone || s.phone || 'Chưa có số điện thoại'}`}
                     </span>
                   </button>
                 ))
               : empty,
           )}
-        {studentView &&
+        {studentView && !teacherAccount &&
           tile(
             `Đợt học sắp kết thúc (${ending.length})`,
             ending.length

@@ -21,6 +21,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { UserAccount } from '../types';
+import { isTeachingRole } from '../lib/accountScope';
 export const NAVIGATION_GROUPS = [
   {
     title: 'TỔNG QUAN & ĐIỂM DANH',
@@ -99,9 +100,30 @@ export const VALID_TABS = new Set<string>(
 export const isTabId = (value: string): value is TabId => VALID_TABS.has(value);
 
 export const canAccessTab = (tab: string, user: UserAccount): tab is TabId => {
-  if (!VALID_TABS.has(tab)) return false;
+  if (!VALID_TABS.has(tab) || !user.active) return false;
   if (user.role === 'owner') return true;
   const permissions = user.permissions;
+
+  // A teacher rank has a fixed navigation ceiling. Custom/legacy permission
+  // flags cannot reopen admissions, catalog management, other staff, rooms,
+  // the centre timetable, finance, reports or system tools.
+  if (isTeachingRole(user.role)) {
+    switch (tab) {
+      case 'dashboard':
+      case 'work':
+        return true;
+      case 'students':
+        return permissions.student.view;
+      case 'attendance':
+        return permissions.student.view || permissions.teacher.view;
+      case 'teacher-schedule':
+        return true;
+      case 'grades':
+        return permissions.grade.view || permissions.grade.edit;
+      default:
+        return false;
+    }
+  }
 
   switch (tab) {
     case 'dashboard':
