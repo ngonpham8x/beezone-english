@@ -188,6 +188,7 @@ export function BeeZoneWork({
   const [historyMode, setHistoryMode] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus | 'handover'>('all');
+  const [branchFilter, setBranchFilter] = useState<'all' | Branch>('all');
   const [busy, setBusy] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
@@ -212,6 +213,10 @@ export function BeeZoneWork({
         const parsed = JSON.parse(raw);
         if (parsed.admin === 'Việc hôm nay · Hành chính / Lễ tân') {
           parsed.admin = 'Việc hôm nay · Hành chính';
+        }
+        if (parsed.training === 'Việc giáo viên theo lớp' && !parsed.teacher) {
+          parsed.training = 'Việc chuyên môn · Đào tạo';
+          parsed.teacher = 'Việc giảng dạy · Giáo viên';
         }
         return { ...defaultSettings(), ...parsed };
       }
@@ -274,7 +279,7 @@ export function BeeZoneWork({
   const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
   const [quickPersonName, setQuickPersonName] = useState('');
   const [quickPersonEmail, setQuickPersonEmail] = useState('');
-  const [quickPersonDept, setQuickPersonDept] = useState<string>('Đào tạo / Giáo viên');
+  const [quickPersonDept, setQuickPersonDept] = useState<string>('Giáo viên');
   const [quickPersonPhone, setQuickPersonPhone] = useState('');
 
   // Custom shift form state (inside Task Editor modal)
@@ -480,23 +485,35 @@ export function BeeZoneWork({
     }
   };
 
-  // Phân quyền nhánh:
-  // - "Nhánh giao việc hành chính sẽ thấy đầy đủ." -> canSeeAdminBranch = true
-  // - "Đào tạo Và giáo viên không thấy công việc hành chính." -> canSeeAdminBranch = false
-  // Use the verified profile and grants; a display name or email never grants access.
+  // Phân quyền theo 3 nhóm việc (Hành chính - Đào tạo - Giáo viên):
+  // - Chủ trung tâm (manager) & Hành chính (admin): xem đầy đủ cả 3 nhóm (Hành chính, Đào tạo, Giáo viên) + Bàn giao
+  // - Đào tạo (trainer): xem nhóm Đào tạo, Giáo viên + Bàn giao (không thấy việc Hành chính)
+  // - Giáo viên (teacher): xem nhóm Giáo viên, Bàn giao + việc được phân công cho mình
   const canSeeAdminBranch = role === 'manager' || role === 'admin';
+  const canSeeTrainingBranch = role === 'manager' || role === 'admin' || role === 'trainer';
 
   const accessibleTasks = useMemo(() => {
     if (canSeeAdminBranch) return tasks;
-    // Đào tạo và giáo viên chỉ thấy việc đào tạo / giáo viên hoặc các việc được bàn giao ca
-    return tasks.filter((t) => t.branch === 'training' || t.needs_handover);
-  }, [tasks, canSeeAdminBranch]);
+    if (role === 'trainer') {
+      return tasks.filter((t) => t.branch === 'training' || t.branch === 'teacher' || t.needs_handover);
+    }
+    // Giáo viên chỉ thấy việc thuộc nhóm giáo viên, việc được giao cho mình hoặc cần bàn giao
+    return tasks.filter(
+      (t) =>
+        t.branch === 'teacher' ||
+        t.assigned_uid === currentUser?.id ||
+        (currentUser?.permissions?.teacherId && t.assigned_uid === currentUser.permissions.teacherId) ||
+        t.needs_handover,
+    );
+  }, [tasks, canSeeAdminBranch, role, currentUser?.id, currentUser?.permissions?.teacherId]);
 
   // Filtered tasks for Daily view
   const dailyTasks = useMemo(() => {
     return accessibleTasks.filter((t) => {
       // Date filter
       if (day && t.work_date !== day) return false;
+      // Branch filter (Hành chính / Đào tạo / Giáo viên)
+      if (branchFilter !== 'all' && t.branch !== branchFilter) return false;
       // Search
       if (search.trim()) {
         const q = search.trim().toLowerCase();
@@ -523,7 +540,7 @@ export function BeeZoneWork({
       }
       return true;
     });
-  }, [accessibleTasks, day, search, statusFilter, people]);
+  }, [accessibleTasks, day, branchFilter, search, statusFilter, people]);
 
   // Stats
   const stats = useMemo(() => {
@@ -536,13 +553,17 @@ export function BeeZoneWork({
     };
   }, [accessibleTasks, day]);
 
-  // Columns
+  // Phân chia 3 nhóm công việc rạch ròi: Hành chính - Đào tạo - Giáo viên + Bàn giao
   const adminTasks = useMemo(
     () => dailyTasks.filter((t) => t.branch === 'admin'),
     [dailyTasks],
   );
   const trainingTasks = useMemo(
     () => dailyTasks.filter((t) => t.branch === 'training'),
+    [dailyTasks],
+  );
+  const teacherTasks = useMemo(
+    () => dailyTasks.filter((t) => t.branch === 'teacher'),
     [dailyTasks],
   );
   const handoverTasks = useMemo(
@@ -660,17 +681,21 @@ export function BeeZoneWork({
       setEditorTask(null);
       setIsCustomShift(false);
       setCustomShiftNote('');
-      const targetBranch: Branch = canSeeAdminBranch ? 'admin' : 'training';
+      const targetBranch: Branch = canSeeAdminBranch ? 'admin' : (role === 'trainer' ? 'training' : 'teacher');
       const targetAssignee =
         targetBranch === 'admin'
           ? selectablePeople.find((p) => p.email === 'phonghanhchinh.beezone@gmail.com')?.user_id ||
             selectablePeople.find((p) => p.branch === 'admin')?.user_id ||
             selectablePeople[0]?.user_id ||
             ''
-          : selectablePeople.find((p) => p.email === 'phongdaotao.beezone@gmail.com')?.user_id ||
-            selectablePeople.find((p) => p.branch === 'training')?.user_id ||
-            selectablePeople[0]?.user_id ||
-            '';
+          : targetBranch === 'training'
+            ? selectablePeople.find((p) => p.email === 'phongdaotao.beezone@gmail.com')?.user_id ||
+              selectablePeople.find((p) => p.branch === 'training')?.user_id ||
+              selectablePeople[0]?.user_id ||
+              ''
+            : selectablePeople.find((p) => p.branch === 'teacher' || p.role === 'teacher')?.user_id ||
+              selectablePeople[0]?.user_id ||
+              '';
       setForm({
         ...initialForm,
         branch: targetBranch,
@@ -692,18 +717,24 @@ export function BeeZoneWork({
       return;
     }
     const branch: Branch =
-      quickPersonDept === 'Đào tạo / Giáo viên' ? 'training' : 'admin';
-    const role: WorkRole =
-      quickPersonDept === 'Đào tạo / Giáo viên'
+      quickPersonDept === 'Giáo viên'
         ? 'teacher'
-        : quickPersonDept === 'Chủ trung tâm'
-          ? 'manager'
+        : quickPersonDept === 'Đào tạo'
+          ? 'training'
           : 'admin';
+    const role: WorkRole =
+      quickPersonDept === 'Giáo viên'
+        ? 'teacher'
+        : quickPersonDept === 'Đào tạo'
+          ? 'trainer'
+          : quickPersonDept === 'Chủ trung tâm'
+            ? 'manager'
+            : 'admin';
     const newPerson: WorkPerson = {
       user_id: `person-${Date.now()}`,
       display_name: trimmedName,
       email: trimmedEmail || null,
-      department: quickPersonDept === 'Đào tạo / Giáo viên' ? 'Giáo viên' : quickPersonDept,
+      department: quickPersonDept,
       branch,
       role,
       phone: quickPersonPhone.trim() || undefined,
@@ -964,7 +995,7 @@ export function BeeZoneWork({
         `Trung tâm Anh ngữ BeeZone gửi đến anh/chị công việc sau:\n\n` +
         `• Công việc: ${t.title}\n` +
         `• Người thực hiện: ${p.display_name} (${p.email || 'Chưa có email'})\n` +
-        `• Bộ phận: ${t.branch === 'admin' ? 'Hành chính' : 'Đào tạo / Giáo viên'}\n` +
+        `• Bộ phận: ${t.branch === 'admin' ? 'Hành chính' : t.branch === 'training' ? 'Đào tạo' : 'Giáo viên'}\n` +
         (t.class_label ? `• Lớp: ${t.class_label}\n` : '') +
         `• Ngày thực hiện: ${dateVN(t.work_date)} — ${t.shift_label}\n` +
         `• Trạng thái: ${statusName[t.status]}\n` +
@@ -1245,7 +1276,7 @@ export function BeeZoneWork({
             <small>✉ {p.email || 'Chưa có email'}</small>
           </div>
           <span className="bzw-dept">
-            {p.department || (t.branch === 'admin' ? 'Hành chính' : 'Giáo viên')}
+            {p.department || (t.branch === 'admin' ? 'Hành chính' : t.branch === 'training' ? 'Đào tạo' : 'Giáo viên')}
           </span>
         </div>
 
@@ -1588,6 +1619,19 @@ export function BeeZoneWork({
                 <option value="handover">Cần bàn giao</option>
               </select>
             </div>
+            <div className="bzw-status-wrap">
+              <select
+                className="bzw-status-select"
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value as 'all' | Branch)}
+                aria-label="Lọc theo bộ phận"
+              >
+                <option value="all">Tất cả nhóm việc</option>
+                {canSeeAdminBranch && <option value="admin">Hành chính</option>}
+                {canSeeTrainingBranch && <option value="training">Đào tạo</option>}
+                <option value="teacher">Giáo viên</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -1631,8 +1675,9 @@ export function BeeZoneWork({
                 onChange={(e) => setHistoryBranch(e.target.value as any)}
               >
                 <option value="all">Tất cả được phép xem</option>
-                <option value="admin">Hành chính</option>
-                <option value="training">Đào tạo / Giáo viên</option>
+                {canSeeAdminBranch && <option value="admin">Hành chính</option>}
+                {canSeeTrainingBranch && <option value="training">Đào tạo</option>}
+                <option value="teacher">Giáo viên</option>
               </select>
             </div>
 
@@ -1664,7 +1709,7 @@ export function BeeZoneWork({
                   <div className="bzw-badges">
                     <span className="bzw-chip done">Hoàn thành</span>
                     <span className="bzw-chip">
-                      {t.branch === 'admin' ? 'Hành chính' : 'Đào tạo / Giáo viên'}
+                      {t.branch === 'admin' ? 'Hành chính' : t.branch === 'training' ? 'Đào tạo' : 'Giáo viên'}
                     </span>
                     {t.class_label && <span className="bzw-chip">Lớp {t.class_label}</span>}
                   </div>
@@ -1711,8 +1756,8 @@ export function BeeZoneWork({
 
       {/* WORKFLOW COLUMNS */}
       {!historyMode && (
-        <div className={`bzw-sections ${canSeeAdminBranch ? 'bzw-sections-three' : 'bzw-sections-two'}`}>
-          {/* Column 1: Hành chính (Chỉ hiển thị cho nhánh Hành chính & Quản lý) */}
+        <div className={`bzw-sections ${canSeeAdminBranch ? 'bzw-sections-four' : (role === 'trainer' ? 'bzw-sections-three' : 'bzw-sections-two')}`}>
+          {/* Cột 1: Hành chính (Chỉ hiển thị cho Quản lý & Hành chính) */}
           {canSeeAdminBranch && (
             <section className="bzw-section">
               <div className="bzw-section-head">
@@ -1734,7 +1779,49 @@ export function BeeZoneWork({
             </section>
           )}
 
-          {/* Column 2: Bàn giao cuối ca / cuối buổi */}
+          {/* Cột 2: Đào tạo (Chuyên môn, học vụ, thời khóa biểu) */}
+          {canSeeTrainingBranch && (
+            <section className="bzw-section">
+              <div className="bzw-section-head">
+                <div>
+                  <h2>📘 {settings.training}</h2>
+                  <small>Học vụ, chuyên môn, đề cương, xếp lớp</small>
+                </div>
+                <span className="bzw-count">{trainingTasks.length}</span>
+              </div>
+              <div className="bzw-stack">
+                {trainingTasks.length === 0 ? (
+                  <div className="bzw-no-data">
+                    <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+                  </div>
+                ) : (
+                  trainingTasks.map((t) => renderTaskCard(t, false))
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Cột 3: Giáo viên (Giảng dạy trên lớp, bài tập, nhận xét) */}
+          <section className="bzw-section">
+            <div className="bzw-section-head">
+              <div>
+                <h2>🟩 {settings.teacher || 'Việc giảng dạy · Giáo viên'}</h2>
+                <small>Giáo viên tích hoàn thành và ghi chú cuối buổi</small>
+              </div>
+              <span className="bzw-count">{teacherTasks.length}</span>
+            </div>
+            <div className="bzw-stack">
+              {teacherTasks.length === 0 ? (
+                <div className="bzw-no-data">
+                  <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
+                </div>
+              ) : (
+                teacherTasks.map((t) => renderTaskCard(t, false))
+              )}
+            </div>
+          </section>
+
+          {/* Cột 4: Bàn giao cuối ca / cuối buổi */}
           <section className="bzw-section">
             <div className="bzw-section-head">
               <div>
@@ -1761,26 +1848,6 @@ export function BeeZoneWork({
               >
                 📋 Sao chép nội dung bàn giao
               </button>
-            </div>
-          </section>
-
-          {/* Column 3: Việc giáo viên theo lớp */}
-          <section className="bzw-section">
-            <div className="bzw-section-head">
-              <div>
-                <h2>🟩 {settings.training}</h2>
-                <small>Giáo viên tích hoàn thành và ghi chú cuối buổi</small>
-              </div>
-              <span className="bzw-count">{trainingTasks.length}</span>
-            </div>
-            <div className="bzw-stack">
-              {trainingTasks.length === 0 ? (
-                <div className="bzw-no-data">
-                  <span className="bzw-symbol">📭</span>Không có công việc phù hợp.
-                </div>
-              ) : (
-                trainingTasks.map((t) => renderTaskCard(t, false))
-              )}
             </div>
           </section>
         </div>
@@ -1934,13 +2001,13 @@ export function BeeZoneWork({
                   />
                 </div>
 
-                {/* HÀNG 3: NHÁNH CÔNG VIỆC & NGƯỜI THỰC HIỆN */}
+                {/* HÀNG 3: NHÓM CÔNG VIỆC & NGƯỜI THỰC HIỆN */}
                 <div className="bzw-field">
-                  <label htmlFor="m_branch">Nhánh công việc *</label>
+                  <label htmlFor="m_branch">Nhóm / Nhánh công việc *</label>
                   <select
                     id="m_branch"
                     value={form.branch}
-                    disabled={!canSeeAdminBranch}
+                    disabled={role === 'teacher'}
                     onChange={(e) => {
                       const newBranch = e.target.value as Branch;
                       let nextAssignee = form.assigned_uid;
@@ -1961,6 +2028,10 @@ export function BeeZoneWork({
                           )?.user_id ||
                           selectablePeople.find((p) => p.branch === 'training')?.user_id ||
                           nextAssignee;
+                      } else if (newBranch === 'teacher' && curPerson?.branch !== 'teacher') {
+                        nextAssignee =
+                          selectablePeople.find((p) => p.branch === 'teacher' || p.role === 'teacher')?.user_id ||
+                          nextAssignee;
                       }
                       setForm({
                         ...form,
@@ -1970,11 +2041,17 @@ export function BeeZoneWork({
                     }}
                   >
                     {canSeeAdminBranch && <option value="admin">Hành chính</option>}
-                    <option value="training">Đào tạo / Giáo viên</option>
+                    {canSeeTrainingBranch && <option value="training">Đào tạo</option>}
+                    <option value="teacher">Giáo viên</option>
                   </select>
-                  {!canSeeAdminBranch && (
+                  {role === 'trainer' && (
                     <small style={{ color: '#64748b', fontSize: 11, marginTop: 3, display: 'block' }}>
-                      Nhánh Đào tạo phụ trách giao việc cho Giáo viên các lớp.
+                      Bộ phận Đào tạo phụ trách việc chuyên môn và phân công cho Giáo viên các lớp.
+                    </small>
+                  )}
+                  {role === 'teacher' && (
+                    <small style={{ color: '#64748b', fontSize: 11, marginTop: 3, display: 'block' }}>
+                      Tài khoản Giáo viên giao việc trong nhóm giảng dạy.
                     </small>
                   )}
                 </div>
@@ -2062,7 +2139,8 @@ export function BeeZoneWork({
                             value={quickPersonDept}
                             onChange={(e) => setQuickPersonDept(e.target.value)}
                           >
-                            <option value="Đào tạo / Giáo viên">Đào tạo / Giáo viên</option>
+                            <option value="Giáo viên">Giáo viên</option>
+                            <option value="Đào tạo">Đào tạo</option>
                             <option value="Hành chính">Hành chính</option>
                             <option value="Chủ trung tâm">Chủ trung tâm / Quản lý</option>
                           </select>
@@ -2142,18 +2220,25 @@ export function BeeZoneWork({
 
                       const classTeacher = teachers.find((t) => t.id === cls.teacherId);
                       let nextAssignee = form.assigned_uid;
-                      if (classTeacher && form.branch === 'training') {
+                      let nextBranch = form.branch;
+                      if (classTeacher) {
                         const matched = people.find(
                           (p) =>
                             p.teacherId === classTeacher.id ||
                             p.user_id === classTeacher.id ||
                             p.display_name === classTeacher.name,
                         );
-                        if (matched) nextAssignee = matched.user_id;
+                        if (matched) {
+                          nextAssignee = matched.user_id;
+                          if (form.branch !== 'admin') {
+                            nextBranch = 'teacher';
+                          }
+                        }
                       }
 
                       setForm((prev) => ({
                         ...prev,
+                        branch: nextBranch,
                         classId: cls.id,
                         class_label: cls.name,
                         shift_label: shiftTime || prev.shift_label,
@@ -2955,7 +3040,7 @@ export function BeeZoneWork({
                           `Trung tâm Anh ngữ BeeZone gửi đến anh/chị công việc sau:\n\n` +
                           `• Công việc: ${emailTask.title}\n` +
                           `• Người thực hiện: ${p.display_name} (${p.email || 'Chưa có email'})\n` +
-                          `• Bộ phận: ${emailTask.branch === 'admin' ? 'Hành chính' : 'Đào tạo / Giáo viên'}\n` +
+                          `• Bộ phận: ${emailTask.branch === 'admin' ? 'Hành chính' : emailTask.branch === 'training' ? 'Đào tạo' : 'Giáo viên'}\n` +
                           (emailTask.class_label ? `• Lớp: ${emailTask.class_label}\n` : '') +
                           `• Ngày thực hiện: ${dateVN(emailTask.work_date)} — ${emailTask.shift_label}\n` +
                           `• Trạng thái: ${statusName[emailTask.status]}\n` +
@@ -3207,7 +3292,7 @@ export function BeeZoneWork({
                     display_name: '',
                     email: '',
                     department: 'Giáo viên',
-                    branch: 'training',
+                    branch: 'teacher',
                     role: 'teacher',
                     active: true,
                   })
@@ -3282,7 +3367,8 @@ export function BeeZoneWork({
                   }
                 >
                   <option value="admin">Hành chính</option>
-                  <option value="training">Đào tạo / Giáo viên</option>
+                  <option value="training">Đào tạo</option>
+                  <option value="teacher">Giáo viên</option>
                 </select>
               </div>
             </div>
@@ -3353,12 +3439,22 @@ export function BeeZoneWork({
                 </div>
 
                 <div className="bzw-field">
-                  <label htmlFor="set_train">Khung việc Giáo viên</label>
+                  <label htmlFor="set_train">Khung việc Đào tạo</label>
                   <input
                     id="set_train"
                     type="text"
                     value={settings.training}
                     onChange={(e) => setSettings({ ...settings, training: e.target.value })}
+                  />
+                </div>
+
+                <div className="bzw-field">
+                  <label htmlFor="set_teacher">Khung việc Giáo viên</label>
+                  <input
+                    id="set_teacher"
+                    type="text"
+                    value={settings.teacher || 'Việc giảng dạy · Giáo viên'}
+                    onChange={(e) => setSettings({ ...settings, teacher: e.target.value })}
                   />
                 </div>
 

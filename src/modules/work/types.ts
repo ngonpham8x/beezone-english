@@ -1,4 +1,4 @@
-export type Branch = 'admin' | 'training';
+export type Branch = 'admin' | 'training' | 'teacher';
 export type TaskStatus = 'todo' | 'progress' | 'unfinished' | 'done';
 export type TaskPriority = 'normal' | 'high';
 export type WorkRole = 'manager' | 'admin' | 'trainer' | 'teacher';
@@ -112,6 +112,7 @@ export interface WorkSettings {
   admin: string;
   handover: string;
   training: string;
+  teacher?: string;
   accent: string;
   compact: boolean;
   customFields: CustomFieldDef[];

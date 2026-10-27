@@ -185,7 +185,7 @@ describe('BeeZoneWork Module', () => {
     expect(await screen.findByText('Giáo viên cập nhật tiến độ lớp Kiddy')).toBeTruthy();
     expect(screen.getByText('Giáo viên đã cập nhật nội dung mới nhất.')).toBeTruthy();
     expect(screen.getByText(/Phòng đào tạo đang theo dõi tiến độ/i)).toBeTruthy();
-    expect(screen.getByText(/Việc giáo viên theo lớp/i)).toBeTruthy();
+    expect(screen.getByText(/Việc chuyên môn · Đào tạo/i)).toBeTruthy();
   });
 
   it('refreshes the assignee directory after an account permission change', async () => {
@@ -258,6 +258,7 @@ describe('BeeZoneWork Module', () => {
     expect(getAssignableWorkPeople(people, 'training').map((person) => person.user_id)).toEqual([
       'owner', 'staff', 'trainer', 'teacher',
     ]);
+    expect(getAssignableWorkPeople(people, 'teacher').map((person) => person.user_id)).toEqual(['teacher']);
   });
 
   it('sends one atomic server sync with the expected task versions', async () => {
@@ -305,7 +306,9 @@ describe('BeeZoneWork Module', () => {
     });
     expect(screen.queryByText(/Việc hôm nay · Hành chính/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
-    expect((screen.getByLabelText(/Nhánh công việc/i) as HTMLSelectElement).value).toBe('training');
+    const branchVal = (screen.getByLabelText(/Nhóm|Nhánh công việc/i) as HTMLSelectElement).value;
+    expect(['training', 'teacher']).toContain(branchVal);
+    expect(branchVal).not.toBe('admin');
   });
 
   it('refreshes the assignee list when the center adds a teacher', async () => {
@@ -318,7 +321,7 @@ describe('BeeZoneWork Module', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
-    fireEvent.change(screen.getByLabelText(/Nhánh công việc/i), { target: { value: 'training' } });
+    fireEvent.change(screen.getByLabelText(/Nhóm|Nhánh công việc/i), { target: { value: 'training' } });
     fireEvent.click(screen.getByLabelText(/Người thực hiện/i));
 
     await waitFor(() => {
@@ -419,7 +422,7 @@ describe('BeeZoneWork Module', () => {
     fireEvent.change(titleInput, { target: { value: 'Chấm bài kiểm tra định kỳ Kindy 1' } });
 
     // Select branch: Đào tạo / Giáo viên
-    const branchSelect = screen.getByLabelText(/Nhánh công việc/i);
+    const branchSelect = screen.getByLabelText(/Nhóm|Nhánh công việc/i);
     fireEvent.change(branchSelect, { target: { value: 'training' } });
 
     // Select assignee: Cô Mai Linh
@@ -619,10 +622,12 @@ describe('BeeZoneWork Module', () => {
 
     expect(screen.getByText('Tạo công việc mới')).toBeTruthy();
 
-    // Check branch options: "Hành chính" only (no "Lễ tân")
-    const branchSelect = screen.getByLabelText(/Nhánh công việc/i) as HTMLSelectElement;
+    // Check branch options: "Hành chính", "Đào tạo", "Giáo viên"
+    const branchSelect = screen.getByLabelText(/Nhóm|Nhánh công việc/i) as HTMLSelectElement;
     const branchOptionTexts = Array.from(branchSelect.options).map((o) => o.textContent);
     expect(branchOptionTexts).toContain('Hành chính');
+    expect(branchOptionTexts).toContain('Đào tạo');
+    expect(branchOptionTexts).toContain('Giáo viên');
     expect(branchOptionTexts).not.toContain('Hành chính / Lễ tân');
 
     // Check assignee options
@@ -777,15 +782,18 @@ describe('BeeZoneWork Module', () => {
     expect(screen.queryByText(/Việc hôm nay · Hành chính/i)).toBeNull();
 
     // Training column header should be present
-    expect(screen.getByText(/Việc giáo viên theo lớp/i)).toBeTruthy();
+    expect(screen.getByText(/Việc chuyên môn · Đào tạo/i)).toBeTruthy();
 
-    // When clicking Create task, the branch should be locked to Training
+    // When clicking Create task, training staff can assign to Training or Teacher, but not Admin
     fireEvent.click(screen.getByRole('button', { name: /Tạo công việc/i }));
 
-    const branchSelect = screen.getByLabelText(/Nhánh công việc/i) as HTMLSelectElement;
-    expect(branchSelect.disabled).toBe(true);
+    const branchSelect = screen.getByLabelText(/Nhóm|Nhánh công việc/i) as HTMLSelectElement;
     expect(branchSelect.value).toBe('training');
-    expect(screen.getByText(/Nhánh Đào tạo phụ trách giao việc cho Giáo viên các lớp/i)).toBeTruthy();
+    const branchOptionValues = Array.from(branchSelect.options).map((o) => o.value);
+    expect(branchOptionValues).toContain('training');
+    expect(branchOptionValues).toContain('teacher');
+    expect(branchOptionValues).not.toContain('admin');
+    expect(screen.getByText(/Bộ phận Đào tạo phụ trách việc chuyên môn và phân công cho Giáo viên/i)).toBeTruthy();
 
     // Verify Nguyen Bich Nhu and Cao Duong Bich Tuyen are also assignable in Training branch
     fireEvent.click(screen.getByLabelText(/Người thực hiện/i));
@@ -793,5 +801,149 @@ describe('BeeZoneWork Module', () => {
     expect(trainingAssignees.some((txt) => txt.includes('nhu.beezone@gmail.com'))).toBe(true);
     expect(trainingAssignees.some((txt) => txt.includes('vgen8642@gmail.com'))).toBe(true);
     expect(trainingAssignees.some((txt) => txt.includes('phongdaotao.beezone@gmail.com'))).toBe(true);
+  });
+
+  it('clearly separates work into 3 distinct groups: Hanh Chinh - Dao Tao - Giao Vien', async () => {
+    const today = localISODate();
+    saveLocalWorkData({
+      tasks: [
+        {
+          id: 'task-admin-1',
+          title: 'Soát sổ quỹ tiền mặt cơ sở 1',
+          description: 'Hành chính kiểm tra cuối ca',
+          branch: 'admin',
+          assigned_uid: DEV_OWNER_ACCOUNT.id,
+          work_date: today,
+          shift_label: 'Ca tối',
+          class_label: '',
+          priority: 'normal',
+          status: 'todo',
+          needs_handover: false,
+          completed_at: null,
+          email_sent_at: null,
+          email_sent_to: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 'task-training-1',
+          title: 'Soạn đề thi giữa kỳ Starter',
+          description: 'Đào tạo chuẩn bị giáo trình',
+          branch: 'training',
+          assigned_uid: 'acc-daotao',
+          work_date: today,
+          shift_label: 'Ca sáng',
+          class_label: '',
+          priority: 'high',
+          status: 'progress',
+          needs_handover: false,
+          completed_at: null,
+          email_sent_at: null,
+          email_sent_to: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 'task-teacher-1',
+          title: 'Nhận xét và chấm bài lớp Kiddy 3D',
+          description: 'Giáo viên gửi nhận xét buổi học',
+          branch: 'teacher',
+          assigned_uid: mockTeacher.id,
+          work_date: today,
+          shift_label: 'Ca chiều',
+          class_label: mockClass.name,
+          priority: 'normal',
+          status: 'todo',
+          needs_handover: false,
+          completed_at: null,
+          email_sent_at: null,
+          email_sent_to: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      notes: [],
+      reasons: [],
+      handoffs: [],
+    });
+
+    const { rerender } = render(
+      <BeeZoneWork
+        currentUser={DEV_OWNER_ACCOUNT}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    // 1. Manager/Admin sees 4 column headers: Hành chính, Đào tạo, Giáo viên, Bàn giao
+    expect(screen.getByText(/Việc hôm nay · Hành chính/i)).toBeTruthy();
+    expect(screen.getByText(/Việc chuyên môn · Đào tạo/i)).toBeTruthy();
+    expect(screen.getByText(/Việc giảng dạy · Giáo viên/i)).toBeTruthy();
+    expect(screen.getByText(/Bàn giao cuối ca \/ cuối buổi/i)).toBeTruthy();
+
+    // 2. All 3 tasks appear on the board
+    expect(await screen.findByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeTruthy();
+    expect(screen.getByText('Soạn đề thi giữa kỳ Starter')).toBeTruthy();
+    expect(screen.getByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeTruthy();
+
+    // 3. Test filtering by group
+    const filterSelect = screen.getByLabelText(/Lọc theo bộ phận/i) as HTMLSelectElement;
+    expect(filterSelect).toBeTruthy();
+
+    // Filter to Hành chính only
+    fireEvent.change(filterSelect, { target: { value: 'admin' } });
+    expect(screen.getByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeTruthy();
+    expect(screen.queryByText('Soạn đề thi giữa kỳ Starter')).toBeNull();
+    expect(screen.queryByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeNull();
+
+    // Filter to Đào tạo only
+    fireEvent.change(filterSelect, { target: { value: 'training' } });
+    expect(screen.queryByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeNull();
+    expect(screen.getByText('Soạn đề thi giữa kỳ Starter')).toBeTruthy();
+    expect(screen.queryByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeNull();
+
+    // Filter to Giáo viên only
+    fireEvent.change(filterSelect, { target: { value: 'teacher' } });
+    expect(screen.queryByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeNull();
+    expect(screen.queryByText('Soạn đề thi giữa kỳ Starter')).toBeNull();
+    expect(screen.getByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeTruthy();
+
+    // Reset filter
+    fireEvent.change(filterSelect, { target: { value: 'all' } });
+
+    // 4. Test Teacher perspective: only sees Giáo viên and Handover, no Hành chính or Đào tạo
+    const teacherAccount: UserAccount = {
+      ...DEV_OWNER_ACCOUNT,
+      id: mockTeacher.id,
+      name: mockTeacher.name,
+      email: mockTeacher.email || 'teacher@beezone.edu.vn',
+      avatar: '',
+      role: 'teacher',
+      active: true,
+      permissions: {
+        ...DEV_OWNER_ACCOUNT.permissions,
+        teacherId: mockTeacher.id,
+        assignedClassIds: [mockClass.id],
+      },
+    };
+
+    rerender(
+      <BeeZoneWork
+        currentUser={teacherAccount}
+        teachers={[mockTeacher]}
+        classes={[mockClass]}
+        programs={[mockProgram]}
+        supabaseClient={null}
+      />,
+    );
+
+    expect(screen.queryByText(/Việc hôm nay · Hành chính/i)).toBeNull();
+    expect(screen.queryByText(/Việc chuyên môn · Đào tạo/i)).toBeNull();
+    expect(screen.getByText(/Việc giảng dạy · Giáo viên/i)).toBeTruthy();
+    expect(screen.getByText(/Bàn giao cuối ca \/ cuối buổi/i)).toBeTruthy();
+    expect(screen.getByText('Nhận xét và chấm bài lớp Kiddy 3D')).toBeTruthy();
+    expect(screen.queryByText('Soát sổ quỹ tiền mặt cơ sở 1')).toBeNull();
   });
 });

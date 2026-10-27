@@ -97,7 +97,11 @@ export function getAssignableWorkPeople(
   branch: Branch,
 ): WorkPerson[] {
   if (branch === 'admin') {
-    return people.filter((person) => person.role === 'manager' || person.role === 'admin');
+    return people.filter((person) => person.role === 'manager' || person.role === 'admin' || person.branch === 'admin');
+  }
+  if (branch === 'teacher') {
+    const teachersOnly = people.filter((person) => person.role === 'teacher' || person.branch === 'teacher' || Boolean(person.teacherId));
+    return teachersOnly.length > 0 ? teachersOnly : people;
   }
   return people;
 }
@@ -168,7 +172,7 @@ export function loadCachedManagedUsers(): WorkPerson[] {
               display_name: u.full_name || u.name || u.email || 'Nhân sự BeeZone',
               email: u.email,
               department: accountRoleLabel(accountRole),
-              branch: (workRole === 'trainer' || workRole === 'teacher' ? 'training' : 'admin') as Branch,
+              branch: (workRole === 'teacher' ? 'teacher' : workRole === 'trainer' ? 'training' : 'admin') as Branch,
               role: workRole,
               active: u.is_active ?? true,
               teacherId: u.permissions?.teacherId,
@@ -235,7 +239,7 @@ export function buildWorkPeople(
       display_name: currentUser.name || currentUser.email || 'Quản lý trung tâm',
       email: currentUser.email || null,
       department: userRole === 'teacher' ? 'Giáo viên' : userRole === 'trainer' ? 'Đào tạo' : 'Hành chính',
-      branch: userRole === 'teacher' || userRole === 'trainer' ? 'training' : 'admin',
+      branch: userRole === 'teacher' ? 'teacher' : userRole === 'trainer' ? 'training' : 'admin',
       role: userRole,
       active: currentUser.active ?? true,
       teacherId: currentUser.permissions?.teacherId,
@@ -291,7 +295,7 @@ export function buildWorkPeople(
         display_name: t.name,
         email: t.email || null,
         department: 'Giáo viên',
-        branch: 'training',
+        branch: 'teacher',
         phone: t.phone,
         specialty: t.specialty,
         role: 'teacher',
@@ -367,16 +371,22 @@ export interface WorkStorageState {
 function mapServerWorkPeople(rows: Array<Record<string, unknown>>): WorkPerson[] {
   return rows
     .filter((person) => typeof person.user_id === 'string' && person.user_id.length > 0)
-    .map((person) => ({
-      user_id: String(person.user_id),
-      display_name: String(person.display_name || 'Nhân sự BeeZone'),
-      email: typeof person.email === 'string' ? person.email : null,
-      role: person.role as WorkRole,
-      active: Boolean(person.active),
-      department: String(person.department || ''),
-      branch: (person.branch === 'training' ? 'training' : 'admin') as Branch,
-      teacherId: typeof person.teacher_id === 'string' ? person.teacher_id : undefined,
-    }));
+    .map((person) => {
+      const role = person.role as WorkRole;
+      let branch: Branch = 'admin';
+      if (person.branch === 'teacher' || role === 'teacher') branch = 'teacher';
+      else if (person.branch === 'training' || role === 'trainer') branch = 'training';
+      return {
+        user_id: String(person.user_id),
+        display_name: String(person.display_name || 'Nhân sự BeeZone'),
+        email: typeof person.email === 'string' ? person.email : null,
+        role,
+        active: Boolean(person.active),
+        department: String(person.department || (role === 'teacher' ? 'Giáo viên' : role === 'trainer' ? 'Đào tạo' : 'Hành chính')),
+        branch,
+        teacherId: typeof person.teacher_id === 'string' ? person.teacher_id : undefined,
+      };
+    });
 }
 
 export async function fetchWorkPeople(
@@ -392,7 +402,8 @@ export function defaultSettings(): WorkSettings {
     page: 'Giao việc & Bàn giao',
     admin: 'Việc hôm nay · Hành chính',
     handover: 'Bàn giao cuối ca / cuối buổi',
-    training: 'Việc giáo viên theo lớp',
+    training: 'Việc chuyên môn · Đào tạo',
+    teacher: 'Việc giảng dạy · Giáo viên',
     accent: '#ffc627',
     compact: false,
     customFields: [],
@@ -475,18 +486,34 @@ export async function fetchWorkModuleData(
     const error = tasksResult.error || notesResult.error || reasonsResult.error || handoffsResult.error;
     if (error) throw error;
     const serverPeople = mapServerWorkPeople((peopleResult.data || []) as Array<Record<string, unknown>>);
-    const mapTask = (row: Record<string, unknown>): WorkTask => ({
-      ...(row as unknown as WorkTask),
-      id: String(row.id), assigned_uid: String(row.assigned_uid),
-      email_sent_to: typeof row.email_sent_to === 'string'
-        ? (serverPeople.find((person) => person.user_id === row.email_sent_to)?.email || row.email_sent_to)
-        : null,
-      classId: typeof row.class_id === 'string' ? row.class_id : undefined,
-      is_teacher_off: Boolean(row.is_teacher_off),
-      substitute_teacher_id: typeof row.substitute_teacher_id === 'string' ? row.substitute_teacher_id : undefined,
-      schedule_change_id: typeof row.schedule_change_id === 'string' ? row.schedule_change_id : undefined,
-      values: (row.values && typeof row.values === 'object' ? row.values : undefined) as Record<string, string> | undefined,
-    });
+    const mapTask = (row: Record<string, unknown>): WorkTask => {
+      const vals = ((row.custom_values || row.values) && typeof (row.custom_values || row.values) === 'object'
+        ? (row.custom_values || row.values)
+        : undefined) as Record<string, string> | undefined;
+      const rawBranch = String(row.branch || '');
+      let branch: Branch = 'admin';
+      if (rawBranch === 'teacher' || vals?._work_group === 'teacher') {
+        branch = 'teacher';
+      } else if (rawBranch === 'training') {
+        branch = 'training';
+      } else {
+        branch = 'admin';
+      }
+      return {
+        ...(row as unknown as WorkTask),
+        id: String(row.id),
+        assigned_uid: String(row.assigned_uid),
+        branch,
+        email_sent_to: typeof row.email_sent_to === 'string'
+          ? (serverPeople.find((person) => person.user_id === row.email_sent_to)?.email || row.email_sent_to)
+          : null,
+        classId: typeof row.class_id === 'string' ? row.class_id : undefined,
+        is_teacher_off: Boolean(row.is_teacher_off),
+        substitute_teacher_id: typeof row.substitute_teacher_id === 'string' ? row.substitute_teacher_id : undefined,
+        schedule_change_id: typeof row.schedule_change_id === 'string' ? row.schedule_change_id : undefined,
+        values: vals,
+      };
+    };
     const remote = {
       tasks: ((tasksResult.data || []) as Array<Record<string, unknown>>).map(mapTask),
       notes: ((notesResult.data || []) as WorkNote[]).map((note) => ({
@@ -511,9 +538,19 @@ export async function syncWorkModuleData(
   expectedTasks: WorkTask[],
 ): Promise<void> {
   const pendingIds = new Set(state.tasks.filter((task) => task.sync_pending).map((task) => task.id));
+  const sanitizeForDb = (t: WorkTask) => {
+    if (t.branch === 'teacher') {
+      return {
+        ...t,
+        branch: 'training' as Branch,
+        values: { ...(t.values || {}), _work_group: 'teacher' },
+      };
+    }
+    return t;
+  };
   const { error } = await supabase.rpc('bz_work_sync_snapshot', {
-    p_tasks: state.tasks.filter((task) => !task.sync_pending),
-    p_expected_tasks: expectedTasks,
+    p_tasks: state.tasks.filter((task) => !task.sync_pending).map(sanitizeForDb),
+    p_expected_tasks: expectedTasks.map(sanitizeForDb),
     p_notes: state.notes.filter((item) => !pendingIds.has(item.task_id)),
     p_reasons: state.reasons.filter((item) => !pendingIds.has(item.task_id)),
     p_handoffs: state.handoffs.filter((item) => !pendingIds.has(item.task_id)),
