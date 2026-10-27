@@ -5,7 +5,7 @@ import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
 import { lessonsOn, validateRecurringChanges, validateScheduleChange } from '../../lib/operations';
-import { findScheduleConflict } from '../../lib/schedule';
+import { findScheduleConflict, linkedTimetableSlots } from '../../lib/schedule';
 import { canManageAcademic } from '../../lib/permissions';
 import { withClassScheduleSummary } from '../center/model';
 
@@ -38,8 +38,22 @@ export function createScheduleActions({
     if (slots.some(slot => !canManageAcademic(currentUser, 'classes', timetableSlots.some(item => item.id === slot.id) ? 'edit' : 'add'))) return 'Bạn chưa được cấp quyền thêm hoặc sửa lịch học tương ứng.';
     if (!slots.length || new Set(slots.map(slot => slot.id)).size !== slots.length)
       return 'Danh sách ca học trống hoặc trùng mã.';
+    const teacherByClass = new Map<string, string>();
+    for (const slot of slots) {
+      const assignedTeacher = teacherByClass.get(slot.classId);
+      if (assignedTeacher && assignedTeacher !== slot.teacherId)
+        return 'Các ca học định kỳ của cùng một lớp phải dùng cùng giáo viên phụ trách.';
+      teacherByClass.set(slot.classId, slot.teacherId);
+    }
+    if ([...teacherByClass].some(([classId, teacherId]) =>
+      classes.find((classroom) => classroom.id === classId)?.teacherId !== teacherId &&
+      !canManageAcademic(currentUser, 'classes', 'edit')))
+      return 'Cần quyền sửa lớp học để đồng bộ giáo viên phụ trách với thời khóa biểu.';
     const ids = new Set(slots.map(slot => slot.id));
-    const next = [...timetableSlots.filter(slot => !ids.has(slot.id)), ...slots];
+    const next = [...timetableSlots.filter(slot => !ids.has(slot.id)), ...slots].map((slot) => {
+      const teacherId = teacherByClass.get(slot.classId);
+      return teacherId && slot.teacherId !== teacherId ? { ...slot, teacherId } : slot;
+    });
     for (const slot of slots) {
       if (!classes.some(item => item.id === slot.classId) ||
           !teachers.some(item => item.id === slot.teacherId) ||
@@ -47,45 +61,33 @@ export function createScheduleActions({
         return 'Chọn lớp, giáo viên và phòng học đang sử dụng trước khi lưu.';
       if (!['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'].includes(slot.dayOfWeek))
         return 'Ngày trong tuần không hợp lệ.';
-      if (findScheduleConflict(next, slot)) return 'Ca học trùng giờ lớp, giáo viên hoặc phòng; kiểm tra lại các ngày đã chọn.';
     }
-    const issue = validateRecurringChanges(classes, next, scheduleChanges);
+    const classIds = new Set([...teacherByClass.keys(), ...timetableSlots.filter(slot => ids.has(slot.id)).map(slot => slot.classId)]);
+    const nextClasses = classes.map((classroom) => {
+      const teacherId = teacherByClass.get(classroom.id);
+      const linkedClassroom = teacherId ? { ...classroom, teacherId } : classroom;
+      return classIds.has(classroom.id) ? withClassScheduleSummary(linkedClassroom, next) : classroom;
+    });
+    const activeNext = linkedTimetableSlots(nextClasses, next);
+    if (activeNext.some((slot) => findScheduleConflict(activeNext, slot)))
+      return 'Ca học trùng giờ lớp, giáo viên hoặc phòng; kiểm tra lại các ngày đã chọn.';
+    const issue = validateRecurringChanges(nextClasses, next, scheduleChanges);
     if (issue) return issue;
-    const classIds = new Set([...slots.map(slot => slot.classId), ...timetableSlots.filter(slot => ids.has(slot.id)).map(slot => slot.classId)]);
     setTimetableSlots(next);
-    setClasses(previous => previous.map(classroom => classIds.has(classroom.id) ? withClassScheduleSummary(classroom, next) : classroom));
+    setClasses(nextClasses);
     addLog('SỬA', 'Thời khóa biểu', `Lưu ${slots.length} ca học`);
     toast.success(`Đã lưu ${slots.length} ca học.`);
     return null;
   };
   // Timetable Handlers
   const handleAddSlot = (slot: TimetableSlot) => {
-    if (!canManageAcademic(currentUser, 'classes', 'add')) return;
-    const next = [...timetableSlots, slot];
-    setTimetableSlots(next);
-    setClasses((classrooms) =>
-      classrooms.map((classroom) =>
-        classroom.id === slot.classId ? withClassScheduleSummary(classroom, next) : classroom,
-      ),
-    );
-    addLog('THÊM', 'Thời khóa biểu', `Thêm ca học mới vào ${slot.dayOfWeek} (${slot.startTime}-${slot.endTime})`);
-    toast.success(`Thêm ca học mới vào ${slot.dayOfWeek} (${slot.startTime}-${slot.endTime}) thành công!`);
+    const issue = handleSaveSlots([slot]);
+    if (issue) showAlert(issue);
   };
 
   const handleUpdateSlot = (slot: TimetableSlot) => {
-    if (!canManageAcademic(currentUser, 'classes')) return;
-    const oldClassId = timetableSlots.find((s) => s.id === slot.id)?.classId;
-    const next = timetableSlots.map((s) => (s.id === slot.id ? slot : s));
-    setTimetableSlots(next);
-    setClasses((classrooms) =>
-      classrooms.map((classroom) =>
-        classroom.id === slot.classId || classroom.id === oldClassId
-          ? withClassScheduleSummary(classroom, next)
-          : classroom,
-      ),
-    );
-    addLog('SỬA', 'Thời khóa biểu', `Cập nhật ca học vào ${slot.dayOfWeek}`);
-    toast.success(`Cập nhật ca học vào ${slot.dayOfWeek} thành công!`);
+    const issue = handleSaveSlots([slot]);
+    if (issue) showAlert(issue);
   };
 
   const handleDeleteSlot = (id: string) => {
@@ -113,13 +115,29 @@ export function createScheduleActions({
     const previous = timetableSlots.filter(slot => slot.classId === classId);
     if (slots.some(slot => !canManageAcademic(currentUser, 'classes', previous.some(item => item.id === slot.id) ? 'edit' : 'add')) ||
         previous.some(slot => !slots.some(item => item.id === slot.id) && !canManageAcademic(currentUser, 'classes', 'delete'))) return;
+    const teacherIds = new Set(slots.map((slot) => slot.teacherId));
+    if (teacherIds.size > 1) {
+      showAlert('Các ca học định kỳ của cùng một lớp phải dùng cùng giáo viên phụ trách.');
+      return;
+    }
     const next = [...timetableSlots.filter((slot) => slot.classId !== classId), ...slots];
+    const nextClasses = classes.map((classroom) => {
+      if (classroom.id !== classId) return classroom;
+      const teacherId = slots[0]?.teacherId;
+      return withClassScheduleSummary(teacherId ? { ...classroom, teacherId } : classroom, next);
+    });
+    const activeNext = linkedTimetableSlots(nextClasses, next);
+    if (activeNext.some((slot) => findScheduleConflict(activeNext, slot))) {
+      showAlert('Ca học trùng giờ lớp, giáo viên hoặc phòng; kiểm tra lại lịch trước khi lưu.');
+      return;
+    }
+    const issue = validateRecurringChanges(nextClasses, next, scheduleChanges);
+    if (issue) {
+      showAlert(issue);
+      return;
+    }
     setTimetableSlots(next);
-    setClasses((classrooms) =>
-      classrooms.map((classroom) =>
-        classroom.id === classId ? withClassScheduleSummary(classroom, next) : classroom,
-      ),
-    );
+    setClasses(nextClasses);
   };
 
   const handleSaveScheduleChange = (change: ScheduleChange): string | null => {

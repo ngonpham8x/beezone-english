@@ -6,6 +6,8 @@ import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import { academicPermission, createStaffPermissions, normalizeStaffPermissions } from '../src/lib/permissions';
 import { parseCenterData } from '../src/lib/centerData';
 import { normalizeCenterData } from '../src/modules/center/model';
+import { lessonsOn } from '../src/lib/operations';
+import { linkedTimetableSlots } from '../src/lib/schedule';
 import { useCenterStore } from '../src/modules/center/useCenterStore';
 import { createCenterActions } from '../src/modules/center/createCenterActions';
 import type { UserAccount } from '../src/types';
@@ -66,4 +68,76 @@ it('separates teacher creation from editing and class assignment, and preserves 
   act(() => expect(result.current.actions.handleSaveTeacher(teacher)).toBeNull());
   act(() => expect(result.current.actions.handleSaveTeacher({ ...teacher, name: 'Denied' })).toMatch(/chưa có quyền/));
   expect(result.current.store.teachers[0].name).toBe(teacher.name);
+});
+
+it('removes recurring slots everywhere when a teacher is unassigned from a class', () => {
+  const { result } = renderHook(() => useHarness());
+  const assignedTeacher = { ...teacher, assignedClassIds: [classroom.id] };
+  const assignedClass = {
+    ...classroom,
+    teacherId: assignedTeacher.id,
+    roomId: initial.initialRooms[0].id,
+    days: ['Thứ 2'],
+    scheduleTime: 'Thứ 2: 18:00-19:30',
+  };
+  const slot = {
+    id: 'slot-linked',
+    classId: assignedClass.id,
+    teacherId: assignedTeacher.id,
+    roomId: assignedClass.roomId,
+    dayOfWeek: 'Thứ 2',
+    startTime: '18:00',
+    endTime: '19:30',
+  };
+  act(() => result.current.store.applyData(normalizeCenterData({
+    ...empty,
+    teachers: [assignedTeacher],
+    rooms: [initial.initialRooms[0]],
+    classes: [assignedClass],
+    timetableSlots: [slot],
+  })));
+
+  act(() => expect(result.current.actions.handleSaveTeacher({
+    ...assignedTeacher,
+    assignedClassIds: [],
+  })).toBeNull());
+
+  expect(result.current.store.timetableSlots).toEqual([]);
+  expect(result.current.store.classes[0]).toMatchObject({ teacherId: '', days: [], scheduleTime: '' });
+  expect(linkedTimetableSlots(result.current.store.classes, [slot])).toEqual([]);
+  expect(lessonsOn('2026-10-26', result.current.store.classes, [slot])).toEqual([]);
+});
+
+it('blocks unassignment while a dated schedule change still references the recurring slot', () => {
+  const { result } = renderHook(() => useHarness());
+  const assignedTeacher = { ...teacher, assignedClassIds: [classroom.id] };
+  const assignedClass = { ...classroom, teacherId: assignedTeacher.id, roomId: initial.initialRooms[0].id };
+  const slot = { id: 'slot-history', classId: assignedClass.id, teacherId: assignedTeacher.id, roomId: assignedClass.roomId, dayOfWeek: 'Thứ 2', startTime: '18:00', endTime: '19:30' };
+  act(() => result.current.store.applyData(normalizeCenterData({
+    ...empty,
+    teachers: [assignedTeacher], rooms: [initial.initialRooms[0]], classes: [assignedClass], timetableSlots: [slot],
+    scheduleChanges: [{ id: 'change-history', classId: assignedClass.id, sourceSlotId: slot.id, kind: 'cancel', date: '2026-10-26', startTime: slot.startTime, endTime: slot.endTime, teacherId: assignedTeacher.id, roomId: assignedClass.roomId, reason: 'Nghỉ lễ' }],
+  })));
+
+  act(() => expect(result.current.actions.handleSaveTeacher({ ...assignedTeacher, assignedClassIds: [] })).toMatch(/hủy điều chỉnh/));
+  expect(result.current.store.timetableSlots).toEqual([slot]);
+  expect(result.current.store.classes[0].teacherId).toBe(assignedTeacher.id);
+});
+
+it('keeps class assignment and all recurring slots synchronized when a timetable teacher changes', () => {
+  const { result } = renderHook(() => useHarness());
+  const first = { ...teacher, assignedClassIds: [classroom.id] };
+  const second = { ...teacher, id: 'second-teacher', name: 'Second teacher', assignedClassIds: [] };
+  const assignedClass = { ...classroom, teacherId: first.id, roomId: initial.initialRooms[0].id };
+  const baseSlot = { id: 'slot-mon', classId: assignedClass.id, teacherId: first.id, roomId: assignedClass.roomId, dayOfWeek: 'Thứ 2', startTime: '18:00', endTime: '19:30' };
+  const otherSlot = { ...baseSlot, id: 'slot-wed', dayOfWeek: 'Thứ 4' };
+  act(() => result.current.store.applyData(normalizeCenterData({
+    ...empty,
+    teachers: [first, second], rooms: [initial.initialRooms[0]], classes: [assignedClass], timetableSlots: [baseSlot, otherSlot],
+  })));
+
+  act(() => expect(result.current.actions.handleSaveSlots([{ ...baseSlot, teacherId: second.id }])).toBeNull());
+  expect(result.current.store.classes[0].teacherId).toBe(second.id);
+  expect(result.current.store.timetableSlots.every((slot) => slot.teacherId === second.id)).toBe(true);
+  expect(result.current.store.teachers.find((item) => item.id === second.id)?.assignedClassIds).toEqual([assignedClass.id]);
 });

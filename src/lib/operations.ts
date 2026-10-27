@@ -9,7 +9,7 @@ import type {
 } from '../types';
 import { centerDate, isCalendarDate } from './dates';
 import { validSessionRate } from './sessionBilling';
-import { findScheduleConflict, timeMinutes } from './schedule';
+import { findScheduleConflict, linkedTimetableSlots, timeMinutes } from './schedule';
 import { studentClassIds } from './studentClasses';
 
 export const courseStatusLabels = {
@@ -86,7 +86,7 @@ export function lessonsOn(
   changes: ScheduleChange[] = [],
 ): DatedLesson[] {
   if (!isCalendarDate(date)) return [];
-  const result: DatedLesson[] = slots
+  const result: DatedLesson[] = linkedTimetableSlots(classes, slots)
     .filter((slot) => {
       const c = classes.find((item) => item.id === slot.classId);
       return (

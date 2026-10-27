@@ -447,6 +447,33 @@ describe('database migrations and permission enforcement', () => {
       attendanceSessions: [{ id: 'att', classId: 'a', teacherId: 't', date: '2026-10-27', entries: [] }],
     })]);
   });
+  it('rejects a changed recurring slot whose teacher no longer matches the class assignment', async () => {
+    const payload = {
+      ...base,
+      teachers: [
+        { id: 'teacher-a', name: 'Teacher A', assignedClassIds: ['class-a'] },
+        { id: 'teacher-b', name: 'Teacher B', assignedClassIds: [] },
+      ],
+      rooms: [{ id: 'room-a', name: 'Room A', status: 'available' }],
+      classes: [{ id: 'class-a', teacherId: 'teacher-a', roomId: 'room-a', studentIds: [] }],
+      timetableSlots: [{ id: 'slot-a', classId: 'class-a', teacherId: 'teacher-a', roomId: 'room-a', dayOfWeek: 'Thứ 2', startTime: '18:00', endTime: '19:30' }],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    const reassigned = {
+      ...payload,
+      teachers: [
+        { ...payload.teachers[0], assignedClassIds: [] },
+        { ...payload.teachers[1], assignedClassIds: ['class-a'] },
+      ],
+      classes: [{ ...payload.classes[0], teacherId: 'teacher-b' }],
+    };
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(reassigned)]))
+      .rejects.toThrow(/Recurring timetable teacher must match class assignment/);
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({
+      ...reassigned,
+      timetableSlots: [{ ...payload.timetableSlots[0], teacherId: 'teacher-b' }],
+    })]);
+  });
   it('permits enrollment history for a student editor and denies a viewer', async () => {
     const payload = { ...base, students: [{ id: 's', classId: 'a', feeStatus: 'unpaid' }], classes: [{ id: 'a', teacherId: 't', studentIds: ['s'] }] };
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);

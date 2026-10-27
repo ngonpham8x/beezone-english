@@ -26,6 +26,8 @@ const classroom = {
   startDate: '2026-10-01',
   endDate: '2026-12-31',
   courseStatus: 'active' as const,
+  teacherId: 't',
+  roomId: 'r',
 };
 const classes = [classroom, { ...classroom, id: 'b', teacherId: 'other', roomId: 'other' }];
 const slot: TimetableSlot = {
@@ -54,7 +56,7 @@ const move: ScheduleChange = {
 describe('dated lessons and course periods', () => {
   it('protects makeup reservations and source lesson IDs when the weekly timetable changes', () => {
     expect(validateRecurringChanges(classes, [], [move])).toMatch(/Ca học/);
-    const friday = { ...slot, id: 'friday', classId: 'b', dayOfWeek: 'Thứ 6' };
+    const friday = { ...slot, id: 'friday', classId: 'b', dayOfWeek: 'Thứ 6', teacherId: 'other' };
     expect(validateRecurringChanges(classes, [slot, friday], [move])).toMatch(/trùng/);
     expect(validateRecurringChanges(classes, [slot], [move])).toBeNull();
   });
@@ -92,7 +94,7 @@ describe('dated lessons and course periods', () => {
     expect(validateCourse({ ...classroom, totalSessions: 24 })).toBeNull();
   });
   it('checks the actual target date for teacher and room conflicts, allowing adjacent times', () => {
-    const other = { ...slot, id: 'other', classId: 'b', dayOfWeek: 'Thứ 6' };
+    const other = { ...slot, id: 'other', classId: 'b', dayOfWeek: 'Thứ 6', teacherId: 'other' };
     expect(validateScheduleChange(move, classes, [slot, other], [], [])).toMatch(/Trùng/);
     expect(
       validateScheduleChange(
@@ -235,7 +237,13 @@ describe('due dates and enrollment history', () => {
       roomId: 'other',
     };
     expect(
-      validateScheduleChange(teacherOff, classes, [slot, subSlot], [], []),
+      validateScheduleChange(
+        teacherOff,
+        [classes[0], { ...classes[1], teacherId: 'sub_t' }],
+        [slot, subSlot],
+        [],
+        [],
+      ),
     ).toMatch(/trùng giờ/);
 
     // lessonsOn reflects substitute teacher on that date

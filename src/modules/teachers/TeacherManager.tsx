@@ -28,11 +28,12 @@ import { ConfirmModal } from '../../components/ConfirmModal';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useLanguage } from '../../context/LanguageContext';
 import { matchesSearch } from '../../lib/search';
-import { ClassRoom, StaffPermissions, Teacher } from '../../types';
+import { ClassRoom, StaffPermissions, Teacher, TimetableSlot } from '../../types';
 
 interface TeacherManagerProps {
   teachers: Teacher[];
   classes: ClassRoom[];
+  timetableSlots?: TimetableSlot[];
   permissions: StaffPermissions;
   isOwner: boolean;
   searchQuery?: string;
@@ -46,6 +47,7 @@ interface TeacherManagerProps {
 export const TeacherManager: React.FC<TeacherManagerProps> = ({
   teachers,
   classes,
+  timetableSlots = [],
   permissions,
   isOwner,
   searchQuery = '',
@@ -216,7 +218,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
               <div className="bg-slate-50 px-5 py-2.5 border-t border-slate-100 text-[11px] text-slate-500 font-medium flex items-center justify-between">
                 <span className="truncate pr-2">
-                  {t('teacher.schedule')} {teacher.scheduleNotes || (language === 'vi' ? 'Giảng dạy các ca tối T2-T4-T6' : 'Evening sessions Mon-Wed-Fri')}
+                  {t('teacher.schedule')} {teacher.scheduleNotes || (language === 'vi' ? 'Chưa có ghi chú lịch giảng dạy' : 'No teaching schedule note')}
                 </span>
                 <button
                   onClick={() => setViewingTeacherDetails(teacher)}
@@ -298,7 +300,9 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                     Giáo viên hiện chưa được xếp lớp giảng dạy.
                   </div>
                 ) : (
-                  classes.filter(c => c.teacherId === viewingTeacherDetails.id).map(cls => (
+                  classes.filter(c => c.teacherId === viewingTeacherDetails.id).map(cls => {
+                    const classSlots = timetableSlots.filter((slot) => slot.classId === cls.id);
+                    return (
                     <div key={cls.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-amber-300 transition-all">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-slate-900 text-sm">{cls.name}</span>
@@ -306,10 +310,10 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                       </div>
                       <div className="text-xs text-slate-600 space-y-1 mt-2">
                         <div className="flex items-center gap-1.5 text-slate-700">
-                          <Clock className="w-3.5 h-3.5 text-amber-600" /> Ca dạy: <span className="font-bold">{cls.scheduleTime}</span>
+                          <Clock className="w-3.5 h-3.5 text-amber-600" /> Ca dạy: <span className="font-bold">{classSlots.length ? classSlots.map((slot) => `${slot.startTime}-${slot.endTime}`).join(', ') : 'Chưa xếp lịch'}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-700">
-                          <CalendarDays className="w-3.5 h-3.5 text-purple-600" /> Ngày dạy: <span className="font-bold">{cls.days.join(', ')}</span>
+                          <CalendarDays className="w-3.5 h-3.5 text-purple-600" /> Ngày dạy: <span className="font-bold">{classSlots.length ? classSlots.map((slot) => slot.dayOfWeek).join(', ') : 'Chưa xếp lịch'}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
                           <UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Sĩ số: <span className="font-bold text-slate-800">{cls.studentIds ? cls.studentIds.length : 0} / {cls.capacity > 0 ? cls.capacity : 'Chưa cập nhật'} học sinh</span>
@@ -325,7 +329,8 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                         </button>
                       )}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -335,7 +340,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
               <div className="font-bold flex items-center gap-1.5 mb-1">
                 <Calendar className="w-4 h-4 text-amber-700" /> Ghi chú lịch giảng dạy & Yêu cầu ca:
               </div>
-              <div>{viewingTeacherDetails.scheduleNotes || 'Giảng dạy cố định ca tối các ngày Thứ 2, 4, 6 và Thứ 7.'}</div>
+              <div>{viewingTeacherDetails.scheduleNotes || 'Chưa có ghi chú lịch giảng dạy.'}</div>
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-center">

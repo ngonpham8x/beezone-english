@@ -22,3 +22,27 @@ it('selects two classes with checkbox and keyboard controls and permits removing
   submitForm(screen.getByRole('dialog').querySelector('form')!);
   expect(save).toHaveBeenCalledWith(expect.objectContaining({ assignedClassIds: [classes[1].id] }));
 });
+
+it('shows only real schedule data in teacher details and never invents a default evening schedule', () => {
+  const teacher = { ...initial.initialTeachers[0], assignedClassIds: [], scheduleNotes: '' };
+  render(
+    <LanguageProvider>
+      <TeacherManager
+        teachers={[teacher]}
+        classes={[]}
+        timetableSlots={[]}
+        permissions={createStaffPermissions(true)}
+        isOwner
+        onAddTeacher={vi.fn()}
+        onUpdateTeacher={vi.fn()}
+        onDeleteTeacher={vi.fn()}
+        onEditClass={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+  expect(screen.queryByText(/Giảng dạy các ca tối|Giảng dạy cố định ca tối/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết' }));
+  expect(screen.getByText('Các lớp học đang phụ trách (0)')).toBeTruthy();
+  expect(screen.getByText('Giáo viên hiện chưa được xếp lớp giảng dạy.')).toBeTruthy();
+  expect(screen.getAllByText(/Chưa có ghi chú lịch giảng dạy/).length).toBeGreaterThan(0);
+});

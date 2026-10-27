@@ -1,4 +1,20 @@
-import type { TimetableSlot } from '../types.js';
+import type { ClassRoom, TimetableSlot } from '../types.js';
+
+/**
+ * A recurring lesson belongs to the teacher currently assigned on the class.
+ * Keep legacy orphaned slots in backups, but do not treat them as active
+ * lessons after a class was unassigned or reassigned.
+ */
+export function linkedTimetableSlots(
+  classes: readonly Pick<ClassRoom, 'id' | 'teacherId'>[],
+  slots: readonly TimetableSlot[],
+): TimetableSlot[] {
+  const teacherByClass = new Map(classes.map((classroom) => [classroom.id, classroom.teacherId]));
+  return slots.filter((slot) => {
+    const teacherId = teacherByClass.get(slot.classId);
+    return Boolean(teacherId && teacherId === slot.teacherId);
+  });
+}
 export function timeMinutes(value: string): number | null {
   const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return null;

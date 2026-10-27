@@ -1,5 +1,6 @@
 import { canManageAcademic } from '../lib/permissions';
 import { classesVisibleToAccount, isTeachingRole, studentsVisibleToAccount } from '../lib/accountScope';
+import { linkedTimetableSlots } from '../lib/schedule';
 import { supabase } from '../lib/supabase';
 import { lazy, Suspense } from 'react';
 import type { CenterActions } from '../modules/center/createCenterActions';
@@ -151,6 +152,7 @@ export function WorkspaceScreens({
   const { setIsImportExportModalOpen, setIsSettingsModalOpen } = dialogs;
   const { accountAuditError, isAccountAuditLoading, loadAccountAuditLogs, visibleActivityLogs, visibleAccountLogs } = audit;
   const teacherAccount = isTeachingRole(currentUser.role);
+  const activeTimetableSlots = linkedTimetableSlots(classes, timetableSlots);
   const scopedClasses = teacherAccount
     ? classesVisibleToAccount(currentUser, classes, teachers)
     : classes;
@@ -172,8 +174,8 @@ export function WorkspaceScreens({
   const scopedRoomIds = new Set(scopedClasses.map((classroom) => classroom.roomId));
   const scopedRooms = teacherAccount ? rooms.filter((room) => scopedRoomIds.has(room.id)) : rooms;
   const scopedSlots = teacherAccount
-    ? timetableSlots.filter((slot) => scopedClassIds.has(slot.classId))
-    : timetableSlots;
+    ? activeTimetableSlots.filter((slot) => scopedClassIds.has(slot.classId))
+    : activeTimetableSlots;
   const scopedAttendance = teacherAccount
     ? attendanceSessions.filter((session) => scopedClassIds.has(session.classId))
     : attendanceSessions;
@@ -220,7 +222,7 @@ export function WorkspaceScreens({
             classes={classes}
             programs={programs}
             rooms={rooms}
-            timetableSlots={timetableSlots}
+            timetableSlots={activeTimetableSlots}
             scheduleChanges={scheduleChanges}
             onSaveScheduleChange={handleSaveScheduleChange}
             onDeleteScheduleChange={handleDeleteScheduleChange}
@@ -263,6 +265,7 @@ export function WorkspaceScreens({
         <TeacherManager
           teachers={teachers}
           classes={classes}
+          timetableSlots={activeTimetableSlots}
           permissions={currentUser.permissions}
           isOwner={currentUser.role === 'owner'}
           searchQuery={searchQuery}
@@ -285,7 +288,7 @@ export function WorkspaceScreens({
           programs={programs}
           students={students}
           receipts={billingReceipts}
-          timetableSlots={timetableSlots}
+          timetableSlots={activeTimetableSlots}
           permissions={currentUser.permissions}
           isOwner={currentUser.role === 'owner'}
           searchQuery={searchQuery}
@@ -321,7 +324,7 @@ export function WorkspaceScreens({
       return (
         <TimetableManager
           permissions={currentUser.permissions}
-          timetableSlots={timetableSlots}
+          timetableSlots={activeTimetableSlots}
           classes={classes}
           teachers={teachers}
           rooms={rooms}
@@ -342,7 +345,7 @@ export function WorkspaceScreens({
           scheduleChanges={scheduleChanges}
           attendanceSessions={attendanceSessions}
           teachers={teachers}
-          timetableSlots={timetableSlots}
+          timetableSlots={activeTimetableSlots}
           classes={classes}
           rooms={rooms}
           isOwner={currentUser.role === 'owner'}
@@ -363,7 +366,7 @@ export function WorkspaceScreens({
           students={students}
           teachers={teachers}
           attendanceSessions={attendanceSessions}
-          timetableSlots={timetableSlots}
+          timetableSlots={activeTimetableSlots}
           scheduleChanges={scheduleChanges}
           enrollments={enrollments}
           request={taskRequest?.tab === 'attendance' ? taskRequest : null}

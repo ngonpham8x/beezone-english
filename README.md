@@ -9,7 +9,7 @@
 1. Cài Node.js 22.22.2+ hoặc 24.15.0+ (phù hợp yêu cầu của bộ kiểm thử).
 2. Chạy `npm ci` để cài đúng các phiên bản trong `package-lock.json`.
 3. Chạy `npm run dev`. Khi chưa có Supabase, ứng dụng mở **bản xem thử cục bộ**; dữ liệu chỉ lưu trên trình duyệt này.
-4. Để dùng dữ liệu thật, nhập cấu hình Supabase trong `.env.local` theo `.env.example`, chạy các migration theo thứ tự `001`–`026`, rồi khởi động lại server. Với project mới, có thể ghép SQL bằng `node scripts/create-supabase-setup.mjs`; xem [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
+4. Để dùng dữ liệu thật, nhập cấu hình Supabase trong `.env.local` theo `.env.example`, chạy các migration theo thứ tự `001`–`027`, rồi khởi động lại server. Với project mới, có thể ghép SQL bằng `node scripts/create-supabase-setup.mjs`; xem [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## Kiểm tra và build
 

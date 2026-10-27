@@ -34,7 +34,10 @@ export const withClassScheduleSummary = (
   slots: TimetableSlot[],
 ): ClassRoom => {
   const classSlots = slots
-    .filter((slot) => slot.classId === classroom.id)
+    .filter((slot) =>
+      slot.classId === classroom.id &&
+      Boolean(classroom.teacherId) &&
+      slot.teacherId === classroom.teacherId)
     .sort(
       (left, right) =>
         weekDayOrder.indexOf(left.dayOfWeek) - weekDayOrder.indexOf(right.dayOfWeek) ||
@@ -193,7 +196,10 @@ export function normalizeCenterData(data: CenterBackupData): CenterDataPayload {
   const attendanceSessions = data.attendanceSessions || [];
   const receipts = normaliseReceipts(data.receipts);
   const students = reconcileStudentFees(data.students, receipts, attendanceSessions);
-  const classes = reconcileClassStudentIds(data.classes, students);
+  const rosterClasses = reconcileClassStudentIds(data.classes, students);
+  const classes = rosterClasses.map((classroom) =>
+    withClassScheduleSummary(classroom, data.timetableSlots),
+  );
   return {
     ...data,
     sessionBillingVersion: 1,
