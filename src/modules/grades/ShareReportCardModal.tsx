@@ -22,13 +22,15 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { Logo } from '../../components/Logo';
-import { CenterSettings, ClassRoom, CourseProgram, Grade, Student, Teacher } from '../../types';
+import { CenterSettings, ClassRoom, CourseProgram, Grade, GradeSemester, Student, Teacher } from '../../types';
 
 interface ShareReportCardModalProps {
   isOpen: boolean;
   onClose: () => void;
   student: Student;
   grade: Grade;
+  semester?: GradeSemester;
+  customUnits?: { key: string; label: string; isCustom?: boolean }[];
   classroom?: ClassRoom;
   teacher?: Teacher;
   program?: CourseProgram;
@@ -43,6 +45,8 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   onClose,
   student,
   grade,
+  semester,
+  customUnits = [],
   classroom,
   teacher,
   program,
@@ -162,12 +166,35 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     }
   ];
 
-  const skills = [
-    { name: 'Listening (Kỹ năng Nghe)', score: grade.listening, max: 10, desc: 'Khả năng nhận diện ngữ âm, bắt ý chính và từ khóa bài nghe' },
-    { name: 'Speaking (Kỹ năng Nói)', score: grade.speaking, max: 10, desc: 'Phát âm chuẩn IPA, độ lưu loát và phản xạ giao tiếp tự tin' },
-    { name: 'Reading (Kỹ năng Đọc)', score: grade.reading, max: 10, desc: 'Vốn từ vựng phong phú, đọc hiểu ngữ cảnh và cấu trúc đoạn' },
-    { name: 'Writing (Kỹ năng Viết)', score: grade.writing, max: 10, desc: 'Cấu trúc câu, ngữ pháp chính xác và diễn đạt mạch lạc' }
+  const currentSemester = semester || grade.semester || 'GKI';
+  const semesterLabels: Record<string, string> = {
+    GKI: 'GIỮA HỌC KỲ I (MIDTERM 1)',
+    CKI: 'CUỐI HỌC KỲ I (FINAL 1)',
+    GKII: 'GIỮA HỌC KỲ II (MIDTERM 2)',
+    CKII: 'CUỐI HỌC KỲ II (FINAL 2)',
+  };
+
+  const readingWritingVal =
+    grade.readingWriting !== undefined
+      ? grade.readingWriting
+      : ((grade.reading || 0) + (grade.writing || 0)) / 2;
+
+  const examSkills = [
+    { name: 'Listening (Nghe)', score: grade.listening, max: 10, desc: 'Phát âm và bắt từ khóa bài nghe' },
+    { name: 'Speaking (Nói)', score: grade.speaking, max: 10, desc: 'Độ lưu loát và phản xạ giao tiếp tự tin' },
+    { name: 'Reading & Writing (Đọc & Viết)', score: readingWritingVal, max: 10, desc: 'Từ vựng, đọc hiểu và ngữ pháp viết' },
   ];
+
+  const unitLines = customUnits.length > 0
+    ? [
+        `📖 ĐIỂM KIỂM TRA CÁC UNIT (${currentSemester}):`,
+        ...customUnits.map((u) => {
+          const s = grade.unitScores?.[u.key];
+          return `• ${u.label}: ${s !== undefined ? `${s}/10` : '—'}`;
+        }),
+        `────────────────────────────────────────`,
+      ]
+    : [];
 
   // Formatted report text for quick sharing via chat apps
   const reportText = [
@@ -175,20 +202,16 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     `👤 Học viên: ${student.name} (Mã: ${student.code}${dobText ? `, Ngày sinh: ${dobText}` : ''})`,
     `🏫 Lớp học: ${classroom?.name || 'BeeZone'} • Khóa: ${program?.name || 'Tiếng Anh'}`,
     `👩‍🏫 Giáo viên phụ trách: ${teacher?.name || 'Giáo viên BeeZone'}`,
-    `📅 Ngày báo cáo: ${todayStr}`,
+    `📅 Học kỳ: ${currentSemester} (${semesterLabels[currentSemester] || currentSemester}) • Ngày: ${todayStr}`,
     `────────────────────────────────────────`,
-    `📊 KẾT QUẢ ĐÁNH GIÁ 4 KỸ NĂNG:`,
+    ...unitLines,
+    `📊 3 CỘT ĐIỂM THI ĐÁNH GIÁ ${currentSemester}:`,
     `🎧 Listening (Nghe): ${grade.listening}/10`,
     `🗣️ Speaking (Nói): ${grade.speaking}/10`,
-    `📖 Reading (Đọc): ${grade.reading}/10`,
-    `✍️ Writing (Viết): ${grade.writing}/10`,
+    `✍️ Reading & Writing (Đọc & Viết): ${readingWritingVal}/10`,
     `────────────────────────────────────────`,
-    `📝 ĐIỂM THI & ĐÁNH GIÁ TỔNG QUAN:`,
-    `• Điểm Giữa Kỳ: ${grade.midterm}/10`,
-    `• Điểm Cuối Kỳ: ${grade.finalExam}/10`,
-    `• Chuyên cần: ${grade.attendance}/10`,
-    `⭐ ĐIỂM TRUNG BÌNH: ${grade.average}/10`,
-    `🏆 XẾP LOẠI TOÀN KHÓA: ${rank.label}`,
+    `⭐ ĐIỂM TRUNG BÌNH (ĐTB ${currentSemester}): ${grade.average}/10`,
+    `🏆 XẾP LOẠI HỌC KỲ: ${rank.label}`,
     `────────────────────────────────────────`,
     `💬 NHẬN XÉT CỦA GIÁO VIÊN:`,
     `"${feedback}"`,
@@ -453,10 +476,10 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       {/* 2. Main Title */}
       <div className="text-center my-4">
         <h2 className="text-lg sm:text-xl font-black text-slate-950 uppercase tracking-wider">
-          PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP
+          PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP — {currentSemester}
         </h2>
-        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-          STUDENT PROGRESS REPORT & TRANSCRIPT
+        <p className="text-[11px] text-amber-800 font-bold uppercase tracking-widest mt-0.5">
+          {semesterLabels[currentSemester] || currentSemester} • STUDENT PROGRESS REPORT
         </p>
       </div>
 
@@ -523,57 +546,73 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
         </div>
       </div>
 
-      {/* 4. Four Core Language Skills Breakdown */}
-      <div className="mb-4.5">
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <Award className="w-4 h-4 text-amber-600" />
+      {/* 4. Unit Scores Breakdown if any */}
+      {customUnits.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Award className="w-4 h-4 text-amber-600" />
+            <span className="text-xs font-black uppercase text-slate-800 tracking-wider">
+              Kết quả kiểm tra quá trình các UNIT ({currentSemester}):
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+            {customUnits.map((u) => {
+              const score = grade.unitScores?.[u.key];
+              return (
+                <div key={u.key} className="p-2 bg-amber-50/50 rounded-xl border border-amber-200/80">
+                  <span className="text-[10px] font-bold text-slate-600 block truncate" title={u.label}>
+                    {u.label}
+                  </span>
+                  <p className="text-sm font-black text-amber-900 mt-0.5">
+                    {score !== undefined ? `${score}/10` : '—'}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 5. 3 Exam Skills Breakdown */}
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Award className="w-4 h-4 text-red-700" />
           <span className="text-xs font-black uppercase text-slate-800 tracking-wider">
-            Kết quả đánh giá 4 kỹ năng ngôn ngữ:
+            Kết quả 3 cột điểm thi đánh giá {currentSemester}:
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          {skills.map((s) => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {examSkills.map((s) => (
             <div key={s.name} className="p-3 bg-slate-50/70 rounded-xl border border-slate-200 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-bold mb-1.5">
-                <span className="text-slate-800 font-bold">{s.name}</span>
-                <span className="text-sm font-black text-amber-700">{s.score}/10</span>
+                <span className="text-slate-800 font-bold truncate">{s.name}</span>
+                <span className="text-sm font-black text-red-800 shrink-0 ml-1">{s.score}/10</span>
               </div>
-              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-1.5 border border-slate-200/80">
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-1 border border-slate-200/80">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(0, (s.score / s.max) * 100))}%` }}
+                  className="h-full bg-gradient-to-r from-red-600 to-amber-500 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(0, (s.score / 10) * 100))}%` }}
                 />
               </div>
-              <p className="text-[10px] text-slate-500 leading-normal">{s.desc}</p>
+              <p className="text-[10px] text-slate-500 line-clamp-1">{s.desc}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 5. Exam Milestones & Grade Summary */}
-      <div className="grid grid-cols-4 gap-2.5 mb-4 text-center">
-        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-          <span className="text-[10px] font-bold text-slate-500 uppercase block">Giữa Kỳ</span>
-          <p className="text-base font-black text-slate-800 mt-0.5">{grade.midterm}/10</p>
+      {/* 6. Overall Evaluation & Average */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4 text-center">
+        <div className="p-3 bg-amber-50 rounded-xl border-2 border-amber-300 flex items-center justify-between px-5 shadow-2xs">
+          <span className="text-xs font-black text-amber-900 uppercase">
+            ĐIỂM TRUNG BÌNH (ĐTB {currentSemester}):
+          </span>
+          <p className="text-xl font-black text-amber-950">{grade.average}/10</p>
         </div>
-        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-          <span className="text-[10px] font-bold text-slate-500 uppercase block">Cuối Kỳ</span>
-          <p className="text-base font-black text-slate-800 mt-0.5">{grade.finalExam}/10</p>
+        <div className={`p-3 rounded-xl border-2 flex items-center justify-center font-black text-xs uppercase tracking-wide shadow-2xs ${rank.color}`}>
+          🏆 XẾP LOẠI HỌC KỲ: {rank.label}
         </div>
-        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-          <span className="text-[10px] font-bold text-slate-500 uppercase block">Chuyên Cần</span>
-          <p className="text-base font-black text-slate-800 mt-0.5">{grade.attendance}/10</p>
-        </div>
-        <div className="p-2.5 bg-amber-50 rounded-xl border-2 border-amber-400 shadow-2xs">
-          <span className="text-[10px] font-black text-amber-800 uppercase block">Điểm Trung Bình</span>
-          <p className="text-lg font-black text-amber-950 mt-0.5">{grade.average}/10</p>
-        </div>
-      </div>
-
-      {/* 6. Overall Classification Rank Banner */}
-      <div className={`py-2 px-4 rounded-xl border-2 text-center font-black text-xs sm:text-sm mb-4 tracking-wide shadow-2xs ${rank.color}`}>
-        🏆 XẾP LOẠI TOÀN KHÓA: {rank.label}
       </div>
 
       {/* 7. Teacher's Evaluation & Advice */}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GradeManager } from '../src/modules/grades/GradeManager';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { StudentProfileDialog } from '../src/modules/students/StudentProfileDialog';
 import { ShareReviewDialog } from '../src/modules/attendance/ShareReviewDialog';
@@ -9,6 +9,15 @@ import { canShareSessionReview } from '../src/modules/attendance/access';
 import * as initial from '../src/mock/initialData';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
 import type { AttendanceSession, ClassRoom, Grade, Student, UserAccount } from '../src/types';
+
+beforeEach(() => {
+  localStorage.clear();
+  sessionStorage.clear();
+});
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('Teacher comments & grades in StudentProfileDialog', () => {
   const dummyStudent: Student = {
@@ -246,5 +255,119 @@ describe('ShareReviewDialog & permissions', () => {
         comment: 'Bé nắm vững ngữ pháp, cần tự tin hơn khi nói.',
       }),
     );
+  });
+
+  it('switches between GKI, CKI, GKII, CKII semesters and displays corresponding unit columns and GPA label', () => {
+    const onUpdateGrade = vi.fn();
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={[]}
+        teachers={[]}
+        settings={{} as any}
+        permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={onUpdateGrade}
+      />,
+    );
+
+    // Initial semester is GKI: has UNIT 1, UNIT 2, UNIT 3, ĐTBGKI
+    expect(screen.getByText('UNIT 1')).toBeTruthy();
+    expect(screen.getByText('UNIT 2')).toBeTruthy();
+    expect(screen.getByText('UNIT 3')).toBeTruthy();
+    expect(screen.getByText('ĐTBGKI')).toBeTruthy();
+
+    // Switch to CKI
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn học kỳ CKI' }));
+    expect(screen.getByText('UNIT 4')).toBeTruthy();
+    expect(screen.getByText('UNIT 5')).toBeTruthy();
+    expect(screen.getByText('UNIT 6')).toBeTruthy();
+    expect(screen.getByText('ĐTBCKI')).toBeTruthy();
+
+    // Switch to GKII
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn học kỳ GKII' }));
+    expect(screen.getByText('UNIT 7')).toBeTruthy();
+    expect(screen.getByText('UNIT 8')).toBeTruthy();
+    expect(screen.getByText('UNIT 9')).toBeTruthy();
+    expect(screen.getByText('ĐTBGKII')).toBeTruthy();
+
+    // Switch to CKII
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn học kỳ CKII' }));
+    expect(screen.getByText('UNIT 10')).toBeTruthy();
+    expect(screen.getByText('UNIT 11')).toBeTruthy();
+    expect(screen.getByText('UNIT 12')).toBeTruthy();
+    expect(screen.getByText('ĐTBCKII')).toBeTruthy();
+  });
+
+  it('calculates average GPA based on 3 exam columns: Listening, Speaking, Reading & Writing', () => {
+    const onUpdateGrade = vi.fn();
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={[]}
+        teachers={[]}
+        settings={{} as any}
+        permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={onUpdateGrade}
+      />,
+    );
+
+    const listeningInput = screen.getByLabelText(new RegExp(`Nghe - ${dummyStudent.code}`, 'i'));
+    const speakingInput = screen.getByLabelText(new RegExp(`Nói - ${dummyStudent.code}`, 'i'));
+    const readingWritingInput = screen.getByLabelText(new RegExp(`Đọc và Viết - ${dummyStudent.code}`, 'i'));
+
+    expect(listeningInput).toBeTruthy();
+    expect(speakingInput).toBeTruthy();
+    expect(readingWritingInput).toBeTruthy();
+
+    fireEvent.change(listeningInput, { target: { value: '9' } });
+    expect(onUpdateGrade).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listening: 9,
+        semester: 'GKI',
+      }),
+    );
+  });
+
+  it('allows center to add custom grade columns (UNIT ....)', () => {
+    const onUpdateGrade = vi.fn();
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={[]}
+        teachers={[]}
+        settings={{} as any}
+        permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={onUpdateGrade}
+      />,
+    );
+
+    // Click "+ Thêm cột điểm"
+    fireEvent.click(screen.getByRole('button', { name: /\+ Thêm cột điểm/i }));
+    expect(screen.getByText(/Quản Lý & Thêm Cột Điểm/i)).toBeTruthy();
+
+    // Input custom column name
+    const colNameInput = screen.getByPlaceholderText(/VD: UNIT 3.5, Progress Test 1/i);
+    fireEvent.change(colNameInput, { target: { value: 'UNIT 3.5' } });
+
+    // Submit form (button with exact name "Thêm cột điểm")
+    fireEvent.click(screen.getByRole('button', { name: /^Thêm cột điểm$/i }));
+
+    // Close modal
+    fireEvent.click(screen.getByRole('button', { name: /Đóng/i }));
+
+    // Now UNIT 3.5 should appear in the table header
+    expect(screen.getByText('UNIT 3.5')).toBeTruthy();
   });
 });

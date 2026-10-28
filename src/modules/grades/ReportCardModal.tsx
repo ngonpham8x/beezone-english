@@ -13,12 +13,14 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DialogFrame } from '../../components/DialogFrame';
 import { Logo } from '../../components/Logo';
-import { CenterSettings, ClassRoom, CourseProgram, Grade, Student, Teacher } from '../../types';
+import { CenterSettings, ClassRoom, CourseProgram, Grade, GradeSemester, Student, Teacher } from '../../types';
 import { ShareReportCardModal } from './ShareReportCardModal';
 
 interface ReportCardModalProps {
   grade: Grade;
   student: Student;
+  semester?: GradeSemester;
+  customUnits?: { key: string; label: string; isCustom?: boolean }[];
   classroom?: ClassRoom;
   teacher?: Teacher;
   program?: CourseProgram;
@@ -31,6 +33,8 @@ interface ReportCardModalProps {
 export const ReportCardModal: React.FC<ReportCardModalProps> = ({
   grade,
   student,
+  semester,
+  customUnits = [],
   classroom,
   teacher,
   program,
@@ -107,9 +111,17 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
     }
   };
 
+  const currentSemester = semester || grade.semester || 'GKI';
+  const semesterLabels: Record<string, string> = {
+    GKI: 'GIỮA HỌC KỲ I (MIDTERM 1)',
+    CKI: 'CUỐI HỌC KỲ I (FINAL 1)',
+    GKII: 'GIỮA HỌC KỲ II (MIDTERM 2)',
+    CKII: 'CUỐI HỌC KỲ II (FINAL 2)',
+  };
+
   const handlePrint = () => {
     const prevTitle = document.title;
-    document.title = `BEEZONE_PhieuDiem_${student.name.replace(/\s+/g, '_')}_${classroom?.name || 'BeeZone'}`;
+    document.title = `BEEZONE_PhieuDiem_${currentSemester}_${student.name.replace(/\s+/g, '_')}_${classroom?.name || 'BeeZone'}`;
     document.body.dataset.printing = 'report-card';
     const pageStyle = document.createElement('style');
     pageStyle.id = 'report-card-page-style';
@@ -125,11 +137,15 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
     window.print();
   };
 
-  const skills = [
+  const readingWritingVal =
+    grade.readingWriting !== undefined
+      ? grade.readingWriting
+      : ((grade.reading || 0) + (grade.writing || 0)) / 2;
+
+  const examSkills = [
     { name: 'Listening (Kỹ năng Nghe)', score: grade.listening, max: 10, desc: 'Khả năng nhận diện ngữ âm, bắt ý chính và chi tiết bài nghe.' },
     { name: 'Speaking (Kỹ năng Nói)', score: grade.speaking, max: 10, desc: 'Độ lưu loát, phát âm chuẩn IPA, phản xạ trả lời câu hỏi.' },
-    { name: 'Reading (Kỹ năng Đọc)', score: grade.reading, max: 10, desc: 'Vốn từ vựng, khả năng đọc hiểu ngữ cảnh và tìm từ khóa.' },
-    { name: 'Writing (Kỹ năng Viết)', score: grade.writing, max: 10, desc: 'Cấu trúc câu, ngữ pháp chính xác và diễn đạt mạch lạc.' }
+    { name: 'Reading & Writing (Kỹ năng Đọc & Viết)', score: readingWritingVal, max: 10, desc: 'Đọc hiểu ngữ cảnh, vốn từ vựng và diễn đạt ngữ pháp viết.' }
   ];
 
   const modalContent = (
@@ -196,10 +212,10 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           {/* Title */}
           <div className="text-center my-6 print:my-1.5">
             <h2 className="text-xl sm:text-2xl print:text-base font-black text-slate-900 tracking-wider uppercase">
-              PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP
+              PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP — {currentSemester}
             </h2>
-            <p className="text-xs print:text-[9.5px] text-slate-500 font-bold uppercase tracking-widest mt-1 print:mt-0.5">
-              STUDENT PROGRESS REPORT & TRANSCRIPT
+            <p className="text-xs print:text-[9.5px] text-amber-800 font-bold uppercase tracking-widest mt-1 print:mt-0.5">
+              {semesterLabels[currentSemester] || currentSemester} • STUDENT PROGRESS REPORT
             </p>
           </div>
 
@@ -264,56 +280,74 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
             </div>
           </div>
 
-          {/* 4 Skills Breakdown */}
-          <div className="mb-6 print:mb-1.5">
+          {/* Unit Scores Breakdown if any */}
+          {customUnits.length > 0 && (
+            <div className="mb-5 print:mb-1.5">
+              <h3 className="text-xs print:text-[10px] font-black uppercase text-slate-800 tracking-wider mb-2 print:mb-1 flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-amber-600" />
+                Kết quả kiểm tra quá trình các UNIT ({currentSemester}):
+              </h3>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 print:gap-1 text-center">
+                {customUnits.map((u) => {
+                  const score = grade.unitScores?.[u.key];
+                  return (
+                    <div
+                      key={u.key}
+                      className="p-2 print:p-1 bg-amber-50/50 rounded-xl border border-amber-200/80"
+                    >
+                      <span className="text-[10px] print:text-[8.5px] font-bold text-slate-600 block truncate" title={u.label}>
+                        {u.label}
+                      </span>
+                      <p className="text-sm print:text-xs font-black text-amber-900 mt-0.5">
+                        {score !== undefined ? `${score}/10` : '—'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 3 Exam Skills Breakdown */}
+          <div className="mb-5 print:mb-1.5">
             <h3 className="text-xs print:text-[10px] font-black uppercase text-slate-800 tracking-wider mb-3 print:mb-1 flex items-center gap-1.5">
               <Award className="w-4 h-4 text-red-700" />
-              Kết quả đánh giá 4 kỹ năng ngôn ngữ:
+              Kết quả 3 cột điểm thi đánh giá {currentSemester}:
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print:gap-1.5">
-              {skills.map(s => (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:gap-1.5">
+              {examSkills.map((s) => (
                 <div key={s.name} className="p-3 print:p-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
                   <div className="flex items-center justify-between text-xs font-bold mb-1 print:mb-0.5">
-                    <span className="text-slate-800 print:text-[11px]">{s.name}</span>
-                    <span className="text-sm print:text-xs font-extrabold text-red-800">{s.score}/10</span>
+                    <span className="text-slate-800 print:text-[11px] truncate">{s.name}</span>
+                    <span className="text-sm print:text-xs font-extrabold text-red-800 shrink-0 ml-1">
+                      {s.score}/10
+                    </span>
                   </div>
                   {/* Progress bar */}
                   <div className="w-full h-2 print:h-1 bg-slate-100 rounded-full overflow-hidden mb-1.5 print:mb-0.5">
                     <div
                       className="h-full bg-gradient-to-r from-red-600 to-amber-500 rounded-full"
-                      style={{ width: `${(s.score / s.max) * 100}%` }}
+                      style={{ width: `${(s.score / 10) * 100}%` }}
                     />
                   </div>
-                  <p className="text-[11px] print:text-[9.5px] text-slate-500">{s.desc}</p>
+                  <p className="text-[10px] print:text-[8.5px] text-slate-500 line-clamp-2">{s.desc}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Test Scores & Overall Evaluation */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:gap-1.5 mb-6 print:mb-1.5 text-center">
-            <div className="p-3 print:p-1 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[11px] print:text-[9.5px] font-bold text-slate-500 uppercase">Giữa Kỳ</span>
-              <p className="text-lg print:text-sm font-black text-slate-800 mt-0.5">{grade.midterm}</p>
+          {/* Overall Evaluation */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print:gap-1.5 mb-5 print:mb-1.5 text-center">
+            <div className="p-3 print:p-1 bg-amber-50 rounded-xl border border-amber-300 flex items-center justify-between px-6">
+              <span className="text-xs print:text-[10px] font-black text-amber-900 uppercase">
+                ĐIỂM TRUNG BÌNH (ĐTB {currentSemester}):
+              </span>
+              <p className="text-2xl print:text-base font-black text-red-900">{grade.average}</p>
             </div>
-            <div className="p-3 print:p-1 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[11px] print:text-[9.5px] font-bold text-slate-500 uppercase">Cuối Kỳ</span>
-              <p className="text-lg print:text-sm font-black text-slate-800 mt-0.5">{grade.finalExam}</p>
+            <div className={`p-3 print:p-1 rounded-xl border flex items-center justify-center font-black text-xs print:text-[10px] uppercase tracking-wide ${rank.color}`}>
+              XẾP LOẠI HỌC KỲ: {rank.label}
             </div>
-            <div className="p-3 print:p-1 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-[11px] print:text-[9.5px] font-bold text-slate-500 uppercase">Chuyên Cần</span>
-              <p className="text-lg print:text-sm font-black text-slate-800 mt-0.5">{grade.attendance}/10</p>
-            </div>
-            <div className="p-3 print:p-1 bg-amber-50 rounded-xl border border-amber-300">
-              <span className="text-[11px] print:text-[9.5px] font-bold text-amber-800 uppercase">Điểm Trung Bình</span>
-              <p className="text-2xl print:text-base font-black text-red-900 mt-0.5">{grade.average}</p>
-            </div>
-          </div>
-
-          {/* Rank Banner */}
-          <div className={`p-3 print:p-1 rounded-xl border text-center font-extrabold text-sm print:text-xs mb-6 print:mb-1.5 ${rank.color}`}>
-            XẾP LOẠI TOÀN KHÓA: {rank.label}
           </div>
 
           {/* Teacher's Feedback */}
@@ -442,6 +476,8 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
           student={student}
+          semester={currentSemester}
+          customUnits={customUnits}
           grade={{ ...grade, comment: feedback }}
           classroom={classroom}
           teacher={teacher}

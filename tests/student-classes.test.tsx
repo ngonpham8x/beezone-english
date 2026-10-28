@@ -92,7 +92,7 @@ it('records a grade for the selected additional class without overwriting the pr
   const update = vi.fn();
   render(<GradeManager students={[{ ...student, additionalClassIds: [classes[1].id] }]} classes={classes} grades={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner onUpdateGrade={update} />);
   await chooseOption(screen.getByRole('combobox', { name: 'Lớp xem điểm' }), classes[1].name);
-  fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '8' } });
+  fireEvent.change(screen.getByLabelText(new RegExp(`Nghe - ${student.code}`, 'i')), { target: { value: '8' } });
   expect(update).toHaveBeenCalledWith(expect.objectContaining({ studentId: student.id, classId: classes[1].id, listening: 8 }));
 });
 

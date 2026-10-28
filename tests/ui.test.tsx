@@ -21,7 +21,7 @@ describe('workflow regressions', () => {
     const save = vi.fn();
     const student = initial.initialStudents.find(s => s.classId === initial.initialClasses[0].id)!;
     render(<GradeManager grades={[]} students={[student]} classes={[initial.initialClasses[0]]} permissions={OWNER_PERMISSIONS} isOwner onUpdateGrade={save} />);
-    fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText(new RegExp(`Nghe - ${student.code}`, 'i')), { target: { value: '8' } });
     expect(save).toHaveBeenCalled();
     expect(save.mock.lastCall![0]).toMatchObject({ studentId: student.id, classId: student.classId, listening: 8 });
   });

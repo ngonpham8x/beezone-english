@@ -153,17 +153,30 @@ export interface TimetableSlot {
   note?: string;
 }
 
+export type GradeSemester = 'GKI' | 'CKI' | 'GKII' | 'CKII';
+
+export interface CustomGradeColumn {
+  id: string;
+  name: string;
+  semester: GradeSemester;
+  classId?: string;
+  createdAt?: string;
+}
+
 export interface Grade {
   id: string;
   studentId: string;
   classId: string;
+  semester?: GradeSemester;
   listening: number;
   speaking: number;
+  readingWriting?: number;
   reading: number;
   writing: number;
   midterm: number;
   finalExam: number;
   attendance: number;
+  unitScores?: Record<string, number>;
   average: number;
   comment?: string;
 }
@@ -275,6 +288,7 @@ export interface CenterSettings {
   autoEmailReport: boolean;
   autoBackup: boolean;
   sheetsConfig: GoogleSheetsConfig;
+  gradeColumns?: CustomGradeColumn[];
 }
 
 // Quản lý Điểm danh & Buổi học
