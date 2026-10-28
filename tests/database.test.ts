@@ -332,6 +332,14 @@ describe('database migrations and permission enforcement', () => {
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, unitScores: { unit1: 11 } }] })])).rejects.toThrow(/unit score/);
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [grade, { ...grade, id: 'grade-duplicate' }] })])).rejects.toThrow(/Duplicate grade/);
   });
+  it('validates program-scoped grade column kinds and permits archived-name reuse', async () => {
+    const programPayload = { ...base, programs: [{ id: 'program-1' }] };
+    const active = { id: 'unit-active', name: 'UNIT 13', semester: 'GKI', programId: 'program-1', kind: 'unit' };
+    const archived = { ...active, id: 'unit-archived', archivedAt: '2026-10-28T03:00:00.000Z' };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...programPayload, settings: { gradeColumns: [active, archived] } })]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...programPayload, settings: { gradeColumns: [{ ...active, kind: 'unknown' }] } })])).rejects.toThrow(/Invalid grade column/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...programPayload, settings: { gradeColumns: [{ ...active, programId: 'missing' }] } })])).rejects.toThrow(/program does not exist/);
+  });
   it('denies staff schedule exceptions independently of the UI', async () => {
     const payload = { ...base, classes: [{ id: 'a', teacherId: 't', studentIds: [] }] };
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);

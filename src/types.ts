@@ -155,6 +155,8 @@ export interface TimetableSlot {
 
 export type GradeSemester = 'GKI' | 'CKI' | 'GKII' | 'CKII';
 
+export type CustomGradeColumnKind = 'unit' | 'assessment';
+
 export interface CustomGradeColumn {
   id: string;
   name: string;
@@ -163,7 +165,11 @@ export interface CustomGradeColumn {
   programId?: string;
   /** Legacy scope retained so browser-only columns from older builds remain readable. */
   classId?: string;
+  /** Missing on legacy columns; those columns are interpreted as UNIT columns. */
+  kind?: CustomGradeColumnKind;
   createdAt?: string;
+  /** Soft deletion keeps historic scores restorable while removing the column from entry and averages. */
+  archivedAt?: string;
 }
 
 export interface Grade {

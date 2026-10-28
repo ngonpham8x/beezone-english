@@ -3,6 +3,7 @@ import {
   Award,
   FileText,
   LayoutGrid,
+  PlusCircle,
   Share2,
   Table as TableIcon,
 } from 'lucide-react';
@@ -14,6 +15,9 @@ import { isStudentInClass } from '../../lib/studentClasses';
 import { classesVisibleToAccount, hasCenterWideClassScope, isTeachingRole } from '../../lib/accountScope';
 import {
   calculateSemesterAverage,
+  customGradeColumnKind,
+  customGradeColumnsForClass,
+  gradeColumnIdsForClass,
   GRADE_SEMESTER_CONFIG,
   GRADE_SEMESTERS,
   normalizeCustomGradeColumns,
@@ -22,6 +26,7 @@ import {
   CenterSettings,
   ClassRoom,
   CourseProgram,
+  CustomGradeColumn,
   Grade,
   GradeSemester,
   StaffPermissions,
@@ -29,6 +34,7 @@ import {
   Teacher,
   UserAccount,
 } from '../../types';
+import { CustomColumnsModal } from './CustomColumnsModal';
 import { GradeCommentEditor } from './GradeCommentEditor';
 import { GradeScoreInput } from './GradeScoreInput';
 import { GradeYearSummaryView } from './GradeYearSummaryView';
@@ -43,6 +49,7 @@ interface GradeManagerProps {
   isOwner: boolean;
   currentUser?: UserAccount;
   onUpdateGrade: (updatedGrade: Grade) => void;
+  onUpdateGradeColumns?: (columns: CustomGradeColumn[]) => boolean;
   teachers?: Teacher[];
   programs?: CourseProgram[];
   settings?: CenterSettings;
@@ -65,6 +72,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   isOwner,
   currentUser,
   onUpdateGrade,
+  onUpdateGradeColumns,
   teachers = [],
   programs = [],
   settings = {
@@ -96,6 +104,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   // Semester Selector State
   const [semester, setSemester] = useState<GradeSemester>('GKI');
   const [showYearSummary, setShowYearSummary] = useState(false);
+  const [isCustomColumnsOpen, setIsCustomColumnsOpen] = useState(false);
 
   const customColumns = useMemo(
     () => normalizeCustomGradeColumns(settings.gradeColumns),
@@ -113,6 +122,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   }, [permittedClasses, centerWideScope, selectedClassId]);
 
   const canEdit = isOwner || permissions.grade.edit;
+  const canManageColumns = Boolean(onUpdateGradeColumns && isOwner && currentUser?.active !== false);
 
   const classStudents = students
     .flatMap((student) =>
@@ -123,24 +133,27 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
   const gradeUnitsForClass = useCallback((classId?: string) => {
     const config = GRADE_SEMESTER_CONFIG[semester];
-    const defaultUnits = config.defaultUnits.map((u) => ({ ...u, isCustom: false }));
+    const defaultUnits = config.defaultUnits.map((u) => ({
+      ...u,
+      isCustom: false,
+      kind: undefined as CustomGradeColumn['kind'],
+    }));
     const selectedClass = classes.find((classroom) => classroom.id === classId);
-    const filteredCustoms = customColumns
-      .filter((col) =>
-        col.semester === semester &&
-        (!col.programId && !col.classId ||
-          Boolean(classId) &&
-          (col.programId === selectedClass?.programId || col.classId === classId)),
-      )
-      .map((col) => ({ key: col.id, label: col.name, isCustom: true }));
+    const filteredCustoms = customGradeColumnsForClass(customColumns, semester, selectedClass)
+      .map((col) => ({ key: col.id, label: col.name, isCustom: true, kind: customGradeColumnKind(col) }));
     return [...defaultUnits, ...filteredCustoms];
   }, [semester, customColumns, classes]);
 
-  // A mixed-program table shows only global columns. Selecting a class reveals
-  // the extra columns attached to that class's curriculum.
+  // A mixed-program table shows only legacy global columns. If every visible
+  // class uses one program, its program columns can safely share the table.
+  const activeUnitClassId = useMemo(() => {
+    if (selectedClassId !== 'all') return selectedClassId;
+    const programIds = new Set(permittedClasses.map((classroom) => classroom.programId));
+    return programIds.size === 1 ? permittedClasses[0]?.id : undefined;
+  }, [permittedClasses, selectedClassId]);
   const activeUnits = useMemo(
-    () => gradeUnitsForClass(selectedClassId === 'all' ? undefined : selectedClassId),
-    [gradeUnitsForClass, selectedClassId],
+    () => gradeUnitsForClass(activeUnitClassId),
+    [activeUnitClassId, gradeUnitsForClass],
   );
 
   // Helper to get grade record for a student in selected semester
@@ -201,7 +214,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
       updated.writing = clamped;
     }
 
-    updated.average = calculateSemesterAverage(updated);
+    updated.average = calculateSemesterAverage(
+      updated,
+      gradeColumnIdsForClass(customColumns, semester, classes.find((item) => item.id === classId)),
+    );
     onUpdateGrade(updated);
   };
 
@@ -228,7 +244,35 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         [unitKey]: clamped,
       },
     };
+    updated.average = calculateSemesterAverage(
+      updated,
+      gradeColumnIdsForClass(customColumns, semester, classes.find((item) => item.id === classId)),
+    );
     onUpdateGrade(updated);
+  };
+
+  const handleAddCustomColumns = (drafts: Array<{
+    name: string;
+    kind: 'unit' | 'assessment';
+    semester: GradeSemester;
+    programId: string;
+  }>) => {
+    if (!canManageColumns || !onUpdateGradeColumns) return false;
+    const now = new Date().toISOString();
+    const created = drafts.map((draft, index): CustomGradeColumn => ({
+      ...draft,
+      id: `col_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: now,
+    }));
+    return onUpdateGradeColumns([...customColumns, ...created]);
+  };
+
+  const handleArchiveCustomColumn = (columnId: string) => {
+    if (!canManageColumns || !onUpdateGradeColumns) return false;
+    const archivedAt = new Date().toISOString();
+    return onUpdateGradeColumns(customColumns.map((column) =>
+      column.id === columnId ? { ...column, archivedAt } : column,
+    ));
   };
 
   // Change comment
@@ -349,6 +393,16 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
         {/* View mode toggle */}
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsCustomColumnsOpen(true)}
+            disabled={!canManageColumns}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-2xs transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+            title={canManageColumns ? 'Thêm hoặc xóa cột theo chương trình' : 'Chỉ Chủ trung tâm được thay đổi cấu trúc cột'}
+          >
+            <PlusCircle className="h-4 w-4 text-amber-600" />
+            Thêm / xóa cột
+          </button>
           {!showYearSummary && <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
@@ -417,7 +471,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       title={`Nhập hoặc sửa điểm ${u.label}`}
                     >
                       <div className="font-extrabold text-amber-300">{u.label}</div>
-                      {u.isCustom && <span className="text-[9px] text-amber-400/80 font-normal">(Tự tạo)</span>}
+                      {u.isCustom && <span className="text-[9px] text-amber-400/80 font-normal">({u.kind === 'assessment' ? 'Cột điểm' : 'Cột bài'})</span>}
                     </th>
                   ))}
 
@@ -435,6 +489,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                     className="py-3.5 px-3.5 text-center bg-amber-600 text-slate-950 font-black min-w-[90px] whitespace-nowrap align-middle border-r border-amber-700"
                   >
                     {currentConfig.gpaLabel}
+                    <div className="mt-0.5 text-[8px] font-semibold normal-case">Kỹ năng + điểm UNIT/bài đã nhập</div>
                   </th>
 
                   {/* COMMENTS HEADER */}
@@ -655,6 +710,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           <span className="text-[10px] text-slate-600 font-bold block truncate" title={u.label}>
                             {u.label}
                           </span>
+                          {u.isCustom && <span className="block text-[8px] text-slate-400">{u.kind === 'assessment' ? 'Cột điểm' : 'Cột bài'}</span>}
                           <GradeScoreInput
                             ariaLabel={`${u.label} - ${st.code} - ${studentClass?.name || st.classId}`}
                             value={unitVal}
@@ -749,6 +805,19 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           })}
         </div>
       )}
+
+      <CustomColumnsModal
+        isOpen={isCustomColumnsOpen}
+        onClose={() => setIsCustomColumnsOpen(false)}
+        columns={customColumns}
+        onAddColumns={handleAddCustomColumns}
+        onArchiveColumn={handleArchiveCustomColumn}
+        currentSemester={semester}
+        programs={programs}
+        classes={classes}
+        selectedClassId={selectedClassId}
+        canEdit={canManageColumns}
+      />
 
       {/* Report Card Modal */}
       {reportingStudent && (

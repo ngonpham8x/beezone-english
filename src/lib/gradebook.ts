@@ -1,4 +1,4 @@
-import type { CustomGradeColumn, Grade, GradeSemester } from '../types';
+import type { ClassRoom, CustomGradeColumn, CustomGradeColumnKind, Grade, GradeSemester } from '../types';
 
 export const GRADE_SEMESTERS: GradeSemester[] = ['GKI', 'CKI', 'GKII', 'CKII'];
 
@@ -67,15 +67,20 @@ export const readingWritingScore = (
     : ((Number(grade.reading) || 0) + (Number(grade.writing) || 0)) / 2;
 
 export const calculateSemesterAverage = (
-  grade: Pick<Grade, 'listening' | 'speaking' | 'readingWriting' | 'reading' | 'writing'>,
-) =>
-  Math.round(
-    ((Number(grade.listening) || 0) +
-      (Number(grade.speaking) || 0) +
-      readingWritingScore(grade)) /
-      3 *
-      10,
-  ) / 10;
+  grade: Pick<Grade, 'listening' | 'speaking' | 'readingWriting' | 'reading' | 'writing' | 'unitScores'>,
+  includedUnitIds: Iterable<string> = [],
+) => {
+  const scores = [
+    Number(grade.listening) || 0,
+    Number(grade.speaking) || 0,
+    readingWritingScore(grade),
+  ];
+  const allowedIds = new Set(includedUnitIds);
+  for (const [unitId, value] of Object.entries(grade.unitScores || {})) {
+    if (allowedIds.has(unitId) && isValidScore(value)) scores.push(value);
+  }
+  return Math.round((scores.reduce((sum, value) => sum + value, 0) / scores.length) * 10) / 10;
+};
 
 export interface GradeYearSummary {
   semesterAverages: Partial<Record<GradeSemester, number>>;
@@ -141,11 +146,39 @@ export const isValidCustomGradeColumn = (value: unknown): value is CustomGradeCo
       column.name.trim() &&
       column.name.length <= 40 &&
       isGradeSemester(column.semester) &&
-      (column.programId === undefined || typeof column.programId === 'string') &&
-      (column.classId === undefined || typeof column.classId === 'string') &&
-      (column.createdAt === undefined || typeof column.createdAt === 'string'),
+      (column.programId === undefined || typeof column.programId === 'string' && Boolean(column.programId.trim())) &&
+      (column.classId === undefined || typeof column.classId === 'string' && Boolean(column.classId.trim())) &&
+      (column.kind === undefined || column.kind === 'unit' || column.kind === 'assessment') &&
+      (column.createdAt === undefined || typeof column.createdAt === 'string') &&
+      (column.archivedAt === undefined || typeof column.archivedAt === 'string' && Boolean(column.archivedAt.trim())),
   );
 };
+
+export const customGradeColumnKind = (column: Pick<CustomGradeColumn, 'kind'>): CustomGradeColumnKind =>
+  column.kind === 'assessment' ? 'assessment' : 'unit';
+
+export const isActiveCustomGradeColumn = (column: Pick<CustomGradeColumn, 'archivedAt'>) =>
+  !column.archivedAt;
+
+export const customGradeColumnsForClass = (
+  columns: CustomGradeColumn[],
+  semester: GradeSemester,
+  classroom?: Pick<ClassRoom, 'id' | 'programId'>,
+) => columns.filter((column) =>
+  isActiveCustomGradeColumn(column) &&
+  column.semester === semester &&
+  (!column.programId && !column.classId ||
+    Boolean(classroom) && (column.programId === classroom?.programId || column.classId === classroom?.id)),
+);
+
+export const gradeColumnIdsForClass = (
+  columns: CustomGradeColumn[],
+  semester: GradeSemester,
+  classroom?: Pick<ClassRoom, 'id' | 'programId'>,
+) => [
+  ...GRADE_SEMESTER_CONFIG[semester].defaultUnits.map((unit) => unit.key),
+  ...customGradeColumnsForClass(columns, semester, classroom).map((column) => column.id),
+];
 
 export const normalizeCustomGradeColumns = (value: unknown): CustomGradeColumn[] => {
   if (!Array.isArray(value)) return [];

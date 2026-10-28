@@ -3,7 +3,7 @@ import { centerDate, isCalendarDate } from './dates.js';
 import { timeMinutes } from './schedule.js';
 import { validSessionRate, validateSessionReceipt } from './sessionBilling.js';
 import type { AttendanceSession, TuitionReceipt } from '../types.js';
-import { gradeSemester, isGradeSemester, isValidCustomGradeColumn, isValidScore } from './gradebook.js';
+import { gradeSemester, isActiveCustomGradeColumn, isGradeSemester, isValidCustomGradeColumn, isValidScore } from './gradebook.js';
 
 export interface CenterDataPayload extends CenterBackupData {
   sessionBillingVersion: 1;
@@ -134,6 +134,7 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
     result[key] = records;
   }
   const classIds = new Set((result.classes as { id: string }[]).map(c => c.id));
+  const programIds = new Set((result.programs as { id: string }[]).map(program => program.id));
   const gradeKeys = new Set<string>();
   for (const grade of result.grades as import('../types.js').Grade[]) {
     const key = `${grade.studentId}\u0000${grade.classId}\u0000${gradeSemester(grade)}`;
@@ -158,11 +159,12 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
     const columnIds = new Set<string>();
     const columnNames = new Set<string>();
     for (const column of settings.gradeColumns) {
+      if (isActiveCustomGradeColumn(column) && column.programId && !programIds.has(column.programId)) throw new Error('Chương trình của cột điểm không tồn tại.');
       const scope = column.programId || (column.classId ? `class:${column.classId}` : 'all');
       const nameKey = `${column.semester}\u0000${scope}\u0000${column.name.trim().toLocaleLowerCase('vi-VN')}`;
-      if (columnIds.has(column.id) || columnNames.has(nameKey)) throw new Error('Cấu hình cột điểm bị trùng.');
+      if (columnIds.has(column.id) || (isActiveCustomGradeColumn(column) && columnNames.has(nameKey))) throw new Error('Cấu hình cột điểm bị trùng.');
       columnIds.add(column.id);
-      columnNames.add(nameKey);
+      if (isActiveCustomGradeColumn(column)) columnNames.add(nameKey);
     }
   }
   result.settings = { ...fallbackSettings, ...settings, sheetsConfig: { ...fallbackSettings.sheetsConfig, ...(settings.sheetsConfig as object || {}) } };

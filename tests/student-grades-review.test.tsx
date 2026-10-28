@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GradeManager } from '../src/modules/grades/GradeManager';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { StudentProfileDialog } from '../src/modules/students/StudentProfileDialog';
 import { ShareReviewDialog } from '../src/modules/attendance/ShareReviewDialog';
 import { canShareSessionReview } from '../src/modules/attendance/access';
 import * as initial from '../src/mock/initialData';
 import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
-import type { AttendanceSession, ClassRoom, Grade, Student, UserAccount } from '../src/types';
+import type { AttendanceSession, ClassRoom, CustomGradeColumn, Grade, Student, UserAccount } from '../src/types';
+import * as dialogs from '../src/lib/dialogs';
 
 beforeEach(() => {
   localStorage.clear();
@@ -354,18 +355,21 @@ describe('ShareReviewDialog & permissions', () => {
     }));
   });
 
-  it('supports manual UNIT input, expandable comment editing and yearly summary without the custom-column button', () => {
+  it('supports manual scores, adding both custom column kinds, safe deletion, comments and yearly summary', async () => {
     const onUpdateGrade = vi.fn();
+    const onUpdateGradeColumns = vi.fn((_columns: CustomGradeColumn[]) => true);
+    const program = initial.initialPrograms.find((item) => item.id === dummyClass.programId)!;
     const Harness = () => {
       const [grades, setGrades] = React.useState<Grade[]>([]);
+      const [settings, setSettings] = React.useState<any>({ gradeColumns: [] });
       return (
         <GradeManager
           students={[{ ...dummyStudent, classId: dummyClass.id }]}
           classes={[dummyClass]}
           grades={grades}
-          programs={[]}
+          programs={[program]}
           teachers={[]}
-          settings={{} as any}
+          settings={settings}
           permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
           isOwner={true}
           currentUser={DEV_OWNER_ACCOUNT}
@@ -373,23 +377,51 @@ describe('ShareReviewDialog & permissions', () => {
             onUpdateGrade(updated);
             setGrades((current) => [...current.filter((grade) => grade.id !== updated.id), updated]);
           }}
+          onUpdateGradeColumns={(columns) => {
+            onUpdateGradeColumns(columns);
+            setSettings((current: any) => ({ ...current, gradeColumns: columns }));
+            return true;
+          }}
         />
       );
     };
     render(<Harness />);
 
-    expect(screen.queryByRole('button', { name: /Thêm cột điểm/i })).toBeNull();
     const unitInput = screen.getByLabelText(new RegExp(`UNIT 1 - ${dummyStudent.code}`, 'i'));
     fireEvent.change(unitInput, { target: { value: '8,5' } });
     fireEvent.blur(unitInput);
     expect(onUpdateGrade).toHaveBeenCalledWith(expect.objectContaining({ unitScores: { unit1: 8.5 } }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Thêm \/ xóa cột/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Cột điểm \/ bài kiểm tra/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: /Tên cột bài hoặc UNIT/i }), { target: { value: 'UNIT 13' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Tên cột điểm hoặc bài kiểm tra/i }), { target: { value: 'Progress Test 1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Thêm 2 cột/i }));
+    expect(onUpdateGradeColumns).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ name: 'UNIT 13', kind: 'unit', programId: program.id, semester: 'GKI' }),
+      expect.objectContaining({ name: 'Progress Test 1', kind: 'assessment', programId: program.id, semester: 'GKI' }),
+    ]));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Đóng$/i }).at(-1)!);
+    const customScore = screen.getByLabelText(new RegExp(`UNIT 13 - ${dummyStudent.code}`, 'i'));
+    fireEvent.change(customScore, { target: { value: '7,5' } });
+    fireEvent.blur(customScore);
+    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ average: 3.2 }));
+
+    vi.spyOn(dialogs, 'askConfirmation').mockResolvedValue(true);
+    fireEvent.click(screen.getByRole('button', { name: /Thêm \/ xóa cột/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Xóa cột UNIT 13/i }));
+    await waitFor(() => expect(onUpdateGradeColumns).toHaveBeenLastCalledWith(expect.arrayContaining([
+      expect.objectContaining({ name: 'UNIT 13', archivedAt: expect.any(String) }),
+    ])));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Đóng$/i }).at(-1)!);
+    expect(screen.queryByLabelText(new RegExp(`UNIT 13 - ${dummyStudent.code}`, 'i'))).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /Thêm nhận xét/i }));
     const comment = screen.getByRole('textbox', { name: new RegExp(`Nhận xét lực học - ${dummyStudent.code}`, 'i') });
     fireEvent.change(comment, { target: { value: 'Bé tiến bộ rõ và chủ động hơn trong giờ học.' } });
     fireEvent.click(screen.getByRole('button', { name: /Lưu nhận xét/i }));
     expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ comment: 'Bé tiến bộ rõ và chủ động hơn trong giờ học.' }));
-    expect(screen.getByRole('button', { name: /Xóa/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Xóa$/i })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /Xem tổng kết cuối năm/i }));
     expect(screen.getByText(/Tổng kết năng lực cuối năm/i)).toBeTruthy();

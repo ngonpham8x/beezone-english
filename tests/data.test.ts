@@ -15,7 +15,7 @@ import { readApiJson } from '../src/lib/http';
 import { autoFixConsistency } from '../src/services/dataConsistencyService';
 import { findScheduleConflict } from '../src/lib/schedule';
 import { matchesSearch } from '../src/lib/search';
-import { calculateGradeYearSummary } from '../src/lib/gradebook';
+import { calculateGradeYearSummary, calculateSemesterAverage } from '../src/lib/gradebook';
 import * as initial from '../src/mock/initialData';
 import type { TuitionReceipt } from '../src/types';
 
@@ -48,6 +48,11 @@ describe('calendar and identifiers', () => {
   });
 });
 describe('yearly grade summary', () => {
+  it('links only active configured UNIT/assessment scores into the semester average', () => {
+    const grade = { ...initial.initialGrades[0], unitScores: { unit1: 10, archived: 1 } };
+    expect(calculateSemesterAverage(grade, ['unit1'])).toBe(8.9);
+    expect(calculateSemesterAverage(grade, [])).toBe(8.6);
+  });
   it('links all four semesters into one final ability assessment', () => {
     const baseGrade = initial.initialGrades[0];
     const summary = calculateGradeYearSummary([
@@ -160,8 +165,20 @@ describe('backup and cloud validation', () => {
       name: 'Progress Test',
       semester: 'CKI',
       programId: data.programs[0].id,
+      kind: 'assessment',
+    }, {
+      id: 'custom_progress_archived',
+      name: 'Progress Test',
+      semester: 'CKI',
+      programId: data.programs[0].id,
+      kind: 'assessment',
+      archivedAt: '2026-10-28T03:00:00.000Z',
     }];
     expect(parseCenterData(data, data.settings).grades).toHaveLength(initial.initialGrades.length + 1);
+
+    const missingProgram = fixture();
+    missingProgram.settings.gradeColumns = [{ id: 'orphan', name: 'Orphan', semester: 'GKI', kind: 'unit', programId: 'missing' }];
+    expect(() => parseCenterData(missingProgram, missingProgram.settings)).toThrow(/Chương trình của cột điểm/);
 
     const duplicate = fixture();
     duplicate.grades.push({ ...duplicate.grades[0], id: 'duplicate-gki', semester: 'GKI' });

@@ -1,12 +1,20 @@
 import { toast } from '../../lib/toast';
 import { showAlert } from '../../lib/dialogs';
 import { canAccessAccountClass } from '../../lib/accountScope';
-import { calculateSemesterAverage, gradeSemester, isValidScore } from '../../lib/gradebook';
-import type { Grade, UserAccount } from '../../types';
+import {
+  calculateSemesterAverage,
+  gradeColumnIdsForClass,
+  gradeSemester,
+  isActiveCustomGradeColumn,
+  isValidCustomGradeColumn,
+  isValidScore,
+  normalizeCustomGradeColumns,
+} from '../../lib/gradebook';
+import type { CustomGradeColumn, Grade, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
-type Context = Pick<CenterStore, 'classes' | 'teachers' | 'grades' | 'setGrades'> & {
+type Context = Pick<CenterStore, 'classes' | 'programs' | 'teachers' | 'grades' | 'setGrades' | 'settings' | 'setSettings'> & {
   currentUser: UserAccount | null;
   addLog: ActivityLogger;
 };
@@ -26,7 +34,7 @@ const sameGradeValues = (left: Grade, right: Grade) =>
   left.average === right.average &&
   JSON.stringify(left.unitScores || {}) === JSON.stringify(right.unitScores || {});
 
-export function createGradeActions({ classes, teachers, grades, setGrades, currentUser, addLog }: Context) {
+export function createGradeActions({ classes, programs, teachers, grades, setGrades, settings, setSettings, currentUser, addLog }: Context) {
   // Grade Handler
   const handleUpdateGrade = (updatedGrade: Grade) => {
     const classroom = classes.find((item) => item.id === updatedGrade.classId);
@@ -66,7 +74,16 @@ export function createGradeActions({ classes, teachers, grades, setGrades, curre
       ...updatedGrade,
       comment,
       semester: targetSemester,
-      average: commentOnly && existing ? existing.average : calculateSemesterAverage(updatedGrade),
+      average: commentOnly && existing
+        ? existing.average
+        : calculateSemesterAverage(
+            updatedGrade,
+            gradeColumnIdsForClass(
+              normalizeCustomGradeColumns(settings.gradeColumns),
+              targetSemester,
+              classroom,
+            ),
+          ),
     };
     setGrades((prev) => {
       const idx = prev.findIndex(
@@ -87,5 +104,47 @@ export function createGradeActions({ classes, teachers, grades, setGrades, curre
     return true;
   };
 
-  return { handleUpdateGrade };
+  const handleUpdateGradeColumns = (columns: CustomGradeColumn[]) => {
+    const canManage = Boolean(currentUser?.active && currentUser.role === 'owner');
+    if (!canManage) {
+      showAlert('Chỉ Chủ trung tâm được thay đổi cấu trúc cột bài và cột điểm dùng chung.');
+      return false;
+    }
+    const normalized = columns.map((column) => ({
+      ...column,
+      name: column.name.trim(),
+      kind: column.kind === 'assessment' ? 'assessment' as const : 'unit' as const,
+    }));
+    const activeNames = normalized
+      .filter(isActiveCustomGradeColumn)
+      .map((column) => `${column.semester}\u0000${column.programId || (column.classId ? `class:${column.classId}` : 'all')}\u0000${column.name.toLocaleLowerCase('vi-VN')}`);
+    if (
+      normalized.some((column) => !isValidCustomGradeColumn(column)) ||
+      new Set(normalized.map((column) => column.id)).size !== normalized.length ||
+      new Set(activeNames).size !== activeNames.length ||
+      normalized.some((column) => isActiveCustomGradeColumn(column) && column.programId && !programs.some((program) => program.id === column.programId))
+    ) {
+      showAlert('Cấu hình cột bài/điểm không hợp lệ, bị trùng hoặc không còn chương trình áp dụng.');
+      return false;
+    }
+
+    const nextGrades = grades.map((grade) => {
+      const classroom = classes.find((item) => item.id === grade.classId);
+      const semester = gradeSemester(grade);
+      return {
+        ...grade,
+        average: calculateSemesterAverage(
+          grade,
+          gradeColumnIdsForClass(normalized, semester, classroom),
+        ),
+      };
+    });
+    setSettings({ ...settings, gradeColumns: normalized });
+    setGrades(nextGrades);
+    addLog('SỬA', 'Điểm', `Cập nhật cấu trúc ${normalized.filter(isActiveCustomGradeColumn).length} cột bài/điểm và tính lại ĐTB`);
+    toast.success('Đã đồng bộ cấu trúc cột và điểm trung bình.');
+    return true;
+  };
+
+  return { handleUpdateGrade, handleUpdateGradeColumns };
 }

@@ -13,7 +13,7 @@ import { createCenterActions } from '../src/modules/center/createCenterActions';
 import { normalizeCenterData, reconcileStudentFees } from '../src/modules/center/model';
 import { useCenterStore } from '../src/modules/center/useCenterStore';
 import { createActivityLogger } from '../src/modules/system/activityLogger';
-import type { CenterBackupData, UserAccount } from '../src/types';
+import type { CenterBackupData, CustomGradeColumn, UserAccount } from '../src/types';
 
 vi.mock('../src/lib/supabase', () => ({
   isLocalPreview: true,
@@ -80,6 +80,37 @@ describe('domain command integration', () => {
       average: 8.1,
     })).toBe(true));
     expect(result.current.store.grades[0]).toMatchObject({ listening: 9, average: 8.6 });
+  });
+
+  it('updates program grade columns and recalculates averages while retaining archived scores', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const grade = data.grades[0];
+    data.grades[0] = { ...grade, unitScores: { custom_progress: 9 } };
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const column: CustomGradeColumn = {
+      id: 'custom_progress',
+      name: 'Progress Test',
+      kind: 'assessment',
+      semester: 'GKI',
+      programId: data.classes.find((item) => item.id === grade.classId)!.programId,
+      createdAt: '2026-10-28T02:00:00.000Z',
+    };
+    act(() => expect(result.current.actions.handleUpdateGradeColumns([column])).toBe(true));
+    expect(result.current.store.settings.gradeColumns).toEqual([column]);
+    expect(result.current.store.grades[0]).toMatchObject({ average: 8.7, unitScores: { custom_progress: 9 } });
+
+    act(() => expect(result.current.actions.handleUpdateGradeColumns([{ ...column, archivedAt: '2026-10-28T03:00:00.000Z' }])).toBe(true));
+    expect(result.current.store.settings.gradeColumns?.[0].archivedAt).toBeTruthy();
+    expect(result.current.store.grades[0]).toMatchObject({ average: 8.6, unitScores: { custom_progress: 9 } });
+  });
+
+  it('keeps shared grade-column structure owner-only even when training can enter scores', () => {
+    const { result } = renderHook(() => useTestCenter(DEV_TRAINER_ACCOUNT));
+    const before = result.current.store.settings;
+    act(() => expect(result.current.actions.handleUpdateGradeColumns([])).toBe(false));
+    expect(result.current.store.settings).toBe(before);
+    expect(dialogs.showAlert).toHaveBeenCalledWith(expect.stringContaining('Chủ trung tâm'));
   });
 
   it('blocks teacher-rank student profile mutations even with legacy broad flags', () => {
