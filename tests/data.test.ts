@@ -132,6 +132,36 @@ describe('backup and cloud validation', () => {
     expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/Ghi chú lớp học không hợp lệ/);
   });
 
+  it('validates semester grades and shared custom columns without breaking legacy GKI rows', () => {
+    const data = fixture();
+    const legacy = data.grades[0];
+    data.grades.push({
+      ...legacy,
+      id: `${legacy.id}-cki`,
+      semester: 'CKI',
+      readingWriting: 8.5,
+      unitScores: { unit4: 9, custom_progress: 8 },
+    });
+    data.settings.gradeColumns = [{
+      id: 'custom_progress',
+      name: 'Progress Test',
+      semester: 'CKI',
+      programId: data.programs[0].id,
+    }];
+    expect(parseCenterData(data, data.settings).grades).toHaveLength(initial.initialGrades.length + 1);
+
+    const duplicate = fixture();
+    duplicate.grades.push({ ...duplicate.grades[0], id: 'duplicate-gki', semester: 'GKI' });
+    expect(() => parseCenterData(duplicate, duplicate.settings)).toThrow(/trùng lớp và học kỳ/);
+
+    const invalid = fixture();
+    (invalid.grades[0] as any).semester = 'HK3';
+    expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/Học kỳ/);
+    (invalid.grades[0] as any).semester = 'GKI';
+    (invalid.grades[0] as any).unitScores = { unit1: 11 };
+    expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/UNIT/);
+  });
+
   it('rejects arbitrary JSON as a backup', () => expect(() => parseBackupArchive({ app: 'BEEZONE', schemaVersion: 1, data: {} }, initial.initialSettings)).toThrow());
 });
 describe('financial history', () => {

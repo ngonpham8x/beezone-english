@@ -79,7 +79,7 @@ describe('domain command integration', () => {
       listening: 9,
       average: 8.1,
     })).toBe(true));
-    expect(result.current.store.grades[0]).toMatchObject({ listening: 9, average: 8.1 });
+    expect(result.current.store.grades[0]).toMatchObject({ listening: 9, average: 8.6 });
   });
 
   it('blocks teacher-rank student profile mutations even with legacy broad flags', () => {

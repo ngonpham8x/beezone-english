@@ -4,13 +4,43 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { generateMasterExcelWorkbook, parseCenterWorkbookFile } from '../src/services/excelService';
 import * as initial from '../src/mock/initialData';
-import type { AttendanceSession, TuitionReceipt } from '../src/types';
+import type { AttendanceSession, Grade, TuitionReceipt } from '../src/types';
 import { parseCenterData } from '../src/lib/centerData';
 import { withUnbilledSessionReceipts } from '../src/lib/sessionBilling';
 import { appendParentContact } from '../src/modules/attendance/parentContact';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('Excel export/import', () => {
+  it('round trips all four semester grade fields and UNIT scores', async () => {
+    const classroom = initial.initialClasses[0];
+    const student = { ...initial.initialStudents[0], classId: classroom.id, programId: classroom.programId };
+    const common = {
+      studentId: student.id,
+      classId: classroom.id,
+      listening: 8,
+      speaking: 9,
+      readingWriting: 7,
+      reading: 7,
+      writing: 7,
+      midterm: 0,
+      finalExam: 0,
+      attendance: 0,
+      average: 8,
+    };
+    const grades: Grade[] = [
+      { ...common, id: 'g-gki', semester: 'GKI', unitScores: { unit1: 9 }, comment: 'Tiến bộ tốt' },
+      { ...common, id: 'g-cki', semester: 'CKI', listening: 9, unitScores: { unit4: 8.5 }, comment: 'Cần luyện nói' },
+    ];
+    const blob = await generateMasterExcelWorkbook({ centerName: 'Test', programs: initial.initialPrograms, students: [student], classes: [classroom], teachers: initial.initialTeachers, rooms: initial.initialRooms, grades, receipts: [] });
+    const result = await parseCenterWorkbookFile(new File([await blob.arrayBuffer()], 'semester-grades.xlsx'));
+    expect(result.errors).toEqual([]);
+    expect(result.data!.grades).toHaveLength(2);
+    expect(result.data!.grades).toEqual(expect.arrayContaining([
+      expect.objectContaining({ semester: 'GKI', readingWriting: 7, unitScores: { unit1: 9 }, comment: 'Tiến bộ tốt' }),
+      expect.objectContaining({ semester: 'CKI', listening: 9, unitScores: { unit4: 8.5 }, comment: 'Cần luyện nói' }),
+    ]));
+  }, 30_000);
+
   it('round trips one student in three classes and scopes class financial formulas', async () => {
     const classes = initial.initialClasses.slice(0, 3);
     const student = { ...initial.initialStudents[0], classId: classes[0].id, programId: classes[0].programId, additionalClassIds: classes.slice(1).map(c => c.id) };

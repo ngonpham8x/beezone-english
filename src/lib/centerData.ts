@@ -3,6 +3,7 @@ import { centerDate, isCalendarDate } from './dates.js';
 import { timeMinutes } from './schedule.js';
 import { validSessionRate, validateSessionReceipt } from './sessionBilling.js';
 import type { AttendanceSession, TuitionReceipt } from '../types.js';
+import { gradeSemester, isGradeSemester, isValidCustomGradeColumn, isValidScore } from './gradebook.js';
 
 export interface CenterDataPayload extends CenterBackupData {
   sessionBillingVersion: 1;
@@ -90,6 +91,15 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
       if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');
       if (key === 'grades' && numbers.grades!.some((field) => (record[field] as number) > 10)) throw new Error('Điểm phải trong khoảng 0–10.');
+      if (key === 'grades') {
+        if (record.semester !== undefined && !isGradeSemester(record.semester)) throw new Error('Học kỳ của bảng điểm không hợp lệ.');
+        if (record.readingWriting !== undefined && !isValidScore(record.readingWriting)) throw new Error('Điểm Đọc & Viết phải trong khoảng 0–10.');
+        if (record.comment !== undefined && (typeof record.comment !== 'string' || record.comment.length > 2000)) throw new Error('Nhận xét bảng điểm không hợp lệ.');
+        if (record.unitScores !== undefined && (
+          !isRecord(record.unitScores) ||
+          Object.entries(record.unitScores).some(([unitId, score]) => !unitId.trim() || unitId.length > 100 || !isValidScore(score))
+        )) throw new Error('Điểm UNIT phải trong khoảng 0–10.');
+      }
       if (key === 'receipts') {
         if (!validInvoiceFields(record)) throw new Error('SHĐ/Quyển của phiếu thu không hợp lệ.');
         if (record.paymentKind !== undefined && !['course','monthly','session'].includes(record.paymentKind as string)) throw new Error('Hình thức học phí không hợp lệ.');
@@ -124,6 +134,12 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
     result[key] = records;
   }
   const classIds = new Set((result.classes as { id: string }[]).map(c => c.id));
+  const gradeKeys = new Set<string>();
+  for (const grade of result.grades as import('../types.js').Grade[]) {
+    const key = `${grade.studentId}\u0000${grade.classId}\u0000${gradeSemester(grade)}`;
+    if (gradeKeys.has(key)) throw new Error('Học viên có bảng điểm trùng lớp và học kỳ.');
+    gradeKeys.add(key);
+  }
   if ((result.students as { additionalClassIds?: string[] }[]).some(student => student.additionalClassIds?.some(id => !classIds.has(id)))) throw new Error('Lớp học thêm không tồn tại.');
   for (const session of result.attendanceSessions as AttendanceSession[]) {
     if (!session.billing) continue;
@@ -137,6 +153,18 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
   const settings = value.settings ?? fallbackSettings;
   if (!isRecord(settings) || ['name', 'slogan', 'address', 'phone', 'email', 'adminReportEmail'].some((key) => typeof settings[key] !== 'string') || ['autoEmailReport', 'autoBackup'].some((key) => typeof settings[key] !== 'boolean')) throw new Error('Cài đặt trung tâm không hợp lệ.');
   if (settings.sheetsConfig !== undefined && !isRecord(settings.sheetsConfig)) throw new Error('Cấu hình bảng tính không hợp lệ.');
+  if (settings.gradeColumns !== undefined) {
+    if (!Array.isArray(settings.gradeColumns) || settings.gradeColumns.some((column) => !isValidCustomGradeColumn(column))) throw new Error('Cấu hình cột điểm không hợp lệ.');
+    const columnIds = new Set<string>();
+    const columnNames = new Set<string>();
+    for (const column of settings.gradeColumns) {
+      const scope = column.programId || (column.classId ? `class:${column.classId}` : 'all');
+      const nameKey = `${column.semester}\u0000${scope}\u0000${column.name.trim().toLocaleLowerCase('vi-VN')}`;
+      if (columnIds.has(column.id) || columnNames.has(nameKey)) throw new Error('Cấu hình cột điểm bị trùng.');
+      columnIds.add(column.id);
+      columnNames.add(nameKey);
+    }
+  }
   result.settings = { ...fallbackSettings, ...settings, sheetsConfig: { ...fallbackSettings.sheetsConfig, ...(settings.sheetsConfig as object || {}) } };
   return result as unknown as CenterDataPayload;
 }

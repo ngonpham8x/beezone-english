@@ -384,7 +384,8 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       sheet.addRow(['Họ và tên:', student.name, 'Mã học viên:', student.code]);
       sheet.addRow(['Ngày sinh:', dobText || 'Chưa cập nhật', 'Lớp học:', classroom?.name || 'BeeZone']);
       sheet.addRow(['Khóa học:', program?.name || 'Tiếng Anh', 'Giáo viên:', teacher?.name || 'BeeZone']);
-      sheet.addRow(['Ngày xuất:', todayStr, 'Điểm TB:', grade.average]);
+      sheet.addRow(['Học kỳ:', currentSemester, 'Điểm TB:', grade.average]);
+      sheet.addRow(['Ngày xuất:', todayStr, '', '']);
       sheet.addRow([]);
 
       const headerRow = sheet.addRow(['Mục Đánh Giá', 'Điểm Đạt Được', 'Thang Điểm', 'Ghi Chú']);
@@ -395,13 +396,12 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       });
       headerRow.height = 26;
 
+      customUnits.forEach((unit) => {
+        sheet.addRow([unit.label, grade.unitScores?.[unit.key] ?? '', 10, 'Điểm kiểm tra quá trình']);
+      });
       sheet.addRow(['Listening (Nghe)', grade.listening, 10, 'Kỹ năng nghe hiểu']);
       sheet.addRow(['Speaking (Nói)', grade.speaking, 10, 'Phát âm và phản xạ']);
-      sheet.addRow(['Reading (Đọc)', grade.reading, 10, 'Từ vựng và đọc hiểu']);
-      sheet.addRow(['Writing (Viết)', grade.writing, 10, 'Cấu trúc câu và ngữ pháp']);
-      sheet.addRow(['Điểm Giữa Kỳ', grade.midterm, 10, 'Kiểm tra giữa kỳ']);
-      sheet.addRow(['Điểm Cuối Kỳ', grade.finalExam, 10, 'Kiểm tra cuối khóa']);
-      sheet.addRow(['Chuyên Cần', grade.attendance, 10, 'Ý thức học tập']);
+      sheet.addRow(['Reading & Writing (Đọc & Viết)', readingWritingVal, 10, 'Đọc hiểu và diễn đạt viết']);
 
       const avgRow = sheet.addRow(['ĐIỂM TRUNG BÌNH', grade.average, 10, rank.label]);
       avgRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'B45309' } };
@@ -997,7 +997,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
                   </div>
                   <strong className="text-sm font-extrabold text-emerald-950">Xuất File Excel (.xlsx)</strong>
                   <span className="text-[11px] text-emerald-700 mt-1">
-                    Bảng điểm chi tiết 4 kỹ năng kèm thang điểm và ghi chú học tập
+                    Bảng điểm UNIT và 3 kỹ năng của đúng học kỳ đang xem
                   </span>
                 </button>
               </div>

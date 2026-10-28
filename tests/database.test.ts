@@ -320,6 +320,18 @@ describe('database migrations and permission enforcement', () => {
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, classes: [{ id: 'a', totalSessions: 1.5 }] })])).rejects.toThrow(/Invalid total sessions/);
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, receipts: [{ id: 'r', courseFee: 10, discount: 0, paidAmount: 0, debtAmount: 10, dueDate: '2026-02-30' }] })])).rejects.toThrow();
   });
+  it('validates semester grades and rejects duplicate student-class-semester rows', async () => {
+    const grade = {
+      id: 'grade-gki', studentId: 's', classId: 'a', semester: 'GKI',
+      listening: 8, speaking: 9, readingWriting: 7, reading: 7, writing: 7,
+      midterm: 0, finalExam: 0, attendance: 0, average: 8,
+      unitScores: { unit1: 9 }, comment: 'Tiến bộ tốt',
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [grade] })]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, semester: 'HK3' }] })])).rejects.toThrow(/semester/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, unitScores: { unit1: 11 } }] })])).rejects.toThrow(/unit score/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [grade, { ...grade, id: 'grade-duplicate' }] })])).rejects.toThrow(/Duplicate grade/);
+  });
   it('denies staff schedule exceptions independently of the UI', async () => {
     const payload = { ...base, classes: [{ id: 'a', teacherId: 't', studentIds: [] }] };
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);

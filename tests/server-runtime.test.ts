@@ -24,6 +24,7 @@ function compiledServer(run: (directory: string) => void) {
       'src/lib/accountPrivacy.ts',
       'src/lib/centerData.ts',
       'src/lib/dates.ts',
+      'src/lib/gradebook.ts',
       'src/lib/schedule.ts',
       'src/lib/sessionBilling.ts',
     ]) {

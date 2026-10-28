@@ -159,6 +159,9 @@ export interface CustomGradeColumn {
   id: string;
   name: string;
   semester: GradeSemester;
+  /** Curriculum scope. New columns use this so every class on the same program stays aligned. */
+  programId?: string;
+  /** Legacy scope retained so browser-only columns from older builds remain readable. */
   classId?: string;
   createdAt?: string;
 }

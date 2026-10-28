@@ -304,20 +304,30 @@ describe('ShareReviewDialog & permissions', () => {
 
   it('calculates average GPA based on 3 exam columns: Listening, Speaking, Reading & Writing', () => {
     const onUpdateGrade = vi.fn();
-    render(
-      <GradeManager
+    const initialGrade: Grade = {
+      id: 'grade-gki', studentId: dummyStudent.id, classId: dummyClass.id, semester: 'GKI',
+      listening: 0, speaking: 0, readingWriting: 0, reading: 0, writing: 0,
+      midterm: 0, finalExam: 0, attendance: 0, average: 0, unitScores: {},
+    };
+    const Harness = () => {
+      const [grades, setGrades] = React.useState<Grade[]>([initialGrade]);
+      return <GradeManager
         students={[{ ...dummyStudent, classId: dummyClass.id }]}
         classes={[dummyClass]}
-        grades={[]}
+        grades={grades}
         programs={[]}
         teachers={[]}
         settings={{} as any}
         permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
         isOwner={true}
         currentUser={DEV_OWNER_ACCOUNT}
-        onUpdateGrade={onUpdateGrade}
-      />,
-    );
+        onUpdateGrade={(updated) => {
+          onUpdateGrade(updated);
+          setGrades([updated]);
+        }}
+      />;
+    };
+    render(<Harness />);
 
     const listeningInput = screen.getByLabelText(new RegExp(`Nghe - ${dummyStudent.code}`, 'i'));
     const speakingInput = screen.getByLabelText(new RegExp(`Nói - ${dummyStudent.code}`, 'i'));
@@ -328,30 +338,41 @@ describe('ShareReviewDialog & permissions', () => {
     expect(readingWritingInput).toBeTruthy();
 
     fireEvent.change(listeningInput, { target: { value: '9' } });
-    expect(onUpdateGrade).toHaveBeenCalledWith(
-      expect.objectContaining({
-        listening: 9,
-        semester: 'GKI',
-      }),
-    );
+    fireEvent.change(speakingInput, { target: { value: '8' } });
+    fireEvent.change(readingWritingInput, { target: { value: '7' } });
+    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({
+      listening: 9,
+      speaking: 8,
+      readingWriting: 7,
+      average: 8,
+      semester: 'GKI',
+    }));
   });
 
   it('allows center to add custom grade columns (UNIT ....)', () => {
     const onUpdateGrade = vi.fn();
-    render(
-      <GradeManager
-        students={[{ ...dummyStudent, classId: dummyClass.id }]}
-        classes={[dummyClass]}
-        grades={[]}
-        programs={[]}
-        teachers={[]}
-        settings={{} as any}
-        permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
-        isOwner={true}
-        currentUser={DEV_OWNER_ACCOUNT}
-        onUpdateGrade={onUpdateGrade}
-      />,
-    );
+    const Harness = () => {
+      const [settings, setSettings] = React.useState<any>({});
+      return (
+        <GradeManager
+          students={[{ ...dummyStudent, classId: dummyClass.id }]}
+          classes={[dummyClass]}
+          grades={[]}
+          programs={[]}
+          teachers={[]}
+          settings={settings}
+          permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
+          isOwner={true}
+          currentUser={DEV_OWNER_ACCOUNT}
+          onUpdateGrade={onUpdateGrade}
+          onUpdateGradeColumns={(columns) => {
+            setSettings((previous: any) => ({ ...previous, gradeColumns: columns }));
+            return true;
+          }}
+        />
+      );
+    };
+    render(<Harness />);
 
     // Click "+ Thêm cột điểm"
     fireEvent.click(screen.getByRole('button', { name: /\+ Thêm cột điểm/i }));

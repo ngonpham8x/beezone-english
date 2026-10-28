@@ -8,12 +8,18 @@ import {
   Share2,
   Table as TableIcon,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { isStudentInClass } from '../../lib/studentClasses';
 import { classesVisibleToAccount, hasCenterWideClassScope, isTeachingRole } from '../../lib/accountScope';
+import {
+  calculateSemesterAverage,
+  GRADE_SEMESTER_CONFIG,
+  GRADE_SEMESTERS,
+  normalizeCustomGradeColumns,
+} from '../../lib/gradebook';
 import {
   CenterSettings,
   ClassRoom,
@@ -38,61 +44,11 @@ interface GradeManagerProps {
   isOwner: boolean;
   currentUser?: UserAccount;
   onUpdateGrade: (updatedGrade: Grade) => void;
+  onUpdateGradeColumns?: (columns: CustomGradeColumn[]) => boolean;
   teachers?: Teacher[];
   programs?: CourseProgram[];
   settings?: CenterSettings;
 }
-
-const SEMESTER_CONFIG: Record<
-  GradeSemester,
-  {
-    name: string;
-    subLabel: string;
-    gpaLabel: string;
-    defaultUnits: { key: string; label: string }[];
-  }
-> = {
-  GKI: {
-    name: 'GKI',
-    subLabel: 'Giữa Kỳ I',
-    gpaLabel: 'ĐTBGKI',
-    defaultUnits: [
-      { key: 'unit1', label: 'UNIT 1' },
-      { key: 'unit2', label: 'UNIT 2' },
-      { key: 'unit3', label: 'UNIT 3' },
-    ],
-  },
-  CKI: {
-    name: 'CKI',
-    subLabel: 'Cuối Kỳ I',
-    gpaLabel: 'ĐTBCKI',
-    defaultUnits: [
-      { key: 'unit4', label: 'UNIT 4' },
-      { key: 'unit5', label: 'UNIT 5' },
-      { key: 'unit6', label: 'UNIT 6' },
-    ],
-  },
-  GKII: {
-    name: 'GKII',
-    subLabel: 'Giữa Kỳ II',
-    gpaLabel: 'ĐTBGKII',
-    defaultUnits: [
-      { key: 'unit7', label: 'UNIT 7' },
-      { key: 'unit8', label: 'UNIT 8' },
-      { key: 'unit9', label: 'UNIT 9' },
-    ],
-  },
-  CKII: {
-    name: 'CKII',
-    subLabel: 'Cuối Kỳ II',
-    gpaLabel: 'ĐTBCKII',
-    defaultUnits: [
-      { key: 'unit10', label: 'UNIT 10' },
-      { key: 'unit11', label: 'UNIT 11' },
-      { key: 'unit12', label: 'UNIT 12' },
-    ],
-  },
-};
 
 const QUICK_COMMENTS = [
   'Phát biểu tốt',
@@ -113,6 +69,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   isOwner,
   currentUser,
   onUpdateGrade,
+  onUpdateGradeColumns,
   teachers = [],
   programs = [],
   settings = {
@@ -144,19 +101,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   // Semester Selector State
   const [semester, setSemester] = useState<GradeSemester>('GKI');
 
-  // Custom Columns State
-  const [customColumns, setCustomColumns] = useState<CustomGradeColumn[]>(() => {
-    try {
-      const saved = localStorage.getItem(CUSTOM_COLUMNS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore JSON parse error
-    }
-    return settings.gradeColumns || [];
-  });
+  const customColumns = useMemo(
+    () => normalizeCustomGradeColumns(settings.gradeColumns),
+    [settings.gradeColumns],
+  );
 
   const [isCustomColumnsOpen, setIsCustomColumnsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,6 +119,21 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   }, [permittedClasses, centerWideScope, selectedClassId]);
 
   const canEdit = isOwner || permissions.grade.edit;
+  const canManageColumns = isOwner && Boolean(onUpdateGradeColumns);
+
+  // One-time compatibility bridge for columns created by the previous browser-only build.
+  // Persist them into center settings so backup, restore and other devices see the same layout.
+  useEffect(() => {
+    if (!canManageColumns || settings.gradeColumns !== undefined) return;
+    try {
+      const legacy = normalizeCustomGradeColumns(JSON.parse(localStorage.getItem(CUSTOM_COLUMNS_STORAGE_KEY) || '[]'));
+      if (legacy.length > 0 && onUpdateGradeColumns?.(legacy)) {
+        localStorage.removeItem(CUSTOM_COLUMNS_STORAGE_KEY);
+      }
+    } catch {
+      // Invalid legacy browser data is ignored; the shared center dataset remains authoritative.
+    }
+  }, [canManageColumns, onUpdateGradeColumns, settings.gradeColumns]);
 
   const classStudents = students
     .flatMap((student) =>
@@ -180,43 +143,43 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     )
     .filter((student) => student.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Active units for current semester and selected class
-  const activeUnits = useMemo(() => {
-    const config = SEMESTER_CONFIG[semester];
+  const gradeUnitsForClass = useCallback((classId?: string) => {
+    const config = GRADE_SEMESTER_CONFIG[semester];
     const defaultUnits = config.defaultUnits.map((u) => ({ ...u, isCustom: false }));
+    const selectedClass = classes.find((classroom) => classroom.id === classId);
     const filteredCustoms = customColumns
-      .filter((col) => col.semester === semester && (!col.classId || col.classId === 'all' || selectedClassId === 'all' || col.classId === selectedClassId))
+      .filter((col) =>
+        col.semester === semester &&
+        (!col.programId && !col.classId ||
+          Boolean(classId) &&
+          (col.programId === selectedClass?.programId || col.classId === classId)),
+      )
       .map((col) => ({ key: col.id, label: col.name, isCustom: true }));
     return [...defaultUnits, ...filteredCustoms];
-  }, [semester, customColumns, selectedClassId]);
+  }, [semester, customColumns, classes]);
+
+  // A mixed-program table shows only global columns. Selecting a class reveals
+  // the extra columns attached to that class's curriculum.
+  const activeUnits = useMemo(
+    () => gradeUnitsForClass(selectedClassId === 'all' ? undefined : selectedClassId),
+    [gradeUnitsForClass, selectedClassId],
+  );
 
   // Handle adding custom column
-  const handleAddCustomColumn = (col: { name: string; semester: GradeSemester; classId?: string }) => {
+  const handleAddCustomColumn = (col: { name: string; semester: GradeSemester; programId?: string }) => {
     const newCol: CustomGradeColumn = {
       id: `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       name: col.name,
       semester: col.semester,
-      classId: col.classId,
+      programId: col.programId,
       createdAt: new Date().toISOString(),
     };
-    const updated = [...customColumns, newCol];
-    setCustomColumns(updated);
-    try {
-      localStorage.setItem(CUSTOM_COLUMNS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+    onUpdateGradeColumns?.([...customColumns, newCol]);
   };
 
   // Handle deleting custom column
   const handleDeleteCustomColumn = (id: string) => {
-    const updated = customColumns.filter((c) => c.id !== id);
-    setCustomColumns(updated);
-    try {
-      localStorage.setItem(CUSTOM_COLUMNS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+    onUpdateGradeColumns?.(customColumns.filter((c) => c.id !== id));
   };
 
   // Helper to get grade record for a student in selected semester
@@ -250,18 +213,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   };
 
   // Calculate Average GPA based on 3 exam columns (Listening, Speaking, Reading & Writing)
-  const calculateSemesterGpa = (g: Grade): number => {
-    const listening = Number(g.listening) || 0;
-    const speaking = Number(g.speaking) || 0;
-    const readingWriting =
-      g.readingWriting !== undefined
-        ? Number(g.readingWriting) || 0
-        : ((Number(g.reading) || 0) + (Number(g.writing) || 0)) / 2;
-
-    const gpa = (listening + speaking + readingWriting) / 3;
-    return Math.round(gpa * 10) / 10;
-  };
-
   // Change exam grade (listening, speaking, readingWriting)
   const handleGradeChange = (
     studentId: string,
@@ -289,7 +240,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
       updated.writing = clamped;
     }
 
-    updated.average = calculateSemesterGpa(updated);
+    updated.average = calculateSemesterAverage(updated);
     onUpdateGrade(updated);
   };
 
@@ -344,7 +295,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     handleCommentChange(studentId, classId, newComment);
   };
 
-  const currentConfig = SEMESTER_CONFIG[semester];
+  const currentConfig = GRADE_SEMESTER_CONFIG[semester];
 
   return (
     <div className="space-y-4">
@@ -395,8 +346,8 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
         {/* Semester Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto custom-scrollbar">
-          {(['GKI', 'CKI', 'GKII', 'CKII'] as GradeSemester[]).map((semKey) => {
-            const conf = SEMESTER_CONFIG[semKey];
+          {GRADE_SEMESTERS.map((semKey) => {
+            const conf = GRADE_SEMESTER_CONFIG[semKey];
             const isActive = semester === semKey;
             return (
               <button
@@ -433,8 +384,9 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           <button
             type="button"
             onClick={() => setIsCustomColumnsOpen(true)}
+            disabled={!canManageColumns}
             className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-slate-800 hover:text-amber-700 border border-slate-200 hover:border-amber-400 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Thêm các cột UNIT hoặc bài kiểm tra tùy chỉnh cho chương trình"
+            title={canManageColumns ? 'Thêm các cột UNIT hoặc bài kiểm tra tùy chỉnh cho chương trình' : 'Chỉ Chủ trung tâm được thay đổi cấu trúc cột điểm dùng chung'}
           >
             <PlusCircle className="w-4 h-4 text-amber-600" />
             <span>+ Thêm cột điểm</span>
@@ -961,9 +913,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         onAddColumn={handleAddCustomColumn}
         onDeleteColumn={handleDeleteCustomColumn}
         currentSemester={semester}
+        programs={programs}
         classes={permittedClasses}
         selectedClassId={selectedClassId}
-        canEdit={canEdit}
+        canEdit={canManageColumns}
       />
 
       {/* Report Card Modal */}
@@ -971,7 +924,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         <ReportCardModal
           student={reportingStudent}
           semester={semester}
-          customUnits={activeUnits}
+          customUnits={gradeUnitsForClass(reportingStudent.classId)}
           grade={getGradeForStudent(reportingStudent.id, reportingStudent.classId).grade}
           classroom={classes.find((c) => c.id === reportingStudent.classId)}
           teacher={teachers.find(
@@ -992,7 +945,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           onClose={() => setSharingStudent(null)}
           student={sharingStudent}
           semester={semester}
-          customUnits={activeUnits}
+          customUnits={gradeUnitsForClass(sharingStudent.classId)}
           grade={getGradeForStudent(sharingStudent.id, sharingStudent.classId).grade}
           classroom={classes.find((c) => c.id === sharingStudent.classId)}
           teacher={teachers.find(

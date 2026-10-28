@@ -23,6 +23,7 @@ import React, { useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { splitAttendanceNote } from '../attendance/parentContact';
 import { paymentKindLabel, paymentPeriodLabel, studentTuitionDebtBreakdown } from '../../lib/tuition';
+import { GRADE_SEMESTER_CONFIG, gradeSemester, readingWritingScore } from '../../lib/gradebook';
 import type {
   AttendanceSession,
   ClassEnrollment,
@@ -342,6 +343,8 @@ export function StudentProfileDialog({
             <div className="space-y-3">
               {studentGrades.map((grade) => {
                 const gradeClass = classes.find((c) => c.id === grade.classId);
+                const semester = gradeSemester(grade);
+                const semesterConfig = GRADE_SEMESTER_CONFIG[semester];
                 const rank = getGradeRank(grade.average);
                 const isEditingComment = editingGradeId === grade.id;
                 return (
@@ -353,6 +356,9 @@ export function StudentProfileDialog({
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-slate-900">
                           {gradeClass?.name || 'Lớp học'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold border border-amber-300 bg-amber-50 text-amber-900">
+                          {semester}
                         </span>
                         <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${rank.color}`}>
                           {rank.label}
@@ -367,7 +373,7 @@ export function StudentProfileDialog({
                     </div>
 
                     {/* Skills breakdown */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
                         <div className="text-[10px] uppercase font-bold text-slate-400">Nghe (Listening)</div>
                         <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.listening ?? '-'}</div>
@@ -377,28 +383,18 @@ export function StudentProfileDialog({
                         <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.speaking ?? '-'}</div>
                       </div>
                       <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
-                        <div className="text-[10px] uppercase font-bold text-slate-400">Đọc (Reading)</div>
-                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.reading ?? '-'}</div>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2">
-                        <div className="text-[10px] uppercase font-bold text-slate-400">Viết (Writing)</div>
-                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{grade.writing ?? '-'}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Đọc & Viết</div>
+                        <div className="text-sm font-extrabold text-slate-800 mt-0.5">{readingWritingScore(grade)}</div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="rounded-lg bg-blue-50/60 border border-blue-200/60 p-1.5">
-                        <div className="text-[10px] uppercase font-semibold text-blue-800">Giữa kỳ</div>
-                        <div className="font-bold text-blue-900">{grade.midterm ?? '-'}</div>
-                      </div>
-                      <div className="rounded-lg bg-indigo-50/60 border border-indigo-200/60 p-1.5">
-                        <div className="text-[10px] uppercase font-semibold text-indigo-800">Cuối kỳ</div>
-                        <div className="font-bold text-indigo-900">{grade.finalExam ?? '-'}</div>
-                      </div>
-                      <div className="rounded-lg bg-emerald-50/60 border border-emerald-200/60 p-1.5">
-                        <div className="text-[10px] uppercase font-semibold text-emerald-800">Chuyên cần</div>
-                        <div className="font-bold text-emerald-900">{grade.attendance ?? '-'}</div>
-                      </div>
+                      {semesterConfig.defaultUnits.map((unit) => (
+                        <div key={unit.key} className="rounded-lg bg-amber-50/60 border border-amber-200/60 p-1.5">
+                          <div className="text-[10px] uppercase font-semibold text-amber-800">{unit.label}</div>
+                          <div className="font-bold text-amber-950">{grade.unitScores?.[unit.key] ?? '-'}</div>
+                        </div>
+                      ))}
                     </div>
 
                     {/* Teacher's comment on student's ability / performance */}

@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, X, Layers, AlertCircle, Check } from 'lucide-react';
 import { DialogFrame } from '../../components/DialogFrame';
-import { ClassRoom, CustomGradeColumn, GradeSemester } from '../../types';
+import { ClassRoom, CourseProgram, CustomGradeColumn, GradeSemester } from '../../types';
 
 interface CustomColumnsModalProps {
   isOpen: boolean;
   onClose: () => void;
   columns: CustomGradeColumn[];
-  onAddColumn: (col: { name: string; semester: GradeSemester; classId?: string }) => void;
+  onAddColumn: (col: { name: string; semester: GradeSemester; programId?: string }) => void;
   onDeleteColumn: (id: string) => void;
   currentSemester: GradeSemester;
+  programs: CourseProgram[];
   classes: ClassRoom[];
   selectedClassId: string;
   canEdit: boolean;
@@ -29,15 +30,25 @@ export const CustomColumnsModal: React.FC<CustomColumnsModalProps> = ({
   onAddColumn,
   onDeleteColumn,
   currentSemester,
+  programs,
   classes,
   selectedClassId,
   canEdit,
 }) => {
   const [colName, setColName] = useState('');
   const [targetSemester, setTargetSemester] = useState<GradeSemester>(currentSemester);
-  const [scopeClassId, setScopeClassId] = useState<string>(selectedClassId !== 'all' ? selectedClassId : 'all');
+  const selectedProgramId = classes.find((classroom) => classroom.id === selectedClassId)?.programId;
+  const [scopeProgramId, setScopeProgramId] = useState<string>(selectedProgramId || 'all');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTargetSemester(currentSemester);
+    setScopeProgramId(selectedProgramId || 'all');
+    setError(null);
+    setSuccess(null);
+  }, [currentSemester, isOpen, selectedProgramId]);
 
   if (!isOpen) return null;
 
@@ -55,7 +66,7 @@ export const CustomColumnsModal: React.FC<CustomColumnsModalProps> = ({
       (c) =>
         c.semester === targetSemester &&
         c.name.toLowerCase() === trimmed.toLowerCase() &&
-        (c.classId || 'all') === (scopeClassId || 'all'),
+        (c.programId || (c.classId ? `class:${c.classId}` : 'all')) === (scopeProgramId || 'all'),
     );
     if (exists) {
       setError(`Cột "${trimmed}" đã tồn tại trong ${SEMESTER_LABELS[targetSemester]}.`);
@@ -65,7 +76,7 @@ export const CustomColumnsModal: React.FC<CustomColumnsModalProps> = ({
     onAddColumn({
       name: trimmed,
       semester: targetSemester,
-      classId: scopeClassId !== 'all' ? scopeClassId : undefined,
+      programId: scopeProgramId !== 'all' ? scopeProgramId : undefined,
     });
 
     setColName('');
@@ -150,14 +161,14 @@ export const CustomColumnsModal: React.FC<CustomColumnsModalProps> = ({
               <div>
                 <label className="text-[11px] font-semibold text-slate-700 block mb-1">Áp dụng cho</label>
                 <select
-                  value={scopeClassId}
-                  onChange={(e) => setScopeClassId(e.target.value)}
+                  value={scopeProgramId}
+                  onChange={(e) => setScopeProgramId(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 font-semibold focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="all">Tất cả các lớp</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
+                  <option value="all">Tất cả chương trình</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
                     </option>
                   ))}
                 </select>
@@ -194,7 +205,11 @@ export const CustomColumnsModal: React.FC<CustomColumnsModalProps> = ({
           ) : (
             <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
               {columns.map((col) => {
-                const appliedClass = col.classId ? classes.find((c) => c.id === col.classId)?.name : 'Tất cả lớp';
+                const scopeLabel = col.programId
+                  ? programs.find((program) => program.id === col.programId)?.name || 'Chương trình đã xóa'
+                  : col.classId
+                    ? classes.find((c) => c.id === col.classId)?.name || 'Lớp cũ'
+                    : 'Tất cả chương trình';
                 return (
                   <div
                     key={col.id}
@@ -207,7 +222,7 @@ export const CustomColumnsModal: React.FC<CustomColumnsModalProps> = ({
                           {col.semester}
                         </span>
                         <span>•</span>
-                        <span className="truncate max-w-[150px]">{appliedClass}</span>
+                        <span className="truncate max-w-[180px]">{scopeLabel}</span>
                       </div>
                     </div>
 

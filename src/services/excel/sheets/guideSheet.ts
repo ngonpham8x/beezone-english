@@ -20,7 +20,7 @@ export function writeGuideSheet(context: ExportContext) {
     ],
     [
       '4. Bảng điểm',
-      'Sheet BẢNG ĐIỂM giữ điểm theo từng học viên và từng lớp. Bạn có thể sửa các cột kỹ năng, giữa kỳ, cuối kỳ và chuyên cần (0–10). Giữ Mã HS và Mã lớp để nhập lại đúng lịch sử.',
+      'Sheet BẢNG ĐIỂM giữ từng dòng theo học viên, lớp và học kỳ GKI/CKI/GKII/CKII. Sửa điểm UNIT (JSON), Nghe, Nói, Đọc & Viết và nhận xét trong thang 0–10; giữ Mã HS, Mã lớp và Học kỳ để nhập lại đúng lịch sử. Các cột “cũ” chỉ dùng để tương thích dữ liệu trước đây.',
     ],
     [
       '5. Công thức tổng thu tháng/lớp',

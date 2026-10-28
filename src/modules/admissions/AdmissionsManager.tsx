@@ -972,7 +972,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                    <span>Khởi tạo bảng điểm 4 kỹ năng & chuyên cần cho giáo viên chấm</span>
+                    <span>Khởi tạo bảng điểm GKI gồm UNIT 1–3 và 3 kỹ năng cho giáo viên chấm</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />

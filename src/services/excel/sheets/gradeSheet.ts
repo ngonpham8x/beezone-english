@@ -9,27 +9,29 @@ import {
 } from '../styles';
 
 import type { ExportContext } from '../exportContext';
+import { gradeSemester, readingWritingScore } from '../../../lib/gradebook';
 export function writeGradeSheet(context: ExportContext) {
   const { data, workbook, classById } = context;
   const gradesSheet = workbook.addWorksheet('BẢNG ĐIỂM');
-  styleTitle(gradesSheet, 'A1:M2', `${data.centerName.toUpperCase()}\nBẢNG ĐIỂM`);
-  applyBackLink(gradesSheet, 'M');
-  // Keep every score used by the web gradebook in the workbook.  The prior
-  // 4-skill-only layout silently discarded midterm/final/attendance when a
-  // report was imported back into the app.
+  styleTitle(gradesSheet, 'A1:Q2', `${data.centerName.toUpperCase()}\nBẢNG ĐIỂM THEO HỌC KỲ`);
+  applyBackLink(gradesSheet, 'Q');
   const gradeHeaders = [
     'STT',
     'Mã học sinh',
     'Họ và tên',
     'Mã lớp',
+    'Học kỳ',
+    'Điểm UNIT (JSON)',
     'Nghe',
     'Nói',
-    'Đọc',
-    'Viết',
-    'Giữa kỳ',
-    'Cuối kỳ',
-    'Chuyên cần',
+    'Đọc & Viết',
+    'Đọc (cũ)',
+    'Viết (cũ)',
+    'Giữa kỳ (cũ)',
+    'Cuối kỳ (cũ)',
+    'Chuyên cần (cũ)',
     'Điểm TB',
+    'Nhận xét quá trình học tập',
     'Xếp loại',
   ];
   gradesSheet.getRow(5).values = gradeHeaders;
@@ -37,35 +39,44 @@ export function writeGradeSheet(context: ExportContext) {
   const gradeRows = data.students.flatMap((student) => {
     const records = data.grades.filter((grade) => grade.studentId === student.id);
     const ids = [...new Set([...studentClassIds(student), ...records.map(grade => grade.classId)])];
-    return (ids.length ? ids : ['']).map(classId => ({ student, grade: records.find(grade => grade.classId === classId), classId }));
+    return (ids.length ? ids : ['']).flatMap((classId) => {
+      const classGrades = records.filter((grade) => grade.classId === classId);
+      return classGrades.length
+        ? classGrades.map((grade) => ({ student, grade, classId }))
+        : [{ student, grade: undefined, classId }];
+    });
   });
   gradeRows.forEach(({ student, grade, classId }, index) => {
     const rowNumber = STUDENT_DATA_START_ROW + index;
     const row = gradesSheet.getRow(rowNumber);
-    const avgFormula = `IF(COUNT(E${rowNumber}:K${rowNumber})=0,"",ROUND((AVERAGE(E${rowNumber}:H${rowNumber})*0.4 + I${rowNumber}*0.2 + J${rowNumber}*0.3 + K${rowNumber}*0.1), 1))`;
-    const rankFormula = `IF(L${rowNumber}="","",IF(L${rowNumber}>=8,"Giỏi",IF(L${rowNumber}>=6.5,"Khá",IF(L${rowNumber}>=5,"Trung bình","Cần hỗ trợ"))))`;
+    const avgFormula = `IF(COUNT(G${rowNumber}:I${rowNumber})=0,"",ROUND(AVERAGE(G${rowNumber}:I${rowNumber}),1))`;
+    const rankFormula = `IF(O${rowNumber}="","",IF(O${rowNumber}>=8,"Giỏi",IF(O${rowNumber}>=6.5,"Khá",IF(O${rowNumber}>=5,"Trung bình","Cần hỗ trợ"))))`;
     row.values = [
       index + 1,
       student.code,
       student.name,
       classById.get(classId)?.code || '',
+      grade ? gradeSemester(grade) : '',
+      grade && Object.keys(grade.unitScores || {}).length ? JSON.stringify(grade.unitScores) : '',
       grade?.listening ?? '',
       grade?.speaking ?? '',
+      grade ? readingWritingScore(grade) : '',
       grade?.reading ?? '',
       grade?.writing ?? '',
       grade?.midterm ?? '',
       grade?.finalExam ?? '',
       grade?.attendance ?? '',
       { formula: avgFormula },
+      grade?.comment ?? '',
       { formula: rankFormula },
     ];
     styleData(row, index);
   });
   const gradesFooterRow = STUDENT_DATA_START_ROW + gradeRows.length;
   writeFooter(gradesSheet, gradesFooterRow, gradeHeaders.length, {
-    12: `IFERROR(ROUND(AVERAGE(L${STUDENT_DATA_START_ROW}:L${gradesFooterRow - 1}),1),0)`,
+    15: `IFERROR(ROUND(AVERAGE(O${STUDENT_DATA_START_ROW}:O${gradesFooterRow - 1}),1),0)`,
   });
-  gradesSheet.autoFilter = { from: 'A5', to: `M${gradesFooterRow - 1}` };
+  gradesSheet.autoFilter = { from: 'A5', to: `Q${gradesFooterRow - 1}` };
   gradesSheet.views = [{ state: 'frozen', ySplit: 5 }];
   gradesSheet.columns = [
     { width: 8 },
@@ -73,6 +84,8 @@ export function writeGradeSheet(context: ExportContext) {
     { width: 28 },
     { width: 18 },
     { width: 12 },
+    { width: 28 },
+    { width: 12 },
     { width: 12 },
     { width: 12 },
     { width: 12 },
@@ -80,6 +93,7 @@ export function writeGradeSheet(context: ExportContext) {
     { width: 13 },
     { width: 14 },
     { width: 14 },
+    { width: 36 },
     { width: 18 },
   ];
 }

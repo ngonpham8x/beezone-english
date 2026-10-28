@@ -125,6 +125,7 @@ export function WorkspaceScreens({
     handleSaveScheduleChange,
     handleDeleteScheduleChange,
     handleUpdateGrade,
+    handleUpdateGradeColumns,
     handleAddReceipt,
     handleUpdateReceipt,
     handleDeleteReceipt,
@@ -421,6 +422,7 @@ export function WorkspaceScreens({
           isOwner={currentUser.role === 'owner'}
           currentUser={currentUser}
           onUpdateGrade={handleUpdateGrade}
+          onUpdateGradeColumns={handleUpdateGradeColumns}
         />
       );
     case 'tuition':
