@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   Award,
+  ChevronDown,
   FileText,
   LayoutGrid,
   PlusCircle,
@@ -122,7 +123,15 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   }, [permittedClasses, centerWideScope, selectedClassId]);
 
   const canEdit = isOwner || permissions.grade.edit;
-  const canManageColumns = Boolean(onUpdateGradeColumns && isOwner && currentUser?.active !== false);
+  const canManageColumns = Boolean(
+    onUpdateGradeColumns &&
+    (isOwner ||
+      currentUser?.role === 'owner' ||
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'trainer' ||
+      permissions.grade.edit) &&
+    currentUser?.active !== false,
+  );
 
   const classStudents = students
     .flatMap((student) =>
@@ -396,12 +405,12 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           <button
             type="button"
             onClick={() => setIsCustomColumnsOpen(true)}
-            disabled={!canManageColumns}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-2xs transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-            title={canManageColumns ? 'Thêm hoặc xóa cột theo chương trình' : 'Chỉ Chủ trung tâm được thay đổi cấu trúc cột'}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 shadow-2xs transition hover:bg-amber-50 hover:border-amber-400 active:scale-95 cursor-pointer"
+            title="Thêm hoặc xóa cột bài / điểm theo chương trình"
           >
             <PlusCircle className="h-4 w-4 text-amber-600" />
-            Thêm / xóa cột
+            <span>Thêm / xóa cột</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </button>
           {!showYearSummary && <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button

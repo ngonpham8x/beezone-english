@@ -7,7 +7,7 @@ import { StudentProfileDialog } from '../src/modules/students/StudentProfileDial
 import { ShareReviewDialog } from '../src/modules/attendance/ShareReviewDialog';
 import { canShareSessionReview } from '../src/modules/attendance/access';
 import * as initial from '../src/mock/initialData';
-import { DEV_OWNER_ACCOUNT } from '../src/lib/auth';
+import { DEV_OWNER_ACCOUNT, DEV_TRAINER_ACCOUNT } from '../src/lib/auth';
 import type { AttendanceSession, ClassRoom, CustomGradeColumn, Grade, Student, UserAccount } from '../src/types';
 import * as dialogs from '../src/lib/dialogs';
 
@@ -469,5 +469,82 @@ describe('ShareReviewDialog & permissions', () => {
     fireEvent.click(screen.getByRole('button', { name: /Xem tổng kết cuối năm/i }));
     expect(screen.getByText(/Tổng kết năng lực cuối năm/i)).toBeTruthy();
     expect(screen.getAllByText(/Tạm tính 1\/4 kỳ/i).length).toBeGreaterThan(0);
+  });
+
+  it('allows trainer account (phongdaotao) to click add/remove columns, tick both UNIT and assessment, and create 2 columns', async () => {
+    const onUpdateGradeColumns = vi.fn((_columns: CustomGradeColumn[]) => true);
+    const program = initial.initialPrograms.find((item) => item.id === dummyClass.programId)!;
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={[program]}
+        teachers={[]}
+        settings={{ gradeColumns: [] } as any}
+        permissions={DEV_TRAINER_ACCOUNT.permissions}
+        isOwner={false}
+        currentUser={DEV_TRAINER_ACCOUNT}
+        onUpdateGrade={() => {}}
+        onUpdateGradeColumns={onUpdateGradeColumns}
+      />
+    );
+
+    // The button must NOT be disabled for trainer
+    const addColBtn = screen.getByRole('button', { name: /Thêm \/ xóa cột/i }) as HTMLButtonElement;
+    expect(addColBtn.disabled).toBe(false);
+    fireEvent.click(addColBtn);
+
+    // Dialog opens with two selectable options
+    expect(screen.getByText(/Thêm \/ xóa cột bài học & cột điểm/i)).toBeTruthy();
+
+    // Check "Cột điểm / bài kiểm tra" in addition to "Cột bài / UNIT" (both checked)
+    const unitCheck = screen.getByRole('checkbox', { name: /Cột bài \/ UNIT/i }) as HTMLInputElement;
+    const assessCheck = screen.getByRole('checkbox', { name: /Cột điểm \/ bài kiểm tra/i }) as HTMLInputElement;
+    expect(unitCheck.checked).toBe(true);
+    expect(assessCheck.checked).toBe(false);
+
+    fireEvent.click(assessCheck);
+    expect(assessCheck.checked).toBe(true);
+
+    // Enter names for both columns
+    const unitInput = screen.getByRole('textbox', { name: /Tên cột bài hoặc UNIT/i });
+    const assessInput = screen.getByRole('textbox', { name: /Tên cột điểm hoặc bài kiểm tra/i });
+    fireEvent.change(unitInput, { target: { value: 'UNIT 7' } });
+    fireEvent.change(assessInput, { target: { value: 'Midterm Review' } });
+
+    // Submit the 2 columns
+    const submitBtn = screen.getByRole('button', { name: /Thêm 2 cột/i });
+    fireEvent.click(submitBtn);
+
+    expect(onUpdateGradeColumns).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ name: 'UNIT 7', kind: 'unit', programId: program.id }),
+      expect.objectContaining({ name: 'Midterm Review', kind: 'assessment', programId: program.id }),
+    ]));
+  });
+
+  it('keeps add/remove column button accessible to read-only viewers with informative notice', () => {
+    const program = initial.initialPrograms.find((item) => item.id === dummyClass.programId)!;
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={[program]}
+        teachers={[]}
+        settings={{ gradeColumns: [] } as any}
+        permissions={{ grade: { view: true, edit: false } } as any}
+        isOwner={false}
+        currentUser={{ id: 'view-only', name: 'Khách', role: 'teacher', active: true, permissions: { grade: { view: true, edit: false } } } as any}
+        onUpdateGrade={() => {}}
+      />
+    );
+
+    const btn = screen.getByRole('button', { name: /Thêm \/ xóa cột/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+
+    expect(screen.getByText(/Bạn đang ở chế độ xem/i)).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: /Tên cột bài hoặc UNIT/i })).toBeNull();
   });
 });

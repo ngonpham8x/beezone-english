@@ -105,12 +105,35 @@ describe('domain command integration', () => {
     expect(result.current.store.grades[0]).toMatchObject({ average: 8.6, unitScores: { custom_progress: 9 } });
   });
 
-  it('keeps shared grade-column structure owner-only even when training can enter scores', () => {
+  it('allows training department and managers to configure program grade columns', () => {
     const { result } = renderHook(() => useTestCenter(DEV_TRAINER_ACCOUNT));
+    const data = dataset();
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const column: CustomGradeColumn = {
+      id: 'trainer_col',
+      name: 'UNIT 13',
+      kind: 'unit',
+      semester: 'GKI',
+      programId: data.programs[0].id,
+      createdAt: '2026-10-28T04:00:00.000Z',
+    };
+    act(() => expect(result.current.actions.handleUpdateGradeColumns([column])).toBe(true));
+    expect(result.current.store.settings.gradeColumns).toEqual([column]);
+  });
+
+  it('blocks unauthorized users without grade-edit capability from mutating grade columns', () => {
+    const readOnlyStaff: UserAccount = {
+      ...DEV_TEACHER_ACCOUNT,
+      permissions: {
+        ...DEV_TEACHER_ACCOUNT.permissions,
+        grade: { view: true, edit: false },
+      },
+    };
+    const { result } = renderHook(() => useTestCenter(readOnlyStaff));
     const before = result.current.store.settings;
     act(() => expect(result.current.actions.handleUpdateGradeColumns([])).toBe(false));
     expect(result.current.store.settings).toBe(before);
-    expect(dialogs.showAlert).toHaveBeenCalledWith(expect.stringContaining('Chủ trung tâm'));
+    expect(dialogs.showAlert).toHaveBeenCalledWith(expect.stringContaining('không có quyền'));
   });
 
   it('blocks teacher-rank student profile mutations even with legacy broad flags', () => {
