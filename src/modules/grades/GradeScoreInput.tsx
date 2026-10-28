@@ -49,12 +49,17 @@ export function GradeScoreInput({ value, onCommit, disabled, ariaLabel, classNam
       value={draft}
       disabled={disabled}
       onFocus={(event) => event.currentTarget.select()}
+      onPointerUp={(event) => {
+        // Mobile browsers can collapse the selection created by onFocus after
+        // the pointer is released. Keep the old score selected for replacement.
+        event.preventDefault();
+        event.currentTarget.select();
+      }}
       onChange={(event) => {
-        const next = event.target.value;
-        if (/^\d{0,2}([.,]\d*)?$/.test(next)) {
-          setDraft(next);
-          setInvalid(false);
-        }
+        // Keep manual typing unrestricted until commit. This lets a touch user
+        // replace an initial 0 with 10 even if the browser reports "010".
+        setDraft(event.target.value.slice(0, 8));
+        setInvalid(false);
       }}
       onBlur={commit}
       onKeyDown={(event) => {

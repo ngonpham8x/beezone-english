@@ -305,6 +305,49 @@ describe('ShareReviewDialog & permissions', () => {
     expect(screen.getByText('ĐTBCKII')).toBeTruthy();
   });
 
+  it('allows all three CKII assessment scores to be typed manually from an empty semester', () => {
+    const updates = vi.fn();
+    const Harness = () => {
+      const [grades, setGrades] = React.useState<Grade[]>([]);
+      return <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={grades}
+        programs={[]}
+        teachers={[]}
+        settings={{} as any}
+        permissions={{ grade: { view: true, edit: true } } as any}
+        isOwner
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={(updated) => {
+          updates(updated);
+          setGrades((current) => [...current.filter((grade) => grade.id !== updated.id), updated]);
+        }}
+      />;
+    };
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn học kỳ CKII' }));
+
+    const enter = (label: RegExp, value: string) => {
+      const input = screen.getByLabelText(label);
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+    };
+    enter(new RegExp(`Nghe - ${dummyStudent.code}`, 'i'), '9');
+    // After the first save the untouched field is 0. Mobile browsers may send
+    // 010 if the selection collapses, which must still commit as 10.
+    enter(new RegExp(`Nói - ${dummyStudent.code}`, 'i'), '010');
+    enter(new RegExp(`Đọc và Viết - ${dummyStudent.code}`, 'i'), '8,5');
+
+    expect(updates).toHaveBeenLastCalledWith(expect.objectContaining({
+      semester: 'CKII',
+      listening: 9,
+      speaking: 10,
+      readingWriting: 8.5,
+      average: 9.2,
+    }));
+  });
+
   it('calculates average GPA based on 3 exam columns: Listening, Speaking, Reading & Writing', () => {
     const onUpdateGrade = vi.fn();
     const initialGrade: Grade = {
