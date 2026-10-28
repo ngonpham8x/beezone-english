@@ -64,21 +64,24 @@ export const readingWritingScore = (
 ) =>
   grade.readingWriting !== undefined
     ? grade.readingWriting
-    : ((Number(grade.reading) || 0) + (Number(grade.writing) || 0)) / 2;
+    : grade.reading !== undefined || grade.writing !== undefined
+    ? ((Number(grade.reading) || 0) + (Number(grade.writing) || 0)) / 2
+    : undefined;
 
 export const calculateSemesterAverage = (
   grade: Pick<Grade, 'listening' | 'speaking' | 'readingWriting' | 'reading' | 'writing' | 'unitScores'>,
   includedUnitIds: Iterable<string> = [],
 ) => {
-  const scores = [
-    Number(grade.listening) || 0,
-    Number(grade.speaking) || 0,
-    readingWritingScore(grade),
-  ];
+  const scores: number[] = [];
+  if (isValidScore(grade.listening)) scores.push(Number(grade.listening));
+  if (isValidScore(grade.speaking)) scores.push(Number(grade.speaking));
+  const rw = readingWritingScore(grade);
+  if (isValidScore(rw)) scores.push(Number(rw));
   const allowedIds = new Set(includedUnitIds);
   for (const [unitId, value] of Object.entries(grade.unitScores || {})) {
     if (allowedIds.has(unitId) && isValidScore(value)) scores.push(value);
   }
+  if (scores.length === 0) return 0;
   return Math.round((scores.reduce((sum, value) => sum + value, 0) / scores.length) * 10) / 10;
 };
 

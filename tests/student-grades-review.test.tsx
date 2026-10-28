@@ -450,11 +450,11 @@ describe('ShareReviewDialog & permissions', () => {
     const customScore = screen.getByLabelText(new RegExp(`UNIT 13 - ${dummyStudent.code}`, 'i'));
     fireEvent.change(customScore, { target: { value: '7,5' } });
     fireEvent.blur(customScore);
-    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ average: 3.2 }));
+    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ average: 8 }));
 
     vi.spyOn(dialogs, 'askConfirmation').mockResolvedValue(true);
     fireEvent.click(screen.getByRole('button', { name: /Thêm \/ xóa cột/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Xóa cột UNIT 13/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Xóa cột UNIT 13/i })[0]);
     await waitFor(() => expect(onUpdateGradeColumns).toHaveBeenLastCalledWith(expect.arrayContaining([
       expect.objectContaining({ name: 'UNIT 13', archivedAt: expect.any(String) }),
     ])));
@@ -596,7 +596,7 @@ describe('ShareReviewDialog & permissions', () => {
     expect(screen.queryByText(new RegExp(rawClassId, 'i'))).toBeNull();
   });
 
-  it('supports toggling edit/delete button visibility and renaming a custom column in GradeManager', async () => {
+  it('supports direct edit/delete buttons on header and renaming a custom column in GradeManager', async () => {
     const onUpdateGradeColumns = vi.fn((_columns: CustomGradeColumn[]) => true);
     const customCol: CustomGradeColumn = {
       id: 'col_unit_special',
@@ -623,16 +623,11 @@ describe('ShareReviewDialog & permissions', () => {
       />
     );
 
-    // Initially, action buttons (Pencil/Trash) on header are hidden
-    expect(screen.queryByRole('button', { name: /Sửa tên cột UNIT Extra/i })).toBeNull();
-
-    // Click toggle button "Ẩn/Hiện sửa xóa cột"
-    const toggleBtn = screen.getByRole('button', { name: /Ẩn\/Hiện sửa xóa cột/i });
-    fireEvent.click(toggleBtn);
-
-    // Now edit & delete buttons appear on header
+    // Edit and delete buttons appear directly on the column header for managers
     const editBtn = screen.getByRole('button', { name: /Sửa tên cột UNIT Extra/i });
+    const deleteBtn = screen.getByRole('button', { name: /Xóa cột UNIT Extra/i });
     expect(editBtn).toBeTruthy();
+    expect(deleteBtn).toBeTruthy();
 
     // Click edit -> dialog opens
     fireEvent.click(editBtn);
@@ -646,6 +641,77 @@ describe('ShareReviewDialog & permissions', () => {
     expect(onUpdateGradeColumns).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({ id: 'col_unit_special', name: 'UNIT 3.5' }),
     ]));
+  });
+
+  it('allows editing scores and clearing scores cleanly without snapping back or failing validation', () => {
+    const onUpdateGrade = vi.fn((_grade: Grade) => true);
+    const existingGrade: Grade = {
+      id: 'grd_test_clearing',
+      studentId: dummyStudent.id,
+      classId: dummyClass.id,
+      semester: 'CKII',
+      listening: 0.1,
+      speaking: 0.1,
+      readingWriting: 0,
+      reading: 0,
+      writing: 0,
+      midterm: 0,
+      finalExam: 0,
+      attendance: 10,
+      average: 0.1,
+      comment: '',
+    };
+
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[existingGrade]}
+        programs={initial.initialPrograms}
+        teachers={[]}
+        settings={{ gradeColumns: [] } as any}
+        permissions={DEV_OWNER_ACCOUNT.permissions}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={onUpdateGrade}
+      />
+    );
+
+    // Switch to CKII semester
+    const ckiiBtn = screen.getByRole('button', { name: /Học kỳ CKII/i });
+    fireEvent.click(ckiiBtn);
+
+    // Find the listening score input (currently 0.1)
+    const listeningInput = screen.getByRole('textbox', {
+      name: new RegExp(`Nghe.*${dummyStudent.code}`, 'i'),
+    }) as HTMLInputElement;
+    expect(listeningInput.value).toBe('0.1');
+
+    // User edits score to 8.5
+    fireEvent.change(listeningInput, { target: { value: '8.5' } });
+    fireEvent.blur(listeningInput);
+
+    expect(onUpdateGrade).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: dummyStudent.id,
+        classId: dummyClass.id,
+        semester: 'CKII',
+        listening: 8.5,
+      }),
+    );
+
+    // User clears score completely back to blank
+    fireEvent.change(listeningInput, { target: { value: '' } });
+    fireEvent.blur(listeningInput);
+
+    expect(onUpdateGrade).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: dummyStudent.id,
+        classId: dummyClass.id,
+        semester: 'CKII',
+        listening: undefined,
+      }),
+    );
   });
 
   it('separates custom unit columns and assessment columns into respective groups in all classes mode', () => {

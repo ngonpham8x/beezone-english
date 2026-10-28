@@ -10,7 +10,7 @@ interface ColumnDraft {
   name: string;
   kind: CustomGradeColumnKind;
   semester: GradeSemester;
-  programId: string;
+  programId?: string;
 }
 
 interface Props {
@@ -51,8 +51,9 @@ export function CustomColumnsModal({
   canEdit,
 }: Props) {
   const selectedProgramId = classes.find((item) => item.id === selectedClassId)?.programId;
+  const defaultProgramId = selectedProgramId || programs[0]?.id || 'all';
   const [semester, setSemester] = useState<GradeSemester>(currentSemester);
-  const [programId, setProgramId] = useState(selectedProgramId || programs[0]?.id || '');
+  const [programId, setProgramId] = useState(defaultProgramId);
   const [addUnit, setAddUnit] = useState(true);
   const [addAssessment, setAddAssessment] = useState(false);
   const [unitName, setUnitName] = useState('');
@@ -65,7 +66,7 @@ export function CustomColumnsModal({
   useEffect(() => {
     if (!isOpen) return;
     setSemester(currentSemester);
-    setProgramId(selectedProgramId || programs[0]?.id || '');
+    setProgramId(selectedProgramId || programs[0]?.id || 'all');
     setMessage(null);
   }, [currentSemester, isOpen, programs, selectedProgramId]);
 
@@ -76,20 +77,20 @@ export function CustomColumnsModal({
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const drafts: ColumnDraft[] = [];
-    if (!programId) return setMessage({ kind: 'error', text: 'Vui lòng chọn chương trình áp dụng.' });
+    const resolvedProgramId = (!programId || programId === 'all') ? undefined : programId;
     if (!addUnit && !addAssessment) return setMessage({ kind: 'error', text: 'Hãy tích chọn ít nhất một loại cột cần thêm.' });
     if (addUnit) {
       if (!unitName.trim()) return setMessage({ kind: 'error', text: 'Vui lòng nhập tên cột bài / UNIT.' });
-      drafts.push({ name: unitName.trim(), kind: 'unit', semester, programId });
+      drafts.push({ name: unitName.trim(), kind: 'unit', semester, programId: resolvedProgramId });
     }
     if (addAssessment) {
       if (!assessmentName.trim()) return setMessage({ kind: 'error', text: 'Vui lòng nhập tên cột điểm / bài kiểm tra.' });
-      drafts.push({ name: assessmentName.trim(), kind: 'assessment', semester, programId });
+      drafts.push({ name: assessmentName.trim(), kind: 'assessment', semester, programId: resolvedProgramId });
     }
     const duplicate = drafts.find((draft) =>
       activeColumns.some((column) =>
         column.semester === draft.semester &&
-        column.programId === draft.programId &&
+        (column.programId || undefined) === draft.programId &&
         column.name.trim().toLocaleLowerCase('vi-VN') === draft.name.toLocaleLowerCase('vi-VN'),
       ),
     );
@@ -174,7 +175,10 @@ export function CustomColumnsModal({
                   label="Chương trình áp dụng cho cột điểm"
                   value={programId}
                   onChange={setProgramId}
-                  options={programs.map((program) => ({ value: program.id, label: program.name }))}
+                  options={[
+                    { value: 'all', label: 'Tất cả chương trình (Áp dụng chung)' },
+                    ...programs.map((program) => ({ value: program.id, label: program.name })),
+                  ]}
                   placeholder="Chọn chương trình"
                 />
               </div>

@@ -61,12 +61,25 @@ export function createGradeActions({ classes, programs, teachers, grades, setGra
       showAlert('Nhận xét không được vượt quá 2000 ký tự.');
       return false;
     }
-    const scores = [updatedGrade.listening, updatedGrade.speaking, updatedGrade.reading, updatedGrade.writing,
-      updatedGrade.midterm, updatedGrade.finalExam, updatedGrade.attendance];
-    if (scores.some((score) => !isValidScore(score)) ||
-        (updatedGrade.readingWriting !== undefined && !isValidScore(updatedGrade.readingWriting)) ||
-        Object.entries(updatedGrade.unitScores || {}).some(([unitId, score]) =>
-          !unitId.trim() || unitId.length > 100 || !isValidScore(score))) {
+    const scores = [
+      updatedGrade.listening,
+      updatedGrade.speaking,
+      updatedGrade.reading,
+      updatedGrade.writing,
+      updatedGrade.midterm,
+      updatedGrade.finalExam,
+      updatedGrade.attendance,
+      updatedGrade.readingWriting,
+    ];
+    if (
+      scores.some((score) => score !== undefined && score !== null && !isValidScore(score)) ||
+      Object.entries(updatedGrade.unitScores || {}).some(
+        ([unitId, score]) =>
+          !unitId.trim() ||
+          unitId.length > 100 ||
+          (score !== undefined && score !== null && !isValidScore(score)),
+      )
+    ) {
       showAlert('Điểm phải là số trong khoảng 0–10.');
       return false;
     }

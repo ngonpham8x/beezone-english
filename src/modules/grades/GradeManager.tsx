@@ -3,8 +3,6 @@ import {
   Award,
   ChevronDown,
   Edit3,
-  Eye,
-  EyeOff,
   FileText,
   LayoutGrid,
   Pencil,
@@ -124,7 +122,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
-  const [showColumnActions, setShowColumnActions] = useState(false);
   const [editingColumn, setEditingColumn] = useState<CustomGradeColumn | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -165,22 +162,13 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     return [...defaultUnits, ...filteredCustoms];
   }, [semester, customColumns, classes]);
 
-  // Semester custom columns: In 'all' class mode, include all active custom columns of this semester
+  // Luôn hiển thị đầy đủ các cột tùy chỉnh của học kỳ đang xem vào bảng điểm
   const semesterCustomColumns = useMemo(() => {
-    if (selectedClassId !== 'all') {
-      const selectedClass = classes.find((classroom) => classroom.id === selectedClassId);
-      return customGradeColumnsForClass(customColumns, semester, selectedClass);
-    }
-    const allowedProgramIds = new Set(permittedClasses.map((classroom) => classroom.programId).filter(Boolean));
-    const allowedClassIds = new Set(permittedClasses.map((classroom) => classroom.id).filter(Boolean));
     return customColumns.filter((col) => {
       if (!isActiveCustomGradeColumn(col) || col.semester !== semester) return false;
-      if (!col.programId && !col.classId) return true;
-      if (col.programId && allowedProgramIds.has(col.programId)) return true;
-      if (col.classId && allowedClassIds.has(col.classId)) return true;
-      return centerWideScope;
+      return true;
     });
-  }, [selectedClassId, classes, customColumns, semester, permittedClasses, centerWideScope]);
+  }, [customColumns, semester]);
 
   const customUnitColumns = useMemo(
     () => semesterCustomColumns.filter((col) => customGradeColumnKind(col) === 'unit'),
@@ -224,14 +212,14 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         studentId,
         classId,
         semester,
-        listening: 0,
-        speaking: 0,
+        listening: undefined,
+        speaking: undefined,
         readingWriting: undefined,
-        reading: 0,
-        writing: 0,
-        midterm: 0,
-        finalExam: 0,
-        attendance: 0,
+        reading: undefined,
+        writing: undefined,
+        midterm: undefined,
+        finalExam: undefined,
+        attendance: undefined,
         average: 0,
         unitScores: {},
         comment: '',
@@ -246,15 +234,15 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     studentId: string,
     classId: string,
     field: 'listening' | 'speaking' | 'readingWriting',
-    value: number,
+    value: number | undefined,
   ) => {
     const student = students.find((s) => s.id === studentId);
-    if (!canEdit || !student || !Number.isFinite(value) || !classStudents.some((s) => s.id === studentId && s.classId === classId)) {
+    if (!canEdit || !student || !classStudents.some((s) => s.id === studentId && s.classId === classId)) {
       return;
     }
 
     const { grade: existing } = getGradeForStudent(studentId, classId);
-    const clamped = Math.min(Math.max(value, 0), 10);
+    const clamped = value !== undefined && Number.isFinite(value) ? Math.min(Math.max(value, 0), 10) : undefined;
 
     const updated: Grade = {
       ...existing,
@@ -280,23 +268,26 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     studentId: string,
     classId: string,
     unitKey: string,
-    value: number,
+    value: number | undefined,
   ) => {
     const student = students.find((s) => s.id === studentId);
-    if (!canEdit || !student || !Number.isFinite(value) || !classStudents.some((s) => s.id === studentId && s.classId === classId)) {
+    if (!canEdit || !student || !classStudents.some((s) => s.id === studentId && s.classId === classId)) {
       return;
     }
 
     const { grade: existing } = getGradeForStudent(studentId, classId);
-    const clamped = Math.min(Math.max(value, 0), 10);
+    const nextUnitScores = { ...(existing.unitScores || {}) };
+
+    if (value === undefined || !Number.isFinite(value)) {
+      delete nextUnitScores[unitKey];
+    } else {
+      nextUnitScores[unitKey] = Math.min(Math.max(value, 0), 10);
+    }
 
     const updated: Grade = {
       ...existing,
       semester,
-      unitScores: {
-        ...(existing.unitScores || {}),
-        [unitKey]: clamped,
-      },
+      unitScores: nextUnitScores,
     };
     updated.average = calculateSemesterAverage(
       updated,
@@ -309,12 +300,13 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     name: string;
     kind: 'unit' | 'assessment';
     semester: GradeSemester;
-    programId: string;
+    programId?: string;
   }>) => {
     if (!canManageColumns || !onUpdateGradeColumns) return false;
     const now = new Date().toISOString();
     const created = drafts.map((draft, index): CustomGradeColumn => ({
       ...draft,
+      programId: draft.programId || undefined,
       id: `col_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
       createdAt: now,
     }));
@@ -476,21 +468,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
             <span>Thêm / xóa cột</span>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </button>
-          {canManageColumns && (
-            <button
-              type="button"
-              onClick={() => setShowColumnActions((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition shadow-2xs cursor-pointer ${
-                showColumnActions
-                  ? 'border-amber-500 bg-amber-500 text-slate-950 font-black shadow-sm ring-1 ring-amber-400'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-              title={showColumnActions ? 'Ẩn các nút sửa, xóa cột trên tiêu đề' : 'Hiện các nút sửa, xóa cột trên tiêu đề'}
-            >
-              {showColumnActions ? <EyeOff className="h-4 w-4 text-slate-950" /> : <Eye className="h-4 w-4 text-amber-600" />}
-              <span>{showColumnActions ? 'Đang hiện sửa / xóa' : 'Ẩn/Hiện sửa xóa cột'}</span>
-            </button>
-          )}
           {!showYearSummary && <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
@@ -560,7 +537,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                     >
                       <div className="font-extrabold text-amber-300">{u.label}</div>
                       {u.isCustom && <span className="text-[9px] text-amber-400/80 font-normal block">(Cột bài)</span>}
-                      {u.isCustom && u.column && canManageColumns && showColumnActions && (
+                      {u.isCustom && u.column && canManageColumns && (
                         <div className="mt-1 flex items-center justify-center gap-1">
                           <button
                             type="button"
@@ -643,7 +620,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         {col.name}
                       </div>
                       <span className="text-[9px] text-indigo-400/80 font-normal block">(Cột điểm)</span>
-                      {canManageColumns && showColumnActions && (
+                      {canManageColumns && (
                         <div className="mt-1 flex items-center justify-center gap-1">
                           <button
                             type="button"

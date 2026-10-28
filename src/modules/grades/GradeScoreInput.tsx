@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 
 interface Props {
   value?: number;
-  onCommit: (value: number) => void;
+  onCommit: (value: number | undefined) => void;
   disabled?: boolean;
   ariaLabel: string;
   className?: string;
 }
 
-const scoreText = (value?: number) => value === undefined ? '' : String(value);
+const scoreText = (value?: number) => (value === undefined || value === null ? '' : String(value));
 
 /** Keeps an editable draft so clearing/retyping a controlled score never snaps to zero. */
 export function GradeScoreInput({ value, onCommit, disabled, ariaLabel, className = '' }: Props) {
@@ -23,8 +23,9 @@ export function GradeScoreInput({ value, onCommit, disabled, ariaLabel, classNam
   const commit = () => {
     const normalized = draft.trim().replace(',', '.');
     if (!normalized) {
-      setDraft(scoreText(value));
+      setDraft('');
       setInvalid(false);
+      if (value !== undefined) onCommit(undefined);
       return;
     }
     const parsed = Number(normalized);
@@ -44,17 +45,11 @@ export function GradeScoreInput({ value, onCommit, disabled, ariaLabel, classNam
       inputMode="decimal"
       aria-label={ariaLabel}
       aria-invalid={invalid || undefined}
-      title={invalid ? 'Điểm phải từ 0 đến 10' : 'Nhập tay điểm từ 0 đến 10; nhấn Enter hoặc rời ô để lưu'}
+      title={invalid ? 'Điểm phải từ 0 đến 10' : 'Nhập tay điểm từ 0 đến 10; xóa trắng để hủy điểm; nhấn Enter hoặc rời ô để lưu'}
       placeholder="—"
       value={draft}
       disabled={disabled}
       onFocus={(event) => event.currentTarget.select()}
-      onPointerUp={(event) => {
-        // Mobile browsers can collapse the selection created by onFocus after
-        // the pointer is released. Keep the old score selected for replacement.
-        event.preventDefault();
-        event.currentTarget.select();
-      }}
       onChange={(event) => {
         // Keep manual typing unrestricted until commit. This lets a touch user
         // replace an initial 0 with 10 even if the browser reports "010".
