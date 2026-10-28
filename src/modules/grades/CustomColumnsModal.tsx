@@ -1,4 +1,4 @@
-import { AlertCircle, Check, ClipboardList, Layers, Plus, Trash2, X } from 'lucide-react';
+import { AlertCircle, Check, ClipboardList, Layers, Pencil, Plus, Trash2, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
@@ -18,7 +18,8 @@ interface Props {
   onClose: () => void;
   columns: CustomGradeColumn[];
   onAddColumns: (columns: ColumnDraft[]) => boolean;
-  onArchiveColumn: (columnId: string) => boolean;
+  onArchiveColumn: (columnId: string) => boolean | Promise<boolean>;
+  onRenameColumn?: (columnId: string, newName: string) => boolean;
   currentSemester: GradeSemester;
   programs: CourseProgram[];
   classes: ClassRoom[];
@@ -42,6 +43,7 @@ export function CustomColumnsModal({
   columns,
   onAddColumns,
   onArchiveColumn,
+  onRenameColumn,
   currentSemester,
   programs,
   classes,
@@ -55,6 +57,8 @@ export function CustomColumnsModal({
   const [addAssessment, setAddAssessment] = useState(false);
   const [unitName, setUnitName] = useState('');
   const [assessmentName, setAssessmentName] = useState('');
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const activeColumns = useMemo(() => columns.filter(isActiveCustomGradeColumn), [columns]);
 
@@ -100,8 +104,37 @@ export function CustomColumnsModal({
     const confirmed = await askConfirmation(
       `Xóa cột “${column.name}”? Cột sẽ ngừng hiển thị và không còn tính vào ĐTB. Điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
     );
-    if (confirmed && onArchiveColumn(column.id)) {
+    if (confirmed && (await onArchiveColumn(column.id))) {
       setMessage({ kind: 'success', text: `Đã xóa cột “${column.name}” và tính lại điểm trung bình.` });
+    }
+  };
+
+  const handleSaveRename = (column: CustomGradeColumn) => {
+    if (!onRenameColumn) return;
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      setMessage({ kind: 'error', text: 'Tên cột không được để trống.' });
+      return;
+    }
+    if (trimmed.length > 40) {
+      setMessage({ kind: 'error', text: 'Tên cột không được vượt quá 40 ký tự.' });
+      return;
+    }
+    const duplicate = activeColumns.some(
+      (c) =>
+        c.id !== column.id &&
+        c.semester === column.semester &&
+        c.programId === column.programId &&
+        c.name.trim().toLocaleLowerCase('vi-VN') === trimmed.toLocaleLowerCase('vi-VN'),
+    );
+    if (duplicate) {
+      setMessage({ kind: 'error', text: `Cột “${trimmed}” đã tồn tại trong chương trình này.` });
+      return;
+    }
+    if (onRenameColumn(column.id, trimmed)) {
+      setEditingColumnId(null);
+      setEditingName('');
+      setMessage({ kind: 'success', text: `Đã cập nhật tên cột thành “${trimmed}”.` });
     }
   };
 
@@ -328,6 +361,48 @@ export function CustomColumnsModal({
               {activeColumns.map((column) => {
                 const kind = customGradeColumnKind(column);
                 const program = programs.find((item) => item.id === column.programId);
+                const isEditing = editingColumnId === column.id;
+
+                if (isEditing) {
+                  return (
+                    <div
+                      key={column.id}
+                      className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 rounded-xl border border-amber-300 p-3 bg-amber-50/60 transition"
+                    >
+                      <div className="flex-1">
+                        <input
+                          aria-label={`Sửa tên cột ${column.name}`}
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          maxLength={40}
+                          autoFocus
+                          className="w-full rounded-lg border border-amber-400 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleSaveRename(column)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-600 transition cursor-pointer shadow-2xs"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Cập nhật</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingColumnId(null);
+                            setEditingName('');
+                          }}
+                          className="rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-300 transition cursor-pointer"
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={column.id}
@@ -355,15 +430,29 @@ export function CustomColumnsModal({
                       </div>
                     </div>
                     {canEdit && (
-                      <button
-                        type="button"
-                        aria-label={`Xóa cột ${column.name}`}
-                        onClick={() => void archive(column)}
-                        className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
-                        title="Xóa cột này khỏi bảng điểm"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          aria-label={`Sửa tên cột ${column.name}`}
+                          onClick={() => {
+                            setEditingColumnId(column.id);
+                            setEditingName(column.name);
+                          }}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-amber-50 hover:text-amber-700 transition cursor-pointer"
+                          title="Sửa tên cột này"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Xóa cột ${column.name}`}
+                          onClick={() => void archive(column)}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
+                          title="Xóa cột này khỏi bảng điểm"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 );

@@ -237,6 +237,7 @@ export function WorkspaceScreens({
           students={scopedStudents}
           programs={scopedPrograms}
           classes={scopedClasses}
+          allClasses={classes}
           receipts={teacherAccount ? [] : billingReceipts}
           timetableSlots={scopedSlots}
           teachers={scopedTeachers}

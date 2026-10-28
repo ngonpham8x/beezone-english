@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GradeManager } from '../src/modules/grades/GradeManager';
+import { StudentManager } from '../src/modules/students/StudentManager';
+import { LanguageProvider } from '../src/context/LanguageContext';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { StudentProfileDialog } from '../src/modules/students/StudentProfileDialog';
@@ -546,5 +548,145 @@ describe('ShareReviewDialog & permissions', () => {
 
     expect(screen.getByText(/Bạn đang ở chế độ xem/i)).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: /Tên cột bài hoặc UNIT/i })).toBeNull();
+  });
+
+  it('displays friendly class names without raw CLASS_uuid in StudentManager using allClasses lookup', () => {
+    const rawClassId = 'CLASS_ed2c5265-4180-4597-9599-250d6f14759a';
+    const classKiddy3D: ClassRoom = {
+      ...dummyClass,
+      id: rawClassId,
+      name: 'Kiddy 3D',
+    };
+    const classKiddy3A: ClassRoom = {
+      ...dummyClass,
+      id: 'cls-kiddy3a',
+      name: 'Kiddy 3A',
+    };
+    const multiClassStudent: Student = {
+      ...dummyStudent,
+      classId: rawClassId,
+      additionalClassIds: [classKiddy3A.id],
+    };
+
+    // Scoped classes for teacher only includes Kiddy 3A, but center allClasses has both Kiddy 3D and 3A
+    render(
+      <LanguageProvider>
+        <StudentManager
+          students={[multiClassStudent]}
+          classes={[classKiddy3A]}
+          allClasses={[classKiddy3D, classKiddy3A]}
+          programs={[]}
+          receipts={[]}
+          timetableSlots={[]}
+          permissions={DEV_OWNER_ACCOUNT.permissions}
+          isOwner={true}
+          searchQuery=""
+          onAddStudent={vi.fn()}
+          onUpdateStudent={vi.fn()}
+          onDeleteStudent={vi.fn()}
+          onCreateProgram={vi.fn()}
+          onOpenImportExportModal={vi.fn()}
+          onOpenTuition={vi.fn()}
+        />
+      </LanguageProvider>
+    );
+
+    // It must render 'Kiddy 3D · Kiddy 3A' and NOT contain raw UUID 'CLASS_ed2c5265'
+    expect(screen.getByText('Kiddy 3D · Kiddy 3A')).toBeTruthy();
+    expect(screen.queryByText(new RegExp(rawClassId, 'i'))).toBeNull();
+  });
+
+  it('supports toggling edit/delete button visibility and renaming a custom column in GradeManager', async () => {
+    const onUpdateGradeColumns = vi.fn((_columns: CustomGradeColumn[]) => true);
+    const customCol: CustomGradeColumn = {
+      id: 'col_unit_special',
+      name: 'UNIT Extra',
+      kind: 'unit',
+      semester: 'GKI',
+      programId: dummyClass.programId,
+      createdAt: '2026-10-25T00:00:00.000Z',
+    };
+
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={initial.initialPrograms}
+        teachers={[]}
+        settings={{ gradeColumns: [customCol] } as any}
+        permissions={DEV_OWNER_ACCOUNT.permissions}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={() => {}}
+        onUpdateGradeColumns={onUpdateGradeColumns}
+      />
+    );
+
+    // Initially, action buttons (Pencil/Trash) on header are hidden
+    expect(screen.queryByRole('button', { name: /Sửa tên cột UNIT Extra/i })).toBeNull();
+
+    // Click toggle button "Ẩn/Hiện sửa xóa cột"
+    const toggleBtn = screen.getByRole('button', { name: /Ẩn\/Hiện sửa xóa cột/i });
+    fireEvent.click(toggleBtn);
+
+    // Now edit & delete buttons appear on header
+    const editBtn = screen.getByRole('button', { name: /Sửa tên cột UNIT Extra/i });
+    expect(editBtn).toBeTruthy();
+
+    // Click edit -> dialog opens
+    fireEvent.click(editBtn);
+    expect(screen.getByText(/Sửa tên cột/i)).toBeTruthy();
+
+    // Change name and submit update
+    const input = screen.getByRole('textbox', { name: /Tên cột mới/i });
+    fireEvent.change(input, { target: { value: 'UNIT 3.5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Cập nhật/i }));
+
+    expect(onUpdateGradeColumns).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: 'col_unit_special', name: 'UNIT 3.5' }),
+    ]));
+  });
+
+  it('separates custom unit columns and assessment columns into respective groups in all classes mode', () => {
+    const unitCol: CustomGradeColumn = {
+      id: 'col_u_test',
+      name: 'UNIT 3+',
+      kind: 'unit',
+      semester: 'GKI',
+      programId: dummyClass.programId,
+      createdAt: '2026-10-25T00:00:00.000Z',
+    };
+    const assessCol: CustomGradeColumn = {
+      id: 'col_a_test',
+      name: 'Mini Test 1',
+      kind: 'assessment',
+      semester: 'GKI',
+      programId: dummyClass.programId,
+      createdAt: '2026-10-25T00:00:00.000Z',
+    };
+
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={initial.initialPrograms}
+        teachers={[]}
+        settings={{ gradeColumns: [unitCol, assessCol] } as any}
+        permissions={DEV_OWNER_ACCOUNT.permissions}
+        isOwner={true}
+        currentUser={DEV_OWNER_ACCOUNT}
+        onUpdateGrade={() => {}}
+      />
+    );
+
+    // Header must show 4 columns under assessment header (3 exam + 1 custom assessment)
+    expect(screen.getByText(/GKI \(4 CỘT ĐIỂM THI ĐÁNH GIÁ\)/i)).toBeTruthy();
+
+    // Custom unit is displayed under UNIT group
+    expect(screen.getByText('UNIT 3+')).toBeTruthy();
+    // Custom assessment is displayed under exam skills group
+    expect(screen.getByText('Mini Test 1')).toBeTruthy();
   });
 });

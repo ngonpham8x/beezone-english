@@ -8,7 +8,18 @@ export function isStudentInClass(student: Membership, classId: string): boolean 
   return Boolean(classId) && studentClassIds(student).includes(classId);
 }
 export function studentClassNames(student: Membership, classes: ClassRoom[]): string {
-  return studentClassIds(student).map(id => classes.find(c => c.id === id)?.name || id).join(' · ') || 'Chưa xếp lớp';
+  return (
+    studentClassIds(student)
+      .map((id) => classes.find((c) => c.id === id || c.code === id)?.name || id)
+      .filter(Boolean)
+      .map((name) => {
+        if (typeof name === 'string' && /^CLASS_[0-9a-fA-F-]+$/.test(name)) {
+          return 'Lớp học';
+        }
+        return name;
+      })
+      .join(' · ') || 'Chưa xếp lớp'
+  );
 }
 export function validateStudentClasses(student: Student, classes: ClassRoom[], students: Student[]): string | null {
   const ids = studentClassIds(student);

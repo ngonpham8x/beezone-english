@@ -2,15 +2,23 @@ import {
   AlertCircle,
   Award,
   ChevronDown,
+  Edit3,
+  Eye,
+  EyeOff,
   FileText,
   LayoutGrid,
+  Pencil,
   PlusCircle,
   Share2,
   Table as TableIcon,
+  Trash2,
+  X,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { DialogFrame } from '../../components/DialogFrame';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
+import { askConfirmation } from '../../lib/dialogs';
 import { useResponsiveView } from '../../hooks/useResponsive';
 import { isStudentInClass } from '../../lib/studentClasses';
 import { classesVisibleToAccount, hasCenterWideClassScope, isTeachingRole } from '../../lib/accountScope';
@@ -21,6 +29,7 @@ import {
   gradeColumnIdsForClass,
   GRADE_SEMESTER_CONFIG,
   GRADE_SEMESTERS,
+  isActiveCustomGradeColumn,
   normalizeCustomGradeColumns,
 } from '../../lib/gradebook';
 import {
@@ -115,6 +124,9 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
+  const [showColumnActions, setShowColumnActions] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<CustomGradeColumn | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   useEffect(() => {
     if (!centerWideScope && permittedClasses.length > 0 && selectedClassId !== 'all' && !permittedClasses.some((c) => c.id === selectedClassId)) {
@@ -153,17 +165,50 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     return [...defaultUnits, ...filteredCustoms];
   }, [semester, customColumns, classes]);
 
-  // A mixed-program table shows only legacy global columns. If every visible
-  // class uses one program, its program columns can safely share the table.
-  const activeUnitClassId = useMemo(() => {
-    if (selectedClassId !== 'all') return selectedClassId;
-    const programIds = new Set(permittedClasses.map((classroom) => classroom.programId));
-    return programIds.size === 1 ? permittedClasses[0]?.id : undefined;
-  }, [permittedClasses, selectedClassId]);
-  const activeUnits = useMemo(
-    () => gradeUnitsForClass(activeUnitClassId),
-    [activeUnitClassId, gradeUnitsForClass],
+  // Semester custom columns: In 'all' class mode, include all active custom columns of this semester
+  const semesterCustomColumns = useMemo(() => {
+    if (selectedClassId !== 'all') {
+      const selectedClass = classes.find((classroom) => classroom.id === selectedClassId);
+      return customGradeColumnsForClass(customColumns, semester, selectedClass);
+    }
+    const allowedProgramIds = new Set(permittedClasses.map((classroom) => classroom.programId).filter(Boolean));
+    const allowedClassIds = new Set(permittedClasses.map((classroom) => classroom.id).filter(Boolean));
+    return customColumns.filter((col) => {
+      if (!isActiveCustomGradeColumn(col) || col.semester !== semester) return false;
+      if (!col.programId && !col.classId) return true;
+      if (col.programId && allowedProgramIds.has(col.programId)) return true;
+      if (col.classId && allowedClassIds.has(col.classId)) return true;
+      return centerWideScope;
+    });
+  }, [selectedClassId, classes, customColumns, semester, permittedClasses, centerWideScope]);
+
+  const customUnitColumns = useMemo(
+    () => semesterCustomColumns.filter((col) => customGradeColumnKind(col) === 'unit'),
+    [semesterCustomColumns],
   );
+
+  const customAssessmentColumns = useMemo(
+    () => semesterCustomColumns.filter((col) => customGradeColumnKind(col) === 'assessment'),
+    [semesterCustomColumns],
+  );
+
+  const allUnitColumns = useMemo(() => {
+    const defaultUnits = GRADE_SEMESTER_CONFIG[semester].defaultUnits.map((u) => ({
+      key: u.key,
+      label: u.label,
+      isCustom: false as const,
+      column: undefined as CustomGradeColumn | undefined,
+    }));
+    const customs = customUnitColumns.map((col) => ({
+      key: col.id,
+      label: col.name,
+      isCustom: true as const,
+      column: col,
+    }));
+    return [...defaultUnits, ...customs];
+  }, [semester, customUnitColumns]);
+
+  const activeUnits = allUnitColumns;
 
   // Helper to get grade record for a student in selected semester
   const getGradeForStudent = (studentId: string, classId: string): { grade: Grade; hasSaved: boolean } => {
@@ -276,12 +321,31 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     return onUpdateGradeColumns([...customColumns, ...created]);
   };
 
-  const handleArchiveCustomColumn = (columnId: string) => {
+  const handleArchiveCustomColumn = async (columnId: string, columnName?: string) => {
     if (!canManageColumns || !onUpdateGradeColumns) return false;
+    const col = customColumns.find((c) => c.id === columnId);
+    const name = columnName || col?.name || 'cột';
+    const confirmed = await askConfirmation(
+      `Xóa cột “${name}”? Cột sẽ không còn hiển thị và không tính vào ĐTB. Dữ liệu điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
+    );
+    if (!confirmed) return false;
     const archivedAt = new Date().toISOString();
     return onUpdateGradeColumns(customColumns.map((column) =>
       column.id === columnId ? { ...column, archivedAt } : column,
     ));
+  };
+
+  const handleRenameCustomColumn = (columnId: string, newName: string) => {
+    if (!canManageColumns || !onUpdateGradeColumns || !newName.trim()) return false;
+    const trimmed = newName.trim();
+    if (trimmed.length > 40) return false;
+    const updated = customColumns.map((col) => (col.id === columnId ? { ...col, name: trimmed } : col));
+    const ok = onUpdateGradeColumns(updated);
+    if (ok) {
+      setEditingColumn(null);
+      setRenameValue('');
+    }
+    return ok;
   };
 
   // Change comment
@@ -412,6 +476,21 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
             <span>Thêm / xóa cột</span>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </button>
+          {canManageColumns && (
+            <button
+              type="button"
+              onClick={() => setShowColumnActions((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition shadow-2xs cursor-pointer ${
+                showColumnActions
+                  ? 'border-amber-500 bg-amber-500 text-slate-950 font-black shadow-sm ring-1 ring-amber-400'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+              title={showColumnActions ? 'Ẩn các nút sửa, xóa cột trên tiêu đề' : 'Hiện các nút sửa, xóa cột trên tiêu đề'}
+            >
+              {showColumnActions ? <EyeOff className="h-4 w-4 text-slate-950" /> : <Eye className="h-4 w-4 text-amber-600" />}
+              <span>{showColumnActions ? 'Đang hiện sửa / xóa' : 'Ẩn/Hiện sửa xóa cột'}</span>
+            </button>
+          )}
           {!showYearSummary && <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
@@ -471,25 +550,50 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                     HỌ VÀ TÊN
                   </th>
 
-                  {/* UNIT COLUMNS HEADER */}
-                  {activeUnits.map((u) => (
+                  {/* UNIT COLUMNS HEADER (Default Units + Custom Unit Columns) */}
+                  {allUnitColumns.map((u) => (
                     <th
                       key={u.key}
                       rowSpan={2}
-                      className="py-3.5 px-2.5 text-center bg-slate-850 min-w-[76px] whitespace-nowrap align-middle border-r border-slate-700/60"
+                      className="py-3.5 px-2.5 text-center bg-slate-850 min-w-[80px] whitespace-nowrap align-middle border-r border-slate-700/60"
                       title={`Nhập hoặc sửa điểm ${u.label}`}
                     >
                       <div className="font-extrabold text-amber-300">{u.label}</div>
-                      {u.isCustom && <span className="text-[9px] text-amber-400/80 font-normal">({u.kind === 'assessment' ? 'Cột điểm' : 'Cột bài'})</span>}
+                      {u.isCustom && <span className="text-[9px] text-amber-400/80 font-normal block">(Cột bài)</span>}
+                      {u.isCustom && u.column && canManageColumns && showColumnActions && (
+                        <div className="mt-1 flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Sửa tên cột ${u.label}`}
+                            onClick={() => {
+                              setEditingColumn(u.column || null);
+                              setRenameValue(u.label);
+                            }}
+                            className="p-1 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition cursor-pointer"
+                            title={`Sửa tên cột ${u.label}`}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Xóa cột ${u.label}`}
+                            onClick={() => void handleArchiveCustomColumn(u.key, u.label)}
+                            className="p-1 rounded bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white transition cursor-pointer"
+                            title={`Xóa cột ${u.label}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </th>
                   ))}
 
-                  {/* 3 EXAM SKILLS HEADER (Listening, Speaking, Reading & Writing) */}
+                  {/* 3 EXAM SKILLS + CUSTOM ASSESSMENT COLUMNS HEADER */}
                   <th
-                    colSpan={3}
+                    colSpan={3 + customAssessmentColumns.length}
                     className="py-2 px-3 text-center bg-indigo-950/80 text-indigo-200 border-r border-indigo-900/60 text-[11px] font-extrabold tracking-wider"
                   >
-                    {semester} (3 CỘT ĐIỂM THI ĐÁNH GIÁ)
+                    {semester} ({3 + customAssessmentColumns.length} CỘT ĐIỂM THI ĐÁNH GIÁ)
                   </th>
 
                   {/* GPA HEADER */}
@@ -518,7 +622,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   </th>
                 </tr>
 
-                {/* Sub-Header for Exam Skills */}
+                {/* Sub-Header for Exam Skills & Custom Assessment Columns */}
                 <tr className="bg-slate-900 text-slate-300 uppercase text-[10px] font-bold">
                   <th className="py-2 px-2 text-center bg-slate-900/90 min-w-[92px] border-r border-slate-800">
                     Nghe (Listening)
@@ -529,6 +633,43 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   <th className="py-2 px-2 text-center bg-slate-900/90 min-w-[120px] border-r border-indigo-900/60">
                     Đọc & Viết (Reading & Writing)
                   </th>
+                  {customAssessmentColumns.map((col) => (
+                    <th
+                      key={col.id}
+                      className="py-2 px-2 text-center bg-slate-900/90 min-w-[96px] border-r border-indigo-900/60"
+                      title={`Cột điểm kiểm tra: ${col.name}`}
+                    >
+                      <div className="font-bold text-indigo-300 truncate max-w-[120px]" title={col.name}>
+                        {col.name}
+                      </div>
+                      <span className="text-[9px] text-indigo-400/80 font-normal block">(Cột điểm)</span>
+                      {canManageColumns && showColumnActions && (
+                        <div className="mt-1 flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Sửa tên cột ${col.name}`}
+                            onClick={() => {
+                              setEditingColumn(col);
+                              setRenameValue(col.name);
+                            }}
+                            className="p-1 rounded bg-indigo-500/20 hover:bg-indigo-500 text-indigo-300 hover:text-white transition cursor-pointer"
+                            title={`Sửa tên cột ${col.name}`}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Xóa cột ${col.name}`}
+                            onClick={() => void handleArchiveCustomColumn(col.id, col.name)}
+                            className="p-1 rounded bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white transition cursor-pointer"
+                            title={`Xóa cột ${col.name}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
@@ -565,7 +706,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       </td>
 
                       {/* UNIT SCORES INPUTS */}
-                      {activeUnits.map((u) => {
+                      {allUnitColumns.map((u) => {
                         const unitVal = grade.unitScores?.[u.key];
                         return (
                           <td
@@ -615,6 +756,25 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           className="w-16 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
+
+                      {/* CUSTOM ASSESSMENT SCORES INPUTS */}
+                      {customAssessmentColumns.map((col) => {
+                        const assessVal = grade.unitScores?.[col.id];
+                        return (
+                          <td
+                            key={col.id}
+                            className="p-1.5 text-center bg-indigo-50/30 border-r border-indigo-200/60"
+                          >
+                            <GradeScoreInput
+                              ariaLabel={`${col.name} - ${st.code} - ${studentClass?.name || st.classId}`}
+                              value={assessVal}
+                              disabled={!canEdit}
+                              onCommit={(value) => handleUnitScoreChange(st.id, st.classId, col.id, value)}
+                              className="w-14 text-center py-1 border border-indigo-300 rounded-lg font-bold text-indigo-950 focus:ring-2 focus:ring-indigo-500 bg-white"
+                            />
+                          </td>
+                        );
+                      })}
 
                       {/* Điểm Trung Bình (ĐTB) */}
                       <td className="py-3 px-3 text-center bg-amber-50 font-black text-sm text-slate-950 border-r border-amber-200">
@@ -712,14 +872,14 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                     </span>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 text-center">
-                    {activeUnits.map((u) => {
+                    {allUnitColumns.map((u) => {
                       const unitVal = grade.unitScores?.[u.key];
                       return (
                         <div key={u.key} className="bg-amber-50/40 p-1.5 rounded-lg border border-amber-200/60">
                           <span className="text-[10px] text-slate-600 font-bold block truncate" title={u.label}>
                             {u.label}
                           </span>
-                          {u.isCustom && <span className="block text-[8px] text-slate-400">{u.kind === 'assessment' ? 'Cột điểm' : 'Cột bài'}</span>}
+                          {u.isCustom && <span className="block text-[8px] text-slate-400">Cột bài</span>}
                           <GradeScoreInput
                             ariaLabel={`${u.label} - ${st.code} - ${studentClass?.name || st.classId}`}
                             value={unitVal}
@@ -733,12 +893,12 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   </div>
                 </div>
 
-                {/* 3 EXAM SKILLS SCORES */}
+                {/* EXAM & ASSESSMENT SKILLS SCORES */}
                 <div className="space-y-1">
                   <span className="text-[11px] font-bold text-slate-700 block">
-                    3 Cột điểm thi {semester} (0 - 10):
+                    {3 + customAssessmentColumns.length} Cột điểm thi & kiểm tra {semester} (0 - 10):
                   </span>
-                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 text-center">
                     <div className="bg-indigo-50/40 p-1.5 rounded-lg border border-indigo-200/60">
                       <span className="text-[10px] text-indigo-900 font-bold block">Nghe</span>
                       <GradeScoreInput
@@ -771,6 +931,22 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded mt-0.5"
                       />
                     </div>
+
+                    {customAssessmentColumns.map((col) => (
+                      <div key={col.id} className="bg-indigo-50/40 p-1.5 rounded-lg border border-indigo-200/60">
+                        <span className="text-[10px] text-indigo-900 font-bold block truncate" title={col.name}>
+                          {col.name}
+                        </span>
+                        <span className="block text-[8px] text-indigo-400 font-semibold">(Cột điểm)</span>
+                        <GradeScoreInput
+                          ariaLabel={`${col.name} - ${st.code} - ${studentClass?.name || st.classId}`}
+                          value={grade.unitScores?.[col.id]}
+                          disabled={!canEdit}
+                          onCommit={(value) => handleUnitScoreChange(st.id, st.classId, col.id, value)}
+                          className="w-full text-center text-xs font-bold py-0.5 bg-white border border-indigo-300 rounded mt-0.5"
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -821,12 +997,83 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         columns={customColumns}
         onAddColumns={handleAddCustomColumns}
         onArchiveColumn={handleArchiveCustomColumn}
+        onRenameColumn={handleRenameCustomColumn}
         currentSemester={semester}
         programs={programs}
         classes={classes}
         selectedClassId={selectedClassId}
         canEdit={canManageColumns}
       />
+
+      {/* Modal Sửa Tên Cột */}
+      {editingColumn && (
+        <DialogFrame label="Sửa tên cột điểm" onClose={() => setEditingColumn(null)}>
+          <div className="my-auto w-full max-w-md space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
+                  <Pencil className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-950 text-sm">Sửa tên cột</h3>
+                  <p className="text-[11px] text-slate-500">
+                    {editingColumn.kind === 'assessment' ? 'Cột điểm / bài kiểm tra' : 'Cột bài / UNIT'} · Học kỳ {editingColumn.semester}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng"
+                onClick={() => setEditingColumn(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRenameCustomColumn(editingColumn.id, renameValue);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tên cột mới
+                </label>
+                <input
+                  aria-label="Tên cột mới"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  maxLength={40}
+                  autoFocus
+                  placeholder="Nhập tên cột..."
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingColumn(null)}
+                  className="rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={!renameValue.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2 text-xs font-black text-slate-950 shadow-sm transition hover:from-amber-600 hover:to-amber-700 disabled:opacity-40 cursor-pointer"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Cập nhật</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </DialogFrame>
+      )}
 
       {/* Report Card Modal */}
       {reportingStudent && (

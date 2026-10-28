@@ -62,6 +62,7 @@ interface StudentManagerProps {
   students: Student[];
   programs: CourseProgram[];
   classes: ClassRoom[];
+  allClasses?: ClassRoom[];
   receipts: TuitionReceipt[];
   timetableSlots: TimetableSlot[];
   teachers?: Teacher[];
@@ -90,6 +91,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   students,
   programs,
   classes,
+  allClasses,
   receipts,
   timetableSlots,
   teachers = [],
@@ -191,6 +193,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       .map(id => classes.find(c => c.id === id))
       .filter((c): c is typeof classes[0] => Boolean(c));
   }, [selectedClassIds, classes]);
+
+  const classListForLookup = useMemo(() => allClasses || classes, [allClasses, classes]);
 
   const selectedProgramIds = useMemo(() => {
     if (!editingStudent) return [];
@@ -763,27 +767,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-800">
-                            {(() => {
-                                if (studentClassIds(st).length > 1) return studentClassNames(st, classes);
-                              const cls = classes.find(c => c.id === st.classId);
-                              if (cls) return cls.name;
-                              if (st.classId === 'CLASS_G1') return 'Lớp 1 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G2') return 'Lớp 2 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G3') return 'Lớp 3 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G4') return 'Lớp 4 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G5') return 'Lớp 5 (Tiểu Học)';
-                              if (st.classId === 'CLASS_G6') return 'Lớp 6 (THCS)';
-                              if (st.classId === 'CLASS_G7') return 'Lớp 7 (THCS)';
-                              if (st.classId === 'CLASS_G8') return 'Lớp 8 (THCS)';
-                              if (st.classId === 'CLASS_G9') return 'Lớp 9 (THCS)';
-                              if (st.classId === 'CLASS_G10') return 'Lớp 10 (THPT)';
-                              if (st.classId === 'CLASS_G11') return 'Lớp 11 (THPT)';
-                              if (st.classId === 'CLASS_G12') return 'Lớp 12 (THPT)';
-                              if (st.classId === 'CLASS_MN') return 'Anh Văn Mầm Non';
-                              if (st.classId === 'CLASS_CAM') return 'Lớp Cambridge';
-                              if (st.classId === 'CLASS_IELTS') return 'Lớp IELTS Academic';
-                              return st.classId || 'Chưa xếp lớp';
-                            })()}
+                            {studentClassNames(st, classListForLookup)}
                           </div>
                           <div className="text-[11px] text-amber-700 font-medium">{program ? program.name : ''}</div>
                         </td>
@@ -899,8 +883,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               const cls = classes.find(c => c.id === st.classId);
               const debt = debtForStudent(st);
 
-              const classNameText = studentClassNames(st, classes);
-              const scheduleText = classes.filter(c => isStudentInClass(st, c.id)).map(c => `${c.name}: ${c.scheduleTime} (${c.days.join(', ')})`).join(' · ') || 'Chưa xếp lịch';
+              const classNameText = studentClassNames(st, classListForLookup);
+              const scheduleText = classListForLookup.filter(c => isStudentInClass(st, c.id)).map(c => `${c.name}: ${c.scheduleTime} (${c.days.join(', ')})`).join(' · ') || 'Chưa xếp lịch';
 
               return (
                 <div key={st.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
@@ -1048,7 +1032,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         <StudentProfileDialog
           student={viewingStudent}
           programs={programs}
-          classes={classes}
+          classes={classListForLookup}
           teachers={teachers}
           rooms={rooms}
           timetableSlots={timetableSlots}
