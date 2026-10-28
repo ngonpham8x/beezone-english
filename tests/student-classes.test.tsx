@@ -92,13 +92,15 @@ it('records a grade for the selected additional class without overwriting the pr
   const update = vi.fn();
   render(<GradeManager students={[{ ...student, additionalClassIds: [classes[1].id] }]} classes={classes} grades={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner onUpdateGrade={update} />);
   await chooseOption(screen.getByRole('combobox', { name: 'Lớp xem điểm' }), classes[1].name);
-  fireEvent.change(screen.getByLabelText(new RegExp(`Nghe - ${student.code}`, 'i')), { target: { value: '8' } });
+  const scoreInput = screen.getByLabelText(new RegExp(`Nghe - ${student.code}`, 'i'));
+  fireEvent.change(scoreInput, { target: { value: '8' } });
+  fireEvent.blur(scoreInput);
   expect(update).toHaveBeenCalledWith(expect.objectContaining({ studentId: student.id, classId: classes[1].id, listening: 8 }));
 });
 
 it('does not display invented scores or allow printing an unentered class report', () => {
   render(<GradeManager students={[{ ...student, additionalClassIds: [classes[1].id] }]} classes={classes} grades={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner onUpdateGrade={vi.fn()} />);
-  expect(screen.getAllByRole('spinbutton').every(input => (input as HTMLInputElement).value === '')).toBe(true);
+  expect(screen.getAllByPlaceholderText('—').every(input => (input as HTMLInputElement).value === '')).toBe(true);
   expect(screen.getAllByRole('button', { name: 'Phiếu Điểm' }).every(button => (button as HTMLButtonElement).disabled)).toBe(true);
 });
 

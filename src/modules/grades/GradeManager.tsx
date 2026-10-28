@@ -1,10 +1,8 @@
 import {
   AlertCircle,
   Award,
-  Calendar,
   FileText,
   LayoutGrid,
-  PlusCircle,
   Share2,
   Table as TableIcon,
 } from 'lucide-react';
@@ -24,7 +22,6 @@ import {
   CenterSettings,
   ClassRoom,
   CourseProgram,
-  CustomGradeColumn,
   Grade,
   GradeSemester,
   StaffPermissions,
@@ -32,7 +29,9 @@ import {
   Teacher,
   UserAccount,
 } from '../../types';
-import { CustomColumnsModal } from './CustomColumnsModal';
+import { GradeCommentEditor } from './GradeCommentEditor';
+import { GradeScoreInput } from './GradeScoreInput';
+import { GradeYearSummaryView } from './GradeYearSummaryView';
 import { ReportCardModal } from './ReportCardModal';
 import { ShareReportCardModal } from './ShareReportCardModal';
 
@@ -44,7 +43,6 @@ interface GradeManagerProps {
   isOwner: boolean;
   currentUser?: UserAccount;
   onUpdateGrade: (updatedGrade: Grade) => void;
-  onUpdateGradeColumns?: (columns: CustomGradeColumn[]) => boolean;
   teachers?: Teacher[];
   programs?: CourseProgram[];
   settings?: CenterSettings;
@@ -59,8 +57,6 @@ const QUICK_COMMENTS = [
   'Quên làm BTVN',
 ];
 
-const CUSTOM_COLUMNS_STORAGE_KEY = 'beezone_custom_grade_columns';
-
 export const GradeManager: React.FC<GradeManagerProps> = ({
   grades,
   students,
@@ -69,7 +65,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   isOwner,
   currentUser,
   onUpdateGrade,
-  onUpdateGradeColumns,
   teachers = [],
   programs = [],
   settings = {
@@ -100,14 +95,13 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
   // Semester Selector State
   const [semester, setSemester] = useState<GradeSemester>('GKI');
+  const [showYearSummary, setShowYearSummary] = useState(false);
 
   const customColumns = useMemo(
     () => normalizeCustomGradeColumns(settings.gradeColumns),
     [settings.gradeColumns],
   );
 
-  const [isCustomColumnsOpen, setIsCustomColumnsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [reportingStudent, setReportingStudent] = useState<Student | null>(null);
   const [sharingStudent, setSharingStudent] = useState<Student | null>(null);
   const [viewMode, setViewMode] = useResponsiveView('card', 'table');
@@ -119,29 +113,13 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
   }, [permittedClasses, centerWideScope, selectedClassId]);
 
   const canEdit = isOwner || permissions.grade.edit;
-  const canManageColumns = isOwner && Boolean(onUpdateGradeColumns);
-
-  // One-time compatibility bridge for columns created by the previous browser-only build.
-  // Persist them into center settings so backup, restore and other devices see the same layout.
-  useEffect(() => {
-    if (!canManageColumns || settings.gradeColumns !== undefined) return;
-    try {
-      const legacy = normalizeCustomGradeColumns(JSON.parse(localStorage.getItem(CUSTOM_COLUMNS_STORAGE_KEY) || '[]'));
-      if (legacy.length > 0 && onUpdateGradeColumns?.(legacy)) {
-        localStorage.removeItem(CUSTOM_COLUMNS_STORAGE_KEY);
-      }
-    } catch {
-      // Invalid legacy browser data is ignored; the shared center dataset remains authoritative.
-    }
-  }, [canManageColumns, onUpdateGradeColumns, settings.gradeColumns]);
 
   const classStudents = students
     .flatMap((student) =>
       permittedClasses
         .filter((c) => isStudentInClass(student, c.id) && (selectedClassId === 'all' || c.id === selectedClassId))
         .map((c) => ({ ...student, classId: c.id, programId: c.programId })),
-    )
-    .filter((student) => student.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    );
 
   const gradeUnitsForClass = useCallback((classId?: string) => {
     const config = GRADE_SEMESTER_CONFIG[semester];
@@ -164,23 +142,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     () => gradeUnitsForClass(selectedClassId === 'all' ? undefined : selectedClassId),
     [gradeUnitsForClass, selectedClassId],
   );
-
-  // Handle adding custom column
-  const handleAddCustomColumn = (col: { name: string; semester: GradeSemester; programId?: string }) => {
-    const newCol: CustomGradeColumn = {
-      id: `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      name: col.name,
-      semester: col.semester,
-      programId: col.programId,
-      createdAt: new Date().toISOString(),
-    };
-    onUpdateGradeColumns?.([...customColumns, newCol]);
-  };
-
-  // Handle deleting custom column
-  const handleDeleteCustomColumn = (id: string) => {
-    onUpdateGradeColumns?.(customColumns.filter((c) => c.id !== id));
-  };
 
   // Helper to get grade record for a student in selected semester
   const getGradeForStudent = (studentId: string, classId: string): { grade: Grade; hasSaved: boolean } => {
@@ -286,15 +247,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     onUpdateGrade(updated);
   };
 
-  // Append quick comment chip
-  const handleAddQuickComment = (studentId: string, classId: string, text: string) => {
-    if (!canEdit) return;
-    const { grade } = getGradeForStudent(studentId, classId);
-    const current = (grade.comment || '').trim();
-    const newComment = current ? `${current}. ${text}` : text;
-    handleCommentChange(studentId, classId, newComment);
-  };
-
   const currentConfig = GRADE_SEMESTER_CONFIG[semester];
 
   return (
@@ -307,7 +259,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
             Bảng Điểm & Đánh Giá Kỹ Năng
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý điểm các UNIT, 3 cột điểm kỳ (Nghe, Nói, Đọc & Viết), tính ĐTB tự động và nhận xét học tập
+            Nhập/sửa trực tiếp điểm UNIT và 3 kỹ năng; hệ thống tự tính ĐTB, tổng kết năm và lưu nhận xét học tập
           </p>
         </div>
 
@@ -348,13 +300,16 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto custom-scrollbar">
           {GRADE_SEMESTERS.map((semKey) => {
             const conf = GRADE_SEMESTER_CONFIG[semKey];
-            const isActive = semester === semKey;
+            const isActive = !showYearSummary && semester === semKey;
             return (
               <button
                 key={semKey}
                 type="button"
                 aria-label={`Chọn học kỳ ${semKey}`}
-                onClick={() => setSemester(semKey)}
+                onClick={() => {
+                  setSemester(semKey);
+                  setShowYearSummary(false);
+                }}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                   isActive
                     ? 'bg-amber-500 text-slate-950 font-black shadow-sm ring-1 ring-amber-400'
@@ -377,23 +332,24 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
               </button>
             );
           })}
-        </div>
-
-        {/* View mode toggle & Add Custom Column button */}
-        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setIsCustomColumnsOpen(true)}
-            disabled={!canManageColumns}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-slate-800 hover:text-amber-700 border border-slate-200 hover:border-amber-400 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
-            title={canManageColumns ? 'Thêm các cột UNIT hoặc bài kiểm tra tùy chỉnh cho chương trình' : 'Chỉ Chủ trung tâm được thay đổi cấu trúc cột điểm dùng chung'}
+            aria-label="Xem tổng kết cuối năm"
+            onClick={() => setShowYearSummary(true)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              showYearSummary
+                ? 'bg-emerald-600 text-white font-black shadow-sm ring-1 ring-emerald-500'
+                : 'text-slate-600 hover:text-slate-950 hover:bg-white/80'
+            }`}
           >
-            <PlusCircle className="w-4 h-4 text-amber-600" />
-            <span>+ Thêm cột điểm</span>
+            <Award className="h-4 w-4" />
+            <span>TỔNG KẾT NĂM</span>
           </button>
+        </div>
 
-          {/* View mode toggle */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+        {/* View mode toggle */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {!showYearSummary && <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
               aria-pressed={viewMode === 'table'}
@@ -420,7 +376,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
               <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
               <span>Dạng Thẻ Mobile</span>
             </button>
-          </div>
+          </div>}
 
           <span className="text-xs text-slate-500 font-medium ml-1">
             <strong className="text-slate-900 font-bold">{classStudents.length}</strong> học viên
@@ -428,8 +384,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         </div>
       </div>
 
-      {/* GRADE CONTENT: TABLE OR MOBILE CARDS */}
-      {viewMode === 'table' ? (
+      {/* GRADE CONTENT: TABLE, MOBILE CARDS OR YEAR SUMMARY */}
+      {showYearSummary ? (
+        <GradeYearSummaryView students={classStudents} classes={classes} grades={grades} />
+      ) : viewMode === 'table' ? (
         /* Gradebook Table */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <HorizontalScroll label="Điểm số" className="overflow-x-auto custom-scrollbar">
@@ -456,7 +414,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       key={u.key}
                       rowSpan={2}
                       className="py-3.5 px-2.5 text-center bg-slate-850 min-w-[76px] whitespace-nowrap align-middle border-r border-slate-700/60"
-                      title={u.label}
+                      title={`Nhập hoặc sửa điểm ${u.label}`}
                     >
                       <div className="font-extrabold text-amber-300">{u.label}</div>
                       {u.isCustom && <span className="text-[9px] text-amber-400/80 font-normal">(Tự tạo)</span>}
@@ -482,7 +440,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   {/* COMMENTS HEADER */}
                   <th
                     rowSpan={2}
-                    className="py-3.5 px-3 text-left min-w-[280px] align-middle"
+                    className="py-3.5 px-3 text-left min-w-[420px] align-middle"
                   >
                     NHẬN XÉT QUÁ TRÌNH HỌC TẬP
                   </th>
@@ -550,23 +508,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                             key={u.key}
                             className="p-1.5 text-center bg-amber-50/20 border-r border-slate-200/60"
                           >
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="10"
-                              aria-label={`${u.label} - ${st.code} - ${studentClass?.name || st.classId}`}
-                              placeholder="—"
-                              value={unitVal !== undefined ? unitVal : ''}
+                            <GradeScoreInput
+                              ariaLabel={`${u.label} - ${st.code} - ${studentClass?.name || st.classId}`}
+                              value={unitVal}
                               disabled={!canEdit}
-                              onChange={(e) =>
-                                handleUnitScoreChange(
-                                  st.id,
-                                  st.classId,
-                                  u.key,
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
+                              onCommit={(value) => handleUnitScoreChange(st.id, st.classId, u.key, value)}
                               className="w-13 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                             />
                           </td>
@@ -575,69 +521,33 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
                       {/* Nghe (Listening) */}
                       <td className="p-1.5 text-center bg-indigo-50/30 border-r border-slate-200/60">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="10"
-                          aria-label={`Nghe - ${st.code} - ${studentClass?.name || st.classId}`}
-                          placeholder="—"
-                          value={hasSaved ? grade.listening : ''}
+                        <GradeScoreInput
+                          ariaLabel={`Nghe - ${st.code} - ${studentClass?.name || st.classId}`}
+                          value={hasSaved ? grade.listening : undefined}
                           disabled={!canEdit}
-                          onChange={(e) =>
-                            handleGradeChange(
-                              st.id,
-                              st.classId,
-                              'listening',
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
+                          onCommit={(value) => handleGradeChange(st.id, st.classId, 'listening', value)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
 
                       {/* Nói (Speaking) */}
                       <td className="p-1.5 text-center bg-indigo-50/30 border-r border-slate-200/60">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="10"
-                          aria-label={`Nói - ${st.code} - ${studentClass?.name || st.classId}`}
-                          placeholder="—"
-                          value={hasSaved ? grade.speaking : ''}
+                        <GradeScoreInput
+                          ariaLabel={`Nói - ${st.code} - ${studentClass?.name || st.classId}`}
+                          value={hasSaved ? grade.speaking : undefined}
                           disabled={!canEdit}
-                          onChange={(e) =>
-                            handleGradeChange(
-                              st.id,
-                              st.classId,
-                              'speaking',
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
+                          onCommit={(value) => handleGradeChange(st.id, st.classId, 'speaking', value)}
                           className="w-14 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
 
                       {/* Đọc & Viết (Reading & Writing) */}
                       <td className="p-1.5 text-center bg-indigo-50/30 border-r border-slate-200/60">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="10"
-                          aria-label={`Đọc và Viết - ${st.code} - ${studentClass?.name || st.classId}`}
-                          placeholder="—"
-                          value={readingWritingVal}
+                        <GradeScoreInput
+                          ariaLabel={`Đọc và Viết - ${st.code} - ${studentClass?.name || st.classId}`}
+                          value={readingWritingVal === '' ? undefined : readingWritingVal}
                           disabled={!canEdit}
-                          onChange={(e) =>
-                            handleGradeChange(
-                              st.id,
-                              st.classId,
-                              'readingWriting',
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
+                          onCommit={(value) => handleGradeChange(st.id, st.classId, 'readingWriting', value)}
                           className="w-16 text-center py-1 border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white"
                         />
                       </td>
@@ -648,34 +558,14 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                       </td>
 
                       {/* Nhận xét quá trình học tập */}
-                      <td className="p-2 min-w-[280px]">
-                        <div className="space-y-1">
-                          <input
-                            type="text"
-                            aria-label={`Nhận xét lực học - ${st.code} - ${studentClass?.name || st.classId}`}
-                            placeholder="Nhập nhận xét lực học của bé, quá trình học tập..."
-                            value={grade.comment || ''}
-                            maxLength={2000}
-                            disabled={!canEdit}
-                            onChange={(e) => handleCommentChange(st.id, st.classId, e.target.value)}
-                            className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white placeholder:text-slate-400 placeholder:italic"
-                          />
-                          {/* Quick suggestions */}
-                          {canEdit && (
-                            <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                              {QUICK_COMMENTS.slice(0, 4).map((cmt) => (
-                                <button
-                                  key={cmt}
-                                  type="button"
-                                  onClick={() => handleAddQuickComment(st.id, st.classId, cmt)}
-                                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-800 transition-colors cursor-pointer"
-                                >
-                                  +{cmt}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                      <td className="min-w-[420px] p-3 align-top">
+                        <GradeCommentEditor
+                          ariaLabel={`Nhận xét lực học - ${st.code} - ${studentClass?.name || st.classId}`}
+                          value={grade.comment || ''}
+                          canEdit={canEdit}
+                          quickComments={QUICK_COMMENTS}
+                          onSave={(comment) => handleCommentChange(st.id, st.classId, comment)}
+                        />
                       </td>
 
                       {/* Hành Động */}
@@ -752,7 +642,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                 {/* UNIT SCORES GRID */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-700">Điểm các UNIT (0 - 10):</span>
+                    <span className="text-[11px] font-bold text-slate-700">Nhập / sửa điểm các UNIT (0 - 10):</span>
                     <span className="text-[10px] text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.2 rounded">
                       Học kỳ {semester}
                     </span>
@@ -765,18 +655,11 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           <span className="text-[10px] text-slate-600 font-bold block truncate" title={u.label}>
                             {u.label}
                           </span>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="10"
-                            aria-label={`${u.label} - ${st.code} - ${studentClass?.name || st.classId}`}
-                            placeholder="—"
-                            value={unitVal !== undefined ? unitVal : ''}
+                          <GradeScoreInput
+                            ariaLabel={`${u.label} - ${st.code} - ${studentClass?.name || st.classId}`}
+                            value={unitVal}
                             disabled={!canEdit}
-                            onChange={(e) =>
-                              handleUnitScoreChange(st.id, st.classId, u.key, parseFloat(e.target.value) || 0)
-                            }
+                            onCommit={(value) => handleUnitScoreChange(st.id, st.classId, u.key, value)}
                             className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded mt-0.5"
                           />
                         </div>
@@ -793,54 +676,33 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                   <div className="grid grid-cols-3 gap-1.5 text-center">
                     <div className="bg-indigo-50/40 p-1.5 rounded-lg border border-indigo-200/60">
                       <span className="text-[10px] text-indigo-900 font-bold block">Nghe</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        aria-label={`Nghe - ${st.code} - ${studentClass?.name || st.classId}`}
-                        placeholder="—"
-                        value={hasSaved ? grade.listening : ''}
+                      <GradeScoreInput
+                        ariaLabel={`Nghe - ${st.code} - ${studentClass?.name || st.classId}`}
+                        value={hasSaved ? grade.listening : undefined}
                         disabled={!canEdit}
-                        onChange={(e) =>
-                          handleGradeChange(st.id, st.classId, 'listening', parseFloat(e.target.value) || 0)
-                        }
+                        onCommit={(value) => handleGradeChange(st.id, st.classId, 'listening', value)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded mt-0.5"
                       />
                     </div>
 
                     <div className="bg-indigo-50/40 p-1.5 rounded-lg border border-indigo-200/60">
                       <span className="text-[10px] text-indigo-900 font-bold block">Nói</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        aria-label={`Nói - ${st.code} - ${studentClass?.name || st.classId}`}
-                        placeholder="—"
-                        value={hasSaved ? grade.speaking : ''}
+                      <GradeScoreInput
+                        ariaLabel={`Nói - ${st.code} - ${studentClass?.name || st.classId}`}
+                        value={hasSaved ? grade.speaking : undefined}
                         disabled={!canEdit}
-                        onChange={(e) =>
-                          handleGradeChange(st.id, st.classId, 'speaking', parseFloat(e.target.value) || 0)
-                        }
+                        onCommit={(value) => handleGradeChange(st.id, st.classId, 'speaking', value)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded mt-0.5"
                       />
                     </div>
 
                     <div className="bg-indigo-50/40 p-1.5 rounded-lg border border-indigo-200/60">
                       <span className="text-[10px] text-indigo-900 font-bold block">Đọc & Viết</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        aria-label={`Đọc và Viết - ${st.code} - ${studentClass?.name || st.classId}`}
-                        placeholder="—"
-                        value={readingWritingVal}
+                      <GradeScoreInput
+                        ariaLabel={`Đọc và Viết - ${st.code} - ${studentClass?.name || st.classId}`}
+                        value={readingWritingVal === '' ? undefined : readingWritingVal}
                         disabled={!canEdit}
-                        onChange={(e) =>
-                          handleGradeChange(st.id, st.classId, 'readingWriting', parseFloat(e.target.value) || 0)
-                        }
+                        onCommit={(value) => handleGradeChange(st.id, st.classId, 'readingWriting', value)}
                         className="w-full text-center text-xs font-bold py-0.5 bg-white border border-slate-300 rounded mt-0.5"
                       />
                     </div>
@@ -848,34 +710,17 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                 </div>
 
                 {/* Nhận xét quá trình học tập */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                   <span className="text-[10px] font-bold text-slate-800 uppercase block">
                     Nhận xét quá trình học tập:
                   </span>
-                  <textarea
-                    rows={2}
-                    aria-label={`Nhận xét lực học - ${st.code} - ${studentClass?.name || st.classId}`}
-                    placeholder="Nhập nhận xét lực học của bé, quá trình học tập..."
+                  <GradeCommentEditor
+                    ariaLabel={`Nhận xét lực học - ${st.code} - ${studentClass?.name || st.classId}`}
                     value={grade.comment || ''}
-                    maxLength={2000}
-                    disabled={!canEdit}
-                    onChange={(e) => handleCommentChange(st.id, st.classId, e.target.value)}
-                    className="w-full p-2 text-xs border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-amber-500 bg-white placeholder:text-slate-400 resize-none leading-relaxed"
+                    canEdit={canEdit}
+                    quickComments={QUICK_COMMENTS}
+                    onSave={(comment) => handleCommentChange(st.id, st.classId, comment)}
                   />
-                  {canEdit && (
-                    <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                      {QUICK_COMMENTS.map((cmt) => (
-                        <button
-                          key={cmt}
-                          type="button"
-                          onClick={() => handleAddQuickComment(st.id, st.classId, cmt)}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-white hover:bg-amber-100 text-slate-600 hover:text-amber-900 border border-slate-200 transition-colors cursor-pointer"
-                        >
-                          +{cmt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 {/* Card Actions */}
@@ -904,20 +749,6 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
           })}
         </div>
       )}
-
-      {/* Modal Quản lý Cột Điểm Tùy Chỉnh */}
-      <CustomColumnsModal
-        isOpen={isCustomColumnsOpen}
-        onClose={() => setIsCustomColumnsOpen(false)}
-        columns={customColumns}
-        onAddColumn={handleAddCustomColumn}
-        onDeleteColumn={handleDeleteCustomColumn}
-        currentSemester={semester}
-        programs={programs}
-        classes={permittedClasses}
-        selectedClassId={selectedClassId}
-        canEdit={canManageColumns}
-      />
 
       {/* Report Card Modal */}
       {reportingStudent && (

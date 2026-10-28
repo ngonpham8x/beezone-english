@@ -241,12 +241,14 @@ describe('ShareReviewDialog & permissions', () => {
       />,
     );
 
-    const commentInput = screen.getByPlaceholderText(/Nhập nhận xét lực học của bé/i);
+    fireEvent.click(screen.getByRole('button', { name: /Thêm nhận xét/i }));
+    const commentInput = screen.getByRole('textbox', { name: new RegExp(`Nhận xét lực học - ${dummyStudent.code}`, 'i') });
     expect(commentInput).toBeTruthy();
 
     fireEvent.change(commentInput, {
       target: { value: 'Bé nắm vững ngữ pháp, cần tự tin hơn khi nói.' },
     });
+    fireEvent.click(screen.getByRole('button', { name: /Lưu nhận xét/i }));
 
     expect(onUpdateGrade).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -338,8 +340,11 @@ describe('ShareReviewDialog & permissions', () => {
     expect(readingWritingInput).toBeTruthy();
 
     fireEvent.change(listeningInput, { target: { value: '9' } });
+    fireEvent.blur(listeningInput);
     fireEvent.change(speakingInput, { target: { value: '8' } });
+    fireEvent.blur(speakingInput);
     fireEvent.change(readingWritingInput, { target: { value: '7' } });
+    fireEvent.blur(readingWritingInput);
     expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({
       listening: 9,
       speaking: 8,
@@ -349,46 +354,45 @@ describe('ShareReviewDialog & permissions', () => {
     }));
   });
 
-  it('allows center to add custom grade columns (UNIT ....)', () => {
+  it('supports manual UNIT input, expandable comment editing and yearly summary without the custom-column button', () => {
     const onUpdateGrade = vi.fn();
     const Harness = () => {
-      const [settings, setSettings] = React.useState<any>({});
+      const [grades, setGrades] = React.useState<Grade[]>([]);
       return (
         <GradeManager
           students={[{ ...dummyStudent, classId: dummyClass.id }]}
           classes={[dummyClass]}
-          grades={[]}
+          grades={grades}
           programs={[]}
           teachers={[]}
-          settings={settings}
+          settings={{} as any}
           permissions={{ grade: { view: true, add: true, edit: true, delete: true, export: true } } as any}
           isOwner={true}
           currentUser={DEV_OWNER_ACCOUNT}
-          onUpdateGrade={onUpdateGrade}
-          onUpdateGradeColumns={(columns) => {
-            setSettings((previous: any) => ({ ...previous, gradeColumns: columns }));
-            return true;
+          onUpdateGrade={(updated) => {
+            onUpdateGrade(updated);
+            setGrades((current) => [...current.filter((grade) => grade.id !== updated.id), updated]);
           }}
         />
       );
     };
     render(<Harness />);
 
-    // Click "+ Thêm cột điểm"
-    fireEvent.click(screen.getByRole('button', { name: /\+ Thêm cột điểm/i }));
-    expect(screen.getByText(/Quản Lý & Thêm Cột Điểm/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Thêm cột điểm/i })).toBeNull();
+    const unitInput = screen.getByLabelText(new RegExp(`UNIT 1 - ${dummyStudent.code}`, 'i'));
+    fireEvent.change(unitInput, { target: { value: '8,5' } });
+    fireEvent.blur(unitInput);
+    expect(onUpdateGrade).toHaveBeenCalledWith(expect.objectContaining({ unitScores: { unit1: 8.5 } }));
 
-    // Input custom column name
-    const colNameInput = screen.getByPlaceholderText(/VD: UNIT 3.5, Progress Test 1/i);
-    fireEvent.change(colNameInput, { target: { value: 'UNIT 3.5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Thêm nhận xét/i }));
+    const comment = screen.getByRole('textbox', { name: new RegExp(`Nhận xét lực học - ${dummyStudent.code}`, 'i') });
+    fireEvent.change(comment, { target: { value: 'Bé tiến bộ rõ và chủ động hơn trong giờ học.' } });
+    fireEvent.click(screen.getByRole('button', { name: /Lưu nhận xét/i }));
+    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ comment: 'Bé tiến bộ rõ và chủ động hơn trong giờ học.' }));
+    expect(screen.getByRole('button', { name: /Xóa/i })).toBeTruthy();
 
-    // Submit form (button with exact name "Thêm cột điểm")
-    fireEvent.click(screen.getByRole('button', { name: /^Thêm cột điểm$/i }));
-
-    // Close modal
-    fireEvent.click(screen.getByRole('button', { name: /Đóng/i }));
-
-    // Now UNIT 3.5 should appear in the table header
-    expect(screen.getByText('UNIT 3.5')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Xem tổng kết cuối năm/i }));
+    expect(screen.getByText(/Tổng kết năng lực cuối năm/i)).toBeTruthy();
+    expect(screen.getAllByText(/Tạm tính 1\/4 kỳ/i).length).toBeGreaterThan(0);
   });
 });

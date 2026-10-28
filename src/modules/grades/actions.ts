@@ -1,12 +1,12 @@
 import { toast } from '../../lib/toast';
 import { showAlert } from '../../lib/dialogs';
 import { canAccessAccountClass } from '../../lib/accountScope';
-import { calculateSemesterAverage, gradeSemester, isValidCustomGradeColumn, isValidScore } from '../../lib/gradebook';
-import type { CustomGradeColumn, Grade, UserAccount } from '../../types';
+import { calculateSemesterAverage, gradeSemester, isValidScore } from '../../lib/gradebook';
+import type { Grade, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
 
-type Context = Pick<CenterStore, 'classes' | 'teachers' | 'grades' | 'setGrades' | 'settings' | 'setSettings'> & {
+type Context = Pick<CenterStore, 'classes' | 'teachers' | 'grades' | 'setGrades'> & {
   currentUser: UserAccount | null;
   addLog: ActivityLogger;
 };
@@ -26,7 +26,7 @@ const sameGradeValues = (left: Grade, right: Grade) =>
   left.average === right.average &&
   JSON.stringify(left.unitScores || {}) === JSON.stringify(right.unitScores || {});
 
-export function createGradeActions({ classes, teachers, grades, setGrades, settings, setSettings, currentUser, addLog }: Context) {
+export function createGradeActions({ classes, teachers, grades, setGrades, currentUser, addLog }: Context) {
   // Grade Handler
   const handleUpdateGrade = (updatedGrade: Grade) => {
     const classroom = classes.find((item) => item.id === updatedGrade.classId);
@@ -87,26 +87,5 @@ export function createGradeActions({ classes, teachers, grades, setGrades, setti
     return true;
   };
 
-  const handleUpdateGradeColumns = (columns: CustomGradeColumn[]) => {
-    if (!currentUser?.active || currentUser.role !== 'owner') {
-      showAlert('Chỉ Chủ trung tâm được thay đổi cấu trúc cột điểm dùng chung.');
-      return false;
-    }
-    const normalized = columns.map((column) => ({ ...column, name: column.name.trim() }));
-    const names = normalized.map((column) =>
-      `${column.semester}\u0000${column.programId || (column.classId ? `class:${column.classId}` : 'all')}\u0000${column.name.toLocaleLowerCase('vi-VN')}`,
-    );
-    if (normalized.some((column) => !isValidCustomGradeColumn(column)) ||
-        new Set(normalized.map((column) => column.id)).size !== normalized.length ||
-        new Set(names).size !== names.length) {
-      showAlert('Cấu hình cột điểm không hợp lệ hoặc bị trùng.');
-      return false;
-    }
-    setSettings({ ...settings, gradeColumns: normalized });
-    addLog('SỬA', 'Điểm', `Cập nhật ${normalized.length} cột điểm theo chương trình`);
-    toast.success('Đã lưu cấu trúc cột điểm dùng chung.');
-    return true;
-  };
-
-  return { handleUpdateGrade, handleUpdateGradeColumns };
+  return { handleUpdateGrade };
 }

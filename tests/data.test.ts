@@ -15,6 +15,7 @@ import { readApiJson } from '../src/lib/http';
 import { autoFixConsistency } from '../src/services/dataConsistencyService';
 import { findScheduleConflict } from '../src/lib/schedule';
 import { matchesSearch } from '../src/lib/search';
+import { calculateGradeYearSummary } from '../src/lib/gradebook';
 import * as initial from '../src/mock/initialData';
 import type { TuitionReceipt } from '../src/types';
 
@@ -44,6 +45,18 @@ describe('calendar and identifiers', () => {
   });
   it('does not duplicate a student code after deletion and accepts legacy hyphenated codes', () => {
     expect(nextStudentCode([{ code: 'HS001' }, { code: 'HS-010' }, { code: 'HS003' }])).toBe('HS011');
+  });
+});
+describe('yearly grade summary', () => {
+  it('links all four semesters into one final ability assessment', () => {
+    const baseGrade = initial.initialGrades[0];
+    const summary = calculateGradeYearSummary([
+      { ...baseGrade, id: 'g1', semester: 'GKI', average: 7 },
+      { ...baseGrade, id: 'g2', semester: 'CKI', average: 7.5 },
+      { ...baseGrade, id: 'g3', semester: 'GKII', average: 8 },
+      { ...baseGrade, id: 'g4', semester: 'CKII', average: 8.5 },
+    ]);
+    expect(summary).toMatchObject({ average: 7.8, completedSemesters: 4, complete: true, ability: 'Khá', trend: 'Tiến bộ rõ' });
   });
 });
 describe('backup and cloud validation', () => {

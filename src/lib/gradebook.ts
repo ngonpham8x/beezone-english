@@ -77,6 +77,57 @@ export const calculateSemesterAverage = (
       10,
   ) / 10;
 
+export interface GradeYearSummary {
+  semesterAverages: Partial<Record<GradeSemester, number>>;
+  completedSemesters: number;
+  average: number | null;
+  complete: boolean;
+  ability: string;
+  trend: string;
+}
+
+export function calculateGradeYearSummary(grades: Grade[]): GradeYearSummary {
+  const semesterAverages: Partial<Record<GradeSemester, number>> = {};
+  for (const semester of GRADE_SEMESTERS) {
+    const grade = grades.find((item) => gradeSemester(item) === semester);
+    if (grade) semesterAverages[semester] = grade.average;
+  }
+  const values = GRADE_SEMESTERS
+    .map((semester) => semesterAverages[semester])
+    .filter((value): value is number => value !== undefined);
+  const average = values.length
+    ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10
+    : null;
+  const ability = average === null
+    ? 'Chưa có dữ liệu'
+    : average >= 9
+      ? 'Xuất sắc'
+      : average >= 8
+        ? 'Giỏi'
+        : average >= 6.5
+          ? 'Khá'
+          : average >= 5
+            ? 'Đạt'
+            : 'Cần hỗ trợ';
+  const first = values[0];
+  const last = values[values.length - 1];
+  const trend = values.length < 2
+    ? 'Chưa đủ dữ liệu so sánh'
+    : last - first >= 0.5
+      ? 'Tiến bộ rõ'
+      : first - last >= 0.5
+        ? 'Có dấu hiệu giảm'
+        : 'Duy trì ổn định';
+  return {
+    semesterAverages,
+    completedSemesters: values.length,
+    average,
+    complete: values.length === GRADE_SEMESTERS.length,
+    ability,
+    trend,
+  };
+}
+
 export const isValidScore = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10;
 
