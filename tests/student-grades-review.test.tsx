@@ -93,7 +93,8 @@ describe('Teacher comments & grades in StudentProfileDialog', () => {
 
     // Bảng Điểm & Đánh Giá Năng Lực Học Viên
     expect(screen.getByText(/Bảng Điểm & Đánh Giá Năng Lực Học Viên/i)).toBeTruthy();
-    expect(screen.getByText('8.7')).toBeTruthy();
+    expect(screen.getByText('2.6/3')).toBeTruthy();
+    expect(screen.getByText(/Giỏi 🌟/i)).toBeTruthy();
     expect(screen.getAllByText(/Xuất sắc/i).length).toBeGreaterThan(0);
 
     // Teacher comment

@@ -23,7 +23,14 @@ import React, { useMemo, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { splitAttendanceNote } from '../attendance/parentContact';
 import { paymentKindLabel, paymentPeriodLabel, studentTuitionDebtBreakdown } from '../../lib/tuition';
-import { GRADE_SEMESTER_CONFIG, gradeSemester, readingWritingScore } from '../../lib/gradebook';
+import {
+  calculateSemesterAverage,
+  GRADE_AVERAGE_SCALE,
+  GRADE_RANK_THRESHOLDS,
+  GRADE_SEMESTER_CONFIG,
+  gradeSemester,
+  readingWritingScore,
+} from '../../lib/gradebook';
 import type {
   AttendanceSession,
   ClassEnrollment,
@@ -64,9 +71,10 @@ const ATTITUDE_LABELS: Record<string, string> = {
 };
 
 function getGradeRank(avg: number): { label: string; color: string } {
-  if (avg >= 8.5) return { label: 'Xuất sắc 🏆', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
-  if (avg >= 7.0) return { label: 'Giỏi 🌟', color: 'bg-sky-100 text-sky-800 border-sky-300' };
-  if (avg >= 5.0) return { label: 'Khá / Đạt 👍', color: 'bg-amber-100 text-amber-800 border-amber-300' };
+  if (avg >= GRADE_RANK_THRESHOLDS.excellent) return { label: 'Xuất sắc 🏆', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+  if (avg >= GRADE_RANK_THRESHOLDS.veryGood) return { label: 'Giỏi 🌟', color: 'bg-sky-100 text-sky-800 border-sky-300' };
+  if (avg >= GRADE_RANK_THRESHOLDS.good) return { label: 'Khá 👍', color: 'bg-amber-100 text-amber-800 border-amber-300' };
+  if (avg >= GRADE_RANK_THRESHOLDS.average) return { label: 'Đạt ✓', color: 'bg-orange-100 text-orange-800 border-orange-300' };
   return { label: 'Cần cố gắng 📚', color: 'bg-rose-100 text-rose-800 border-rose-300' };
 }
 
@@ -345,7 +353,8 @@ export function StudentProfileDialog({
                 const gradeClass = classes.find((c) => c.id === grade.classId);
                 const semester = gradeSemester(grade);
                 const semesterConfig = GRADE_SEMESTER_CONFIG[semester];
-                const rank = getGradeRank(grade.average);
+                const semesterAverage = calculateSemesterAverage(grade);
+                const rank = getGradeRank(semesterAverage);
                 const isEditingComment = editingGradeId === grade.id;
                 return (
                   <div
@@ -367,7 +376,7 @@ export function StudentProfileDialog({
                       <div className="flex items-center gap-1.5 text-xs">
                         <span className="text-slate-500 font-medium">Điểm TB:</span>
                         <span className="text-base font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-                          {Number(grade.average).toFixed(1)}
+                          {semesterAverage.toFixed(1)}/{GRADE_AVERAGE_SCALE}
                         </span>
                       </div>
                     </div>

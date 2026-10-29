@@ -32,6 +32,14 @@ describe('Excel export/import', () => {
       { ...common, id: 'g-cki', semester: 'CKI', listening: 9, unitScores: { unit4: 8.5 }, comment: 'Cần luyện nói' },
     ];
     const blob = await generateMasterExcelWorkbook({ centerName: 'Test', programs: initial.initialPrograms, students: [student], classes: [classroom], teachers: initial.initialTeachers, rooms: initial.initialRooms, grades, receipts: [] });
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(await blob.arrayBuffer());
+    const gradeSheet = book.getWorksheet('BẢNG ĐIỂM')!;
+    expect((gradeSheet.getCell('O6').value as ExcelJS.CellFormulaValue).formula).toBe('IF(COUNT(G6:I6)=0,"",ROUND(SUM(G6:I6)/10,1))');
+    expect((gradeSheet.getCell('Q6').value as ExcelJS.CellFormulaValue).formula).toContain('O6>=2.7');
+    expect(gradeSheet.getColumn('O').width).toBe(12);
+    expect(gradeSheet.getColumn('P').width).toBe(36);
+    expect(gradeSheet.getColumn('Q').width).toBe(18);
     const result = await parseCenterWorkbookFile(new File([await blob.arrayBuffer()], 'semester-grades.xlsx'));
     expect(result.errors).toEqual([]);
     expect(result.data!.grades).toHaveLength(2);

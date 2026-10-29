@@ -49,8 +49,8 @@ export function writeGradeSheet(context: ExportContext) {
   gradeRows.forEach(({ student, grade, classId }, index) => {
     const rowNumber = STUDENT_DATA_START_ROW + index;
     const row = gradesSheet.getRow(rowNumber);
-    const avgFormula = `IF(COUNT(G${rowNumber}:I${rowNumber})=0,"",ROUND(AVERAGE(G${rowNumber}:I${rowNumber}),1))`;
-    const rankFormula = `IF(O${rowNumber}="","",IF(O${rowNumber}>=8,"Giỏi",IF(O${rowNumber}>=6.5,"Khá",IF(O${rowNumber}>=5,"Trung bình","Cần hỗ trợ"))))`;
+    const avgFormula = `IF(COUNT(G${rowNumber}:I${rowNumber})=0,"",ROUND(SUM(G${rowNumber}:I${rowNumber})/10,1))`;
+    const rankFormula = `IF(O${rowNumber}="","",IF(O${rowNumber}>=2.7,"Xuất sắc",IF(O${rowNumber}>=2.4,"Giỏi",IF(O${rowNumber}>=1.95,"Khá",IF(O${rowNumber}>=1.5,"Đạt","Cần hỗ trợ")))))`;
     row.values = [
       index + 1,
       student.code,
@@ -93,6 +93,7 @@ export function writeGradeSheet(context: ExportContext) {
     { width: 13 },
     { width: 14 },
     { width: 14 },
+    { width: 12 },
     { width: 36 },
     { width: 18 },
   ];
