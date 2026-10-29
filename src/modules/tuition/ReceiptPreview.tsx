@@ -1,5 +1,6 @@
 import { DollarSign, Printer, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useState } from 'react';
 import logoImg from '../../assets/images/beezone-logo.png';
 import { DialogFrame } from '../../components/DialogFrame';
 import {
@@ -30,6 +31,32 @@ export function ReceiptPreview({
 }: Props) {
   const cleanPhone = (settings.phone || '').replace(/[-–•|]?\s*Email\s*:?.*$/i, '').trim() || '0847 163 670 - 038 440 6157';
   const cleanEmail = (settings.email || '').trim() || 'beezone.englishcenter@gmail.com';
+  const installmentOptions = useMemo(
+    () => getReceiptInstallments(selectedReceipt).map((installment, index) => ({
+      installment,
+      index,
+      key: `${index}:${installment.id || 'installment'}`,
+    })),
+    [selectedReceipt],
+  );
+  const allInstallmentKeys = useMemo(
+    () => installmentOptions.map((option) => option.key),
+    [installmentOptions],
+  );
+  const [selectedInstallmentKeys, setSelectedInstallmentKeys] = useState<string[]>(allInstallmentKeys);
+
+  useEffect(() => {
+    setSelectedInstallmentKeys(allInstallmentKeys);
+  }, [allInstallmentKeys]);
+
+  const selectedInstallmentKeySet = new Set(selectedInstallmentKeys);
+  const selectedInstallmentOptions = installmentOptions.filter((option) => selectedInstallmentKeySet.has(option.key));
+  const selectedInstallmentTotal = selectedInstallmentOptions.reduce(
+    (sum, option) => sum + option.installment.amount,
+    0,
+  );
+  const allInstallmentsSelected = installmentOptions.length > 0 && selectedInstallmentOptions.length === installmentOptions.length;
+  const canPrintReceipt = installmentOptions.length === 0 || selectedInstallmentOptions.length > 0;
 
   const handlePrintReceipt = () => {
     const prevTitle = document.title;
@@ -100,7 +127,6 @@ export function ReceiptPreview({
           {(() => {
             const student = students.find((s) => s.id === selectedReceipt.studentId);
             const cls = classes.find((c) => c.id === selectedReceipt.classId);
-            const installments = getReceiptInstallments(selectedReceipt);
 
             return (
               <div
@@ -168,29 +194,56 @@ export function ReceiptPreview({
                   Ghi chú: <em>{selectedReceipt.notes || 'Đã hoàn tất thanh toán'}</em>
                 </div>
 
-                {installments.length > 0 && (
+                {installmentOptions.length > 0 && (
                   <div className="mt-2.5 rounded-xl border border-slate-300 bg-slate-50/80 p-2.5">
-                    <div className="font-extrabold text-slate-900 mb-1.5 flex items-center justify-between text-[12.5pt]">
-                      <span>Chi tiết các đợt đóng tiền ({installments.length} đợt)</span>
+                    <div className="font-extrabold text-slate-900 mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[12.5pt]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>Chi tiết các đợt đóng tiền ({selectedInstallmentOptions.length} đợt đã chọn)</span>
+                        <label className="print:hidden inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10.5pt] font-bold text-slate-700">
+                          <input
+                            type="checkbox"
+                            aria-label="Chọn tất cả các đợt để in"
+                            checked={allInstallmentsSelected}
+                            onChange={(event) => setSelectedInstallmentKeys(event.target.checked ? allInstallmentKeys : [])}
+                            className="h-4 w-4 accent-amber-500"
+                          />
+                          Chọn tất cả
+                        </label>
+                      </div>
                       <span className="text-emerald-700 font-bold">
-                        {selectedReceipt.paidAmount.toLocaleString('vi-VN')} đ
+                        {selectedInstallmentTotal.toLocaleString('vi-VN')} đ
                       </span>
                     </div>
                     <div className="space-y-1.5">
-                      {installments.map((inst, idx) => {
+                      {installmentOptions.map(({ installment: inst, index: idx, key }) => {
+                        const selectedForPrint = selectedInstallmentKeySet.has(key);
                         const instInvoice =
                           formatInvoiceBook(inst) !== '......... / .........'
                             ? formatInvoiceBook(inst)
-                            : installments.length === 1 && formatInvoiceBook(selectedReceipt) !== '......... / .........'
+                            : installmentOptions.length === 1 && formatInvoiceBook(selectedReceipt) !== '......... / .........'
                             ? formatInvoiceBook(selectedReceipt)
                             : '......... / .........';
 
                         return (
-                          <div
-                            key={inst.id || idx}
-                            className="flex flex-wrap justify-between items-center text-[12pt] bg-white p-2 rounded-lg border border-slate-200 gap-1 leading-snug"
+                          <label
+                            key={key}
+                            data-print-installment-selected={selectedForPrint ? 'true' : 'false'}
+                            className={`flex flex-wrap items-center gap-2 rounded-lg border bg-white p-2 text-[12pt] leading-snug transition ${
+                              selectedForPrint ? 'border-slate-200' : 'border-slate-200 opacity-55'
+                            }`}
                           >
-                            <div>
+                            <input
+                              type="checkbox"
+                              aria-label={`In đợt ${idx + 1} ngày ${formatReceiptDate(inst.date)}`}
+                              checked={selectedForPrint}
+                              onChange={(event) => setSelectedInstallmentKeys((current) =>
+                                event.target.checked
+                                  ? (current.includes(key) ? current : [...current, key])
+                                  : current.filter((item) => item !== key),
+                              )}
+                              className="print:hidden h-4 w-4 shrink-0 cursor-pointer accent-amber-500"
+                            />
+                            <div className="min-w-0 flex-1">
                               <span className="font-bold text-slate-900">
                                 Đợt {idx + 1} ({formatReceiptDate(inst.date)}):
                               </span>
@@ -207,7 +260,7 @@ export function ReceiptPreview({
                             <span className="text-slate-500 italic text-[11pt]">
                               {inst.notes || '—'}
                             </span>
-                          </div>
+                          </label>
                         );
                       })}
                     </div>
@@ -262,7 +315,9 @@ export function ReceiptPreview({
           )}
           <button
             onClick={handlePrintReceipt}
-            className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 flex items-center gap-1.5 shadow-sm active:scale-95"
+            disabled={!canPrintReceipt}
+            title={!canPrintReceipt ? 'Chọn ít nhất một đợt đóng tiền để in.' : undefined}
+            className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 flex items-center gap-1.5 shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:active:scale-100"
           >
             <Printer className="w-4 h-4 text-amber-400" /> In Phiếu Thu (PDF)
           </button>

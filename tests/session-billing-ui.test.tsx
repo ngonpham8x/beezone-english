@@ -360,6 +360,30 @@ it('always shows the remaining amount and each installment SHĐ/Quyển on the r
   expect(within(dialog).getByText(/· SHĐ\/Quyển: 00126 \/ 03/)).toBeTruthy();
   expect(within(dialog).getAllByText(/SHĐ\/Quyển: 0012[56] \/ 03/)).toHaveLength(3);
   expect((document.querySelector('[data-print-receipt]') as HTMLElement).style.fontSize).toBe('13pt');
+
+  const installment1Toggle = within(dialog).getByRole('checkbox', { name: 'In đợt 1 ngày 01/10/2026' }) as HTMLInputElement;
+  const installment2Toggle = within(dialog).getByRole('checkbox', { name: 'In đợt 2 ngày 13/10/2026' }) as HTMLInputElement;
+  const selectAllToggle = within(dialog).getByRole('checkbox', { name: 'Chọn tất cả các đợt để in' }) as HTMLInputElement;
+  const printButton = within(dialog).getByRole('button', { name: /In Phiếu Thu/ }) as HTMLButtonElement;
+  expect(installment1Toggle.checked).toBe(true);
+  expect(installment2Toggle.checked).toBe(true);
+  expect(selectAllToggle.checked).toBe(true);
+
+  fireEvent.click(installment1Toggle);
+  expect(within(dialog).getByText('Chi tiết các đợt đóng tiền (1 đợt đã chọn)')).toBeTruthy();
+  expect(installment1Toggle.closest('[data-print-installment-selected]')?.getAttribute('data-print-installment-selected')).toBe('false');
+  expect(installment2Toggle.closest('[data-print-installment-selected]')?.getAttribute('data-print-installment-selected')).toBe('true');
+  expect(selectAllToggle.checked).toBe(false);
+  expect(printButton.disabled).toBe(false);
+
+  fireEvent.click(installment2Toggle);
+  expect(within(dialog).getByText('Chi tiết các đợt đóng tiền (0 đợt đã chọn)')).toBeTruthy();
+  expect(printButton.disabled).toBe(true);
+
+  fireEvent.click(selectAllToggle);
+  expect(installment1Toggle.checked).toBe(true);
+  expect(installment2Toggle.checked).toBe(true);
+  expect(printButton.disabled).toBe(false);
 });
 
 it('preserves distinct SHĐ/Quyển for installment 1 and installment 2 when paying subsequent installments', () => {

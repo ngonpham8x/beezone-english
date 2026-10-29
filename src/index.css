@@ -491,6 +491,10 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
     display: none !important;
   }
 
+  body[data-printing="tuition-receipt"] [data-print-installment-selected="false"] {
+    display: none !important;
+  }
+
   /* REPORT CARD PRINTING - Fits exactly on 1 single A4 Portrait page */
   body[data-printing="report-card"] {
     background: #fff !important;
