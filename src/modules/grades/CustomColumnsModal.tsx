@@ -140,8 +140,12 @@ export function CustomColumnsModal({
   };
 
   return (
-    <DialogFrame label="Quản lý cột bài và cột điểm" onClose={onClose}>
-      <div className="my-auto max-h-[92vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
+    <DialogFrame
+      label="Quản lý cột bài và cột điểm"
+      onClose={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4"
+    >
+      <div className="dialog-panel w-full max-w-2xl space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
@@ -341,7 +345,7 @@ export function CustomColumnsModal({
           </form>
         ) : (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            Bạn đang ở chế độ xem. Chỉ Quản trị hoặc Bộ phận Đào tạo mới có quyền thay đổi cấu trúc cột bài và cột điểm.
+            Bạn đang ở chế độ xem. Chỉ Chủ trung tâm, Hành chính hoặc Bộ phận Đào tạo có quyền sửa điểm mới được thay đổi cấu trúc cột.
           </div>
         )}
 

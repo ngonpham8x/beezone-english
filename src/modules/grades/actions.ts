@@ -121,9 +121,8 @@ export function createGradeActions({ classes, programs, teachers, grades, setGra
     const canManage = Boolean(
       currentUser?.active &&
       (currentUser.role === 'owner' ||
-        currentUser.role === 'admin' ||
-        currentUser.role === 'trainer' ||
-        currentUser.permissions.grade.edit),
+        ((currentUser.role === 'admin' || currentUser.role === 'trainer') &&
+          currentUser.permissions.grade.edit)),
     );
     if (!canManage) {
       showAlert('Bạn không có quyền thay đổi cấu trúc cột bài và cột điểm.');

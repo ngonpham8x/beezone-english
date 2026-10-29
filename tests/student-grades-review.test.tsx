@@ -452,12 +452,13 @@ describe('ShareReviewDialog & permissions', () => {
     fireEvent.blur(customScore);
     expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ average: 8 }));
 
-    vi.spyOn(dialogs, 'askConfirmation').mockResolvedValue(true);
+    const confirmDelete = vi.spyOn(dialogs, 'askConfirmation').mockResolvedValue(true);
     fireEvent.click(screen.getByRole('button', { name: /Thêm \/ xóa cột/i }));
     fireEvent.click(screen.getAllByRole('button', { name: /Xóa cột UNIT 13/i })[0]);
     await waitFor(() => expect(onUpdateGradeColumns).toHaveBeenLastCalledWith(expect.arrayContaining([
       expect.objectContaining({ name: 'UNIT 13', archivedAt: expect.any(String) }),
     ])));
+    expect(confirmDelete).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getAllByRole('button', { name: /^Đóng$/i }).at(-1)!);
     expect(screen.queryByLabelText(new RegExp(`UNIT 13 - ${dummyStudent.code}`, 'i'))).toBeNull();
 
@@ -499,6 +500,10 @@ describe('ShareReviewDialog & permissions', () => {
 
     // Dialog opens with two selectable options
     expect(screen.getByText(/Thêm \/ xóa cột bài học & cột điểm/i)).toBeTruthy();
+    const columnDialog = screen.getByRole('dialog', { name: /Quản lý cột bài và cột điểm/i });
+    expect(columnDialog.className).toContain('fixed');
+    expect(columnDialog.className).toContain('inset-0');
+    expect(columnDialog.className).toContain('z-50');
 
     // Check "Cột điểm / bài kiểm tra" in addition to "Cột bài / UNIT" (both checked)
     const unitCheck = screen.getByRole('checkbox', { name: /Cột bài \/ UNIT/i }) as HTMLInputElement;

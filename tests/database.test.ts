@@ -508,6 +508,39 @@ describe('database migrations and permission enforcement', () => {
     await asStaff();
     await expect(db.query("update public.center_data set payload=$1::jsonb where id='primary'", [JSON.stringify({ ...base, settings: { name: 'Injected' } })])).rejects.toThrow(/Owner permission|denied/);
   });
+  it('allows only delegated administrative or training accounts to change grade columns', async () => {
+    const payload = { ...base, programs: [{ id: 'program-a', name: 'Program A' }] };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    const column = {
+      id: 'progress-test',
+      name: 'Progress Test',
+      kind: 'assessment',
+      semester: 'GKI',
+      programId: 'program-a',
+    };
+
+    await asStaff({ grade: { edit: true } }, 'trainer');
+    const withColumn = { ...payload, settings: { gradeColumns: [column] } };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(withColumn)]);
+
+    await db.exec('reset role');
+    await asStaff({ grade: { edit: true } }, 'admin');
+    const withRenamedColumn = {
+      ...withColumn,
+      settings: { gradeColumns: [{ ...column, name: 'Progress Test Renamed' }] },
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(withRenamedColumn)]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [
+      JSON.stringify({ ...withRenamedColumn, settings: { ...withRenamedColumn.settings, name: 'Injected' } }),
+    ])).rejects.toThrow(/Owner permission required: settings/);
+
+    await db.exec('reset role');
+    await asStaff({ grade: { edit: true } }, 'teacher');
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({
+      ...withRenamedColumn,
+      settings: { gradeColumns: [...withRenamedColumn.settings.gradeColumns, { ...column, id: 'teacher-column', name: 'Teacher Column' }] },
+    })])).rejects.toThrow(/Teacher role|Grade edit permission/);
+  });
   it('allows login activity without permitting business changes', async () => {
     await asStaff();
     const payload = { ...base, activityLogs: [{ id: 'login', action: 'ĐĂNG NHẬP' }] };

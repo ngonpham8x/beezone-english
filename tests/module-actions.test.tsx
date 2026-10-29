@@ -136,6 +136,20 @@ describe('domain command integration', () => {
     expect(dialogs.showAlert).toHaveBeenCalledWith(expect.stringContaining('không có quyền'));
   });
 
+  it('does not let teacher-rank accounts change shared grade columns even with a legacy grade-edit flag', () => {
+    const teacherWithLegacyFlag: UserAccount = {
+      ...DEV_TEACHER_ACCOUNT,
+      permissions: {
+        ...DEV_TEACHER_ACCOUNT.permissions,
+        grade: { ...DEV_TEACHER_ACCOUNT.permissions.grade, edit: true },
+      },
+    };
+    const { result } = renderHook(() => useTestCenter(teacherWithLegacyFlag));
+    const before = result.current.store.settings;
+    act(() => expect(result.current.actions.handleUpdateGradeColumns([])).toBe(false));
+    expect(result.current.store.settings).toBe(before);
+  });
+
   it('blocks teacher-rank student profile mutations even with legacy broad flags', () => {
     const teacher = {
       ...DEV_TEACHER_ACCOUNT,

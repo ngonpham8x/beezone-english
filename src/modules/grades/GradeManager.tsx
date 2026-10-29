@@ -136,9 +136,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     onUpdateGradeColumns &&
     (isOwner ||
       currentUser?.role === 'owner' ||
-      currentUser?.role === 'admin' ||
-      currentUser?.role === 'trainer' ||
-      permissions.grade.edit) &&
+      ((currentUser?.role === 'admin' || currentUser?.role === 'trainer') && permissions.grade.edit)) &&
     currentUser?.active !== false,
   );
 
@@ -313,18 +311,21 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     return onUpdateGradeColumns([...customColumns, ...created]);
   };
 
-  const handleArchiveCustomColumn = async (columnId: string, columnName?: string) => {
+  const archiveCustomColumn = (columnId: string) => {
     if (!canManageColumns || !onUpdateGradeColumns) return false;
-    const col = customColumns.find((c) => c.id === columnId);
-    const name = columnName || col?.name || 'cột';
-    const confirmed = await askConfirmation(
-      `Xóa cột “${name}”? Cột sẽ không còn hiển thị và không tính vào ĐTB. Dữ liệu điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
-    );
-    if (!confirmed) return false;
     const archivedAt = new Date().toISOString();
     return onUpdateGradeColumns(customColumns.map((column) =>
       column.id === columnId ? { ...column, archivedAt } : column,
     ));
+  };
+
+  const requestArchiveCustomColumn = async (columnId: string, columnName?: string) => {
+    const column = customColumns.find((item) => item.id === columnId);
+    if (!column || !canManageColumns) return false;
+    const confirmed = await askConfirmation(
+      `Xóa cột “${columnName || column.name}”? Cột sẽ không còn hiển thị và không tính vào ĐTB. Dữ liệu điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
+    );
+    return confirmed ? archiveCustomColumn(columnId) : false;
   };
 
   const handleRenameCustomColumn = (columnId: string, newName: string) => {
@@ -554,7 +555,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           <button
                             type="button"
                             aria-label={`Xóa cột ${u.label}`}
-                            onClick={() => void handleArchiveCustomColumn(u.key, u.label)}
+                            onClick={() => void requestArchiveCustomColumn(u.key, u.label)}
                             className="p-1 rounded bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white transition cursor-pointer"
                             title={`Xóa cột ${u.label}`}
                           >
@@ -637,7 +638,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
                           <button
                             type="button"
                             aria-label={`Xóa cột ${col.name}`}
-                            onClick={() => void handleArchiveCustomColumn(col.id, col.name)}
+                            onClick={() => void requestArchiveCustomColumn(col.id, col.name)}
                             className="p-1 rounded bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white transition cursor-pointer"
                             title={`Xóa cột ${col.name}`}
                           >
@@ -973,7 +974,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
         onClose={() => setIsCustomColumnsOpen(false)}
         columns={customColumns}
         onAddColumns={handleAddCustomColumns}
-        onArchiveColumn={handleArchiveCustomColumn}
+        onArchiveColumn={archiveCustomColumn}
         onRenameColumn={handleRenameCustomColumn}
         currentSemester={semester}
         programs={programs}
@@ -984,8 +985,12 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
 
       {/* Modal Sửa Tên Cột */}
       {editingColumn && (
-        <DialogFrame label="Sửa tên cột điểm" onClose={() => setEditingColumn(null)}>
-          <div className="my-auto w-full max-w-md space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <DialogFrame
+          label="Sửa tên cột điểm"
+          onClose={() => setEditingColumn(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4"
+        >
+          <div className="dialog-panel w-full max-w-md space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
