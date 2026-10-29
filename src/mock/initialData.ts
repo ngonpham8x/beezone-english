@@ -493,14 +493,14 @@ export const initialTimetableSlots: TimetableSlot[] = [
 ];
 
 export const initialGrades: Grade[] = [
-  { id: 'G_STU-001', studentId: 'STU-001', classId: 'CLS-KIDDY-1', listening: 9.0, speaking: 8.5, reading: 8.0, writing: 8.5, midterm: 8.5, finalExam: 9.0, attendance: 10, average: 8.7 },
-  { id: 'G_STU-002', studentId: 'STU-002', classId: 'CLS-KIDDY-1', listening: 8.0, speaking: 7.5, reading: 8.5, writing: 8.0, midterm: 8.0, finalExam: 8.5, attendance: 10, average: 8.2 },
-  { id: 'G_STU-003', studentId: 'STU-003', classId: 'CLS-STARTERS-1', listening: 7.0, speaking: 7.0, reading: 7.5, writing: 6.5, midterm: 7.0, finalExam: 7.5, attendance: 9, average: 7.2 },
-  { id: 'G_STU-004', studentId: 'STU-004', classId: 'CLS-BEE-1', listening: 8.5, speaking: 7.5, reading: 8.5, writing: 7.0, midterm: 8.0, finalExam: 8.5, attendance: 10, average: 8.0 },
-  { id: 'G_STU-005', studentId: 'STU-005', classId: 'CLS-BEE-2', listening: 9.0, speaking: 8.0, reading: 9.0, writing: 7.5, midterm: 8.5, finalExam: 9.0, attendance: 10, average: 8.6 },
-  { id: 'G_STU-006', studentId: 'STU-006', classId: 'CLS-BEE-3', listening: 7.5, speaking: 7.0, reading: 7.5, writing: 6.5, midterm: 7.0, finalExam: 7.5, attendance: 10, average: 7.3 },
-  { id: 'G_STU-007', studentId: 'STU-007', classId: 'CLS-BEE-4', listening: 8.0, speaking: 8.5, reading: 7.5, writing: 7.0, midterm: 8.0, finalExam: 8.0, attendance: 9.5, average: 8.0 },
-  { id: 'G_STU-008', studentId: 'STU-008', classId: 'CLS-BEE-STAR', listening: 7.0, speaking: 6.5, reading: 7.0, writing: 6.5, midterm: 6.5, finalExam: 7.0, attendance: 8.0, average: 6.8 }
+  { id: 'G_STU-001', studentId: 'STU-001', classId: 'CLS-KIDDY-1', listening: 9.0, speaking: 8.5, reading: 8.0, writing: 8.5, midterm: 8.5, finalExam: 9.0, attendance: 10, average: 2.6 },
+  { id: 'G_STU-002', studentId: 'STU-002', classId: 'CLS-KIDDY-1', listening: 8.0, speaking: 7.5, reading: 8.5, writing: 8.0, midterm: 8.0, finalExam: 8.5, attendance: 10, average: 2.4 },
+  { id: 'G_STU-003', studentId: 'STU-003', classId: 'CLS-STARTERS-1', listening: 7.0, speaking: 7.0, reading: 7.5, writing: 6.5, midterm: 7.0, finalExam: 7.5, attendance: 9, average: 2.1 },
+  { id: 'G_STU-004', studentId: 'STU-004', classId: 'CLS-BEE-1', listening: 8.5, speaking: 7.5, reading: 8.5, writing: 7.0, midterm: 8.0, finalExam: 8.5, attendance: 10, average: 2.4 },
+  { id: 'G_STU-005', studentId: 'STU-005', classId: 'CLS-BEE-2', listening: 9.0, speaking: 8.0, reading: 9.0, writing: 7.5, midterm: 8.5, finalExam: 9.0, attendance: 10, average: 2.5 },
+  { id: 'G_STU-006', studentId: 'STU-006', classId: 'CLS-BEE-3', listening: 7.5, speaking: 7.0, reading: 7.5, writing: 6.5, midterm: 7.0, finalExam: 7.5, attendance: 10, average: 2.2 },
+  { id: 'G_STU-007', studentId: 'STU-007', classId: 'CLS-BEE-4', listening: 8.0, speaking: 8.5, reading: 7.5, writing: 7.0, midterm: 8.0, finalExam: 8.0, attendance: 9.5, average: 2.4 },
+  { id: 'G_STU-008', studentId: 'STU-008', classId: 'CLS-BEE-STAR', listening: 7.0, speaking: 6.5, reading: 7.0, writing: 6.5, midterm: 6.5, finalExam: 7.0, attendance: 8.0, average: 2.0 }
 ];
 
 export const initialTuitionReceipts: TuitionReceipt[] = [

@@ -24,7 +24,6 @@ import {
   calculateSemesterAverage,
   customGradeColumnKind,
   customGradeColumnsForClass,
-  gradeColumnIdsForClass,
   GRADE_SEMESTER_CONFIG,
   GRADE_SEMESTERS,
   isActiveCustomGradeColumn,
@@ -257,10 +256,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
       updated.writing = clamped;
     }
 
-    updated.average = calculateSemesterAverage(
-      updated,
-      gradeColumnIdsForClass(customColumns, semester, classes.find((item) => item.id === classId)),
-    );
+    updated.average = calculateSemesterAverage(updated);
     onUpdateGrade(updated);
   };
 
@@ -290,10 +286,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
       semester,
       unitScores: nextUnitScores,
     };
-    updated.average = calculateSemesterAverage(
-      updated,
-      gradeColumnIdsForClass(customColumns, semester, classes.find((item) => item.id === classId)),
-    );
+    updated.average = calculateSemesterAverage(updated);
     onUpdateGrade(updated);
   };
 
@@ -326,7 +319,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     const column = customColumns.find((item) => item.id === columnId);
     if (!column || !canManageColumns) return false;
     const confirmed = await askConfirmation(
-      `Xóa cột “${columnName || column.name}”? Cột sẽ không còn hiển thị và không tính vào ĐTB. Dữ liệu điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
+      `Xóa cột “${columnName || column.name}”? Cột sẽ không còn hiển thị. Dữ liệu điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
     );
     return confirmed ? archiveCustomColumn(columnId) : false;
   };
@@ -372,7 +365,7 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
             Bảng Điểm & Đánh Giá Kỹ Năng
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Nhập/sửa trực tiếp điểm UNIT và 3 kỹ năng; hệ thống tự tính ĐTB, tổng kết năm và lưu nhận xét học tập
+            ĐTB = (Nghe + Nói + Đọc &amp; Viết) / 10; điểm UNIT và cột tự thêm không tính vào ĐTB
           </p>
         </div>
 

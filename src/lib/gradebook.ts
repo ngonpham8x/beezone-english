@@ -2,6 +2,14 @@ import type { ClassRoom, CustomGradeColumn, CustomGradeColumnKind, Grade, GradeS
 
 export const GRADE_SEMESTERS: GradeSemester[] = ['GKI', 'CKI', 'GKII', 'CKII'];
 
+export const GRADE_AVERAGE_SCALE = 3;
+export const GRADE_RANK_THRESHOLDS = {
+  excellent: 2.7,
+  veryGood: 2.4,
+  good: 1.95,
+  average: 1.5,
+} as const;
+
 export const GRADE_SEMESTER_CONFIG: Record<
   GradeSemester,
   {
@@ -69,20 +77,16 @@ export const readingWritingScore = (
     : undefined;
 
 export const calculateSemesterAverage = (
-  grade: Pick<Grade, 'listening' | 'speaking' | 'readingWriting' | 'reading' | 'writing' | 'unitScores'>,
-  includedUnitIds: Iterable<string> = [],
+  grade: Pick<Grade, 'listening' | 'speaking' | 'readingWriting' | 'reading' | 'writing'>,
 ) => {
-  const scores: number[] = [];
-  if (isValidScore(grade.listening)) scores.push(Number(grade.listening));
-  if (isValidScore(grade.speaking)) scores.push(Number(grade.speaking));
   const rw = readingWritingScore(grade);
-  if (isValidScore(rw)) scores.push(Number(rw));
-  const allowedIds = new Set(includedUnitIds);
-  for (const [unitId, value] of Object.entries(grade.unitScores || {})) {
-    if (allowedIds.has(unitId) && isValidScore(value)) scores.push(value);
-  }
-  if (scores.length === 0) return 0;
-  return Math.round((scores.reduce((sum, value) => sum + value, 0) / scores.length) * 10) / 10;
+  const scores = [grade.listening, grade.speaking, rw];
+  if (!scores.some(isValidScore)) return 0;
+  const total = scores.reduce(
+    (sum, value) => sum + (isValidScore(value) ? Number(value) : 0),
+    0,
+  );
+  return Math.round((total / 10) * 10) / 10;
 };
 
 export interface GradeYearSummary {
@@ -98,7 +102,7 @@ export function calculateGradeYearSummary(grades: Grade[]): GradeYearSummary {
   const semesterAverages: Partial<Record<GradeSemester, number>> = {};
   for (const semester of GRADE_SEMESTERS) {
     const grade = grades.find((item) => gradeSemester(item) === semester);
-    if (grade) semesterAverages[semester] = grade.average;
+    if (grade) semesterAverages[semester] = calculateSemesterAverage(grade);
   }
   const values = GRADE_SEMESTERS
     .map((semester) => semesterAverages[semester])
@@ -108,22 +112,22 @@ export function calculateGradeYearSummary(grades: Grade[]): GradeYearSummary {
     : null;
   const ability = average === null
     ? 'Chưa có dữ liệu'
-    : average >= 9
+    : average >= GRADE_RANK_THRESHOLDS.excellent
       ? 'Xuất sắc'
-      : average >= 8
+      : average >= GRADE_RANK_THRESHOLDS.veryGood
         ? 'Giỏi'
-        : average >= 6.5
+        : average >= GRADE_RANK_THRESHOLDS.good
           ? 'Khá'
-          : average >= 5
+          : average >= GRADE_RANK_THRESHOLDS.average
             ? 'Đạt'
             : 'Cần hỗ trợ';
   const first = values[0];
   const last = values[values.length - 1];
   const trend = values.length < 2
     ? 'Chưa đủ dữ liệu so sánh'
-    : last - first >= 0.5
+    : last - first >= 0.2
       ? 'Tiến bộ rõ'
-      : first - last >= 0.5
+      : first - last >= 0.2
         ? 'Có dấu hiệu giảm'
         : 'Duy trì ổn định';
   return {

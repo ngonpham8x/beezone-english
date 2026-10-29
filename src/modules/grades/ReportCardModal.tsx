@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DialogFrame } from '../../components/DialogFrame';
 import { Logo } from '../../components/Logo';
+import { calculateSemesterAverage, GRADE_AVERAGE_SCALE, GRADE_RANK_THRESHOLDS } from '../../lib/gradebook';
 import { CenterSettings, ClassRoom, CourseProgram, Grade, GradeSemester, Student, Teacher } from '../../types';
 import { ShareReportCardModal } from './ShareReportCardModal';
 
@@ -86,15 +87,16 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
     }
   ];
   const getRank = (avg: number) => {
-    if (avg >= 9.0) return { label: 'XUẤT SẮC (EXCELLENT)', color: 'text-emerald-700 bg-emerald-50 border-emerald-300' };
-    if (avg >= 8.0) return { label: 'GIỎI (VERY GOOD)', color: 'text-blue-700 bg-blue-50 border-blue-300' };
-    if (avg >= 6.5) return { label: 'KHÁ (GOOD)', color: 'text-amber-700 bg-amber-50 border-amber-300' };
-    if (avg >= 5.0) return { label: 'TRUNG BÌNH (AVERAGE)', color: 'text-orange-700 bg-orange-50 border-orange-300' };
+    if (avg >= GRADE_RANK_THRESHOLDS.excellent) return { label: 'XUẤT SẮC (EXCELLENT)', color: 'text-emerald-700 bg-emerald-50 border-emerald-300' };
+    if (avg >= GRADE_RANK_THRESHOLDS.veryGood) return { label: 'GIỎI (VERY GOOD)', color: 'text-blue-700 bg-blue-50 border-blue-300' };
+    if (avg >= GRADE_RANK_THRESHOLDS.good) return { label: 'KHÁ (GOOD)', color: 'text-amber-700 bg-amber-50 border-amber-300' };
+    if (avg >= GRADE_RANK_THRESHOLDS.average) return { label: 'TRUNG BÌNH (AVERAGE)', color: 'text-orange-700 bg-orange-50 border-orange-300' };
     return { label: 'CẦN CỐ GẮNG (NEEDS IMPROVEMENT)', color: 'text-red-700 bg-red-50 border-red-300' };
   };
 
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const rank = getRank(grade.average);
+  const semesterAverage = calculateSemesterAverage(grade);
+  const rank = getRank(semesterAverage);
 
   const formatDob = (dob?: string) => {
     if (!dob) return '';
@@ -343,7 +345,7 @@ export const ReportCardModal: React.FC<ReportCardModalProps> = ({
               <span className="text-xs print:text-[10px] font-black text-amber-900 uppercase">
                 ĐIỂM TRUNG BÌNH (ĐTB {currentSemester}):
               </span>
-              <p className="text-2xl print:text-base font-black text-red-900">{grade.average}</p>
+              <p className="text-2xl print:text-base font-black text-red-900">{semesterAverage}/{GRADE_AVERAGE_SCALE}</p>
             </div>
             <div className={`p-3 print:p-1 rounded-xl border flex items-center justify-center font-black text-xs print:text-[10px] uppercase tracking-wide ${rank.color}`}>
               XẾP LOẠI HỌC KỲ: {rank.label}

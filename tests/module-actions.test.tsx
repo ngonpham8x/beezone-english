@@ -79,10 +79,10 @@ describe('domain command integration', () => {
       listening: 9,
       average: 8.1,
     })).toBe(true));
-    expect(result.current.store.grades[0]).toMatchObject({ listening: 9, average: 8.6 });
+    expect(result.current.store.grades[0]).toMatchObject({ listening: 9, average: 2.6 });
   });
 
-  it('updates program grade columns and recalculates averages while retaining archived scores', () => {
+  it('updates program grade columns without changing the three-skill average', () => {
     const { result } = renderHook(() => useTestCenter());
     const data = dataset();
     const grade = data.grades[0];
@@ -98,11 +98,26 @@ describe('domain command integration', () => {
     };
     act(() => expect(result.current.actions.handleUpdateGradeColumns([column])).toBe(true));
     expect(result.current.store.settings.gradeColumns).toEqual([column]);
-    expect(result.current.store.grades[0]).toMatchObject({ average: 8.7, unitScores: { custom_progress: 9 } });
+    expect(result.current.store.grades[0]).toMatchObject({ average: 2.6, unitScores: { custom_progress: 9 } });
 
     act(() => expect(result.current.actions.handleUpdateGradeColumns([{ ...column, archivedAt: '2026-10-28T03:00:00.000Z' }])).toBe(true));
     expect(result.current.store.settings.gradeColumns?.[0].archivedAt).toBeTruthy();
-    expect(result.current.store.grades[0]).toMatchObject({ average: 8.6, unitScores: { custom_progress: 9 } });
+    expect(result.current.store.grades[0]).toMatchObject({ average: 2.6, unitScores: { custom_progress: 9 } });
+  });
+
+  it('repairs a stale stored average when center data is loaded', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    data.grades[0] = {
+      ...data.grades[0],
+      listening: 7,
+      speaking: 7,
+      readingWriting: 8,
+      unitScores: { unit1: 5, unit2: 5, unit3: 5 },
+      average: 6.2,
+    };
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    expect(result.current.store.grades[0].average).toBe(2.2);
   });
 
   it('allows training department and managers to configure program grade columns', () => {

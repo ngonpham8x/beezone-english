@@ -346,7 +346,7 @@ describe('ShareReviewDialog & permissions', () => {
       listening: 9,
       speaking: 10,
       readingWriting: 8.5,
-      average: 9.2,
+      average: 2.8,
     }));
   });
 
@@ -395,7 +395,7 @@ describe('ShareReviewDialog & permissions', () => {
       listening: 9,
       speaking: 8,
       readingWriting: 7,
-      average: 8,
+      average: 2.4,
       semester: 'GKI',
     }));
   });
@@ -450,7 +450,7 @@ describe('ShareReviewDialog & permissions', () => {
     const customScore = screen.getByLabelText(new RegExp(`UNIT 13 - ${dummyStudent.code}`, 'i'));
     fireEvent.change(customScore, { target: { value: '7,5' } });
     fireEvent.blur(customScore);
-    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ average: 8 }));
+    expect(onUpdateGrade).toHaveBeenLastCalledWith(expect.objectContaining({ average: 0 }));
 
     const confirmDelete = vi.spyOn(dialogs, 'askConfirmation').mockResolvedValue(true);
     fireEvent.click(screen.getByRole('button', { name: /Thêm \/ xóa cột/i }));

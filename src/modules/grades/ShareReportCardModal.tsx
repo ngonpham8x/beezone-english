@@ -22,6 +22,7 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
 import { Logo } from '../../components/Logo';
+import { calculateSemesterAverage, GRADE_AVERAGE_SCALE, GRADE_RANK_THRESHOLDS } from '../../lib/gradebook';
 import { CenterSettings, ClassRoom, CourseProgram, Grade, GradeSemester, Student, Teacher } from '../../types';
 
 interface ShareReportCardModalProps {
@@ -91,22 +92,22 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
   const dobText = showPersonalInfo ? formatDob(student.dob) : '';
 
   const getRank = (avg: number) => {
-    if (avg >= 9.0)
+    if (avg >= GRADE_RANK_THRESHOLDS.excellent)
       return {
         label: 'XUẤT SẮC (EXCELLENT)',
         color: 'text-emerald-800 bg-emerald-50 border-emerald-300'
       };
-    if (avg >= 8.0)
+    if (avg >= GRADE_RANK_THRESHOLDS.veryGood)
       return {
         label: 'GIỎI (VERY GOOD)',
         color: 'text-blue-800 bg-blue-50 border-blue-300'
       };
-    if (avg >= 6.5)
+    if (avg >= GRADE_RANK_THRESHOLDS.good)
       return {
         label: 'KHÁ (GOOD)',
         color: 'text-amber-800 bg-amber-50 border-amber-300'
       };
-    if (avg >= 5.0)
+    if (avg >= GRADE_RANK_THRESHOLDS.average)
       return {
         label: 'TRUNG BÌNH (AVERAGE)',
         color: 'text-orange-800 bg-orange-50 border-orange-300'
@@ -117,7 +118,8 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     };
   };
 
-  const rank = getRank(grade.average);
+  const semesterAverage = calculateSemesterAverage(grade);
+  const rank = getRank(semesterAverage);
 
   const todayStr = new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
@@ -210,7 +212,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
     `🗣️ Speaking (Nói): ${grade.speaking}/10`,
     `✍️ Reading & Writing (Đọc & Viết): ${readingWritingVal}/10`,
     `────────────────────────────────────────`,
-    `⭐ ĐIỂM TRUNG BÌNH (ĐTB ${currentSemester}): ${grade.average}/10`,
+    `⭐ ĐIỂM TRUNG BÌNH (ĐTB ${currentSemester}): ${semesterAverage}/${GRADE_AVERAGE_SCALE}`,
     `🏆 XẾP LOẠI HỌC KỲ: ${rank.label}`,
     `────────────────────────────────────────`,
     `💬 NHẬN XÉT CỦA GIÁO VIÊN:`,
@@ -384,7 +386,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       sheet.addRow(['Họ và tên:', student.name, 'Mã học viên:', student.code]);
       sheet.addRow(['Ngày sinh:', dobText || 'Chưa cập nhật', 'Lớp học:', classroom?.name || 'BeeZone']);
       sheet.addRow(['Khóa học:', program?.name || 'Tiếng Anh', 'Giáo viên:', teacher?.name || 'BeeZone']);
-      sheet.addRow(['Học kỳ:', currentSemester, 'Điểm TB:', grade.average]);
+      sheet.addRow(['Học kỳ:', currentSemester, 'Điểm TB:', semesterAverage]);
       sheet.addRow(['Ngày xuất:', todayStr, '', '']);
       sheet.addRow([]);
 
@@ -403,7 +405,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
       sheet.addRow(['Speaking (Nói)', grade.speaking, 10, 'Phát âm và phản xạ']);
       sheet.addRow(['Reading & Writing (Đọc & Viết)', readingWritingVal, 10, 'Đọc hiểu và diễn đạt viết']);
 
-      const avgRow = sheet.addRow(['ĐIỂM TRUNG BÌNH', grade.average, 10, rank.label]);
+      const avgRow = sheet.addRow(['ĐIỂM TRUNG BÌNH', semesterAverage, GRADE_AVERAGE_SCALE, rank.label]);
       avgRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'B45309' } };
       avgRow.eachCell((cell) => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEF3C7' } };
@@ -608,7 +610,7 @@ export const ShareReportCardModal: React.FC<ShareReportCardModalProps> = ({
           <span className="text-xs font-black text-amber-900 uppercase">
             ĐIỂM TRUNG BÌNH (ĐTB {currentSemester}):
           </span>
-          <p className="text-xl font-black text-amber-950">{grade.average}/10</p>
+          <p className="text-xl font-black text-amber-950">{semesterAverage}/{GRADE_AVERAGE_SCALE}</p>
         </div>
         <div className={`p-3 rounded-xl border-2 flex items-center justify-center font-black text-xs uppercase tracking-wide shadow-2xs ${rank.color}`}>
           🏆 XẾP LOẠI HỌC KỲ: {rank.label}

@@ -1,4 +1,5 @@
 import type { CenterDataPayload } from '../../lib/centerData';
+import { calculateSemesterAverage } from '../../lib/gradebook';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import { feeStatusForReceipts } from '../../lib/tuition';
 import { studentClassIds } from '../../lib/studentClasses';
@@ -7,6 +8,7 @@ import type {
   AttendanceSession,
   CenterBackupData,
   ClassRoom,
+  Grade,
   Student,
   Teacher,
   TimetableSlot,
@@ -104,6 +106,17 @@ export const normaliseReceipt = (receipt: TuitionReceipt): TuitionReceipt => {
 };
 
 export const normaliseReceipts = (receipts: TuitionReceipt[]) => receipts.map(normaliseReceipt);
+
+export const normaliseGrades = (grades: Grade[]) => {
+  let changed = false;
+  const next = grades.map((grade) => {
+    const average = calculateSemesterAverage(grade);
+    if (average === grade.average) return grade;
+    changed = true;
+    return { ...grade, average };
+  });
+  return changed ? next : grades;
+};
 
 export const sanitizeClassName = (name: string): string => {
   if (!name) return '';
@@ -206,6 +219,7 @@ export function normalizeCenterData(data: CenterBackupData): CenterDataPayload {
     attendanceSessions,
     enrollments: data.enrollments || [],
     scheduleChanges: data.scheduleChanges || [],
+    grades: normaliseGrades(data.grades),
     receipts,
     students,
     classes,

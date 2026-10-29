@@ -48,20 +48,28 @@ describe('calendar and identifiers', () => {
   });
 });
 describe('yearly grade summary', () => {
-  it('links only active configured UNIT/assessment scores into the semester average', () => {
+  it('calculates the semester average from exactly three skill columns', () => {
     const grade = { ...initial.initialGrades[0], unitScores: { unit1: 10, archived: 1 } };
-    expect(calculateSemesterAverage(grade, ['unit1'])).toBe(8.9);
-    expect(calculateSemesterAverage(grade, [])).toBe(8.6);
+    expect(calculateSemesterAverage(grade)).toBe(2.6);
+    expect(calculateSemesterAverage({ listening: 7, speaking: 7, readingWriting: 8 })).toBe(2.2);
+    expect(calculateSemesterAverage({ listening: 9 })).toBe(0.9);
   });
   it('links all four semesters into one final ability assessment', () => {
     const baseGrade = initial.initialGrades[0];
     const summary = calculateGradeYearSummary([
-      { ...baseGrade, id: 'g1', semester: 'GKI', average: 7 },
-      { ...baseGrade, id: 'g2', semester: 'CKI', average: 7.5 },
-      { ...baseGrade, id: 'g3', semester: 'GKII', average: 8 },
-      { ...baseGrade, id: 'g4', semester: 'CKII', average: 8.5 },
+      { ...baseGrade, id: 'g1', semester: 'GKI', listening: 6, speaking: 7, readingWriting: 8, unitScores: { unit1: 10 } },
+      { ...baseGrade, id: 'g2', semester: 'CKI', listening: 7, speaking: 8, readingWriting: 9, unitScores: { unit4: 1 } },
+      { ...baseGrade, id: 'g3', semester: 'GKII', listening: 8, speaking: 9, readingWriting: 10 },
+      { ...baseGrade, id: 'g4', semester: 'CKII', listening: 10, speaking: 10, readingWriting: 10 },
     ]);
-    expect(summary).toMatchObject({ average: 7.8, completedSemesters: 4, complete: true, ability: 'Khá', trend: 'Tiến bộ rõ' });
+    expect(summary).toMatchObject({
+      semesterAverages: { GKI: 2.1, CKI: 2.4, GKII: 2.7, CKII: 3 },
+      average: 2.6,
+      completedSemesters: 4,
+      complete: true,
+      ability: 'Giỏi',
+      trend: 'Tiến bộ rõ',
+    });
   });
 });
 describe('backup and cloud validation', () => {

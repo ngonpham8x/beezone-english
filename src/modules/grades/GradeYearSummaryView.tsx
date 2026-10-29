@@ -28,7 +28,7 @@ export function GradeYearSummaryView({ students, classes, grades }: Props) {
           <Award className="h-4 w-4" /> Tổng kết năng lực cuối năm
         </div>
         <p className="mt-1">
-          Điểm tổng kết là trung bình ĐTB của GKI, CKI, GKII và CKII. Khi chưa đủ bốn kỳ, hệ thống hiển thị kết quả tạm tính và số kỳ còn thiếu.
+          ĐTB mỗi kỳ = (Nghe + Nói + Đọc &amp; Viết) / 10, tối đa 3 điểm và không gồm điểm UNIT. Điểm tổng kết năm là trung bình ĐTB của GKI, CKI, GKII và CKII; khi chưa đủ bốn kỳ, hệ thống hiển thị kết quả tạm tính.
         </p>
       </div>
 

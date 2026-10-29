@@ -98,15 +98,15 @@ export function CustomColumnsModal({
     if (!onAddColumns(drafts)) return;
     setUnitName('');
     setAssessmentName('');
-    setMessage({ kind: 'success', text: `Đã thêm và liên kết ${drafts.length} cột vào bảng điểm & tính ĐTB.` });
+    setMessage({ kind: 'success', text: `Đã thêm ${drafts.length} cột vào bảng điểm.` });
   };
 
   const archive = async (column: CustomGradeColumn) => {
     const confirmed = await askConfirmation(
-      `Xóa cột “${column.name}”? Cột sẽ ngừng hiển thị và không còn tính vào ĐTB. Điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
+      `Xóa cột “${column.name}”? Cột sẽ ngừng hiển thị. Điểm lịch sử vẫn được giữ an toàn trong hệ thống.`,
     );
     if (confirmed && (await onArchiveColumn(column.id))) {
-      setMessage({ kind: 'success', text: `Đã xóa cột “${column.name}” và tính lại điểm trung bình.` });
+      setMessage({ kind: 'success', text: `Đã xóa cột “${column.name}”.` });
     }
   };
 
@@ -155,7 +155,7 @@ export function CustomColumnsModal({
             <div>
               <h3 className="font-extrabold text-slate-950 text-base">Thêm / xóa cột bài học & cột điểm</h3>
               <p className="text-xs text-slate-500">
-                Thêm cột bài (UNIT) hoặc cột điểm kiểm tra theo chương trình & học kỳ; tự động liên kết vào ĐTB.
+                Thêm cột bài (UNIT) hoặc cột điểm kiểm tra theo chương trình & học kỳ; ĐTB chỉ tính từ 3 cột kỹ năng.
               </p>
             </div>
           </div>

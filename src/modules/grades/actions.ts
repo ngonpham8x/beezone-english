@@ -3,7 +3,6 @@ import { showAlert } from '../../lib/dialogs';
 import { canAccessAccountClass } from '../../lib/accountScope';
 import {
   calculateSemesterAverage,
-  gradeColumnIdsForClass,
   gradeSemester,
   isActiveCustomGradeColumn,
   isValidCustomGradeColumn,
@@ -89,14 +88,7 @@ export function createGradeActions({ classes, programs, teachers, grades, setGra
       semester: targetSemester,
       average: commentOnly && existing
         ? existing.average
-        : calculateSemesterAverage(
-            updatedGrade,
-            gradeColumnIdsForClass(
-              normalizeCustomGradeColumns(settings.gradeColumns),
-              targetSemester,
-              classroom,
-            ),
-          ),
+        : calculateSemesterAverage(updatedGrade),
     };
     setGrades((prev) => {
       const idx = prev.findIndex(
@@ -146,21 +138,9 @@ export function createGradeActions({ classes, programs, teachers, grades, setGra
       return false;
     }
 
-    const nextGrades = grades.map((grade) => {
-      const classroom = classes.find((item) => item.id === grade.classId);
-      const semester = gradeSemester(grade);
-      return {
-        ...grade,
-        average: calculateSemesterAverage(
-          grade,
-          gradeColumnIdsForClass(normalized, semester, classroom),
-        ),
-      };
-    });
     setSettings({ ...settings, gradeColumns: normalized });
-    setGrades(nextGrades);
-    addLog('SỬA', 'Điểm', `Cập nhật cấu trúc ${normalized.filter(isActiveCustomGradeColumn).length} cột bài/điểm và tính lại ĐTB`);
-    toast.success('Đã đồng bộ cấu trúc cột và điểm trung bình.');
+    addLog('SỬA', 'Điểm', `Cập nhật cấu trúc ${normalized.filter(isActiveCustomGradeColumn).length} cột bài/điểm`);
+    toast.success('Đã đồng bộ cấu trúc cột bài và cột điểm.');
     return true;
   };
 
