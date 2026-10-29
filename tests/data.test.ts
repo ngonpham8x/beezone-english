@@ -192,6 +192,25 @@ describe('backup and cloud validation', () => {
     expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/UNIT/);
   });
 
+  it('accepts a partially entered grade while still rejecting malformed optional scores', () => {
+    const data = fixture();
+    data.grades = [{
+      id: 'partial-grade',
+      studentId: data.students[0].id,
+      classId: data.classes[0].id,
+      semester: 'GKI',
+      listening: 7.5,
+      average: 7.5,
+    }];
+    expect(parseCenterData(data, data.settings).grades[0]).toEqual(expect.objectContaining({
+      listening: 7.5,
+      average: 7.5,
+    }));
+
+    (data.grades[0] as any).speaking = '8';
+    expect(() => parseCenterData(data, data.settings)).toThrow(/Điểm phải/);
+  });
+
   it('rejects arbitrary JSON as a backup', () => expect(() => parseBackupArchive({ app: 'BEEZONE', schemaVersion: 1, data: {} }, initial.initialSettings)).toThrow());
 });
 describe('financial history', () => {

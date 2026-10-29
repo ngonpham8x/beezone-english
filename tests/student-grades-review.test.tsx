@@ -717,6 +717,58 @@ describe('ShareReviewDialog & permissions', () => {
         listening: undefined,
       }),
     );
+
+    // Keyboard focus (including Tab navigation) replaces the selected score
+    // immediately, without relying on the browser preserving its selection.
+    const speakingInput = screen.getByRole('textbox', {
+      name: new RegExp(`Nói.*${dummyStudent.code}`, 'i'),
+    }) as HTMLInputElement;
+    fireEvent.focus(speakingInput);
+    fireEvent.keyDown(speakingInput, { key: 'ArrowDown', code: 'Numpad2' });
+    expect(speakingInput.value).toBe('2');
+    fireEvent.blur(speakingInput);
+    expect(onUpdateGrade).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: dummyStudent.id,
+        classId: dummyClass.id,
+        semester: 'CKII',
+        speaking: 2,
+      }),
+    );
+  });
+
+  it('keeps score inputs editable for an active owner even if the screen owner flag is stale', () => {
+    const onUpdateGrade = vi.fn((_grade: Grade) => true);
+    const ownerWithStalePermissions: UserAccount = {
+      ...DEV_OWNER_ACCOUNT,
+      permissions: {
+        ...DEV_OWNER_ACCOUNT.permissions,
+        grade: { view: true, edit: false },
+      },
+    };
+    render(
+      <GradeManager
+        students={[{ ...dummyStudent, classId: dummyClass.id }]}
+        classes={[dummyClass]}
+        grades={[]}
+        programs={initial.initialPrograms}
+        teachers={[]}
+        settings={{ gradeColumns: [] } as any}
+        permissions={ownerWithStalePermissions.permissions}
+        isOwner={false}
+        currentUser={ownerWithStalePermissions}
+        onUpdateGrade={onUpdateGrade}
+      />
+    );
+
+    const listeningInput = screen.getByRole('textbox', {
+      name: new RegExp(`Nghe.*${dummyStudent.code}`, 'i'),
+    }) as HTMLInputElement;
+    expect(listeningInput.disabled).toBe(false);
+    fireEvent.focus(listeningInput);
+    fireEvent.change(listeningInput, { target: { value: '6,5' } });
+    fireEvent.blur(listeningInput);
+    expect(onUpdateGrade).toHaveBeenCalledWith(expect.objectContaining({ listening: 6.5 }));
   });
 
   it('separates custom unit columns and assessment columns into respective groups in all classes mode', () => {

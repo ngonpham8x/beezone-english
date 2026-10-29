@@ -45,9 +45,10 @@ const strings: Record<typeof arrays[number], string[]> = {
 };
 const numbers: Partial<Record<typeof arrays[number], string[]>> = {
   programs: ['tuitionFee'], rooms: ['capacity'], classes: ['capacity'],
-  grades: ['listening', 'speaking', 'reading', 'writing', 'midterm', 'finalExam', 'attendance', 'average'],
+  grades: ['average'],
   receipts: ['courseFee', 'discount', 'paidAmount', 'debtAmount'], backups: ['sizeKb'],
 };
+const optionalGradeScores = ['listening', 'speaking', 'reading', 'writing', 'midterm', 'finalExam', 'attendance'] as const;
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const stringArray = (value: unknown) => Array.isArray(value) && value.every((item) => typeof item === 'string');
 const optionalShortText = (value: unknown, maxLength: number) =>
@@ -90,9 +91,9 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'teachers' && !stringArray(record.assignedClassIds)) throw new Error('Phân công giáo viên không hợp lệ.');
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
       if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');
-      if (key === 'grades' && numbers.grades!.some((field) => (record[field] as number) > 10)) throw new Error('Điểm phải trong khoảng 0–10.');
       if (key === 'grades') {
         if (record.semester !== undefined && !isGradeSemester(record.semester)) throw new Error('Học kỳ của bảng điểm không hợp lệ.');
+        if (!isValidScore(record.average) || optionalGradeScores.some((field) => record[field] !== undefined && !isValidScore(record[field]))) throw new Error('Điểm phải trong khoảng 0–10.');
         if (record.readingWriting !== undefined && !isValidScore(record.readingWriting)) throw new Error('Điểm Đọc & Viết phải trong khoảng 0–10.');
         if (record.comment !== undefined && (typeof record.comment !== 'string' || record.comment.length > 2000)) throw new Error('Nhận xét bảng điểm không hợp lệ.');
         if (record.unitScores !== undefined && (

@@ -332,6 +332,16 @@ describe('database migrations and permission enforcement', () => {
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, unitScores: { unit1: 11 } }] })])).rejects.toThrow(/unit score/);
     await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [grade, { ...grade, id: 'grade-duplicate' }] })])).rejects.toThrow(/Duplicate grade/);
   });
+  it('stores partially entered grades and validates every score that is present', async () => {
+    const grade = {
+      id: 'grade-partial', studentId: 's', classId: 'a', semester: 'GKI',
+      listening: 7.5, average: 7.5,
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [grade] })]);
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, speaking: 8 }] })]);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, speaking: '8' }] })])).rejects.toThrow(/Grade score/);
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, grades: [{ ...grade, listening: 11 }] })])).rejects.toThrow(/Grade score/);
+  });
   it('validates program-scoped grade column kinds and permits archived-name reuse', async () => {
     const programPayload = { ...base, programs: [{ id: 'program-1' }] };
     const active = { id: 'unit-active', name: 'UNIT 13', semester: 'GKI', programId: 'program-1', kind: 'unit' };

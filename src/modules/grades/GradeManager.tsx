@@ -131,7 +131,10 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     }
   }, [permittedClasses, centerWideScope, selectedClassId]);
 
-  const canEdit = isOwner || permissions.grade.edit;
+  const canEdit = Boolean(
+    (isOwner || currentUser?.role === 'owner' || permissions.grade.edit) &&
+    currentUser?.active !== false,
+  );
   const canManageColumns = Boolean(
     onUpdateGradeColumns &&
     (isOwner ||
