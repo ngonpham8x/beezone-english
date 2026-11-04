@@ -185,26 +185,41 @@ describe('domain command integration', () => {
     expect(result.current.store.students[0]).toEqual(original);
   });
 
-  it('preserves absence and late histories when students change and permits deleting only empty attendance as an active owner', () => {
+  it('preserves attendance during student edits and lets authorized roles delete unbilled sessions in scope', () => {
     const { result, rerender } = renderHook(({ user }) => useTestCenter(user), { initialProps: { user: DEV_OWNER_ACCOUNT } });
     const data = dataset();
     const student = data.students[0];
-    data.receipts = [];
     data.attendanceSessions = [
       { id: 'ATT_late', date: '2026-10-20', classId: student.classId, lessonTopic: 'Late arrival', entries: [{ studentId: student.id, status: 'late' }] },
       { id: 'ATT_absent', date: '2026-10-19', classId: student.classId, lessonTopic: 'Absence', entries: [{ studentId: student.id, status: 'absent' }] },
       { id: 'ATT_empty', date: '2026-10-20', classId: student.classId, lessonTopic: '', entries: [] },
+      { id: 'ATT_billed', date: '2026-10-18', classId: student.classId, lessonTopic: 'Billed lesson', entries: [{ studentId: student.id, status: 'present' }] },
     ];
+    data.receipts = [{
+      ...data.receipts[0],
+      id: 'REC_attendance_link',
+      studentId: student.id,
+      classId: student.classId,
+      paymentKind: 'session',
+      sessionLines: [{ attendanceSessionId: 'ATT_billed', date: '2026-10-18', unitPrice: 100000 }],
+    }];
     act(() => result.current.store.applyData(normalizeCenterData(data)));
     act(() => result.current.store.setStudents(previous => previous.map(item => ({ ...item, notes: 'Updated profile' }))));
     expect(result.current.store.attendanceSessions).toEqual(data.attendanceSessions);
-    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_late')).toBe(false));
-    expect(result.current.store.attendanceSessions).toHaveLength(3);
-    rerender({ user: limitedStaff });
-    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_empty')).toBe(false));
-    rerender({ user: DEV_OWNER_ACCOUNT });
+    rerender({ user: DEV_TEACHER_ACCOUNT });
+    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_billed')).toBe(false));
+    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_late')).toBe(true));
     act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_empty')).toBe(true));
-    expect(result.current.store.attendanceSessions.map(item => item.id)).toEqual(['ATT_late', 'ATT_absent']);
+    rerender({ user: DEV_TRAINER_ACCOUNT });
+    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_absent')).toBe(true));
+    expect(result.current.store.attendanceSessions.map(item => item.id)).toEqual(['ATT_billed']);
+    rerender({ user: { ...DEV_TEACHER_ACCOUNT, permissions: { ...DEV_TEACHER_ACCOUNT.permissions, assignedClassIds: [], teacherId: 'other' } } });
+    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_billed')).toBe(false));
+    rerender({ user: DEV_OWNER_ACCOUNT });
+    act(() => result.current.store.setReceipts([]));
+    rerender({ user: DEV_OWNER_ACCOUNT });
+    act(() => expect(result.current.actions.handleDeleteAttendanceSession('ATT_billed')).toBe(true));
+    expect(result.current.store.attendanceSessions).toEqual([]);
   });
   it('saves all selected teaching days together, preserves an edited slot and rejects a conflicting batch atomically', () => {
     const { result } = renderHook(() => useTestCenter());

@@ -60,6 +60,8 @@ export function importStudents(
         id,
         code,
         name,
+        nickname: cellText(getByAliases(record, ['bidanh', 'nickname'])) || undefined,
+        accountStatus: cellText(getByAliases(record, ['captaikhoan', 'accountstatus'])) || undefined,
         dob: cellText(getByAliases(record, ['ngaysinh', 'dob'])),
         gender:
           cellText(getByAliases(record, ['gioitinh', 'gender'])) === 'Nam'
@@ -67,15 +69,15 @@ export function importStudents(
             : cellText(getByAliases(record, ['gioitinh', 'gender'])) === 'Nữ'
               ? 'Nữ'
               : 'Chưa xác định',
-        school: '',
-        gradeLevel: '',
+        school: cellText(getByAliases(record, ['truonghoc', 'truong', 'school'])),
+        gradeLevel: cellText(getByAliases(record, ['khoilop', 'khoi', 'gradelevel'])),
         programId: program?.id || classroom.programId,
         classId: classroom.id,
         ...(additionalClassIds ? { additionalClassIds } : {}),
         address: cellText(getByAliases(record, ['diachi', 'address'])),
         email: '',
         phone: cellText(getByAliases(record, ['sdthocsinh', 'phone'])),
-        parentName: '',
+        parentName: cellText(getByAliases(record, ['phuhuynh', 'tenphuhuynh', 'parentname'])),
         parentPhone: cellText(getByAliases(record, ['sdtphuhuynh', 'parentphone'])),
         enrollDate: '',
         notes: cellText(getByAliases(record, ['ghichu', 'notes'])),

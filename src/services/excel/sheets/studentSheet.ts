@@ -20,9 +20,9 @@ import type { ExportContext } from '../exportContext';
 export function writeStudentSheet(context: ExportContext) {
   const { data, workbook, classSheetNames, classById, programById, studentSheetRowById } = context;
   const studentsSheet = workbook.addWorksheet('HỌC SINH');
-  styleTitle(studentsSheet, 'A1:Y2', `${data.centerName.toUpperCase()}\nDANH SÁCH HỌC SINH`);
-  applyBackLink(studentsSheet, 'Y');
-  studentsSheet.mergeCells('A4:Y4');
+  styleTitle(studentsSheet, 'A1:AF2', `${data.centerName.toUpperCase()}\nDANH SÁCH HỌC SINH`);
+  applyBackLink(studentsSheet, 'AF');
+  studentsSheet.mergeCells('A4:AF4');
   studentsSheet.getCell('A4').value =
     'Nhập học sinh tại các dòng trống ngay trên TỔNG CỘNG; khoản thu trực tiếp ở cột nền vàng M–R. Tổng/Còn lại và sheet lớp tự liên kết theo ID hệ thống.';
   studentsSheet.getCell('A4').font = {
@@ -70,6 +70,11 @@ export function writeStudentSheet(context: ExportContext) {
     'Khóa học sinh/lớp tự động',
     'Còn lại học phí buổi (VNĐ)',
     'Mã lớp học thêm',
+    'Phụ huynh',
+    'Trường học',
+    'Khối lớp',
+    'Bí danh',
+    'Cấp tài khoản',
   ];
   studentsSheet.getRow(5).values = studentHeaders;
   styleHeader(studentsSheet.getRow(5));
@@ -107,6 +112,11 @@ export function writeStudentSheet(context: ExportContext) {
         formula: `${receiptSumByStudentCodeAndIdFormula('M', `$B${rowNumber}`, `$W${rowNumber}`, 'session')}+SUMIF('BUỔI CHƯA THU'!$D:$D,$B${rowNumber},'BUỔI CHƯA THU'!$G:$G)`,
       },
       student.additionalClassIds?.length ? JSON.stringify(student.additionalClassIds.map(id => classById.get(id)?.code || id)) : '',
+      student.parentName,
+      student.school,
+      student.gradeLevel,
+      student.nickname || '',
+      student.accountStatus || '',
     ];
     styleData(row, index);
     [13, 14, 19, 20, 21, 22].forEach((column) => {
@@ -138,7 +148,7 @@ export function writeStudentSheet(context: ExportContext) {
   [19, 20, 21, 22].forEach((column) => {
     studentsSheet.getCell(studentFooterRow, column).numFmt = moneyFormat;
   });
-  studentsSheet.autoFilter = { from: 'A5', to: `AA${studentFooterRow - 1}` };
+  studentsSheet.autoFilter = { from: 'A5', to: `AF${studentFooterRow - 1}` };
   studentsSheet.views = [{ state: 'frozen', ySplit: 5 }];
   studentsSheet.columns = [
     { width: 8 },
@@ -166,6 +176,13 @@ export function writeStudentSheet(context: ExportContext) {
     { width: 18 },
     { width: 22 },
     { width: 28 },
+    { width: 24 },
+    { width: 36 },
+    { width: 24 },
+    { width: 24 },
+    { width: 18 },
+    { width: 18 },
+    { width: 18 },
   ];
   studentsSheet.getColumn(23).hidden = true;
   studentsSheet.getColumn(24).hidden = true;

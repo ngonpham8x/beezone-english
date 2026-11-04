@@ -47,6 +47,33 @@ export interface CenterWorkbookImportResult {
   errors: { row: number; field: string; message: string }[];
 }
 
+export interface StudentRosterImportData {
+  programs: CourseProgram[];
+  classes: ClassRoom[];
+  students: Student[];
+  sheetCount: number;
+  sourceRowCount: number;
+  warnings: ImportError[];
+}
+
+export interface StudentRosterImportResult {
+  data?: StudentRosterImportData;
+  errors: ImportError[];
+}
+
+export interface StudentRosterImportSummary {
+  addedPrograms: number;
+  addedClasses: number;
+  addedStudents: number;
+  updatedStudents: number;
+  totalPrograms?: number;
+  totalClasses?: number;
+  totalStudents?: number;
+  totalMemberships?: number;
+  removedSampleRecords?: number;
+  removedStaleClasses?: number;
+}
+
 export interface MasterDirectPaymentInput {
   paidAmount: number;
   debtAmount: number;

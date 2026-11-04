@@ -484,7 +484,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       <div className="stats-grid">
         <StatCard label="Tổng lớp mở" value={classes.length + ' lớp'} icon={BookOpen} />
         <StatCard label="Đã phân công giáo viên" value={classes.filter(c => c.teacherId).length + ' / ' + classes.length} icon={UserCheck} tone="emerald" />
-        <StatCard label="Học viên theo lớp" value={classes.reduce((sum,c) => sum+students.filter(s => isStudentInClass(s, c.id)).length,0) + ' bạn'} icon={Users} tone="sky" />
+        <StatCard label="Học viên duy nhất" value={students.filter(student => classes.some(classroom => isStudentInClass(student, classroom.id))).length + ' bạn'} icon={Users} tone="sky" />
         <StatCard label="Tổng sức chứa" value={classes.reduce((sum,c) => sum+(c.capacity || 0),0) + ' chỗ'} icon={DoorOpen} tone="violet" />
       </div>
 

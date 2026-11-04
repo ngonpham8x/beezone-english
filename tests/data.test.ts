@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { centerDate, isCalendarDate } from '../src/lib/dates';
-import { nextReceiptCode, nextStudentCode } from '../src/lib/identifiers';
+import { nextClassStudentCode, nextReceiptCode, nextStudentCode } from '../src/lib/identifiers';
 import {
   backupRecordCounts,
   createBackupArchive,
@@ -45,6 +45,14 @@ describe('calendar and identifiers', () => {
   });
   it('does not duplicate a student code after deletion and accepts legacy hyphenated codes', () => {
     expect(nextStudentCode([{ code: 'HS001' }, { code: 'HS-010' }, { code: 'HS003' }])).toBe('HS011');
+  });
+
+  it('creates a sequential student code inside each primary class', () => {
+    expect(nextClassStudentCode('K27 - BEE 2', [
+      { code: 'K27 - BEE 2-01' },
+      { code: 'K27 - BEE 3A-01' },
+      { code: 'K27 - BEE 2-03' },
+    ])).toBe('K27 - BEE 2-04');
   });
 });
 describe('yearly grade summary', () => {

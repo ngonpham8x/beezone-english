@@ -1,4 +1,4 @@
-import { showAlert } from '../../lib/dialogs';
+import { askConfirmation, showAlert } from '../../lib/dialogs';
 import { reportError } from '../../lib/diagnostics';
 import { CheckCircle2, Download, FileDown, FileSpreadsheet, FileUp, Upload, X } from 'lucide-react';
 import React, { useRef, useState } from 'react';
@@ -6,13 +6,26 @@ import { DialogFrame } from '../../components/DialogFrame';
 import { centerDate } from '../../lib/dates';
 import { isLocalPreview } from '../../lib/supabase';
 import {
+  isInitialDemoAttendance,
+  isInitialDemoClass,
+  isInitialDemoGrade,
+  isInitialDemoProgram,
+  isInitialDemoReceipt,
+  isInitialDemoRoom,
+  isInitialDemoStudent,
+  isInitialDemoTeacher,
+} from '../../lib/demoData';
+import {
   CenterWorkbookData,
   ImportValidationResult,
   ImportedStudentRow,
+  StudentRosterImportData,
+  StudentRosterImportSummary,
   generateMasterExcelWorkbook,
   parseCenterWorkbookFile,
   parseAcademicCatalogFile,
   parseExcelStudentFile,
+  parseStudentRosterWorkbookFile,
 } from '../../services/excelService';
 import {
   AttendanceSession,
@@ -43,6 +56,8 @@ interface ImportExportModalProps {
   isOwner: boolean;
   permissions: StaffPermissions;
   onImportStudents: (newStudents: Student[]) => void;
+  onImportStudentRoster: (data: StudentRosterImportData) => StudentRosterImportSummary | null;
+  onRemoveInitialDemoData?: () => number;
   onImportCenterData: (data: CenterWorkbookData) => boolean;
   onImportAcademicCatalog?: (data: CenterWorkbookData, includeSchedule?: boolean) => boolean;
   onExportExcel: (filename: string) => void;
@@ -64,6 +79,8 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   isOwner,
   permissions,
   onImportStudents,
+  onImportStudentRoster,
+  onRemoveInitialDemoData,
   onImportCenterData,
   onImportAcademicCatalog,
   onExportExcel
@@ -77,9 +94,22 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const [fallbackClassId, setFallbackClassId] = useState(classes[0]?.id || '');
   const [fileName, setFileName] = useState('');
   const [centerImport, setCenterImport] = useState<CenterWorkbookData | null>(null);
+  const [rosterImport, setRosterImport] = useState<StudentRosterImportData | null>(null);
+  const [rosterSummary, setRosterSummary] = useState<StudentRosterImportSummary | null>(null);
+  const [demoCleanupCount, setDemoCleanupCount] = useState(0);
   const [catalogOnly, setCatalogOnly] = useState(false);
   const [includeCatalogSchedule, setIncludeCatalogSchedule] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const initialDemoRecordCount = isLocalPreview ? [
+    programs.filter(isInitialDemoProgram).length,
+    teachers.filter(isInitialDemoTeacher).length,
+    rooms.filter(isInitialDemoRoom).length,
+    classes.filter(isInitialDemoClass).length,
+    students.filter(isInitialDemoStudent).length,
+    receipts.filter(isInitialDemoReceipt).length,
+    attendanceSessions.filter(isInitialDemoAttendance).length,
+    grades.filter(isInitialDemoGrade).length,
+  ].reduce((total, count) => total + count, 0) : 0;
 
   if (!isOpen) return null;
 
@@ -119,7 +149,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
 
   const handleSelectedFile = async (file: File) => {
     if (!canImport) return;
-    setCenterImport(null); setValidationResult(null); setIsImportingSuccess(false);
+    setCenterImport(null); setRosterImport(null); setRosterSummary(null); setValidationResult(null); setIsImportingSuccess(false);
     setCatalogOnly(false); setIncludeCatalogSchedule(false);
     if (file.size > 25 * 1024 * 1024) { setValidationResult({ validRows: [], errors: [{ row: 0, field: 'Tệp Excel', message: 'Tệp vượt quá giới hạn 25 MB.' }] }); return; }
     setFileName(file.name);
@@ -134,6 +164,13 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       if (isOwner && onImportAcademicCatalog) {
         const catalog = await parseAcademicCatalogFile(file);
         if (catalog.data) { setCenterImport(catalog.data); setCatalogOnly(true); return; }
+      }
+      const roster = await parseStudentRosterWorkbookFile(file);
+      if (roster.data) {
+        setRosterImport(roster.data);
+        setCenterImport(null);
+        setValidationResult(null);
+        return;
       }
       if (classes.length === 0) {
         setCenterImport(null);
@@ -223,6 +260,23 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
     setIsImportingSuccess(true);
   };
 
+  const handleConfirmRosterImport = () => {
+    if (!rosterImport || isImportingSuccess) return;
+    const summary = onImportStudentRoster(rosterImport);
+    if (!summary) return;
+    setRosterSummary(summary);
+    setIsImportingSuccess(true);
+  };
+
+  const handleRemoveDemoData = async () => {
+    if (!onRemoveInitialDemoData || !initialDemoRecordCount) return;
+    if (!(await askConfirmation(
+      `Xóa ${initialDemoRecordCount} bản ghi mẫu đang nhận diện cùng các liên kết mẫu? Dữ liệu nhập từ Excel và dữ liệu người dùng vẫn được giữ nguyên.`,
+    ))) return;
+    const removed = onRemoveInitialDemoData();
+    if (removed > 0) setDemoCleanupCount(removed);
+  };
+
   return (
     <DialogFrame label="Nhập và xuất Excel" onClose={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-xl w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative animate-in fade-in zoom-in-95 custom-scrollbar">
@@ -289,10 +343,26 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
             {isImportingSuccess ? (
               <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-800 font-bold text-center flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <span>Đã import thành công. Bạn vẫn ở trang hiện tại; chỉ đóng cửa sổ khi muốn quay lại.</span>
+                <span>{rosterSummary
+                  ? `Đã đồng bộ ${rosterSummary.totalClasses ?? rosterSummary.addedClasses} lớp theo sheet, ${rosterSummary.totalStudents ?? rosterSummary.addedStudents} học viên không trùng và ${rosterSummary.totalMemberships ?? 0} lượt ghi danh; đã loại ${rosterSummary.removedSampleRecords ?? 0} bản ghi mẫu và ${rosterSummary.removedStaleClasses ?? 0} lớp không còn sheet.`
+                  : 'Đã import thành công. Bạn vẫn ở trang hiện tại; chỉ đóng cửa sổ khi muốn quay lại.'}</span>
               </div>
             ) : (
               <>
+                {initialDemoRecordCount > 0 && onRemoveInitialDemoData && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900">
+                    <div className="font-bold">Đang có {initialDemoRecordCount} bản ghi mẫu trong bản xem thử.</div>
+                    <p className="mt-1 text-[11px]">Khi nhập danh sách nhiều sheet, hệ thống tự loại đúng dữ liệu mẫu tích hợp sẵn. Bạn cũng có thể xóa riêng tại đây.</p>
+                    <button type="button" onClick={() => void handleRemoveDemoData()} className="mt-2 w-full rounded-xl bg-rose-700 py-2 font-bold text-white hover:bg-rose-800">
+                      Xóa toàn bộ dữ liệu mẫu tích hợp sẵn
+                    </button>
+                  </div>
+                )}
+                {demoCleanupCount > 0 && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 font-bold text-emerald-800">
+                    Đã xóa {demoCleanupCount} bản ghi mẫu và dữ liệu liên kết. Dữ liệu Excel được giữ nguyên.
+                  </div>
+                )}
                 <div
                   role="button"
                   tabIndex={0}
@@ -316,7 +386,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                   />
                 </div>
 
-                {!centerImport && classes.length > 0 && <div>
+                {!centerImport && !rosterImport && classes.length > 0 && <div>
                   <label className="block font-bold text-slate-700 mb-1">Lớp áp dụng khi file không có “Mã lớp”</label>
                   <select
                     value={fallbackClassId}
@@ -343,6 +413,26 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                         Xác nhận nhập toàn bộ dữ liệu
                       </button>
                     ) : !catalogOnly && <p className="mt-3 rounded-lg bg-amber-100 p-2 text-[11px] font-semibold text-amber-900">{!isOwner ? 'Chỉ Chủ trung tâm được thay toàn bộ dữ liệu.' : 'Chưa kết nối được kho dữ liệu Supabase. Hãy kiểm tra kết nối rồi tải lại trang.'}</p>}
+                  </div>
+                )}
+
+                {rosterImport && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
+                    <div className="font-bold">Đã nhận diện danh sách học viên nhiều sheet: {fileName}</div>
+                    <div className="mt-1 text-[11px]">
+                      {rosterImport.sheetCount} sheet lớp · {rosterImport.sourceRowCount} dòng · {rosterImport.students.length} học viên không trùng · {rosterImport.classes.length} lớp · {rosterImport.programs.length} hệ đào tạo
+                    </div>
+                    <p className="mt-2 text-[11px]">
+                      Mỗi sheet tạo đúng một lớp. Hệ thống tự tạo mã học viên và gộp người xuất hiện ở nhiều sheet vào một hồ sơ có nhiều lớp; tên lớp ghi thêm trong một ô sẽ không tạo lớp nếu không có sheet tương ứng. Lớp mới được để chờ cập nhật giáo viên, phòng và lịch học.
+                    </p>
+                    {rosterImport.warnings.length > 0 && (
+                      <div className="mt-2 rounded-lg bg-amber-100 p-2 text-[11px] font-semibold text-amber-900">
+                        Có {rosterImport.warnings.length} cảnh báo. Các dòng ngày sinh sai hoặc thiếu hệ đào tạo đã được bỏ qua an toàn.
+                      </div>
+                    )}
+                    <button onClick={handleConfirmRosterImport} className="mt-3 w-full rounded-xl bg-blue-700 hover:bg-blue-800 py-2 font-bold text-white shadow-xs transition">
+                      Nhập danh sách học viên và lớp
+                    </button>
                   </div>
                 )}
 

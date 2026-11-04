@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { centerDate } from '../src/lib/dates';
 import { addDays, weekdayForDate } from '../src/lib/operations';
@@ -33,6 +33,7 @@ describe('substitute attendance screen', () => {
       roomId: 'room', reason: 'Teacher A is off',
     }];
 
+    const onDeleteSession = vi.fn();
     render(
       <AttendanceManager
         classes={[classroom]}
@@ -48,6 +49,7 @@ describe('substitute attendance screen', () => {
         }]}
         scheduleChanges={changes}
         onSaveSession={vi.fn()}
+        onDeleteSession={onDeleteSession}
         isOwner={false}
         currentUser={user}
       />,
@@ -57,5 +59,10 @@ describe('substitute attendance screen', () => {
     expect(screen.getByText(/Dạy thay hôm nay:/)).toBeTruthy();
     expect(screen.getByText(/Lịch Sử Các Buổi Đã Điểm Danh Của Lớp \(1 buổi\)/)).toBeTruthy();
     expect(screen.queryByText(previousDate)).toBeNull();
+    expect(screen.getByRole('button', { name: `Sửa điểm danh ngày ${date}` })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: `Xóa buổi điểm danh ngày ${date}` }));
+    expect(screen.getByRole('heading', { name: 'Xóa dữ liệu điểm danh' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa buổi điểm danh' }));
+    expect(onDeleteSession).toHaveBeenCalledWith('today');
   });
 });

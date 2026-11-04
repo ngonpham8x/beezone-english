@@ -17,6 +17,18 @@ export function nextStudentCode(students: { code: string }[]): string {
   return `HS${String(maximum + 1).padStart(3, '0')}`;
 }
 
+/** Generate a readable code scoped to the student's primary class. */
+export function nextClassStudentCode(classCode: string, students: { code: string }[]): string {
+  const prefix = `${classCode.trim()}-`;
+  const maximum = students.reduce((max, student) => {
+    const code = student.code.trim();
+    if (!code.startsWith(prefix)) return max;
+    const suffix = code.slice(prefix.length);
+    return /^\d+$/.test(suffix) ? Math.max(max, Number(suffix)) : max;
+  }, 0);
+  return `${prefix}${String(maximum + 1).padStart(2, '0')}`;
+}
+
 /** Clean display code for a room (e.g. P-01, P-02 or existing clean ID like ROOM-101, P101) */
 export function formatRoomCode(room: { id: string }, index?: number): string {
   const id = (room?.id || '').trim();

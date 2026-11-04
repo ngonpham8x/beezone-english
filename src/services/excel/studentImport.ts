@@ -21,15 +21,17 @@ export function parseExcelImportData(jsonData: Record<string, unknown>[]): Impor
     validRows.push({
       code,
       name,
+      nickname: cellText(getByAliases(item, ['bidanh', 'nickname'])) || undefined,
+      accountStatus: cellText(getByAliases(item, ['captaikhoan', 'accountstatus'])) || undefined,
       dob: String(getByAliases(item, ['ngaysinh', 'dob']) ?? ''),
       gender: gender === 'Nam' || gender === 'Nữ' ? gender : 'Chưa xác định',
-      school: String(getByAliases(item, ['truong', 'school']) ?? ''),
-      gradeLevel: String(getByAliases(item, ['khoi', 'gradelevel']) ?? ''),
+      school: String(getByAliases(item, ['truonghoc', 'truong', 'school']) ?? ''),
+      gradeLevel: String(getByAliases(item, ['khoilop', 'khoi', 'gradelevel']) ?? ''),
       classCode: String(getByAliases(item, ['malop', 'classcode']) ?? ''),
       address: String(getByAliases(item, ['diachi', 'address']) ?? ''),
       email: String(getByAliases(item, ['email']) ?? ''),
       phone: String(getByAliases(item, ['sdthocsinh', 'sdt', 'phone']) ?? ''),
-      parentName: String(getByAliases(item, ['tenphuhuynh', 'parentname']) ?? ''),
+      parentName: String(getByAliases(item, ['phuhuynh', 'tenphuhuynh', 'parentname']) ?? ''),
       parentPhone: String(getByAliases(item, ['sdtphuhuynh', 'parentphone']) ?? ''),
     });
   });

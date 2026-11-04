@@ -137,13 +137,13 @@ export function createAttendanceActions({
   };
 
   const handleDeleteAttendanceSession = (sessionId: string): boolean => {
-    if (!currentUser?.active || currentUser.role !== 'owner') {
-      showAlert('Chỉ Chủ trung tâm được xóa buổi điểm danh trống.'); return false;
-    }
     const session = attendanceSessions.find((item) => item.id === sessionId);
     if (!session) return false;
-    if (session.entries.length > 0) {
-      showAlert('Buổi học đã có lịch sử điểm danh. Hãy sửa dữ liệu điểm danh để giữ hồ sơ học tập và học phí.'); return false;
+    const classroom = classes.find((item) => item.id === session.classId);
+    const accessContext = { date: session.date, scheduleChanges, teachers };
+    if (!canEditAttendanceClass(currentUser, classroom, accessContext)) {
+      showAlert('Bạn không có quyền xóa điểm danh của lớp này.');
+      return false;
     }
     const hasBilledReceipt = receipts.some(
       (r) => r.paymentKind === 'session' && r.sessionLines?.some((l) => l.attendanceSessionId === sessionId)
@@ -153,8 +153,8 @@ export function createAttendanceActions({
       return false;
     }
     setAttendanceSessions((prev) => prev.filter((item) => item.id !== sessionId));
-    const className = classes.find((c) => c.id === session.classId)?.name || session.classId;
-    addLog('XÓA', 'Điểm danh', `Xóa dữ liệu điểm danh buổi học ngày ${session.date} của lớp ${className}.`);
+    const className = classroom?.name || session.classId;
+    addLog('XÓA', 'Điểm danh', `Xóa dữ liệu điểm danh buổi học ngày ${session.date} của lớp ${className} (${session.entries.length} học viên).`);
     toast.success('Đã xóa dữ liệu điểm danh thành công!');
     return true;
   };

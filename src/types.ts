@@ -41,6 +41,9 @@ export interface Student {
   id: string;
   code: string; // e.g., HS001
   name: string;
+  /** Optional fields used by the centre's roster workbook. */
+  nickname?: string;
+  accountStatus?: string;
   avatar?: string;
   dob: string;
   gender: 'Nam' | 'Nữ' | 'Chưa xác định';

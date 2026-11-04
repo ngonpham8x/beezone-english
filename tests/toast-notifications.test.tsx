@@ -509,7 +509,7 @@ describe('StudentManager multi-class dropdown selector', () => {
 
     // Click delete button -> opens ConfirmModal
     fireEvent.click(deleteButton);
-    expect(screen.getByRole('heading', { name: 'Xóa buổi điểm danh trống' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Xóa dữ liệu điểm danh' })).toBeTruthy();
 
     // Confirm deletion
     const confirmButton = screen.getByRole('button', { name: 'Xóa buổi điểm danh' });

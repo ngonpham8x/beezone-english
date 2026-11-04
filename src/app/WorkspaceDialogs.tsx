@@ -56,7 +56,7 @@ export function WorkspaceDialogs({
     enrollments,
     scheduleChanges,
   } = store;
-  const { handleImportStudents, handleImportCenterData, handleImportAcademicCatalog, handleBackupCreated, handleRestoreBackup } =
+  const { handleImportStudents, handleImportStudentRoster, handleRemoveInitialDemoData, handleImportCenterData, handleImportAcademicCatalog, handleBackupCreated, handleRestoreBackup } =
     actions;
   const {
     isLoginOpen,
@@ -121,6 +121,8 @@ export function WorkspaceDialogs({
             isOwner={currentUser.role === 'owner'}
             permissions={currentUser.permissions}
             onImportStudents={handleImportStudents}
+            onImportStudentRoster={handleImportStudentRoster}
+            onRemoveInitialDemoData={handleRemoveInitialDemoData}
             onImportCenterData={handleImportCenterData}
               onImportAcademicCatalog={handleImportAcademicCatalog}
             onExportExcel={(filename) =>

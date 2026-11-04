@@ -1,7 +1,7 @@
 import { academicPermission } from '../../lib/permissions';
 import { isTeachingRole, studentsVisibleToAccount } from '../../lib/accountScope';
 import { showAlert } from '../../lib/dialogs';
-import { nextStudentCode } from '../../lib/identifiers';
+import { nextClassStudentCode, nextStudentCode } from '../../lib/identifiers';
 import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { isStudentInClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
 import {
@@ -450,6 +450,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     const matchesSearch = matchesSearchText(
       searchQuery,
       s.name,
+      s.nickname || '',
+      s.accountStatus || '',
       s.code,
       ...(canViewContactInfo ? [s.phone, s.parentName, s.parentPhone] : []),
       studentClassNames(s, classes),
@@ -471,6 +473,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       id: `HS_NEW_${Date.now()}`,
       code: autoCode,
       name: '',
+      nickname: '',
+      accountStatus: '',
       dob: '',
       gender: 'Chưa xác định',
       school: '',
@@ -503,16 +507,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
 
-    const code = editingStudent.code.trim();
-    if (!code) {
-      showAlert('Vui lòng nhập mã học sinh.');
-      return;
-    }
-    if (students.some((student) => student.id !== editingStudent.id && student.code.trim().toLocaleUpperCase('vi-VN') === code.toLocaleUpperCase('vi-VN'))) {
-      showAlert(`Mã học sinh “${code}” đã tồn tại. Mỗi học sinh cần một mã duy nhất để đồng bộ chính xác với học phí, lớp học và Excel.`);
-      return;
-    }
-
     const classInput = editingStudent.classId.trim();
     const selectedClass = classInput ? classes.find((classroom) => (
       classroom.id === classInput
@@ -524,6 +518,24 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
     if (editingStudent.status === 'active' && !selectedClass) { showAlert('Học viên đang học cần được xếp lớp.'); return; }
+    const previousStudent = students.find((student) => student.id === editingStudent.id);
+    const classPrefix = selectedClass ? `${selectedClass.code.trim()}-` : '';
+    const shouldRegenerateCode = Boolean(selectedClass) && (
+      !previousStudent ||
+      previousStudent.classId !== selectedClass?.id ||
+      !editingStudent.code.trim().startsWith(classPrefix)
+    );
+    const code = shouldRegenerateCode && selectedClass
+      ? nextClassStudentCode(selectedClass.code, students.filter((student) => student.id !== editingStudent.id))
+      : editingStudent.code.trim();
+    if (!code) {
+      showAlert('Vui lòng nhập mã học sinh hoặc chọn lớp để hệ thống tự tạo mã.');
+      return;
+    }
+    if (students.some((student) => student.id !== editingStudent.id && student.code.trim().toLocaleUpperCase('vi-VN') === code.toLocaleUpperCase('vi-VN'))) {
+      showAlert(`Mã học sinh “${code}” đã tồn tại. Mỗi học sinh cần một mã duy nhất để đồng bộ chính xác với học phí, lớp học và Excel.`);
+      return;
+    }
     const dob = parseDateInput(editingStudent.dob || "");
     if (dob && (!isCalendarDate(dob) || dob > centerDate())) {
       showAlert('Ngày sinh không hợp lệ. Nhập ngày/tháng/năm có thật và không ở tương lai.');
@@ -751,6 +763,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             />
                             <div>
                               <div className="font-bold text-slate-900 text-sm">{st.name}</div>
+                              {st.nickname && <div className="text-[10px] font-semibold text-amber-700">Bí danh: {st.nickname}</div>}
                               {canViewContactInfo && (
                                 <div className="text-[10px] text-slate-500">{st.gender === 'Nam' ? (language === 'vi' ? 'Nam' : 'Male') : (st.gender === 'Nữ' ? (language === 'vi' ? 'Nữ' : 'Female') : (language === 'vi' ? 'Chưa xác định' : 'Unspecified'))} • {language === 'vi' ? 'NS' : 'DOB'}: {st.dob || '—'}</div>
                               )}
@@ -1105,6 +1118,28 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
                     placeholder="Nguyễn Văn A"
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Bí Danh</label>
+                  <input
+                    type="text"
+                    value={editingStudent.nickname || ''}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, nickname: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="Tên gọi ở lớp (nếu có)"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Cấp Tài Khoản</label>
+                  <input
+                    type="text"
+                    value={editingStudent.accountStatus || ''}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, accountStatus: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500"
+                    placeholder="Đã cấp / Chưa cấp"
                   />
                 </div>
 

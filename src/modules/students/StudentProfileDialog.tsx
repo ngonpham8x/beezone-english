@@ -161,7 +161,12 @@ export function StudentProfileDialog({
                           : 'Nghỉ học'}
               </span>
             </div>
-            <h3 className="text-xl font-black text-slate-900 mt-1">{viewingStudent.name}</h3>
+            <h3 className="text-xl font-black text-slate-900 mt-1">
+              {viewingStudent.name}{viewingStudent.nickname ? ` (${viewingStudent.nickname})` : ''}
+            </h3>
+            {canViewContactInfo && viewingStudent.accountStatus && (
+              <div className="mt-1 text-[11px] font-semibold text-blue-700">Tài khoản: {viewingStudent.accountStatus}</div>
+            )}
             {canViewContactInfo && (
               <div className="text-xs text-slate-500 font-medium flex items-center justify-center sm:justify-start gap-3 mt-0.5">
                 <span>

@@ -13,6 +13,7 @@ import {
   FileText,
   History,
   LayoutGrid,
+  Pencil,
   Save,
   Send,
   Table as TableIcon,
@@ -1301,6 +1302,14 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             {classHistory.map(item => {
               const pCount = item.entries.filter(e => e.status === 'present').length;
               const isSelected = item.date === sessionDate;
+              const canManageItem = Boolean(
+                selectedClass &&
+                (isOwner || canEditAttendanceClass(attendanceUser, selectedClass, {
+                  date: item.date,
+                  scheduleChanges,
+                  teachers,
+                })),
+              );
 
               return (
                 <div
@@ -1321,19 +1330,37 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
                       <span className="text-[11px] text-slate-500">
                         {pCount}/{item.entries.length} có mặt
                       </span>
-                      {onDeleteSession && isOwner && item.entries.length === 0 && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSessionToDelete(item);
-                          }}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0"
-                          title="Xóa buổi điểm danh này"
-                          aria-label={`Xóa buổi điểm danh ngày ${item.date}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      {canManageItem && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSessionDate(item.date);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 font-bold text-indigo-700 transition hover:bg-indigo-50 hover:text-indigo-900"
+                            title="Sửa điểm danh buổi này"
+                            aria-label={`Sửa điểm danh ngày ${item.date}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span>Sửa</span>
+                          </button>
+                          {onDeleteSession && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSessionToDelete(item);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 font-bold text-rose-600 transition hover:bg-rose-50 hover:text-rose-800"
+                              title="Xóa buổi điểm danh này"
+                              aria-label={`Xóa buổi điểm danh ngày ${item.date}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Xóa</span>
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -1350,8 +1377,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       {/* Delete Attendance Session Confirm Modal */}
       <ConfirmModal
         isOpen={Boolean(sessionToDelete)}
-        title="Xóa buổi điểm danh trống"
-        message={sessionToDelete ? `Bạn có muốn xóa buổi điểm danh trống ngày ${sessionToDelete.date}? Buổi có lịch sử học viên cần được giữ lại và chỉnh sửa.` : ''}
+        title="Xóa dữ liệu điểm danh"
+        message={sessionToDelete ? `Bạn có chắc muốn xóa buổi điểm danh ngày ${sessionToDelete.date} cùng dữ liệu của ${sessionToDelete.entries.length} học viên? Nhận xét và lịch sử liên hệ trong buổi này cũng sẽ bị xóa. Thao tác không thể hoàn tác và sẽ bị chặn nếu buổi đã liên kết phiếu thu.` : ''}
         confirmText="Xóa buổi điểm danh"
         cancelText="Hủy"
         variant="danger"
