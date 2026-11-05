@@ -29,6 +29,20 @@ it('never retries or overwrites a conflicting remote revision', async () => {
   await vi.waitFor(() => expect(status.mock.lastCall?.[0]).toBe('conflict'));
   queue.enqueue(2); queue.retry(); expect(write).toHaveBeenCalledTimes(1);
 });
+
+it('blocks queued writes during a realtime conflict and resumes only after reset', async () => {
+  const writes: number[] = [];
+  const status = vi.fn();
+  const queue = createSyncQueue<number>(async value => { writes.push(value); }, status);
+  queue.blockConflict('conflict');
+  queue.enqueue(1);
+  await Promise.resolve();
+  expect(writes).toEqual([]);
+  expect(status).toHaveBeenLastCalledWith('conflict', 'conflict');
+  queue.reset();
+  queue.enqueue(2);
+  await vi.waitFor(() => expect(writes).toEqual([2]));
+});
 it('drops pending writes and callbacks when a session is disposed', async () => {
   let release!: () => void; const wait = new Promise<void>(resolve => { release = resolve; });
   const write = vi.fn(async () => wait); const status = vi.fn();

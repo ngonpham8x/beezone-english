@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
   profileError: false,
   sessionRequest: null as null | (() => Promise<any>),
   writeError: null as null | { code: string },
+  casConflictOnce: false,
+  realtimeListener: null as null | ((change: any) => void),
+  revision: 'initial-revision',
   profileReads: 0, centerReads: 0, writes: [] as any[],
 }));
 vi.mock('../src/lib/supabase', () => {
@@ -23,6 +26,22 @@ vi.mock('../src/lib/supabase', () => {
       onAuthStateChange: (listener: any) => { state.listener = listener; return { data: { subscription: { unsubscribe: () => { if (state.listener === listener) state.listener = null; } } } }; },
       signOut: async () => ({ error: null }),
     },
+    channel() {
+      const channel: any = {
+        listener: null as null | ((change: any) => void),
+        on: (_event: string, _filter: unknown, listener: (change: any) => void) => {
+          channel.listener = listener;
+          state.realtimeListener = listener;
+          return channel;
+        },
+        subscribe: () => channel,
+      };
+      return channel;
+    },
+    removeChannel: async (channel: any) => {
+      if (state.realtimeListener === channel.listener) state.realtimeListener = null;
+      return 'ok';
+    },
     from(table: string) {
       let update: any;
       const builder = {
@@ -30,9 +49,19 @@ vi.mock('../src/lib/supabase', () => {
         update: (value: any) => { update = value; return builder; }, insert: (value: any) => { update = value; return builder; },
         async maybeSingle() {
           if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: state.profileRole, is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: state.profilePermissions } : null, error: state.profileError ? { message: 'offline' } : null }; }
-          if (update) { if (state.writeError) return { data: null, error: state.writeError }; state.writes.push(structuredClone(update.payload)); return { data: { updated_at: `revision-${state.writes.length}` }, error: null }; }
+          if (update) {
+            if (state.writeError) return { data: null, error: state.writeError };
+            if (state.casConflictOnce) {
+              state.casConflictOnce = false;
+              return { data: null, error: null };
+            }
+            state.payload = structuredClone(update.payload);
+            state.writes.push(structuredClone(update.payload));
+            state.revision = `revision-${state.writes.length}`;
+            return { data: { updated_at: state.revision }, error: null };
+          }
           state.centerReads++;
-          return { data: { payload: structuredClone(state.payload), updated_at: 'initial-revision' }, error: state.centerError ? { message: 'offline' } : null };
+          return { data: { payload: structuredClone(state.payload), updated_at: state.revision }, error: state.centerError ? { message: 'offline' } : null };
         },
         async single() { return builder.maybeSingle(); },
       };
@@ -48,6 +77,9 @@ beforeEach(() => {
   state.payload = { settings: initialSettings, students: [{ ...initialStudents[0], name: 'Cloud student' }] };
   state.centerError = false; state.profileActive = true; state.profileReads = 0; state.centerReads = 0; state.writes = [];
   state.writeError = null;
+  state.casConflictOnce = false;
+  state.realtimeListener = null;
+  state.revision = 'initial-revision';
   state.profilePrivate = false;
   state.profileRole = 'owner'; state.profilePermissions = null;
   state.profileError = false;
@@ -168,6 +200,58 @@ it('keeps local edits and pauses saving when the database quota is exceeded', as
   await screen.findByText(/Đã đạt giới hạn lưu dữ liệu/);
   expect(screen.getByText('Edited locally')).toBeTruthy();
   expect(state.writes).toEqual([]); expect(state.centerReads).toBe(1);
+});
+
+it('merges non-overlapping realtime edits from another device and saves both changes', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  await waitFor(() => expect(state.realtimeListener).not.toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: 'Edit student' }));
+  const remotePayload = structuredClone(state.payload);
+  remotePayload.students[0].phone = '0999999999';
+  act(() => state.realtimeListener?.({
+    new: { payload: remotePayload, updated_at: 'remote-revision-2' },
+  }));
+
+  expect(screen.getByText('Edited locally')).toBeTruthy();
+  expect(screen.queryByText(/nội dung đang được sửa khác nhau/)).toBeNull();
+  await waitFor(() => expect(state.writes.some((payload) =>
+    payload.students[0].name === 'Edited locally' && payload.students[0].phone === '0999999999',
+  )).toBe(true), { timeout: 3000 });
+});
+
+it('asks which value to keep only when two devices edit the same field', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  await waitFor(() => expect(state.realtimeListener).not.toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: 'Edit student' }));
+  const remotePayload = structuredClone(state.payload);
+  remotePayload.students[0].name = 'Edited remotely';
+  act(() => state.realtimeListener?.({
+    new: { payload: remotePayload, updated_at: 'remote-revision-3' },
+  }));
+
+  expect(await screen.findByText(/nội dung đang được sửa khác nhau/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Ưu tiên thay đổi trên máy này' }));
+  expect(screen.getByText('Edited locally')).toBeTruthy();
+  await waitFor(() => expect(state.writes.some((payload) => payload.students[0].name === 'Edited locally')).toBe(true), { timeout: 3000 });
+});
+
+it('falls back to a server read and automatic merge when realtime delivery is missed', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  await waitFor(() => expect(state.writes.length).toBeGreaterThan(0), { timeout: 3000 });
+  const remotePayload = structuredClone(state.payload);
+  remotePayload.students[0].phone = '0888888888';
+  state.payload = remotePayload;
+  state.revision = 'missed-realtime-revision';
+  state.casConflictOnce = true;
+  fireEvent.click(screen.getByRole('button', { name: 'Edit student' }));
+
+  await waitFor(() => expect(state.writes.some((payload) =>
+    payload.students[0].name === 'Edited locally' && payload.students[0].phone === '0888888888',
+  )).toBe(true), { timeout: 4000 });
+  expect(screen.queryByText(/nội dung đang được sửa khác nhau/)).toBeNull();
 });
 
 it('displays OAuth error descriptions returned in the URL on the login screen', async () => {

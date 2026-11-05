@@ -141,11 +141,14 @@ describe('Delete confirm modals in Managers', () => {
 
     // Verify modal appeared
     expect(screen.getByText('Xác nhận xóa giáo viên')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Xác nhận xóa' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Gỡ liên kết và xóa' })).toBeTruthy();
 
-    // Confirm deletion
-    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận xóa' }));
-    expect(onDeleteTeacher).toHaveBeenCalledWith('t-test-1');
+    fireEvent.click(screen.getByText('Xác nhận xóa hồ sơ giáo viên').closest('label')!.querySelector('input')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Gỡ liên kết và xóa' }));
+    expect(onDeleteTeacher).toHaveBeenCalledWith('t-test-1', {
+      detachClasses: false,
+      removeTimetable: false,
+    });
   });
 
   it('RoomManager opens ConfirmModal and confirms deletion', () => {

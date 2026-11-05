@@ -24,22 +24,25 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { DialogFrame } from '../../components/DialogFrame';
-import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal, ConfirmModal } from '../../components/ConfirmModal';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { useLanguage } from '../../context/LanguageContext';
 import { matchesSearch } from '../../lib/search';
-import { ClassRoom, StaffPermissions, Teacher, TimetableSlot } from '../../types';
+import { AttendanceSession, ClassRoom, ScheduleChange, StaffPermissions, Teacher, TimetableSlot } from '../../types';
+import type { TeacherDeletionOptions } from './actions';
 
 interface TeacherManagerProps {
   teachers: Teacher[];
   classes: ClassRoom[];
   timetableSlots?: TimetableSlot[];
+  scheduleChanges?: ScheduleChange[];
+  attendanceSessions?: AttendanceSession[];
   permissions: StaffPermissions;
   isOwner: boolean;
   searchQuery?: string;
   onAddTeacher: (t: Teacher) => void;
   onUpdateTeacher: (t: Teacher) => void;
-  onDeleteTeacher: (id: string) => void;
+  onDeleteTeacher: (id: string, options?: TeacherDeletionOptions) => string | null | void;
   onEditClass: (classroom: ClassRoom) => void;
   onSaveTeacher?: (teacher: Teacher) => string | null;
 }
@@ -48,6 +51,8 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   teachers,
   classes,
   timetableSlots = [],
+  scheduleChanges = [],
+  attendanceSessions = [],
   permissions,
   isOwner,
   searchQuery = '',
@@ -61,12 +66,46 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
+  const [deleteChecks, setDeleteChecks] = useState({ classes: false, timetable: false, profile: false });
+  const [deleteAlertMessage, setDeleteAlertMessage] = useState<string | null>(null);
   const [viewingTeacherDetails, setViewingTeacherDetails] = useState<Teacher | null>(null);
 
   const canEdit = isOwner || permissions.teacher.edit;
   const canAdd = isOwner || (permissions.teacher.add ?? permissions.teacher.edit);
   const canAssign = isOwner || academicPermission(permissions, 'classes', 'edit');
   const canDelete = isOwner || permissions.teacher.delete;
+  const deleteManagedClasses = teacherToDelete
+    ? classes.filter((classroom) => classroom.teacherId === teacherToDelete.id)
+    : [];
+  const deleteTimetableSlots = teacherToDelete
+    ? timetableSlots.filter((slot) => slot.teacherId === teacherToDelete.id)
+    : [];
+  const deleteSlotIds = new Set(deleteTimetableSlots.map((slot) => slot.id));
+  const deleteScheduleChanges = teacherToDelete
+    ? scheduleChanges.filter((change) =>
+      change.teacherId === teacherToDelete.id ||
+      change.substituteTeacherId === teacherToDelete.id ||
+      Boolean(change.sourceSlotId && deleteSlotIds.has(change.sourceSlotId)))
+    : [];
+  const deleteAttendanceSessions = teacherToDelete
+    ? attendanceSessions.filter((session) => session.teacherId === teacherToDelete.id)
+    : [];
+  const deleteNeedsAcademicPermission = deleteManagedClasses.length > 0 || deleteTimetableSlots.length > 0;
+  const canConfirmTeacherDelete = Boolean(
+    teacherToDelete &&
+    deleteChecks.profile &&
+    (deleteManagedClasses.length === 0 || deleteChecks.classes) &&
+    (deleteTimetableSlots.length === 0 || deleteChecks.timetable) &&
+    deleteScheduleChanges.length === 0 &&
+    deleteAttendanceSessions.length === 0 &&
+    (!deleteNeedsAcademicPermission || canAssign),
+  );
+
+  const openTeacherDelete = (teacher: Teacher) => {
+    setDeleteChecks({ classes: false, timetable: false, profile: false });
+    setDeleteAlertMessage(null);
+    setTeacherToDelete(teacher);
+  };
 
   const handleOpenAdd = () => {
     if (!canAdd) return;
@@ -169,7 +208,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                       {canDelete && (
                         <button
                           aria-label={`Xóa giáo viên ${teacher.name}`}
-                          onClick={() => setTeacherToDelete(teacher)}
+                          onClick={() => openTeacherDelete(teacher)}
                           className="icon-button p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                           title="Xóa"
                         >
@@ -479,24 +518,82 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
         title="Xác nhận xóa giáo viên"
         message={
           teacherToDelete ? (
-            <>
-              Bạn có chắc chắn muốn xóa giáo viên <strong>{teacherToDelete.name}</strong>?
-              <span className="block mt-2 text-xs text-slate-500">
-                Thao tác này sẽ xóa hồ sơ giáo viên. Lưu ý: Chỉ xóa được giáo viên không còn phụ trách lớp hay có lịch dạy/đổi lịch.
-              </span>
-            </>
+            <div className="space-y-3 text-left">
+              <p>Xử lý các liên kết của giáo viên <strong>{teacherToDelete.name}</strong> trước khi xóa:</p>
+              {deleteManagedClasses.length > 0 && (
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-3">
+                  <input
+                    type="checkbox"
+                    checked={deleteChecks.classes}
+                    onChange={(event) => setDeleteChecks((current) => ({ ...current, classes: event.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span><strong>Gỡ phân công khỏi {deleteManagedClasses.length} lớp</strong><span className="block text-xs text-slate-500">Lớp vẫn được giữ và chuyển về trạng thái chưa có giáo viên.</span></span>
+                </label>
+              )}
+              {deleteTimetableSlots.length > 0 && (
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-3">
+                  <input
+                    type="checkbox"
+                    checked={deleteChecks.timetable}
+                    onChange={(event) => setDeleteChecks((current) => ({ ...current, timetable: event.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span><strong>Xóa {deleteTimetableSlots.length} ca thời khóa biểu</strong><span className="block text-xs text-slate-500">Chỉ xóa ca định kỳ đang gắn trực tiếp với giáo viên này.</span></span>
+                </label>
+              )}
+              {deleteScheduleChanges.length > 0 && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                  Có {deleteScheduleChanges.length} lịch sử đổi lịch, dạy thay hoặc học bù. Hồ sơ giáo viên phải được giữ để đối chiếu.
+                </div>
+              )}
+              {deleteAttendanceSessions.length > 0 && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                  Có {deleteAttendanceSessions.length} buổi điểm danh đã lưu. Hồ sơ giáo viên phải được giữ để đối chiếu người dạy.
+                </div>
+              )}
+              {deleteNeedsAcademicPermission && !canAssign && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-800">Tài khoản cần quyền sửa lớp học để gỡ các liên kết này.</div>
+              )}
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <input
+                  type="checkbox"
+                  checked={deleteChecks.profile}
+                  onChange={(event) => setDeleteChecks((current) => ({ ...current, profile: event.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span><strong>Xác nhận xóa hồ sơ giáo viên</strong><span className="block text-xs text-rose-700">Không thể hoàn tác sau khi lưu.</span></span>
+              </label>
+            </div>
           ) : null
         }
-        confirmText="Xác nhận xóa"
+        confirmText="Gỡ liên kết và xóa"
         cancelText="Hủy bỏ"
         variant="danger"
+        confirmDisabled={!canConfirmTeacherDelete}
         onConfirm={() => {
           if (teacherToDelete) {
-            onDeleteTeacher(teacherToDelete.id);
-            setTeacherToDelete(null);
+            const issue = onDeleteTeacher(teacherToDelete.id, {
+              detachClasses: deleteChecks.classes,
+              removeTimetable: deleteChecks.timetable,
+            });
+            if (typeof issue === 'string' && issue) {
+              setDeleteAlertMessage(issue);
+              return false;
+            }
           }
+          return true;
         }}
-        onClose={() => setTeacherToDelete(null)}
+        onClose={() => {
+          setTeacherToDelete(null);
+          setDeleteChecks({ classes: false, timetable: false, profile: false });
+        }}
+      />
+      <AlertModal
+        isOpen={Boolean(deleteAlertMessage)}
+        title="Chưa thể xóa giáo viên"
+        message={deleteAlertMessage}
+        onClose={() => setDeleteAlertMessage(null)}
       />
     </div>
   );

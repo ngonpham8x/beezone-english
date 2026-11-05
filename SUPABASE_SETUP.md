@@ -86,6 +86,21 @@ Các biến này đã được cấu hình trong đợt deploy 14/10/2026. Integ
 
 Trạng thái deployment và các phần chưa hoàn tất: [DEPLOYMENT_STATUS.md](DEPLOYMENT_STATUS.md).
 
+## Đồng bộ nhiều máy (migration 032)
+
+Sau migration 031, áp dụng `032_center_data_realtime.sql` trên staging rồi production để phát thay đổi `center_data` tới các máy đang mở. Migration chỉ thêm bảng hiện có vào publication `supabase_realtime`, không sửa payload, tài khoản hoặc lịch sử. Nếu sự kiện Realtime bị gián đoạn, CAS và bước tải/hợp nhất sau xung đột vẫn bảo vệ dữ liệu.
+
+Kiểm tra chỉ đọc sau khi áp dụng:
+
+```sql
+select exists (
+  select 1 from pg_publication_tables
+  where pubname = 'supabase_realtime'
+    and schemaname = 'public'
+    and tablename = 'center_data'
+) as center_realtime_ready;
+```
+
 ## Đăng ký một học viên vào nhiều lớp (migration 012)
 
 Trước khi triển khai giao diện học nhiều lớp, áp dụng trọn tệp `supabase/migrations/012_student_multiple_classes.sql` trên staging đã có migration 001–011, kiểm tra bằng tài khoản owner và staff, rồi áp dụng trên đúng dự án production. Tệp chỉ cập nhật quy tắc kiểm tra; không sửa hồ sơ, danh sách lớp hay dữ liệu học viên hiện có. Không chạy lại toàn bộ bộ khởi tạo trên dự án đang sử dụng.

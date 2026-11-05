@@ -56,6 +56,7 @@ import {
 import { FeeStatusBadge } from './FeeStatusBadge';
 import { StudentStatusBadge } from './StudentStatusBadge';
 import { StudentProfileDialog } from './StudentProfileDialog';
+import type { StudentDeletionOptions } from './actions';
 
 interface StudentManagerProps {
   enrollments?: ClassEnrollment[];
@@ -75,7 +76,7 @@ interface StudentManagerProps {
   searchQuery: string;
   onAddStudent: (newStudent: Student) => void;
   onUpdateStudent: (updatedStudent: Student) => void;
-  onDeleteStudent: (id: string) => string | null | void;
+  onDeleteStudent: (id: string, options?: StudentDeletionOptions) => string | null | void;
   onReserveStudent?: (studentId: string, reserveDate: string, expectedReturnDate: string, reason: string) => void;
   onDropStudent?: (studentId: string, dropDate: string, reason: string) => void;
   onReEnrollStudent?: (studentId: string, targetClassId: string, returnDate: string, note?: string) => boolean | void;
@@ -146,6 +147,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [reEnrollDate, setReEnrollDate] = useState<string>(centerDate());
   const [reEnrollNote, setReEnrollNote] = useState<string>('');
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [deleteChecks, setDeleteChecks] = useState({ classes: false, tuition: false, learning: false, profile: false });
   const [deleteAlertMessage, setDeleteAlertMessage] = useState<string | null>(null);
   const [isQuickClassOpen, setIsQuickClassOpen] = useState(false);
   const [newClassCode, setNewClassCode] = useState('');
@@ -436,6 +438,41 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const canAdd = !teacherAccount && (isOwner || permissions.student.add);
   const canEdit = !teacherAccount && (isOwner || permissions.student.edit);
   const canDelete = !teacherAccount && (isOwner || permissions.student.delete);
+  const deleteStudentClassIds = new Set<string>();
+  if (studentToDelete) {
+    studentClassIds(studentToDelete).forEach((classId) => deleteStudentClassIds.add(classId));
+    classListForLookup
+      .filter((classroom) => classroom.studentIds.includes(studentToDelete.id))
+      .forEach((classroom) => deleteStudentClassIds.add(classroom.id));
+  }
+  const deleteReceiptCount = studentToDelete
+    ? receipts.filter((receipt) => receipt.studentId === studentToDelete.id).length
+    : 0;
+  const deleteGradeCount = studentToDelete
+    ? grades.filter((grade) => grade.studentId === studentToDelete.id).length
+    : 0;
+  const deleteAttendanceCount = studentToDelete
+    ? attendanceSessions.filter((session) => session.entries.some((entry) => entry.studentId === studentToDelete.id)).length
+    : 0;
+  const deleteEnrollmentCount = studentToDelete
+    ? enrollments.filter((enrollment) => enrollment.studentId === studentToDelete.id).length
+    : 0;
+  const deleteLearningHistoryCount = deleteGradeCount + deleteAttendanceCount + deleteEnrollmentCount;
+  const deleteStudentHasHistory = deleteReceiptCount > 0 || deleteLearningHistoryCount > 0;
+  const canConfirmStudentDelete = Boolean(
+    studentToDelete &&
+    deleteChecks.profile &&
+    (deleteStudentClassIds.size === 0 || deleteChecks.classes) &&
+    (deleteReceiptCount === 0 || deleteChecks.tuition) &&
+    (deleteLearningHistoryCount === 0 || deleteChecks.learning) &&
+    (!deleteStudentHasHistory || canEdit),
+  );
+
+  const openStudentDelete = (student: Student) => {
+    setDeleteChecks({ classes: false, tuition: false, learning: false, profile: false });
+    setDeleteAlertMessage(null);
+    setStudentToDelete(student);
+  };
   // Báo cáo workbook có cả dữ liệu học phí, nên chỉ quyền Excel mới được mở.
   const canExport = !teacherAccount && (isOwner || permissions.excel.import || permissions.excel.export);
   const canViewTuition = !teacherAccount && (isOwner || Boolean(permissions.tuition?.view));
@@ -866,7 +903,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                             {canDelete && (
                               <button
-                                onClick={() => setStudentToDelete(st)}
+                                onClick={() => openStudentDelete(st)}
                                 className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                                 title="Xóa học sinh"
                               >
@@ -1026,7 +1063,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                     {canDelete && (
                       <button
-                        onClick={() => setStudentToDelete(st)}
+                        onClick={() => openStudentDelete(st)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                         title="Xóa"
                       >
@@ -2000,33 +2037,88 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         title="Xác nhận xóa học sinh"
         message={
           studentToDelete ? (
-            <>
-              Bạn có chắc chắn muốn xóa học sinh <strong>{studentToDelete.name}</strong> ({studentToDelete.code}) khỏi hệ thống?
-              <span className="block mt-2 text-xs text-slate-500">
-                Chỉ xóa hồ sơ chưa có lịch sử đăng ký, học phí, điểm hoặc điểm danh. Với hồ sơ đã phát sinh lịch sử, hãy chọn Nghỉ học để giữ dữ liệu.
-              </span>
-            </>
+            <div className="space-y-3 text-left">
+              <p>Chọn các liên kết cần xử lý cho <strong>{studentToDelete.name}</strong> ({studentToDelete.code}):</p>
+              {deleteStudentClassIds.size > 0 && (
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-3">
+                  <input
+                    type="checkbox"
+                    checked={deleteChecks.classes}
+                    onChange={(event) => setDeleteChecks((current) => ({ ...current, classes: event.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span><strong>Gỡ học viên khỏi {deleteStudentClassIds.size} lớp</strong><span className="block text-xs text-slate-500">Xóa khỏi danh sách lớp hiện tại và kết thúc đăng ký đang hoạt động.</span></span>
+                </label>
+              )}
+              {deleteReceiptCount > 0 && (
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <input
+                    type="checkbox"
+                    checked={deleteChecks.tuition}
+                    onChange={(event) => setDeleteChecks((current) => ({ ...current, tuition: event.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span><strong>Giữ nguyên {deleteReceiptCount} phiếu/hồ sơ học phí</strong><span className="block text-xs text-amber-800">Không xóa lịch sử tài chính; hồ sơ học viên được giữ để đối chiếu.</span></span>
+                </label>
+              )}
+              {deleteLearningHistoryCount > 0 && (
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <input
+                    type="checkbox"
+                    checked={deleteChecks.learning}
+                    onChange={(event) => setDeleteChecks((current) => ({ ...current, learning: event.target.checked }))}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <strong>Giữ lịch sử học tập</strong>
+                    <span className="block text-xs text-amber-800">{deleteGradeCount} bảng điểm · {deleteAttendanceCount} buổi điểm danh · {deleteEnrollmentCount} đăng ký lớp.</span>
+                  </span>
+                </label>
+              )}
+              {deleteStudentHasHistory && !canEdit && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-800">Cần quyền sửa học viên để gỡ lớp và chuyển hồ sơ sang Nghỉ học.</div>
+              )}
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <input
+                  type="checkbox"
+                  checked={deleteChecks.profile}
+                  onChange={(event) => setDeleteChecks((current) => ({ ...current, profile: event.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <strong>{deleteStudentHasHistory ? 'Chuyển hồ sơ sang Nghỉ học' : 'Xóa hồ sơ học viên chưa có lịch sử'}</strong>
+                  <span className="block text-xs text-rose-700">{deleteStudentHasHistory ? 'Giữ hồ sơ để tra cứu học phí và quá trình học.' : 'Hồ sơ sẽ bị xóa và không thể hoàn tác.'}</span>
+                </span>
+              </label>
+            </div>
           ) : null
         }
-        confirmText="Xác nhận xóa"
+        confirmText={deleteStudentHasHistory ? 'Gỡ liên kết và giữ lịch sử' : 'Gỡ liên kết và xóa'}
         cancelText="Hủy bỏ"
         variant="danger"
+        confirmDisabled={!canConfirmStudentDelete}
         onConfirm={() => {
           if (studentToDelete) {
-            const id = studentToDelete.id;
-            setStudentToDelete(null);
-            const res = onDeleteStudent(id);
+            const res = onDeleteStudent(studentToDelete.id, {
+              detachClasses: deleteChecks.classes || deleteStudentClassIds.size === 0,
+              archiveHistory: deleteStudentHasHistory,
+            });
             if (typeof res === 'string' && res) {
               setDeleteAlertMessage(res);
+              return false;
             }
           }
+          return true;
         }}
-        onClose={() => setStudentToDelete(null)}
+        onClose={() => {
+          setStudentToDelete(null);
+          setDeleteChecks({ classes: false, tuition: false, learning: false, profile: false });
+        }}
       />
 
       <AlertModal
         isOpen={!!deleteAlertMessage}
-        title="Không thể xóa học sinh"
+        title="Chưa thể xử lý học sinh"
         message={deleteAlertMessage}
         onClose={() => setDeleteAlertMessage(null)}
       />

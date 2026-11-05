@@ -1,6 +1,6 @@
 export class SyncConflictError extends Error {
-  constructor() {
-    super('Dữ liệu đã được cập nhật ở phiên khác. Hãy sao lưu thay đổi hiện tại trước khi tải lại dữ liệu.');
+  constructor(message = 'Dữ liệu đã được cập nhật ở phiên khác. Hãy chọn bản ưu tiên để hợp nhất thay đổi.') {
+    super(message);
     this.name = 'SyncConflictError';
   }
 }
@@ -41,6 +41,19 @@ export function createSyncQueue<T>(
   return {
     enqueue(payload: T) { if (!stopped) { pending = payload; void drain(); } },
     retry() { if (!conflict && !stopped) { failed = false; void drain(); } },
+    blockConflict(error: string) {
+      if (stopped) return;
+      failed = true;
+      conflict = true;
+      onStatus('conflict', error);
+    },
+    reset() {
+      if (stopped) return;
+      pending = undefined;
+      failed = false;
+      conflict = false;
+      onStatus('saved');
+    },
     stop() { stopped = true; pending = undefined; },
   };
 }

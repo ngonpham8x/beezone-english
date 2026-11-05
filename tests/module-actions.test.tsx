@@ -260,6 +260,59 @@ describe('domain command integration', () => {
       expect(result.current.store.students).toBe(before);
     }
   });
+  it('removes current student links but preserves financial and learning history when explicitly selected', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const student = data.students[0];
+    const classroom = data.classes.find((item) => item.id === student.classId)!;
+    data.enrollments = [{
+      id: 'student-history', studentId: student.id, classId: classroom.id,
+      status: 'active', startDate: '2026-01-01',
+    }];
+    data.attendanceSessions = [{
+      id: 'student-attendance', classId: classroom.id, date: centerDate(), lessonTopic: '',
+      entries: [{ studentId: student.id, status: 'present' }],
+    }];
+    const receiptIds = data.receipts.filter((item) => item.studentId === student.id).map((item) => item.id);
+    const gradeIds = data.grades.filter((item) => item.studentId === student.id).map((item) => item.id);
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+
+    act(() => expect(result.current.actions.handleDeleteStudent(student.id, {
+      detachClasses: true,
+      archiveHistory: true,
+    })).toBeNull());
+
+    expect(result.current.store.students.find((item) => item.id === student.id)).toMatchObject({
+      classId: '', additionalClassIds: [], status: 'dropped',
+    });
+    expect(result.current.store.classes.every((item) => !item.studentIds.includes(student.id))).toBe(true);
+    expect(result.current.store.receipts.filter((item) => item.studentId === student.id).map((item) => item.id)).toEqual(receiptIds);
+    expect(result.current.store.grades.filter((item) => item.studentId === student.id).map((item) => item.id)).toEqual(gradeIds);
+    expect(result.current.store.attendanceSessions[0].entries[0].studentId).toBe(student.id);
+    expect(result.current.store.enrollments.find((item) => item.id === 'student-history')).toMatchObject({
+      studentId: student.id, status: 'transferred',
+    });
+  });
+  it('deletes a teacher only after explicitly removing class and timetable links', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const teacher = data.teachers[0];
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const managedClassCount = result.current.store.classes.filter((item) => item.teacherId === teacher.id).length;
+    const slotCount = result.current.store.timetableSlots.filter((item) => item.teacherId === teacher.id).length;
+
+    act(() => expect(result.current.actions.handleDeleteTeacher(teacher.id)).toMatch(/tích chọn/));
+    expect(result.current.store.teachers.some((item) => item.id === teacher.id)).toBe(true);
+
+    act(() => expect(result.current.actions.handleDeleteTeacher(teacher.id, {
+      detachClasses: true,
+      removeTimetable: true,
+    })).toBeNull());
+    expect(managedClassCount + slotCount).toBeGreaterThan(0);
+    expect(result.current.store.teachers.some((item) => item.id === teacher.id)).toBe(false);
+    expect(result.current.store.classes.every((item) => item.teacherId !== teacher.id)).toBe(true);
+    expect(result.current.store.timetableSlots.every((item) => item.teacherId !== teacher.id)).toBe(true);
+  });
   it('adds a legacy class catalog without replacing existing academic or student/financial history and skips duplicate class codes', () => {
     const { result } = renderHook(() => useTestCenter());
     const data = dataset();

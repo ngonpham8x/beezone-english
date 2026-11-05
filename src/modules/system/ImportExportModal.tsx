@@ -39,6 +39,10 @@ import {
   Teacher,
   TuitionReceipt,
 } from '../../types';
+import {
+  buildImportedStudents,
+  countUnassignedImportedStudents,
+} from './studentImport';
 
 interface ImportExportModalProps {
   isOpen: boolean;
@@ -91,7 +95,6 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [validationResult, setValidationResult] = useState<ImportValidationResult | null>(null);
   const [isImportingSuccess, setIsImportingSuccess] = useState(false);
-  const [fallbackClassId, setFallbackClassId] = useState(classes[0]?.id || '');
   const [fileName, setFileName] = useState('');
   const [centerImport, setCenterImport] = useState<CenterWorkbookData | null>(null);
   const [rosterImport, setRosterImport] = useState<StudentRosterImportData | null>(null);
@@ -172,14 +175,6 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         setValidationResult(null);
         return;
       }
-      if (classes.length === 0) {
-        setCenterImport(null);
-        setValidationResult({
-          validRows: [],
-          errors: centerResult.errors.length ? centerResult.errors : [{ row: 0, field: 'Tệp Excel', message: 'Hãy dùng báo cáo Excel đã chuẩn hoá để nhập dữ liệu lần đầu.' }]
-        });
-        return;
-      }
       const result = await parseExcelStudentFile(file);
       const existingCodes = new Set(students.map((student) => student.code.trim().toLocaleUpperCase('vi-VN')));
       const duplicateRows: ImportedStudentRow[] = [];
@@ -229,32 +224,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const handleConfirmImport = () => {
     if (!canImport || !validationResult || validationResult.validRows.length === 0 || isImportingSuccess) return;
 
-    const fallbackClass = classes.find((item) => item.id === fallbackClassId);
-    if (!fallbackClass) return;
-    const newStudentsList: Student[] = validationResult.validRows.map((item, idx) => {
-      const classCode = (item.classCode || '').trim().toLocaleUpperCase('vi-VN');
-      const classroom = classes.find((candidate) => candidate.code.trim().toLocaleUpperCase('vi-VN') === classCode) || fallbackClass;
-      return {
-        id: `HS_IMP_${Date.now()}_${idx}`,
-        code: item.code || '',
-        name: item.name || '',
-        dob: item.dob || '',
-        gender: item.gender || 'Chưa xác định',
-        school: item.school || '',
-        gradeLevel: item.gradeLevel || '',
-        programId: classroom.programId,
-        classId: classroom.id,
-        address: item.address || '',
-        email: item.email || '',
-        phone: item.phone || '',
-        parentName: item.parentName || '',
-        parentPhone: item.parentPhone || '',
-        enrollDate: centerDate(),
-        notes: `Nhập từ Excel: ${fileName || 'tệp không rõ tên'}`,
-        status: 'active',
-        feeStatus: 'unpaid'
-      };
-    });
+    const newStudentsList = buildImportedStudents(validationResult.validRows, classes, { fileName });
 
     onImportStudents(newStudentsList);
     setIsImportingSuccess(true);
@@ -386,17 +356,6 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                   />
                 </div>
 
-                {!centerImport && !rosterImport && classes.length > 0 && <div>
-                  <label className="block font-bold text-slate-700 mb-1">Lớp áp dụng khi file không có “Mã lớp”</label>
-                  <select
-                    value={fallbackClassId}
-                    onChange={(event) => setFallbackClassId(event.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:ring-2 focus:ring-amber-500"
-                  >
-                    {classes.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.code} — {classroom.name}</option>)}
-                  </select>
-                </div>}
-
                 {centerImport && (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                     <div className="font-bold">Đã nhận diện báo cáo chuẩn hoá: {fileName}</div>
@@ -442,6 +401,12 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                     <div className="text-emerald-700 font-semibold">✓ {validationResult.validRows.length} dòng hợp lệ sẵn sàng thêm</div>
                     {validationResult.errors.length > 0 && (
                       <div className="text-rose-700 font-semibold mt-1">⚠ {validationResult.errors.length} dòng có lỗi</div>
+                    )}
+                    {countUnassignedImportedStudents(validationResult.validRows, classes) > 0 && (
+                      <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                        <strong>{countUnassignedImportedStudents(validationResult.validRows, classes)} học viên chưa xếp lớp.</strong>{' '}
+                        Mã lớp trống hoặc chưa khớp sẽ được giữ trống ở trạng thái “Đã đăng ký”; bạn có thể tự xếp lớp sau trong hồ sơ học viên.
+                      </div>
                     )}
 
                     <button

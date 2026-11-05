@@ -9,7 +9,8 @@ export interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
-  onConfirm: () => void;
+  confirmDisabled?: boolean;
+  onConfirm: () => boolean | void;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export function ConfirmModal({
   confirmText = 'Xác nhận xóa',
   cancelText = 'Hủy bỏ',
   variant = 'danger',
+  confirmDisabled = false,
   onConfirm,
   onClose,
 }: ConfirmModalProps) {
@@ -77,10 +79,10 @@ export function ConfirmModal({
           <button
             type="button"
             onClick={() => {
-              onConfirm();
-              onClose();
+              if (onConfirm() !== false) onClose();
             }}
-            className={`px-5 py-2.5 text-xs font-bold rounded-xl transition shadow-sm ${confirmBtnClass}`}
+            disabled={confirmDisabled}
+            className={`px-5 py-2.5 text-xs font-bold rounded-xl transition shadow-sm ${confirmBtnClass} disabled:cursor-not-allowed disabled:opacity-40`}
           >
             {confirmText}
           </button>

@@ -46,3 +46,35 @@ it('shows only real schedule data in teacher details and never invents a default
   expect(screen.getByText('Giáo viên hiện chưa được xếp lớp giảng dạy.')).toBeTruthy();
   expect(screen.getAllByText(/Chưa có ghi chú lịch giảng dạy/).length).toBeGreaterThan(0);
 });
+
+it('requires selecting class and timetable cleanup before deleting an assigned teacher', () => {
+  const teacher = { ...initial.initialTeachers[0], assignedClassIds: [] };
+  const classroom = { ...initial.initialClasses[0], teacherId: teacher.id };
+  const slot = { ...initial.initialTimetableSlots[0], classId: classroom.id, teacherId: teacher.id };
+  const remove = vi.fn(() => null);
+  render(
+    <LanguageProvider>
+      <TeacherManager
+        teachers={[teacher]}
+        classes={[classroom]}
+        timetableSlots={[slot]}
+        scheduleChanges={[]}
+        permissions={createStaffPermissions(true)}
+        isOwner
+        onAddTeacher={vi.fn()}
+        onUpdateTeacher={vi.fn()}
+        onDeleteTeacher={remove}
+        onEditClass={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: `Xóa giáo viên ${teacher.name}` }));
+  const confirm = screen.getByRole('button', { name: 'Gỡ liên kết và xóa' }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  for (const label of ['Gỡ phân công khỏi 1 lớp', 'Xóa 1 ca thời khóa biểu', 'Xác nhận xóa hồ sơ giáo viên'])
+    fireEvent.click(screen.getByText(label).closest('label')!.querySelector('input')!);
+  expect(confirm.disabled).toBe(false);
+  fireEvent.click(confirm);
+  expect(remove).toHaveBeenCalledWith(teacher.id, { detachClasses: true, removeTimetable: true });
+});

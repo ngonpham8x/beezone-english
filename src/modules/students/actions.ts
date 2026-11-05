@@ -27,6 +27,12 @@ type Context = Pick<
   | 'enrollments'
   | 'setEnrollments'
 > & { currentUser: UserAccount | null; addLog: ActivityLogger };
+
+export interface StudentDeletionOptions {
+  detachClasses?: boolean;
+  archiveHistory?: boolean;
+}
+
 export function createStudentActions({
   programs,
   classes,
@@ -89,36 +95,56 @@ export function createStudentActions({
     toast.success(`Cập nhật thông tin học sinh ${updatedStudent.name} thành công!`);
   };
 
-  const handleDeleteStudent = (id: string): string | null => {
+  const handleDeleteStudent = (id: string, options?: StudentDeletionOptions): string | null => {
     if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'delete')) {
       return 'Bạn chưa được cấp quyền xóa học sinh.';
     }
     const st = students.find((s) => s.id === id);
     if (!st) return 'Học viên không còn tồn tại. Hãy tải lại danh sách.';
-    if (
-      attendanceSessions.some(
-        (session) => session.billing && session.entries.some((entry) => entry.studentId === id),
-      )
-    ) {
-      const msg = 'Học viên có lịch sử học phí theo buổi. Hãy chuyển trạng thái học để giữ hồ sơ.';
-      return msg;
-    }
     const linkedReceipts = receipts.filter((receipt) => receipt.studentId === id);
-    if (linkedReceipts.length > 0) {
-      const msg = `Không thể xóa ${st?.name || 'học sinh'} vì còn ${linkedReceipts.length} phiếu thu. Hãy xóa/điều chỉnh phiếu thu hoặc chuyển trạng thái học trước để không mất lịch sử tài chính.`;
-      return msg;
-    }
-    if (
-      (grades.some((grade) => grade.studentId === id) ||
-        attendanceSessions.some((session) =>
-          session.entries.some((entry) => entry.studentId === id),
-        ))
-    ) {
-      const msg = 'Học viên có lịch sử điểm hoặc điểm danh. Hãy chuyển trạng thái học hoặc liên hệ Chủ trung tâm.';
-      return msg;
-    }
-    if (enrollments.some((item) => item.studentId === id)) {
-      return 'Học viên có lịch sử đăng ký lớp. Chọn Nghỉ học để giữ hồ sơ đăng ký và đối chiếu về sau.';
+    const linkedGrades = grades.filter((grade) => grade.studentId === id);
+    const linkedAttendance = attendanceSessions.filter((session) =>
+      session.entries.some((entry) => entry.studentId === id),
+    );
+    const linkedEnrollments = enrollments.filter((item) => item.studentId === id);
+    const hasHistory = Boolean(
+      linkedReceipts.length || linkedGrades.length || linkedAttendance.length || linkedEnrollments.length,
+    );
+    const linkedClassIds = new Set([
+      st.classId,
+      ...(st.additionalClassIds || []),
+      ...classes.filter((classroom) => classroom.studentIds.includes(id)).map((classroom) => classroom.id),
+    ].filter(Boolean));
+
+    if (linkedClassIds.size > 0 && options && !options.detachClasses)
+      return `Hãy tích chọn gỡ học viên khỏi ${linkedClassIds.size} lớp trước khi tiếp tục.`;
+
+    if (hasHistory) {
+      if (!options?.archiveHistory) {
+        return `Học viên có dữ liệu lịch sử (${linkedReceipts.length} phiếu thu, ${linkedGrades.length} bảng điểm, ${linkedAttendance.length} buổi điểm danh, ${linkedEnrollments.length} đăng ký lớp). Hãy chọn giữ lịch sử và chuyển hồ sơ sang Nghỉ học.`;
+      }
+      if (!hasStaffPermission(currentUser, 'student', 'edit'))
+        return 'Cần thêm quyền sửa học viên để gỡ lớp và chuyển hồ sơ sang Nghỉ học.';
+
+      const archivedStudent: Student = {
+        ...st,
+        classId: '',
+        additionalClassIds: [],
+        status: 'dropped',
+        notes: `${st.notes || ''}\n[LƯU HỒ SƠ LỊCH SỬ]: Đã gỡ liên kết lớp ngày ${centerDate()}; giữ nguyên học phí, điểm, điểm danh và đăng ký cũ.`.trim(),
+      };
+      setEnrollments((prev) => updateEnrollmentHistory(prev, st, archivedStudent, centerDate()));
+      setStudents((prev) => prev.map((student) => student.id === id ? archivedStudent : student));
+      setClasses((prev) => prev.map((classroom) => classroom.studentIds.includes(id)
+        ? { ...classroom, studentIds: classroom.studentIds.filter((studentId) => studentId !== id) }
+        : classroom));
+      addLog(
+        'SỬA',
+        'Học sinh',
+        `Gỡ học sinh ${st.name} (${st.code}) khỏi ${linkedClassIds.size} lớp và chuyển Nghỉ học; giữ nguyên dữ liệu lịch sử.`,
+      );
+      toast.success(`Đã gỡ liên kết lớp và lưu hồ sơ lịch sử của ${st.name}.`);
+      return null;
     }
     setStudents((prev) => prev.filter((s) => s.id !== id));
     setClasses((prev) => prev.map((c) => c.studentIds.includes(id) ? { ...c, studentIds: c.studentIds.filter((sid) => sid !== id) } : c));

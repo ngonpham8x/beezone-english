@@ -30,8 +30,16 @@ export default function App() {
     handleTriggerPwaInstall,
   } = dialogs;
   const connection = useCenterConnection(store, () => setIsLoginOpen(false));
-  const { currentUser, session, authStatus, syncStatus, syncError, syncQueueRef, handleLogout } =
-    connection;
+  const {
+    currentUser,
+    session,
+    authStatus,
+    syncStatus,
+    syncError,
+    syncQueueRef,
+    resolveSyncConflict,
+    handleLogout,
+  } = connection;
 
   const navigation = useWorkspaceNavigation(currentUser);
   const {
@@ -99,6 +107,22 @@ export default function App() {
             >
               Thử lưu lại
             </button>
+          )}
+          {syncStatus === 'conflict' && (
+            <>
+              <button
+                onClick={() => resolveSyncConflict('local')}
+                className="rounded-lg bg-red-700 px-3 py-1 font-bold text-white hover:bg-red-800"
+              >
+                Ưu tiên thay đổi trên máy này
+              </button>
+              <button
+                onClick={() => resolveSyncConflict('remote')}
+                className="rounded-lg border border-red-300 px-3 py-1 font-bold hover:bg-red-100"
+              >
+                Ưu tiên dữ liệu máy chủ
+              </button>
+            </>
           )}
           {(currentUser.role === 'owner' || currentUser.permissions.excel.export) && (
             <button

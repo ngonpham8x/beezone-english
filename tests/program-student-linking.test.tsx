@@ -8,6 +8,7 @@ import { StudentManager } from '../src/modules/students/StudentManager';
 import { LanguageProvider } from '../src/context/LanguageContext';
 import type { ClassRoom, CourseProgram, Student } from '../src/types';
 import { createStaffPermissions } from '../src/lib/permissions';
+import * as initial from '../src/mock/initialData';
 
 afterEach(cleanup);
 
@@ -196,10 +197,64 @@ it('StudentManager renders ConfirmModal when clicking delete', () => {
 
   // Confirm modal should appear centered
   expect(screen.getByText('Xác nhận xóa học sinh')).toBeTruthy();
-  expect(screen.getByText(/Bạn có chắc chắn muốn xóa học sinh/)).toBeTruthy();
+  expect(screen.getByText(/Chọn các liên kết cần xử lý/)).toBeTruthy();
 
-  // Click confirm
-  fireEvent.click(screen.getByRole('button', { name: 'Xác nhận xóa' }));
-  expect(onDeleteStudent).toHaveBeenCalledWith('st-1');
+  fireEvent.click(screen.getByText(/Gỡ học viên khỏi/).closest('label')!.querySelector('input')!);
+  fireEvent.click(screen.getByText('Xóa hồ sơ học viên chưa có lịch sử').closest('label')!.querySelector('input')!);
+  fireEvent.click(screen.getByRole('button', { name: 'Gỡ liên kết và xóa' }));
+  expect(onDeleteStudent).toHaveBeenCalledWith('st-1', {
+    detachClasses: true,
+    archiveHistory: false,
+  });
+});
+
+it('StudentManager requires preserving tuition and learning history before unlinking a student', () => {
+  const student = { ...mockStudents[0], classId: mockClasses[0].id };
+  const onDeleteStudent = vi.fn(() => null);
+  render(
+    <LanguageProvider>
+      <StudentManager
+        students={[student]}
+        classes={mockClasses}
+        programs={mockPrograms}
+        isOwner
+        permissions={createStaffPermissions(true)}
+        receipts={[{ ...initial.initialTuitionReceipts[0], studentId: student.id, classId: student.classId }]}
+        grades={[{ ...initial.initialGrades[0], studentId: student.id, classId: student.classId }]}
+        attendanceSessions={[{
+          id: 'attendance-history', classId: student.classId, date: '2026-10-01', lessonTopic: '',
+          entries: [{ studentId: student.id, status: 'present' }],
+        }]}
+        enrollments={[{
+          id: 'enrollment-history', studentId: student.id, classId: student.classId,
+          status: 'active', startDate: '2026-09-01',
+        }]}
+        timetableSlots={[]}
+        searchQuery=""
+        onAddStudent={vi.fn()}
+        onUpdateStudent={vi.fn()}
+        onDeleteStudent={onDeleteStudent}
+        onCreateProgram={vi.fn()}
+        onOpenImportExportModal={vi.fn()}
+        onOpenTuition={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+
+  fireEvent.click(screen.getByTitle('Xóa học sinh'));
+  const confirm = screen.getByRole('button', { name: 'Gỡ liên kết và giữ lịch sử' }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  for (const label of [
+    /Gỡ học viên khỏi/,
+    /Giữ nguyên 1 phiếu\/hồ sơ học phí/,
+    'Giữ lịch sử học tập',
+    'Chuyển hồ sơ sang Nghỉ học',
+  ]) fireEvent.click(screen.getByText(label).closest('label')!.querySelector('input')!);
+  expect(confirm.disabled).toBe(false);
+  fireEvent.click(confirm);
+  expect(onDeleteStudent).toHaveBeenCalledWith(student.id, {
+    detachClasses: true,
+    archiveHistory: true,
+  });
 });
 
