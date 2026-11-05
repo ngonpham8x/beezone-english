@@ -72,6 +72,15 @@ export interface StudentRosterImportSummary {
   totalMemberships?: number;
   removedSampleRecords?: number;
   removedStaleClasses?: number;
+  removedStaleStudents?: number;
+}
+
+export interface StudentRosterImportOptions {
+  /**
+   * Owner-only destructive synchronization.  Classes and learners that are
+   * absent from the workbook are removed together with their linked records.
+   */
+  replaceExistingRoster?: boolean;
 }
 
 export interface MasterDirectPaymentInput {

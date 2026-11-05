@@ -20,6 +20,7 @@ import {
   ImportValidationResult,
   ImportedStudentRow,
   StudentRosterImportData,
+  StudentRosterImportOptions,
   StudentRosterImportSummary,
   generateMasterExcelWorkbook,
   parseCenterWorkbookFile,
@@ -60,7 +61,7 @@ interface ImportExportModalProps {
   isOwner: boolean;
   permissions: StaffPermissions;
   onImportStudents: (newStudents: Student[]) => void;
-  onImportStudentRoster: (data: StudentRosterImportData) => StudentRosterImportSummary | null;
+  onImportStudentRoster: (data: StudentRosterImportData, options?: StudentRosterImportOptions) => StudentRosterImportSummary | null;
   onRemoveInitialDemoData?: () => number;
   onImportCenterData: (data: CenterWorkbookData) => boolean;
   onImportAcademicCatalog?: (data: CenterWorkbookData, includeSchedule?: boolean) => boolean;
@@ -102,6 +103,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const [demoCleanupCount, setDemoCleanupCount] = useState(0);
   const [catalogOnly, setCatalogOnly] = useState(false);
   const [includeCatalogSchedule, setIncludeCatalogSchedule] = useState(false);
+  const [replaceExistingRoster, setReplaceExistingRoster] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialDemoRecordCount = isLocalPreview ? [
     programs.filter(isInitialDemoProgram).length,
@@ -153,7 +155,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   const handleSelectedFile = async (file: File) => {
     if (!canImport) return;
     setCenterImport(null); setRosterImport(null); setRosterSummary(null); setValidationResult(null); setIsImportingSuccess(false);
-    setCatalogOnly(false); setIncludeCatalogSchedule(false);
+    setCatalogOnly(false); setIncludeCatalogSchedule(false); setReplaceExistingRoster(false);
     if (file.size > 25 * 1024 * 1024) { setValidationResult({ validRows: [], errors: [{ row: 0, field: 'Tệp Excel', message: 'Tệp vượt quá giới hạn 25 MB.' }] }); return; }
     setFileName(file.name);
 
@@ -230,9 +232,12 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
     setIsImportingSuccess(true);
   };
 
-  const handleConfirmRosterImport = () => {
+  const handleConfirmRosterImport = async () => {
     if (!rosterImport || isImportingSuccess) return;
-    const summary = onImportStudentRoster(rosterImport);
+    if (replaceExistingRoster && !(await askConfirmation(
+      `Đồng bộ thay thế theo ${rosterImport.sheetCount} sheet? Lớp và học viên không có trong file cùng điểm, điểm danh, ghi danh và phiếu thu liên quan sẽ bị xóa.`,
+    ))) return;
+    const summary = onImportStudentRoster(rosterImport, { replaceExistingRoster });
     if (!summary) return;
     setRosterSummary(summary);
     setIsImportingSuccess(true);
@@ -314,7 +319,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
               <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-800 font-bold text-center flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 <span>{rosterSummary
-                  ? `Đã đồng bộ ${rosterSummary.totalClasses ?? rosterSummary.addedClasses} lớp theo sheet, ${rosterSummary.totalStudents ?? rosterSummary.addedStudents} học viên không trùng và ${rosterSummary.totalMemberships ?? 0} lượt ghi danh; đã loại ${rosterSummary.removedSampleRecords ?? 0} bản ghi mẫu và ${rosterSummary.removedStaleClasses ?? 0} lớp không còn sheet.`
+                  ? `Đã đồng bộ ${rosterSummary.totalClasses ?? rosterSummary.addedClasses} lớp theo sheet, ${rosterSummary.totalStudents ?? rosterSummary.addedStudents} học viên không trùng và ${rosterSummary.totalMemberships ?? 0} lượt ghi danh; đã loại ${rosterSummary.removedSampleRecords ?? 0} bản ghi mẫu, ${rosterSummary.removedStaleClasses ?? 0} lớp và ${rosterSummary.removedStaleStudents ?? 0} học viên không còn trong file.`
                   : 'Đã import thành công. Bạn vẫn ở trang hiện tại; chỉ đóng cửa sổ khi muốn quay lại.'}</span>
               </div>
             ) : (
@@ -389,8 +394,19 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                         Có {rosterImport.warnings.length} cảnh báo. Các dòng ngày sinh sai hoặc thiếu hệ đào tạo đã được bỏ qua an toàn.
                       </div>
                     )}
-                    <button onClick={handleConfirmRosterImport} className="mt-3 w-full rounded-xl bg-blue-700 hover:bg-blue-800 py-2 font-bold text-white shadow-xs transition">
-                      Nhập danh sách học viên và lớp
+                    {isOwner && (
+                      <label className="mt-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-white p-3 text-[11px] text-rose-900">
+                        <input
+                          type="checkbox"
+                          checked={replaceExistingRoster}
+                          onChange={(event) => setReplaceExistingRoster(event.target.checked)}
+                          className="mt-0.5 shrink-0"
+                        />
+                        <span><strong>Đồng bộ thay thế theo file.</strong> Chỉ giữ lớp và học viên có trong 23 sheet; xóa dữ liệu liên kết của lớp/học viên ngoài file. Dùng khi đã kiểm tra file là danh sách chính thức.</span>
+                      </label>
+                    )}
+                    <button onClick={() => void handleConfirmRosterImport()} className={`mt-3 w-full rounded-xl py-2 font-bold text-white shadow-xs transition ${replaceExistingRoster ? 'bg-rose-700 hover:bg-rose-800' : 'bg-blue-700 hover:bg-blue-800'}`}>
+                      {replaceExistingRoster ? `Đồng bộ thay thế theo ${rosterImport.sheetCount} sheet` : 'Nhập danh sách học viên và lớp'}
                     </button>
                   </div>
                 )}

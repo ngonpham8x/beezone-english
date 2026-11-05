@@ -21,7 +21,12 @@ import {
   stripInitialDemoData,
 } from '../../lib/demoData';
 import { isLocalPreview } from '../../lib/supabase';
-import type { CenterWorkbookData, StudentRosterImportData, StudentRosterImportSummary } from '../../services/excelService';
+import type {
+  CenterWorkbookData,
+  StudentRosterImportData,
+  StudentRosterImportOptions,
+  StudentRosterImportSummary,
+} from '../../services/excelService';
 import { mergeActivityLogs } from '../center/model';
 import { mergeStudentRoster } from './studentRoster';
 
@@ -96,6 +101,9 @@ export function createSystemActions({
     .toLocaleLowerCase('vi-VN')
     .replace(/[^a-z0-9]/g, '');
 
+  const rosterStudentKey = (student: Pick<Student, 'name' | 'dob' | 'parentName'>) =>
+    `${rosterKey(student.name)}|${student.dob}|${rosterKey(student.parentName)}`;
+
   const handleImportAcademicCatalog = (data: CenterWorkbookData, includeSchedule = false) => {
     if (!currentUser?.active || currentUser.role !== 'owner') return false;
     try {
@@ -133,16 +141,25 @@ export function createSystemActions({
     );
   };
 
-  const handleImportStudentRoster = (data: StudentRosterImportData): StudentRosterImportSummary | null => {
+  const handleImportStudentRoster = (
+    data: StudentRosterImportData,
+    options: StudentRosterImportOptions = {},
+  ): StudentRosterImportSummary | null => {
     if (!currentUser?.active || (currentUser.role !== 'owner' && (!currentUser.permissions.excel.import || !currentUser.permissions.student.add))) return null;
     try {
       const shouldSynchronizePreview = isLocalPreview && currentUser.role === 'owner';
+      const replaceExistingRoster = Boolean(options.replaceExistingRoster && currentUser.role === 'owner');
+      const replaceMemberships = shouldSynchronizePreview || replaceExistingRoster;
       const sampleCleanup = shouldSynchronizePreview
         ? stripInitialDemoData(currentPayload())
         : { data: currentPayload(), removedRecords: 0 };
       const sourceClassKeys = new Set(data.classes.map((classroom) => rosterKey(classroom.name)));
       const staleRosterClassIds = new Set(
-        shouldSynchronizePreview
+        replaceExistingRoster
+          ? sampleCleanup.data.classes
+            .filter((classroom) => !sourceClassKeys.has(rosterKey(classroom.name)))
+            .map((classroom) => classroom.id)
+          : shouldSynchronizePreview
           ? sampleCleanup.data.classes
             .filter((classroom) => classroom.id.startsWith('CLASS_ROSTER_') && !sourceClassKeys.has(rosterKey(classroom.name)))
             .map((classroom) => classroom.id)
@@ -150,7 +167,16 @@ export function createSystemActions({
       );
       const baseClasses = sampleCleanup.data.classes.filter((classroom) => !staleRosterClassIds.has(classroom.id));
       const validClassIds = new Set(baseClasses.map((classroom) => classroom.id));
+      const sourceStudentKeys = new Set(data.students.map(rosterStudentKey));
+      const removedStudentIds = new Set(
+        replaceExistingRoster
+          ? sampleCleanup.data.students
+            .filter((student) => !sourceStudentKeys.has(rosterStudentKey(student)))
+            .map((student) => student.id)
+          : [],
+      );
       const baseStudents = sampleCleanup.data.students.flatMap((student) => {
+        if (removedStudentIds.has(student.id)) return [];
         const membershipIds = [student.classId, ...(student.additionalClassIds || [])]
           .filter((classId) => validClassIds.has(classId));
         if (!membershipIds.length) return [];
@@ -164,17 +190,28 @@ export function createSystemActions({
         programs: sampleCleanup.data.programs,
         classes: baseClasses,
         students: baseStudents,
-      }, data, { replaceMemberships: shouldSynchronizePreview });
+      }, data, { replaceMemberships });
       const withoutStaleReferences: CenterDataPayload = {
         ...sampleCleanup.data,
         programs: merged.programs,
         classes: merged.classes,
         students: merged.students,
         timetableSlots: sampleCleanup.data.timetableSlots.filter((slot) => !staleRosterClassIds.has(slot.classId)),
-        grades: sampleCleanup.data.grades.filter((grade) => !staleRosterClassIds.has(grade.classId)),
-        receipts: sampleCleanup.data.receipts.filter((receipt) => !staleRosterClassIds.has(receipt.classId)),
-        attendanceSessions: sampleCleanup.data.attendanceSessions.filter((session) => !staleRosterClassIds.has(session.classId)),
-        enrollments: sampleCleanup.data.enrollments.filter((enrollment) => !staleRosterClassIds.has(enrollment.classId)),
+        grades: sampleCleanup.data.grades.filter((grade) => (
+          !staleRosterClassIds.has(grade.classId) && !removedStudentIds.has(grade.studentId)
+        )),
+        receipts: sampleCleanup.data.receipts.filter((receipt) => (
+          !staleRosterClassIds.has(receipt.classId) && !removedStudentIds.has(receipt.studentId)
+        )),
+        attendanceSessions: sampleCleanup.data.attendanceSessions
+          .filter((session) => !staleRosterClassIds.has(session.classId))
+          .map((session) => ({
+            ...session,
+            entries: session.entries.filter((entry) => !removedStudentIds.has(entry.studentId)),
+          })),
+        enrollments: sampleCleanup.data.enrollments.filter((enrollment) => (
+          !staleRosterClassIds.has(enrollment.classId) && !removedStudentIds.has(enrollment.studentId)
+        )),
         scheduleChanges: sampleCleanup.data.scheduleChanges.filter((change) => !staleRosterClassIds.has(change.classId)),
       };
       const payload = normalizeCenterData(parseCenterData(withoutStaleReferences, settings));
@@ -190,11 +227,12 @@ export function createSystemActions({
         totalMemberships: payload.classes.reduce((total, classroom) => total + classroom.studentIds.length, 0),
         removedSampleRecords: sampleCleanup.removedRecords,
         removedStaleClasses: staleRosterClassIds.size,
+        removedStaleStudents: removedStudentIds.size,
       };
       addLog(
         'IMPORT',
         'Excel',
-        `Đồng bộ danh sách nhiều sheet: ${summary.totalClasses} lớp theo sheet, ${summary.totalStudents} học viên không trùng, ${summary.totalMemberships} lượt ghi danh; loại ${summary.removedSampleRecords} bản ghi mẫu và ${summary.removedStaleClasses} lớp nhập cũ không còn sheet.`,
+        `Đồng bộ danh sách nhiều sheet: ${summary.totalClasses} lớp theo sheet, ${summary.totalStudents} học viên không trùng, ${summary.totalMemberships} lượt ghi danh; loại ${summary.removedSampleRecords} bản ghi mẫu, ${summary.removedStaleClasses} lớp và ${summary.removedStaleStudents} học viên không còn trong file.`,
       );
       return summary;
     } catch (error) {

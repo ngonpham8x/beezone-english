@@ -6,6 +6,7 @@ export type {
   CenterWorkbookData,
   CenterWorkbookImportResult,
   StudentRosterImportData,
+  StudentRosterImportOptions,
   StudentRosterImportResult,
   StudentRosterImportSummary,
 } from './excel/types';
