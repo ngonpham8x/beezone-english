@@ -12,11 +12,11 @@ const state = vi.hoisted(() => ({
   profileRole: 'owner', profilePermissions: null as any,
   profileError: false,
   sessionRequest: null as null | (() => Promise<any>),
-  writeError: null as null | { code: string },
+  writeError: null as null | { code: string; message?: string; details?: string },
   casConflictOnce: false,
   realtimeListener: null as null | ((change: any) => void),
   revision: 'initial-revision',
-  profileReads: 0, centerReads: 0, writes: [] as any[],
+  profileReads: 0, centerReads: 0, centerRevisionReads: 0, writes: [] as any[],
 }));
 vi.mock('../src/lib/supabase', () => {
   const session = { access_token: 'test-token', user: { id: 'test-owner', email: 'owner@example.test', user_metadata: { full_name: 'Google Account Name' } } };
@@ -44,8 +44,9 @@ vi.mock('../src/lib/supabase', () => {
     },
     from(table: string) {
       let update: any;
+      let selectedColumns = '*';
       const builder = {
-        select: () => builder, eq: () => builder,
+        select: (columns = '*') => { selectedColumns = columns; return builder; }, eq: () => builder,
         update: (value: any) => { update = value; return builder; }, insert: (value: any) => { update = value; return builder; },
         async maybeSingle() {
           if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: state.profileRole, is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: state.profilePermissions } : null, error: state.profileError ? { message: 'offline' } : null }; }
@@ -59,6 +60,10 @@ vi.mock('../src/lib/supabase', () => {
             state.writes.push(structuredClone(update.payload));
             state.revision = `revision-${state.writes.length}`;
             return { data: { updated_at: state.revision }, error: null };
+          }
+          if (selectedColumns === 'updated_at') {
+            state.centerRevisionReads++;
+            return { data: { updated_at: state.revision }, error: state.centerError ? { message: 'offline' } : null };
           }
           state.centerReads++;
           return { data: { payload: structuredClone(state.payload), updated_at: state.revision }, error: state.centerError ? { message: 'offline' } : null };
@@ -75,7 +80,7 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear(); window.history.replaceState(null, '', '/');
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   state.payload = { settings: initialSettings, students: [{ ...initialStudents[0], name: 'Cloud student' }] };
-  state.centerError = false; state.profileActive = true; state.profileReads = 0; state.centerReads = 0; state.writes = [];
+  state.centerError = false; state.profileActive = true; state.profileReads = 0; state.centerReads = 0; state.centerRevisionReads = 0; state.writes = [];
   state.writeError = null;
   state.casConflictOnce = false;
   state.realtimeListener = null;
@@ -200,6 +205,28 @@ it('keeps local edits and pauses saving when the database quota is exceeded', as
   await screen.findByText(/Đã đạt giới hạn lưu dữ liệu/);
   expect(screen.getByText('Edited locally')).toBeTruthy();
   expect(state.writes).toEqual([]); expect(state.centerReads).toBe(1);
+});
+
+it('refreshes and merges the latest server data before retrying after the network returns', async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
+  await waitFor(() => expect(state.writes.length).toBeGreaterThan(0), { timeout: 3000 });
+
+  state.writeError = { code: '', message: 'TypeError: Load failed' };
+  fireEvent.click(screen.getByRole('button', { name: 'Edit student' }));
+  await screen.findByText(/Mất kết nối với máy chủ/);
+
+  const remotePayload = structuredClone(state.payload);
+  remotePayload.students[0].phone = '0777777777';
+  state.payload = remotePayload;
+  state.revision = 'remote-after-offline';
+  state.writeError = null;
+  fireEvent(window, new Event('online'));
+
+  await waitFor(() => expect(state.writes.some((payload) =>
+    payload.students[0].name === 'Edited locally' && payload.students[0].phone === '0777777777',
+  )).toBe(true), { timeout: 4000 });
+  expect(screen.queryByText(/Mất kết nối với máy chủ/)).toBeNull();
 });
 
 it('merges non-overlapping realtime edits from another device and saves both changes', async () => {

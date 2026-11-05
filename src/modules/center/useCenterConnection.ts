@@ -37,6 +37,20 @@ interface RemoteSnapshot {
   revision: string;
 }
 
+const NETWORK_SYNC_ERROR =
+  'Mất kết nối với máy chủ. Hệ thống sẽ tự thử lại khi có mạng; dữ liệu đang nhập trên máy này vẫn được giữ.';
+
+function isTransientNetworkFailure(error: unknown): boolean {
+  const detail = error instanceof Error
+    ? `${error.name} ${error.message}`
+    : typeof error === 'string'
+      ? error
+      : error && typeof error === 'object'
+        ? `${'message' in error ? String(error.message) : ''} ${'details' in error ? String(error.details) : ''}`
+        : '';
+  return /load failed|failed to fetch|network|offline|timed?\s*out|timeout|abort|mất kết nối/i.test(detail);
+}
+
 /** Session lifecycle, hydration and CAS queue belong to one connection; auth refresh must not overwrite edits. */
 export function useCenterConnection(store: CenterStore, onCloseLogin: () => void) {
   const {
@@ -144,6 +158,8 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
   const inFlightPayloadRef = useRef('');
   const deferredRemoteRef = useRef<RemoteSnapshot | null>(null);
   const processRemoteSnapshotRef = useRef<(snapshot: RemoteSnapshot) => void>(() => undefined);
+  const reconnectRefreshInFlightRef = useRef(false);
+  const networkRetryAttemptRef = useRef(0);
   // Keep hydration across a connection retry so a profile/network error cannot reload over edits.
   const hydratedUserIdRef = useRef<string | null>(null);
   const syncQueueRef = useRef<ReturnType<typeof createSyncQueue<CenterDataPayload>> | null>(null);
@@ -486,6 +502,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
               throw new Error('Dữ liệu vượt giới hạn 32 MB. Hãy sao lưu thay đổi đang nhập và liên hệ quản trị.');
             if (result.error) {
               reportError('center-sync', result.error);
+              if (isTransientNetworkFailure(result.error)) throw new Error(NETWORK_SYNC_ERROR);
               const errorDetail = result.error.message || result.error.details || '';
               const hint = result.error.code === '42501'
                 ? ' (Tài khoản hiện tại chưa được cấp quyền lưu mục này trên máy chủ)'
@@ -502,6 +519,9 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
             return;
           }
           throw new Error('Dữ liệu máy chủ đang thay đổi liên tục. Hãy chờ vài giây rồi thử lưu lại.');
+        } catch (error) {
+          if (isTransientNetworkFailure(error)) throw new Error(NETWORK_SYNC_ERROR);
+          throw error;
         } finally {
           writeInFlightRef.current = false;
           inFlightPayloadRef.current = '';
@@ -546,6 +566,80 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       void supabase.removeChannel(channel);
     };
   }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData]);
+
+  useEffect(() => {
+    if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
+    if (syncStatus === 'saved' || syncStatus === 'conflict') networkRetryAttemptRef.current = 0;
+
+    let active = true;
+    let retryTimer: number | undefined;
+    const refreshRemoteAndRetry = async () => {
+      if (!active || reconnectRefreshInFlightRef.current || navigator.onLine === false) return;
+      reconnectRefreshInFlightRef.current = true;
+      try {
+        const revisionResult = await supabase
+          .from('center_data')
+          .select('updated_at')
+          .eq('id', 'primary')
+          .maybeSingle();
+        if (!active) return;
+        if (revisionResult.error) {
+          if (!isTransientNetworkFailure(revisionResult.error)) reportError('center-reconnect-refresh', revisionResult.error);
+          return;
+        }
+        const remoteRevision = revisionResult.data?.updated_at;
+        if (remoteRevision && remoteRevision !== cloudRevisionRef.current) {
+          const snapshotResult = await supabase
+            .from('center_data')
+            .select('payload, updated_at')
+            .eq('id', 'primary')
+            .maybeSingle();
+          if (!active) return;
+          if (snapshotResult.error || !snapshotResult.data?.updated_at) {
+            if (snapshotResult.error && !isTransientNetworkFailure(snapshotResult.error))
+              reportError('center-reconnect-refresh', snapshotResult.error);
+            return;
+          }
+          processRemoteSnapshotRef.current({
+            payload: snapshotResult.data.payload,
+            revision: snapshotResult.data.updated_at,
+          });
+        }
+        if (syncStatus === 'error' && syncError === NETWORK_SYNC_ERROR) {
+          // Replace the failed snapshot with the latest merged state before retrying.
+          // Otherwise an old offline snapshot could overwrite a remote edit after reconnecting.
+          syncQueueRef.current?.enqueue(latestPayloadRef.current);
+          syncQueueRef.current?.retry();
+        }
+      } catch (error) {
+        if (!isTransientNetworkFailure(error)) reportError('center-reconnect-refresh', error);
+      } finally {
+        reconnectRefreshInFlightRef.current = false;
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshRemoteAndRetry();
+    };
+
+    window.addEventListener('online', refreshRemoteAndRetry);
+    window.addEventListener('focus', refreshRemoteAndRetry);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    if (syncStatus === 'error' && syncError === NETWORK_SYNC_ERROR) {
+      const retryDelays = [2_000, 5_000, 15_000, 30_000] as const;
+      const attempt = Math.min(networkRetryAttemptRef.current, retryDelays.length - 1);
+      networkRetryAttemptRef.current += 1;
+      retryTimer = window.setTimeout(() => void refreshRemoteAndRetry(), retryDelays[attempt]);
+    }
+
+    return () => {
+      active = false;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      window.removeEventListener('online', refreshRemoteAndRetry);
+      window.removeEventListener('focus', refreshRemoteAndRetry);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData, syncStatus, syncError]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
