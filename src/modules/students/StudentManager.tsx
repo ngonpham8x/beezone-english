@@ -501,6 +501,20 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
     return matchesSearch && matchesProgram && matchesClass && matchesStatus;
   });
+  const selectedFilterClass = filterClass === 'all'
+    ? undefined
+    : classes.find((classroom) => classroom.id === filterClass);
+  // Keep the class overview independent from search and the status filter so
+  // selecting "Đang học" still shows the complete status breakdown of that class.
+  const classSummaryStudents = selectedFilterClass
+    ? accessibleStudents.filter((student) => isStudentInClass(student, selectedFilterClass.id))
+    : [];
+  const classStatusCounts = selectedFilterClass ? {
+    active: classSummaryStudents.filter((student) => student.status === 'active').length,
+    reserved: classSummaryStudents.filter((student) => student.status === 'reserved').length,
+    waiting: classSummaryStudents.filter((student) => ['registered', 'lead', 'trial'].includes(student.status)).length,
+    dropped: classSummaryStudents.filter((student) => student.status === 'dropped').length,
+  } : null;
 
   // Empty new student form builder
   const handleOpenAddModal = () => {
@@ -646,7 +660,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             Quản Lý Học Sinh
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {teacherAccount
+            {selectedFilterClass
+              ? `Hiển thị ${filteredStudents.length} / ${classSummaryStudents.length} học viên lớp ${selectedFilterClass.name}`
+              : teacherAccount
               ? `Hiển thị ${filteredStudents.length} / ${accessibleStudents.length} học viên thuộc lớp được phân công`
               : `Hiển thị ${filteredStudents.length} / ${students.length} học sinh toàn trung tâm`}
           </p>
@@ -684,14 +700,24 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         </div>
       </div>
 
-      <div className="stats-grid">
-        <StatCard label={teacherAccount ? 'Học viên lớp phụ trách' : 'Tổng học sinh'} value={accessibleStudents.length + ' HS'} icon={Users} />
-        <StatCard label="Đang theo học" value={accessibleStudents.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
-        <StatCard label="Đang bảo lưu" value={accessibleStudents.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
-        {canViewTuition && (
-          <StatCard label="Chưa hoàn thành học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
-        )}
-      </div>
+      {selectedFilterClass && classStatusCounts ? (
+        <div className="stats-grid stats-grid--five" aria-label={`Thống kê lớp ${selectedFilterClass.name}`}>
+          <StatCard label="Tổng học viên lớp" value={`${classSummaryStudents.length} HS`} icon={Users} subtitle={`${selectedFilterClass.code} — ${selectedFilterClass.name}`} />
+          <StatCard label="Đang học" value={`${classStatusCounts.active} HS`} icon={UserCheck} tone="emerald" />
+          <StatCard label="Bảo lưu" value={`${classStatusCounts.reserved} HS`} icon={PauseCircle} tone="amber" />
+          <StatCard label="Ghi danh / học thử" value={`${classStatusCounts.waiting} HS`} icon={Clock} tone="sky" />
+          <StatCard label="Nghỉ học" value={`${classStatusCounts.dropped} HS`} icon={UserMinus} tone="rose" />
+        </div>
+      ) : (
+        <div className="stats-grid">
+          <StatCard label={teacherAccount ? 'Học viên lớp phụ trách' : 'Tổng học sinh'} value={accessibleStudents.length + ' HS'} icon={Users} />
+          <StatCard label="Đang theo học" value={accessibleStudents.filter(s => s.status === 'active').length + ' HS'} icon={UserCheck} tone="emerald" />
+          <StatCard label="Đang bảo lưu" value={accessibleStudents.filter(s => s.status === 'reserved').length + ' HS'} icon={Clock} tone="amber" />
+          {canViewTuition && (
+            <StatCard label="Chưa hoàn thành học phí" value={students.filter(s => isStudentOwingTuition(s, receipts, classes)).length + ' HS'} icon={AlertCircle} tone="rose" />
+          )}
+        </div>
+      )}
 
       {/* Filters & View Mode Bar */}
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
@@ -714,6 +740,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             { value: 'active', label: 'Đang học' },
             { value: 'reserved', label: 'Tạm nghỉ' },
             { value: 'registered', label: 'Ghi danh' },
+            { value: 'trial', label: 'Học thử' },
+            { value: 'lead', label: 'Tiềm năng' },
             { value: 'dropped', label: 'Nghỉ học' },
           ]} />
         </div>

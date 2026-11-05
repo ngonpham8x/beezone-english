@@ -104,6 +104,54 @@ it.each([320, 480, 820, 1366])(
   },
 );
 
+it('shows the selected class total and full status breakdown while status filtering the list', async () => {
+  const classroom = { ...classes[0], code: 'BEE-TEST', name: 'Lớp thống kê' };
+  const classStudents = [
+    { ...students[0], id: 'summary-active', code: 'SUM-01', classId: classroom.id, status: 'active' as const },
+    { ...students[0], id: 'summary-reserved', code: 'SUM-02', classId: classroom.id, status: 'reserved' as const },
+    { ...students[0], id: 'summary-trial', code: 'SUM-03', classId: classroom.id, status: 'trial' as const },
+    { ...students[0], id: 'summary-dropped', code: 'SUM-04', classId: classroom.id, status: 'dropped' as const },
+    { ...students[1], id: 'other-class', code: 'OTHER-01', classId: classes[1].id, status: 'active' as const },
+  ];
+  render(
+    <LanguageProvider>
+      <StudentManager
+        students={classStudents}
+        programs={programs}
+        classes={[classroom, classes[1]]}
+        receipts={[]}
+        timetableSlots={[]}
+        permissions={OWNER_PERMISSIONS}
+        isOwner
+        searchQuery=""
+        onAddStudent={vi.fn()}
+        onUpdateStudent={vi.fn()}
+        onDeleteStudent={vi.fn()}
+        onOpenImportExportModal={vi.fn()}
+        onOpenTuition={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+
+  await chooseOption(screen.getByRole('combobox', { name: 'Lọc lớp học viên' }), classroom.name);
+  const classStats = screen.getByLabelText(`Thống kê lớp ${classroom.name}`);
+  const stat = (label: string) => screen.getByText(label, { selector: '.stat-card-label span' }).closest('.stat-card');
+  expect(stat('Tổng học viên lớp')?.textContent).toContain('4 HS');
+  expect(stat('Tổng học viên lớp')?.textContent).toContain('BEE-TEST');
+  expect(stat('Đang học')?.textContent).toContain('1 HS');
+  expect(stat('Bảo lưu')?.textContent).toContain('1 HS');
+  expect(stat('Ghi danh / học thử')?.textContent).toContain('1 HS');
+  expect(stat('Nghỉ học')?.textContent).toContain('1 HS');
+  expect(classStats.textContent).not.toContain('OTHER-01');
+  expect(screen.getByText('Hiển thị 4 / 4 học viên lớp Lớp thống kê')).toBeTruthy();
+
+  await chooseOption(screen.getByRole('combobox', { name: 'Lọc trạng thái học viên' }), 'Đang học');
+  expect(screen.getByText('Hiển thị 1 / 4 học viên lớp Lớp thống kê')).toBeTruthy();
+  expect(stat('Tổng học viên lớp')?.textContent).toContain('4 HS');
+  expect(stat('Bảo lưu')?.textContent).toContain('1 HS');
+});
+
 it('provides a focusable report action and returns focus after closing the details', () => {
   render(
     <ReportView
