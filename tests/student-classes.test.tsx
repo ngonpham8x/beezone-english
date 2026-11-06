@@ -85,7 +85,7 @@ it('uses clear Vietnamese table headings and keeps class-based student codes on 
 
   expect(screen.getByText('MÃ HỌC SINH')).toBeTruthy();
   expect(screen.getByText('LỚP HỌC / CHƯƠNG TRÌNH')).toBeTruthy();
-  expect(screen.getByText('SĐT HỌC SINH / PHỤ HUYNH')).toBeTruthy();
+  expect(screen.getByText('SỐ ĐIỆN THOẠI HỌC SINH / PHỤ HUYNH')).toBeTruthy();
   expect(screen.getByText('KIDDY 3A-14').className).toContain('whitespace-nowrap');
 });
 
