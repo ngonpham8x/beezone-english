@@ -21,8 +21,8 @@ Ghi rõ người chịu trách nhiệm chính, người thay thế, email tiếp
 3. Lưu bằng chứng phù hợp của phụ huynh/người đại diện; với dữ liệu/hành vi cần ý kiến của trẻ, thực hiện theo độ tuổi và quy định áp dụng.
 4. Không nhập thông tin sức khỏe, hoàn cảnh gia đình hoặc dữ liệu nhạy cảm vào ghi chú nếu không thật sự cần và chưa có căn cứ/quy trình riêng.
 5. Excel nguồn chứa dữ liệu thật không được đưa lên Git; sau nhập phải chuyển vào nơi lưu được kiểm soát và xóa bản tạm không còn cần thiết.
-6. Trong hồ sơ học viên, chọn **Đã xác nhận** chỉ sau khi đã đối chiếu bằng chứng thật. Ghi người đại diện, ngày, hình thức và mã tham chiếu nơi lưu; không tải ảnh CCCD/chữ ký/giấy tờ vào ghi chú. Nếu không có bằng chứng, giữ **Chưa ghi nhận**.
-7. Khi nhận rút lại, đổi trạng thái thành **Đã rút lại**, ghi ngày và chuyển ngay cho người phụ trách. Không tự xóa hồ sơ học tập/tài chính nếu còn nghĩa vụ lưu giữ; phải ghi quyết định và căn cứ xử lý.
+6. Khối đồng ý được ẩn khỏi giao diện học viên. Nếu trung tâm dùng các cột hồ sơ đồng ý trong tệp Excel quản trị, chỉ ghi **Đã xác nhận** sau khi đối chiếu bằng chứng thật; ghi người đại diện, ngày, hình thức và mã tham chiếu nơi lưu, không nhúng ảnh CCCD/chữ ký/giấy tờ. Nếu không có bằng chứng, để trống.
+7. Khi nhận rút lại, cập nhật **Đã rút lại** trong sổ/Excel được kiểm soát, ghi ngày và chuyển ngay cho người phụ trách. Không tự xóa hồ sơ học tập/tài chính nếu còn nghĩa vụ lưu giữ; phải ghi quyết định và căn cứ xử lý.
 
 ## 3. Xử lý yêu cầu của chủ thể dữ liệu
 

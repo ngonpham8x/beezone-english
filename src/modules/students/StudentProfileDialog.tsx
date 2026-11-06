@@ -13,7 +13,6 @@ import {
   Pencil,
   Phone,
   Save,
-  ShieldCheck,
   Star,
   TrendingUp,
   UserCheck,
@@ -636,29 +635,6 @@ export function StudentProfileDialog({
                 {viewingStudent.address || 'Chưa cập nhật'}
               </div>
             </div>
-          </div>
-          <div className={`rounded-xl border p-3 text-xs ${
-            viewingStudent.guardianConsent?.status === 'confirmed'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
-              : viewingStudent.guardianConsent?.status === 'withdrawn'
-                ? 'border-rose-200 bg-rose-50 text-rose-950'
-                : 'border-amber-200 bg-amber-50 text-amber-950'
-          }`}>
-            <div className="flex items-center gap-2 font-extrabold">
-              <ShieldCheck className="h-4 w-4" />
-              {viewingStudent.guardianConsent?.status === 'confirmed'
-                ? 'Đã ghi nhận hồ sơ đồng ý xử lý dữ liệu'
-                : viewingStudent.guardianConsent?.status === 'withdrawn'
-                  ? 'Phụ huynh đã rút lại đồng ý'
-                  : 'Chưa ghi nhận hồ sơ đồng ý xử lý dữ liệu'}
-            </div>
-            {viewingStudent.guardianConsent && (
-              <div className="mt-1.5 leading-5">
-                Người đại diện: <strong>{viewingStudent.guardianConsent.representativeName}</strong> · Ghi nhận: <strong>{viewingStudent.guardianConsent.recordedAt.split('-').reverse().join('/')}</strong>
-                {viewingStudent.guardianConsent.evidenceReference ? <> · Tham chiếu: <strong>{viewingStudent.guardianConsent.evidenceReference}</strong></> : null}
-                {viewingStudent.guardianConsent.withdrawnAt ? <> · Rút lại: <strong>{viewingStudent.guardianConsent.withdrawnAt.split('-').reverse().join('/')}</strong></> : null}
-              </div>
-            )}
           </div>
         </div>
         )}

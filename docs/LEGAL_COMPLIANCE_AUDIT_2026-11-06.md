@@ -16,7 +16,7 @@
 | Thông báo và đồng ý của tài khoản nhân sự | Chính sách mở được trước đăng nhập; checkbox không tích sẵn; migration 033 lưu đồng ý/rút lại bằng thời gian máy chủ; không tải dữ liệu trung tâm khi chưa có bản ghi hiện hành. |
 | Phạm vi dữ liệu theo vai trò | Migration 034 chặn đọc/ghi trực tiếp tài liệu `center_data`, dùng RPC có consent, phạm vi vai trò và CAS. Giáo viên/Đào tạo không nhận thông tin liên hệ hoặc học phí ngoài quyền. |
 | Sao lưu email chứa dữ liệu đầy đủ | Mặc định tắt; chỉ Chủ trung tâm chủ động bật với địa chỉ đã xác nhận. |
-| Dữ liệu trẻ em/phụ huynh | Hồ sơ học viên có trạng thái đã xác nhận/đã rút lại, ngày, hình thức, người đại diện và mã tham chiếu bằng chứng. Không lưu ảnh giấy tờ hoặc chữ ký trong trường này. Dữ liệu cũ/Excel không tự được đánh dấu là đã đồng ý. |
+| Dữ liệu trẻ em/phụ huynh | Cấu trúc dữ liệu có trạng thái đã xác nhận/đã rút lại, ngày, hình thức, người đại diện và mã tham chiếu bằng chứng. Khối này được ẩn khỏi giao diện học viên theo yêu cầu vận hành; dữ liệu cũ vẫn đọc được và có thể đối soát qua Excel. Không lưu ảnh giấy tờ hoặc chữ ký trong trường này. Dữ liệu cũ/Excel không tự được đánh dấu là đã đồng ý. |
 | Kiểm tra dữ liệu đồng ý | Trình duyệt, nhập Excel và migration 035 cùng kiểm tra ngày, trạng thái, hình thức, độ dài; bản xem của giáo viên/đào tạo bị loại trường này ở máy chủ. |
 | Quyền của chủ thể dữ liệu | Chính sách nêu kênh tiếp nhận, bước xác minh và mốc xử lý nội bộ; quy trình vận hành giữ lịch sử quyết định, không xóa âm thầm học tập/tài chính. |
 | Dữ liệu nhạy cảm | Chính sách nêu rõ hệ thống không được thiết kế để lưu bản chụp giấy tờ, chữ ký, sinh trắc học, sức khỏe, mật khẩu, số thẻ hoặc tài khoản ngân hàng. |
@@ -36,8 +36,8 @@
 ## Điều kiện phát hành phần cập nhật này
 
 1. Sao lưu và thử migration `035_guardian_privacy_consent.sql` trên môi trường thử sau 034; không chạy lại bộ khởi tạo trên database đang dùng.
-2. Kiểm tra tài khoản Chủ trung tâm/Hành chính xem và sửa được hồ sơ; Đào tạo/Giáo viên không nhận trường đồng ý trong snapshot bị che.
-3. Kiểm tra xuất rồi nhập lại Excel giữ nguyên hồ sơ đã ghi; dòng trống vẫn là “Chưa ghi nhận”, không tự chuyển thành “Đã xác nhận”.
+2. Kiểm tra Đào tạo/Giáo viên không nhận trường đồng ý trong snapshot bị che; giao diện học viên không hiển thị khối này cho bất kỳ cấp bậc nào.
+3. Kiểm tra xuất rồi nhập lại Excel giữ nguyên hồ sơ đã ghi; dòng trống vẫn là “Chưa ghi nhận”, không tự chuyển thành “Đã xác nhận”. Việc cập nhật bằng chứng thực hiện trong quy trình hồ sơ/Excel được kiểm soát, không tích hàng loạt theo suy đoán.
 4. Chính sách đổi sang phiên bản `2026-11-06.1`, vì vậy mọi tài khoản phải xác nhận lại sau phát hành.
 5. Điền bảng thời hạn/người phụ trách và hoàn tất đánh giá nhà cung cấp trước khi tuyên bố hệ thống đã tuân thủ.
 
