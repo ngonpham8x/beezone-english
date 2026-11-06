@@ -1,6 +1,6 @@
 import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { academicPermission } from '../../lib/permissions';
-import { formatRoomCode, nextRoomId } from '../../lib/identifiers';
+import { formatRoomCode, newRoomIdentity } from '../../lib/identifiers';
 import { showAlert } from '../../lib/dialogs';
 import { CheckCircle, DoorOpen, Edit, Plus, Save, Trash2, Users, Wrench, X } from 'lucide-react';
 import React, { useState } from 'react';
@@ -38,7 +38,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   const handleOpenAdd = () => {
     if (!canAdd) return;
     setEditingRoom({
-      id: nextRoomId(rooms),
+      ...newRoomIdentity(rooms),
       name: '',
       capacity: 0,
       status: 'available',

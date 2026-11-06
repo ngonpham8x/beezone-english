@@ -29,6 +29,7 @@ import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { lessonsOn } from '../../lib/operations';
 import { snapshotForSession } from '../../lib/sessionBilling';
+import { newEntityId } from '../../lib/identifiers';
 import type { ClassEnrollment, ScheduleChange, TimetableSlot } from '../../types';
 import { AttendanceSession, AttendanceStatus, AttendanceStudentEntry, ClassRoom, LearningAttitude, Student, Teacher } from '../../types';
 import type { TaskDestination } from '../dashboard/TodayTasks';
@@ -605,7 +606,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     }
 
     const sessionData: AttendanceSession = {
-      id: existingSession ? existingSession.id : `ATT_${Date.now()}`,
+      id: existingSession ? existingSession.id : newEntityId('ATT'),
       classId: selectedClassId,
       date: sessionDate,
       lessonTopic: lessonTopic.trim() || 'Buổi học theo thời khóa biểu',

@@ -19,9 +19,26 @@ it('retains edits after a network failure and retries the latest snapshot', asyn
   const queue = createSyncQueue<number>(async value => { if (offline) throw new Error('Offline'); writes.push(value); }, status);
   queue.enqueue(1);
   await vi.waitFor(() => expect(status).toHaveBeenLastCalledWith('error', 'Offline'));
-  queue.enqueue(2); offline = false; queue.retry();
+  offline = false; queue.enqueue(2); queue.retry();
   await vi.waitFor(() => expect(status).toHaveBeenLastCalledWith('saved'));
   expect(writes).toEqual([2]);
+});
+it('uses a fresh edit to resume an ordinary failed save without bypassing conflicts', async () => {
+  let offline = true;
+  const attempts: number[] = [];
+  const status = vi.fn();
+  const queue = createSyncQueue<number>(async value => {
+    attempts.push(value);
+    if (offline) throw new Error('Offline');
+  }, status);
+  queue.enqueue(1);
+  await vi.waitFor(() => expect(status).toHaveBeenLastCalledWith('error', 'Offline'));
+
+  offline = false;
+  queue.enqueue(2);
+
+  await vi.waitFor(() => expect(status).toHaveBeenLastCalledWith('saved'));
+  expect(attempts).toEqual([1, 2]);
 });
 it('never retries or overwrites a conflicting remote revision', async () => {
   const write = vi.fn(async () => { throw new SyncConflictError(); }); const status = vi.fn();

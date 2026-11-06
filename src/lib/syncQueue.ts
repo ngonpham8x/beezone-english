@@ -39,7 +39,14 @@ export function createSyncQueue<T>(
     }
   };
   return {
-    enqueue(payload: T) { if (!stopped) { pending = payload; void drain(); } },
+    enqueue(payload: T) {
+      if (stopped) return;
+      pending = payload;
+      // A fresh edit is an explicit new save attempt. Resume ordinary failures
+      // automatically, but never bypass a conflict that needs a user choice.
+      if (failed && !conflict) failed = false;
+      void drain();
+    },
     retry() { if (!conflict && !stopped) { failed = false; void drain(); } },
     blockConflict(error: string) {
       if (stopped) return;

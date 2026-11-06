@@ -89,6 +89,9 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'timetableSlots' && record.note !== undefined && typeof record.note !== 'string') {
         throw new Error('Ghi chú ca học không hợp lệ.');
       }
+      if (key === 'rooms' && record.code !== undefined && (typeof record.code !== 'string' || record.code.length > 40)) {
+        throw new Error('Mã hiển thị phòng học không hợp lệ.');
+      }
       if (key === 'teachers' && !stringArray(record.assignedClassIds)) throw new Error('Phân công giáo viên không hợp lệ.');
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
       if (key === 'students' && ['nickname', 'accountStatus'].some(field => record[field] !== undefined && typeof record[field] !== 'string')) throw new Error('Bí danh hoặc trạng thái tài khoản học viên không hợp lệ.');

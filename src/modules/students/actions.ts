@@ -6,7 +6,7 @@ import type { ActivityLogger } from '../system/activityLogger';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { isTeachingRole } from '../../lib/accountScope';
 import { hasStaffPermission } from '../../lib/permissions';
-import { nextReceiptCode } from '../../lib/identifiers';
+import { newEntityId, nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
 import { isStudentInClass, reconcileStudentClassCodes, validateStudentClasses } from '../../lib/studentClasses';
 import { normalizedGuardianConsentRecord, validateGuardianConsentRecord } from '../../lib/studentPrivacy';
@@ -250,7 +250,7 @@ export function createStudentActions({
         return [
           ...prev,
           {
-            id: `GR_${Date.now()}_${studentId}`,
+            id: newEntityId('GR'),
             studentId,
             classId,
             semester: 'GKI',

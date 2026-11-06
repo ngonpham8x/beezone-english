@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCenterData } from '../src/lib/centerData';
 import { isNewerCenterRevision, mergeCenterSnapshots } from '../src/lib/centerSync';
 import { initialSettings } from '../src/mock/initialData';
+import { normalizeCenterData } from '../src/modules/center/model';
 
 const payload = () => parseCenterData({
   settings: initialSettings,
@@ -64,5 +65,20 @@ describe('center snapshot merge', () => {
 
     expect(merged.conflicts).toEqual([]);
     expect(merged.value.students[0].additionalClassIds).toEqual(['class-2', 'class-4', 'class-3']);
+  });
+
+  it('keeps rooms created on two devices and repairs their duplicate display codes', () => {
+    const base = payload();
+    const local = structuredClone(base);
+    const remote = structuredClone(base);
+    local.rooms.push({ id: 'ROOM_local', code: 'P-01', name: 'Phòng máy A', capacity: 12, status: 'available' });
+    remote.rooms.push({ id: 'ROOM_remote', code: 'P-01', name: 'Phòng máy B', capacity: 15, status: 'available' });
+
+    const merged = mergeCenterSnapshots(base, local, remote);
+    const normalized = normalizeCenterData(merged.value);
+
+    expect(merged.conflicts).toEqual([]);
+    expect(normalized.rooms.map((room) => room.name)).toEqual(['Phòng máy B', 'Phòng máy A']);
+    expect(normalized.rooms.map((room) => room.code)).toEqual(['P-01', 'P-02']);
   });
 });

@@ -1,5 +1,6 @@
 import type { CenterDataPayload } from '../../lib/centerData';
 import { calculateSemesterAverage } from '../../lib/gradebook';
+import { reconcileRoomCodes } from '../../lib/identifiers';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import { feeStatusForReceipts } from '../../lib/tuition';
 import { reconcileStudentClassCodes, studentClassIds } from '../../lib/studentClasses';
@@ -138,6 +139,35 @@ export const normaliseClasses = (classrooms: ClassRoom[]) =>
 export const sameIdList = (left: string[], right: string[]) =>
   left.length === right.length && left.every((id, index) => id === right[index]);
 
+/** Collapse the same recurring lesson created concurrently with different UUIDs. */
+export const reconcileTimetableSlots = (slots: TimetableSlot[]) => {
+  const byLesson = new Map<string, number>();
+  const result: TimetableSlot[] = [];
+  let changed = false;
+  for (const slot of slots) {
+    const key = [
+      slot.classId,
+      slot.teacherId,
+      slot.roomId,
+      slot.dayOfWeek,
+      slot.startTime,
+      slot.endTime,
+    ].join('\u0000');
+    const existingIndex = byLesson.get(key);
+    if (existingIndex === undefined) {
+      byLesson.set(key, result.length);
+      result.push(slot);
+      continue;
+    }
+    changed = true;
+    const existing = result[existingIndex];
+    if (!existing.note?.trim() && slot.note?.trim()) {
+      result[existingIndex] = { ...existing, note: slot.note };
+    }
+  }
+  return changed ? result : slots;
+};
+
 // studentIds and assignedClassIds are denormalized fields used by some cards
 // and reports. Keep them derived from the primary student/class references so
 // one CRUD action can never leave a stale roster or teacher workload behind.
@@ -207,6 +237,7 @@ export function reconcileStudentFees(
 /** Used by cloud hydration, Excel import and JSON restore; financial history is preserved. */
 export function normalizeCenterData(data: CenterBackupData): CenterDataPayload {
   const attendanceSessions = data.attendanceSessions || [];
+  const timetableSlots = reconcileTimetableSlots(data.timetableSlots);
   const receipts = normaliseReceipts(data.receipts);
   const students = reconcileStudentFees(
     reconcileStudentClassCodes(data.students, data.classes),
@@ -215,7 +246,7 @@ export function normalizeCenterData(data: CenterBackupData): CenterDataPayload {
   );
   const rosterClasses = reconcileClassStudentIds(data.classes, students);
   const classes = rosterClasses.map((classroom) =>
-    withClassScheduleSummary(classroom, data.timetableSlots),
+    withClassScheduleSummary(classroom, timetableSlots),
   );
   return {
     ...data,
@@ -225,8 +256,10 @@ export function normalizeCenterData(data: CenterBackupData): CenterDataPayload {
     scheduleChanges: data.scheduleChanges || [],
     grades: normaliseGrades(data.grades),
     receipts,
+    rooms: reconcileRoomCodes(data.rooms),
     students,
     classes,
+    timetableSlots,
     teachers: reconcileTeacherAssignments(data.teachers, classes),
   };
 }

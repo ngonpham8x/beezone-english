@@ -1,5 +1,5 @@
 import { ConfirmedForm } from '../../components/ConfirmedForm';
-import { nextRoomId } from '../../lib/identifiers';
+import { newEntityId, newRoomIdentity } from '../../lib/identifiers';
 import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
 import {
@@ -165,7 +165,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       }
     } else {
       const newProg: CourseProgram = {
-        id: `PROG_${Date.now()}`,
+        id: newEntityId('PROG'),
         code: `CT-${String(programs.length + 1).padStart(3, '0')}`,
         name: trimmed,
         category: 'Khác',
@@ -276,7 +276,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       return;
     }
     const created: Teacher = {
-      id: `TEA_${Date.now()}`,
+      id: newEntityId('TEA'),
       name: trimmed,
       phone: newTeacherPhone.trim() || 'Chưa cập nhật',
       email: `${trimmed.toLowerCase().replace(/[^a-z0-9]/g, '') || 'giaovien'}@beezone.local`,
@@ -304,7 +304,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       showAlert('Vui lòng nhập họ tên học sinh');
       return;
     }
-    const studentId = `ST_${Date.now()}`;
+    const studentId = newEntityId('ST');
     const code = editingClass?.code.trim()
       ? nextStudentCodeForClass(editingClass, students)
       : `HS${String(students.length + 1).padStart(3, '0')}`;
@@ -375,7 +375,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     ));
     const selectedExistingProgramIds = selectedProgramIds.filter((id) => programs.some((program) => program.id === id));
     const createdProgram = !selectedExistingProgramIds.length && programName && !matchingProgram ? {
-      id: `PROG_${Date.now()}`,
+      id: newEntityId('PROG'),
       code: `CT-${String(programs.length + 1).padStart(3, '0')}`,
       name: programName,
       category: 'Khác' as const,
@@ -435,8 +435,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     }
 
     const existingSlots = timetableSlots.filter((slot) => slot.classId === savedClass.id);
-    const scheduleIssue = onReplaceClassSchedule(savedClass.id, sortSchedule(validEntries).map((entry, index) => ({
-      id: existingSlots.find((slot) => slot.dayOfWeek === entry.dayOfWeek)?.id || `TT_${savedClass.id}_${Date.now()}_${index}`,
+    const scheduleIssue = onReplaceClassSchedule(savedClass.id, sortSchedule(validEntries).map((entry) => ({
+      id: existingSlots.find((slot) => slot.dayOfWeek === entry.dayOfWeek)?.id || newEntityId('TT'),
       classId: savedClass.id,
       teacherId: savedClass.teacherId,
       roomId: savedClass.roomId,
@@ -471,7 +471,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     if ((!canEdit && !canAdd) || !canCreateRoom || !editingClass || !newRoomName.trim()) return;
     const existingRoom = rooms.find((room) => room.name.trim().toLocaleLowerCase('vi-VN') === newRoomName.trim().toLocaleLowerCase('vi-VN'));
     const room = existingRoom || {
-      id: nextRoomId(rooms),
+      ...newRoomIdentity(rooms),
       name: newRoomName.trim(),
       capacity: Math.max(0, newRoomCapacity),
       status: 'available' as const,

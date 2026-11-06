@@ -76,7 +76,7 @@ export function createScheduleActions({
     setTimetableSlots(next);
     setClasses(nextClasses);
     addLog('SỬA', 'Thời khóa biểu', `Lưu ${slots.length} ca học`);
-    toast.success(`Đã lưu ${slots.length} ca học.`);
+    toast.success(`Đã cập nhật ${slots.length} ca học trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.`);
     return null;
   };
   // Timetable Handlers
@@ -108,7 +108,7 @@ export function createScheduleActions({
         ),
       );
     addLog('XÓA', 'Thời khóa biểu', `Xóa ca học khỏi thời khóa biểu`);
-    toast.success('Đã xóa ca học khỏi thời khóa biểu thành công!');
+    toast.success('Đã gỡ ca học trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.');
   };
 
   const handleReplaceClassSchedule = (classId: string, slots: TimetableSlot[]) => {
@@ -165,7 +165,7 @@ export function createScheduleActions({
       return 'Giáo viên dạy thay không tồn tại.';
     setScheduleChanges((prev) => [...prev.filter((item) => item.id !== change.id), change]);
     addLog('SỬA', 'Lịch theo ngày', change.kind + ': ' + change.date + ' · ' + change.reason);
-    toast.success('Đã lưu thay đổi lịch học thành công!');
+    toast.success('Đã cập nhật thay đổi lịch học trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.');
     return null;
   };
   const handleDeleteScheduleChange = (id: string): string | null => {
@@ -186,7 +186,7 @@ export function createScheduleActions({
     }
     setScheduleChanges(next);
     addLog('XÓA', 'Lịch theo ngày', 'Hủy điều chỉnh ngày ' + change.date);
-    toast.success('Đã hủy điều chỉnh lịch học thành công!');
+    toast.success('Đã hủy điều chỉnh lịch học trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.');
     return null;
   };
 

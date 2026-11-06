@@ -1,4 +1,5 @@
 import { showAlert } from '../../lib/dialogs';
+import { newEntityId } from '../../lib/identifiers';
 import type { CenterDataPayload } from '../../lib/centerData';
 import type {
   ActivityLog,
@@ -273,7 +274,7 @@ export function createSystemActions({
     const importLog: ActivityLog[] = currentUser
       ? [
           {
-            id: `LOG_IMPORT_${Date.now()}`,
+            id: newEntityId('LOG_IMPORT'),
             timestamp: new Date().toLocaleString('vi-VN'),
             userEmail: currentUser.email,
             userName: currentUser.name,

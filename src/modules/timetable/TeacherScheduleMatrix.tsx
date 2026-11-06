@@ -29,6 +29,7 @@ import { academicPermission } from '../../lib/permissions';
 import { isTeachingRole, linkedTeacherId } from '../../lib/accountScope';
 import { ClassRoom, Room, Teacher, TimetableSlot, UserAccount } from '../../types';
 import { ScheduleChangesManager } from './ScheduleChangesManager';
+import { newEntityId, newRoomIdentity } from '../../lib/identifiers';
 
 interface TeacherScheduleMatrixProps {
   scheduleChanges?: ScheduleChange[];
@@ -171,7 +172,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   const handleQuickCreateClass = () => {
     if (!newClassName.trim()) return;
     const newClass: ClassRoom = {
-      id: `CLASS_${Date.now()}`,
+      id: newEntityId('CLASS'),
       code: `LOP-${String(classes.length + 1).padStart(2, '0')}`,
       name: newClassName.trim(),
       capacity: 20,
@@ -193,7 +194,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   const handleQuickCreateTeacher = () => {
     if (!newTeacherName.trim()) return;
     const newTeacher: Teacher = {
-      id: `T_${Date.now()}`,
+      id: newEntityId('T'),
       name: newTeacherName.trim(),
       phone: newTeacherPhone.trim() || 'Chưa cập nhật',
       address: '',
@@ -210,7 +211,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
   const handleQuickCreateRoom = () => {
     if (!newRoomName.trim()) return;
     const newRoom: Room = {
-      id: `R_${Date.now()}`,
+      ...newRoomIdentity(rooms),
       name: newRoomName.trim(),
       capacity: 20,
       status: 'available',
@@ -225,7 +226,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
     const defaultClass = classes[0];
     const defaultDay = day || (selectedDay !== 'all' ? selectedDay : 'Thứ 2');
     setEditingSlot({
-      id: `TT_${Date.now()}`,
+      id: newEntityId('TT'),
       classId: defaultClass?.id || '',
       teacherId: teacherId || defaultClass?.teacherId || teachers[0]?.id || '',
       roomId: defaultClass?.roomId || rooms[0]?.id || '',
@@ -267,7 +268,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
 
       const slots = selectedDays.map((dayOfWeek, index) => ({
         ...editingSlot, startTime, endTime, dayOfWeek, note,
-        id: existing && index === 0 ? editingSlot.id : 'TT_' + crypto.randomUUID(),
+        id: existing && index === 0 ? editingSlot.id : newEntityId('TT'),
       }));
       const issue = onSaveSlots(slots);
       if (issue) { setConflictError(issue); return; }
@@ -294,7 +295,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
         const extraDay = selectedDays[i];
         const extraSlot: TimetableSlot = {
           ...normalizedSlot,
-          id: `TT_${Date.now()}_${i}`,
+          id: newEntityId('TT'),
           dayOfWeek: extraDay,
         };
         const extraConflict = checkConflict(extraSlot);
@@ -313,7 +314,7 @@ export const TeacherScheduleMatrix: React.FC<TeacherScheduleMatrixProps> = ({
         const d = selectedDays[i];
         const newSlot: TimetableSlot = {
           ...editingSlot,
-          id: `TT_${Date.now()}_${i}`,
+          id: newEntityId('TT'),
           dayOfWeek: d,
           startTime,
           endTime,

@@ -1,5 +1,6 @@
 import { showAlert } from '../../lib/dialogs';
 import { isStudentInClass } from '../../lib/studentClasses';
+import { newEntityId } from '../../lib/identifiers';
 import {
   CheckCheck,
   CheckCircle2,
@@ -116,7 +117,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
   const handleOpenAddNew = () => {
     const nextIndex = students.length + 1;
     setEditingCandidate({
-      id: `TS_${Date.now()}`,
+      id: newEntityId('TS'),
       code: `TS${nextIndex.toString().padStart(3, '0')}`,
       name: '',
       dob: '2016-01-01',
@@ -147,7 +148,7 @@ export const AdmissionsManager: React.FC<AdmissionsManagerProps> = ({
     if (students.some(s => s.id !== editingCandidate.id && s.code.trim().toLowerCase() === editingCandidate.code?.trim().toLowerCase())) { showAlert('Mã học viên đã tồn tại.'); return; }
 
     const studentToSave: Student = {
-      id: editingCandidate.id || `TS_${Date.now()}`,
+      id: editingCandidate.id || newEntityId('TS'),
       code: editingCandidate.code || `TS${(students.length + 1).toString().padStart(3, '0')}`,
       name: editingCandidate.name.trim(),
       avatar: editingCandidate.avatar || '',

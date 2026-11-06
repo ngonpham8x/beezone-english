@@ -105,6 +105,8 @@ export interface Teacher {
 
 export interface Room {
   id: string;
+  /** Human-readable code; legacy data may still use the ID as this code. */
+  code?: string;
   name: string;
   capacity: number;
   status: 'available' | 'maintenance';

@@ -22,7 +22,7 @@ import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { centerDate, isCalendarDate } from '../../lib/dates';
-import { nextReceiptCode } from '../../lib/identifiers';
+import { newEntityId, nextReceiptCode } from '../../lib/identifiers';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import { isStudentInClass, studentClassIds, studentCodeForClass } from '../../lib/studentClasses';
 import {
@@ -356,7 +356,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
       : undefined;
 
     const newInstallment: TuitionInstallment = {
-      id: `INST_${Date.now()}`,
+      id: newEntityId('INST'),
       date: installmentDateInput,
       amount: installmentAmountInput,
       paymentMethod: installmentMethod,
@@ -447,7 +447,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         if (addedAmount > 0) {
           // Tăng số tiền đóng: thêm đợt thanh toán mới vào ngày thu được chọn
           const newInst: TuitionInstallment = {
-            id: `INST_${Date.now()}`,
+            id: newEntityId('INST'),
             date: paymentDateInput || centerDate(),
             amount: addedAmount,
             paymentMethod,
@@ -482,7 +482,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
         } else if (paidAmountInput < editingReceipt.paidAmount) {
           nextInstallments = [
             {
-              id: `INST_${Date.now()}`,
+              id: newEntityId('INST'),
               date: paymentDateInput || editingReceipt.paymentDate,
               amount: paidAmountInput,
               paymentMethod,
@@ -511,7 +511,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     } else {
       nextInstallments = [
         {
-          id: `INST_${Date.now()}`,
+          id: newEntityId('INST'),
           date: paymentDateInput || centerDate(),
           amount: paidAmountInput,
           paymentMethod,
@@ -532,7 +532,7 @@ export const TuitionManager: React.FC<TuitionManagerProps> = ({
     const retainContextFee = Boolean(editingReceipt);
     const nextReceipt: TuitionReceipt = {
       ...(editingReceipt ?? {}),
-      id: editingReceipt?.id || `TR_${Date.now()}`,
+      id: editingReceipt?.id || newEntityId('TR'),
       code: editingReceipt?.code || nextReceiptCode(receipts),
       studentId: student.id,
       classId: receiptClassId,

@@ -1,4 +1,5 @@
 import { reportError } from '../../lib/diagnostics';
+import { newEntityId } from '../../lib/identifiers';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -94,7 +95,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
   const jsonInputRef = useRef<HTMLInputElement>(null);
 
   const makeBackupRecord = (filename: string, sizeBytes: number): SystemBackup => ({
-    id: `BACKUP_${Date.now()}`,
+    id: newEntityId('BACKUP'),
     filename,
     timestamp: new Date().toLocaleString('vi-VN'),
     sizeKb: Math.max(1, Math.ceil(sizeBytes / 1024)),

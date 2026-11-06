@@ -1,7 +1,7 @@
 import { academicPermission } from '../../lib/permissions';
 import { isTeachingRole, studentsVisibleToAccount } from '../../lib/accountScope';
 import { showAlert } from '../../lib/dialogs';
-import { nextStudentCode } from '../../lib/identifiers';
+import { newEntityId, nextStudentCode } from '../../lib/identifiers';
 import { ConfirmedForm } from '../../components/ConfirmedForm';
 import { isStudentInClass, nextStudentCodeForClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
 import {
@@ -316,7 +316,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     const code = newClassCode.trim() || `LOP-${String(classes.length + 1).padStart(2, '0')}`;
     if (classes.some(item => item.code.trim().toLowerCase() === code.toLowerCase())) { showAlert('Mã lớp đã tồn tại. Hãy nhập mã khác.'); return; }
     const newClass: ClassRoom = {
-      id: `CLASS_${Date.now()}`,
+      id: newEntityId('CLASS'),
       code,
       name: newClassName.trim(),
       capacity: 20,
@@ -346,7 +346,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     }
     const code = newProgramCode.trim() || `CT-${String(programs.length + 1).padStart(3, '0')}`;
     const newProg: CourseProgram = {
-      id: `PROG_${Date.now()}`,
+      id: newEntityId('PROG'),
       code,
       name: newProgramName.trim(),
       category: 'Khác',
@@ -522,7 +522,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     if (!canAdd) return;
     const autoCode = nextStudentCode(students);
     setEditingStudent({
-      id: `HS_NEW_${Date.now()}`,
+      id: newEntityId('HS_NEW'),
       code: autoCode,
       name: '',
       nickname: '',
@@ -615,8 +615,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       }
       const existingProgram = programs.find((program) => program.name.trim().toLocaleLowerCase('vi-VN') === name.toLocaleLowerCase('vi-VN'));
       const program = existingProgram ?? {
-        id: `PROG_CUSTOM_${Date.now()}`,
-        code: `CUSTOM-${Date.now().toString().slice(-6)}`,
+        id: newEntityId('PROG_CUSTOM'),
+        code: `CUSTOM-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
         name,
         category: 'Khác' as const,
         tuitionFee: 0,

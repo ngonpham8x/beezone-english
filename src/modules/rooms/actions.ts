@@ -26,14 +26,14 @@ export function createRoomActions({
     }
     setRooms((prev) => [...prev, r]);
     addLog('THÊM', 'Phòng học', `Thêm phòng học ${r.name}`);
-    toast.success(`Thêm phòng học ${r.name} thành công!`);
+    toast.success(`Đã thêm phòng học ${r.name} trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.`);
   };
 
   const handleUpdateRoom = (r: Room) => {
     if (!canManageAcademic(currentUser, 'rooms', 'edit')) return;
     setRooms((prev) => prev.map((item) => (item.id === r.id ? r : item)));
     addLog('SỬA', 'Phòng học', `Cập nhật phòng học ${r.name}`);
-    toast.success(`Cập nhật phòng học ${r.name} thành công!`);
+    toast.success(`Đã cập nhật phòng học ${r.name} trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.`);
   };
 
   const handleDeleteRoom = (id: string) => {
@@ -53,7 +53,7 @@ export function createRoomActions({
     }
     setRooms((prev) => prev.filter((item) => item.id !== id));
     addLog('XÓA', 'Phòng học', `Xóa phòng học ${room?.name || ''}`);
-    toast.success(`Đã xóa phòng học ${room?.name || ''} thành công!`);
+    toast.success(`Đã gỡ phòng học ${room?.name || ''} trên màn hình. Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.`);
   };
 
   return { handleAddRoom, handleUpdateRoom, handleDeleteRoom };

@@ -26,6 +26,7 @@ import { ConfirmModal } from '../../components/ConfirmModal';
 import { StatCard } from '../../components/StatCard';
 import { splitProgramCategories } from '../../lib/programCategories';
 import { isStudentInClass, classMatchesProgram } from '../../lib/studentClasses';
+import { newEntityId } from '../../lib/identifiers';
 import { TeacherAvatar } from '../../components/TeacherAvatar';
 import { ClassRoom, CourseProgram, StaffPermissions, Student } from '../../types';
 
@@ -176,7 +177,7 @@ export const CourseProgramManager: React.FC<CourseProgramManagerProps> = ({
       });
     } else {
       const newProgram: CourseProgram = {
-        id: `PROG_${Date.now()}`,
+        id: newEntityId('PROG'),
         code: formCode.trim().toUpperCase(),
         name: formName.trim(),
         category: finalCategory,
