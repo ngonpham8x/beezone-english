@@ -9,7 +9,12 @@ const mocks = vi.hoisted(() => ({ createClient: vi.fn() }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }));
 
 const centerPayload = () => structuredClone({
-  settings: initial.initialSettings,
+  settings: {
+    ...initial.initialSettings,
+    autoBackup: true,
+    emailBackupApprovedAt: '2026-11-05T00:00:00.000Z',
+    emailBackupApprovedRecipient: initial.initialSettings.adminReportEmail,
+  },
   programs: initial.initialPrograms,
   teachers: initial.initialTeachers,
   rooms: initial.initialRooms,
@@ -66,6 +71,42 @@ describe('daily full backup email', () => {
       schemaVersion: 2,
       workData: { tasks: [], notes: [], reasons: [], handoffs: [], events: [] },
     });
+  });
+
+  it('does not read work tables or send personal data until the owner enables email backup', async () => {
+    const payload = centerPayload();
+    payload.settings.autoBackup = false;
+    const from = vi.fn((table: string) => ({
+      select: vi.fn(() => table === 'center_data'
+        ? { eq: () => ({ maybeSingle: async () => ({ data: { payload }, error: null }) }) }
+        : Promise.resolve({ data: [], error: null })),
+    }));
+    mocks.createClient.mockReturnValue({ from });
+    const send = vi.fn();
+    vi.stubGlobal('fetch', send);
+
+    await expect(createDailyBackupEmail()).resolves.toEqual({ skipped: true, reason: 'disabled' });
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(from).toHaveBeenCalledWith('center_data');
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('does not treat the legacy auto-backup flag as approval to disclose a full backup', async () => {
+    const payload = centerPayload();
+    delete payload.settings.emailBackupApprovedAt;
+    delete payload.settings.emailBackupApprovedRecipient;
+    const from = vi.fn((table: string) => ({
+      select: vi.fn(() => table === 'center_data'
+        ? { eq: () => ({ maybeSingle: async () => ({ data: { payload }, error: null }) }) }
+        : Promise.resolve({ data: [], error: null })),
+    }));
+    mocks.createClient.mockReturnValue({ from });
+    const send = vi.fn();
+    vi.stubGlobal('fetch', send);
+
+    await expect(createDailyBackupEmail()).resolves.toEqual({ skipped: true, reason: 'approval-required' });
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('rejects cron requests without the configured bearer secret', async () => {

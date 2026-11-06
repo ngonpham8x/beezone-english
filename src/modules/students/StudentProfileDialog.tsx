@@ -655,6 +655,7 @@ export function StudentProfileDialog({
                   monthlyDebt={debtForStudent.monthly}
                   courseDebt={debtForStudent.course}
                   sessionDebt={debtForStudent.session}
+                  hasTuitionRecord={receipts.some(receipt => receipt.studentId === viewingStudent.id)}
                 />
               </div>
             </div>

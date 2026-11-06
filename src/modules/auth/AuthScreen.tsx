@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { Logo } from '../../components/Logo';
 import { localAuthAppUrl } from '../../lib/appUrl';
 import { isGoogleSignInEnabled, isLocalPreview, supabase } from '../../lib/supabase';
+import { initialSettings } from '../../mock/initialData';
+import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog';
+import { markPendingPrivacyConsent } from '../privacy/privacyPolicy';
 import type { UserAccount } from '../../types';
 
 interface AuthScreenProps {
@@ -28,6 +31,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
     return null;
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const localEntryUrl = supabase && import.meta.env.DEV
     ? localAuthAppUrl(window.location.href, import.meta.env.VITE_LOCAL_AUTH_ORIGIN, import.meta.env.MODE)
     : null;
@@ -36,7 +41,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
     if (localEntryUrl) window.location.replace(localEntryUrl);
   }, [localEntryUrl]);
   const handleGoogleLogin = async () => {
-    if (!supabase || isSubmitting) return;
+    if (!supabase || isSubmitting || !privacyAccepted) return;
     if (localEntryUrl) {
       window.location.replace(localEntryUrl);
       return;
@@ -49,6 +54,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
         setIsSubmitting(false);
         return;
       }
+      markPendingPrivacyConsent();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -76,7 +82,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
         </div>
         {supabase ? (
           <>
-            <button onClick={() => void handleGoogleLogin()} disabled={isSubmitting || !!localEntryUrl} aria-busy={isSubmitting || !!localEntryUrl} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
+            <label className="mb-3 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 text-xs leading-5 text-slate-600">
+              <input type="checkbox" checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} className="mt-1 h-4 w-4 shrink-0" />
+              <span>Tôi đã đọc và đồng ý với <button type="button" onClick={(event) => { event.preventDefault(); setShowPrivacyPolicy(true); }} className="font-bold text-blue-700 underline">Chính sách bảo vệ dữ liệu cá nhân</button> để xác thực và sử dụng hệ thống.</span>
+            </label>
+            <button onClick={() => void handleGoogleLogin()} disabled={!privacyAccepted || isSubmitting || !!localEntryUrl} aria-busy={isSubmitting || !!localEntryUrl} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-60">
               {(isSubmitting || localEntryUrl) && <LoaderCircle className="h-4 w-4 animate-spin" />}{localEntryUrl ? 'Đang mở đăng nhập trên máy này…' : isSubmitting ? 'Đang mở Google…' : 'Đăng nhập với Google'}
             </button>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">Dùng tài khoản Google đã được Chủ trung tâm cấp quyền.</p>
@@ -93,6 +103,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onDevLogin }) => {
         {error && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
         <p className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500"><ShieldCheck className="h-4 w-4 text-emerald-600" />Phân quyền theo tài khoản</p>
       </section>
+      <PrivacyPolicyDialog isOpen={showPrivacyPolicy} onClose={() => setShowPrivacyPolicy(false)} settings={initialSettings} />
     </main>
   );
 };

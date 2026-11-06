@@ -45,7 +45,7 @@ describe("new Supabase project setup", () => {
       count: number;
     }>(`select count(*)::int as count
         from pg_tables where schemaname='public' and rowsecurity`);
-    expect(tables.rows[0].count).toBe(12);
+    expect(tables.rows[0].count).toBe(13);
     const visibilityPrivileges = await db.query(`select
       has_table_privilege('authenticated', 'public.account_visibility_rules', 'select') as client,
       has_table_privilege('service_role', 'public.account_visibility_rules', 'select') as server`);
@@ -54,6 +54,23 @@ describe("new Supabase project setup", () => {
         has_function_privilege('authenticated', 'public.consume_admin_request_quota(uuid,text)', 'execute') as client,
         has_function_privilege('service_role', 'public.consume_admin_request_quota(uuid,text)', 'execute') as server`);
     expect(quota.rows).toEqual([{ client: false, server: true }]);
+    const scopedCenterAccess = await db.query(`select
+      has_table_privilege('authenticated', 'public.center_data', 'select') as full_read,
+      has_table_privilege('authenticated', 'public.center_data', 'insert') as direct_insert,
+      has_table_privilege('authenticated', 'public.center_data', 'update') as direct_update,
+      has_column_privilege('authenticated', 'public.center_data', 'payload', 'select') as payload_read,
+      has_column_privilege('authenticated', 'public.center_data', 'updated_at', 'select') as revision_read,
+      has_function_privilege('authenticated', 'public.bz_get_center_snapshot(text)', 'execute') as scoped_read,
+      has_function_privilege('authenticated', 'public.bz_save_center_snapshot(jsonb,timestamp with time zone,text)', 'execute') as scoped_write`);
+    expect(scopedCenterAccess.rows).toEqual([{
+      full_read: false,
+      direct_insert: false,
+      direct_update: false,
+      payload_read: false,
+      revision_read: true,
+      scoped_read: true,
+      scoped_write: true,
+    }]);
     expect(
       (
         await db.query(`select tgname from pg_trigger

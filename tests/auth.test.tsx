@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   casConflictOnce: false,
   realtimeListener: null as null | ((change: any) => void),
   revision: 'initial-revision',
+  consentActive: true,
   profileReads: 0, centerReads: 0, centerRevisionReads: 0, writes: [] as any[],
 }));
 vi.mock('../src/lib/supabase', () => {
@@ -42,6 +43,28 @@ vi.mock('../src/lib/supabase', () => {
       if (state.realtimeListener === channel.listener) state.realtimeListener = null;
       return 'ok';
     },
+    rpc: async (name: string, args?: any) => {
+      if (name === 'bz_accept_privacy_policy') state.consentActive = true;
+      if (name === 'bz_withdraw_privacy_policy') state.consentActive = false;
+      if (name === 'bz_get_center_snapshot') {
+        state.centerReads++;
+        return state.centerError
+          ? { data: null, error: { message: 'offline' } }
+          : { data: { payload: structuredClone(state.payload), updated_at: state.revision }, error: null };
+      }
+      if (name === 'bz_save_center_snapshot') {
+        if (state.writeError) return { data: null, error: state.writeError };
+        if (state.casConflictOnce) {
+          state.casConflictOnce = false;
+          return { data: { applied: false, updated_at: state.revision }, error: null };
+        }
+        state.payload = structuredClone(args.p_payload);
+        state.writes.push(structuredClone(args.p_payload));
+        state.revision = `revision-${state.writes.length}`;
+        return { data: { applied: true, updated_at: state.revision }, error: null };
+      }
+      return { data: null, error: null };
+    },
     from(table: string) {
       let update: any;
       let selectedColumns = '*';
@@ -50,6 +73,7 @@ vi.mock('../src/lib/supabase', () => {
         update: (value: any) => { update = value; return builder; }, insert: (value: any) => { update = value; return builder; },
         async maybeSingle() {
           if (table === 'profiles') { state.profileReads++; return { data: state.profileActive ? { id: 'test-owner', full_name: 'Test Owner', role: state.profileRole, is_active: true, is_private: state.profilePrivate, avatar_url: null, permissions: state.profilePermissions } : null, error: state.profileError ? { message: 'offline' } : null }; }
+          if (table === 'privacy_consents') return { data: state.consentActive ? { purposes: ['authentication', 'center-operations', 'security-audit'], consented_at: '2026-11-05T00:00:00.000Z', withdrawn_at: null } : null, error: null };
           if (update) {
             if (state.writeError) return { data: null, error: state.writeError };
             if (state.casConflictOnce) {
@@ -85,6 +109,7 @@ beforeEach(() => {
   state.casConflictOnce = false;
   state.realtimeListener = null;
   state.revision = 'initial-revision';
+  state.consentActive = true;
   state.profilePrivate = false;
   state.profileRole = 'owner'; state.profilePermissions = null;
   state.profileError = false;
@@ -138,14 +163,14 @@ it('refreshes changed administrative grants on return without reloading edited d
   fireEvent(document, new Event('visibilitychange'));
   await screen.findByText('Cannot add student');
   expect(state.profileReads).toBe(2);
-  expect(state.centerReads).toBe(1);
+  expect(state.centerReads).toBe(2);
   expect(screen.getByText('Edited locally')).toBeTruthy();
   state.profilePermissions.student.add = true;
   time.mockReturnValue(now + 8000);
   fireEvent.focus(window);
   await screen.findByText('Can add student');
   expect(state.profileReads).toBe(3);
-  expect(state.centerReads).toBe(1);
+  expect(state.centerReads).toBe(3);
   expect(screen.getByText('Edited locally')).toBeTruthy();
 });
 it('shows a data-load error and retries without opening demonstration data', async () => {
@@ -229,16 +254,15 @@ it('refreshes and merges the latest server data before retrying after the networ
   expect(screen.queryByText(/Mất kết nối với máy chủ/)).toBeNull();
 });
 
-it('merges non-overlapping realtime edits from another device and saves both changes', async () => {
+it('merges non-overlapping polled edits from another device and saves both changes', async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
-  await waitFor(() => expect(state.realtimeListener).not.toBeNull());
   fireEvent.click(screen.getByRole('button', { name: 'Edit student' }));
   const remotePayload = structuredClone(state.payload);
   remotePayload.students[0].phone = '0999999999';
-  act(() => state.realtimeListener?.({
-    new: { payload: remotePayload, updated_at: 'remote-revision-2' },
-  }));
+  state.payload = remotePayload;
+  state.revision = 'remote-revision-2';
+  fireEvent.focus(window);
 
   expect(screen.getByText('Edited locally')).toBeTruthy();
   expect(screen.queryByText(/nội dung đang được sửa khác nhau/)).toBeNull();
@@ -250,13 +274,12 @@ it('merges non-overlapping realtime edits from another device and saves both cha
 it('asks which value to keep only when two devices edit the same field', async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
-  await waitFor(() => expect(state.realtimeListener).not.toBeNull());
   fireEvent.click(screen.getByRole('button', { name: 'Edit student' }));
   const remotePayload = structuredClone(state.payload);
   remotePayload.students[0].name = 'Edited remotely';
-  act(() => state.realtimeListener?.({
-    new: { payload: remotePayload, updated_at: 'remote-revision-3' },
-  }));
+  state.payload = remotePayload;
+  state.revision = 'remote-revision-3';
+  fireEvent.focus(window);
 
   expect(await screen.findByText(/nội dung đang được sửa khác nhau/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Ưu tiên thay đổi trên máy này' }));
@@ -264,7 +287,7 @@ it('asks which value to keep only when two devices edit the same field', async (
   await waitFor(() => expect(state.writes.some((payload) => payload.students[0].name === 'Edited locally')).toBe(true), { timeout: 3000 });
 });
 
-it('falls back to a server read and automatic merge when realtime delivery is missed', async () => {
+it('falls back to a server read and automatic merge when a polling cycle is missed', async () => {
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open students' }));
   await waitFor(() => expect(state.writes.length).toBeGreaterThan(0), { timeout: 3000 });
@@ -286,5 +309,17 @@ it('displays OAuth error descriptions returned in the URL on the login screen', 
   state.sessionRequest = async () => ({ data: { session: null }, error: null });
   render(<App />);
   expect(await screen.findByText('Signups not allowed for this instance')).toBeTruthy();
+});
+
+it('does not load center data before the account records current privacy consent', async () => {
+  state.consentActive = false;
+  render(<App />);
+  expect(await screen.findByText('Xác nhận bảo vệ dữ liệu cá nhân')).toBeTruthy();
+  expect(state.centerReads).toBe(0);
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: 'Xác nhận và tiếp tục' }));
+  expect(await screen.findByRole('button', { name: 'Open students' })).toBeTruthy();
+  expect(state.centerReads).toBe(1);
+  expect(state.consentActive).toBe(true);
 });
 

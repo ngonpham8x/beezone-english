@@ -40,6 +40,8 @@ export type SessionAbsencePolicy = 'attended' | 'unexcused' | 'all';
 export interface Student {
   id: string;
   code: string; // e.g., HS001
+  /** Stable code for each class membership; `code` remains the primary-class code for legacy files. */
+  classStudentCodes?: Record<string, string>;
   name: string;
   /** Optional fields used by the centre's roster workbook. */
   nickname?: string;
@@ -299,6 +301,10 @@ export interface CenterSettings {
   adminReportEmail: string;
   autoEmailReport: boolean;
   autoBackup: boolean;
+  /** Explicit owner approval for sending the full backup through email. Legacy `autoBackup` alone is not consent. */
+  emailBackupApprovedAt?: string;
+  /** The normalized recipient approved at the same time; changing it requires approval again. */
+  emailBackupApprovedRecipient?: string;
   sheetsConfig: GoogleSheetsConfig;
   gradeColumns?: CustomGradeColumn[];
 }

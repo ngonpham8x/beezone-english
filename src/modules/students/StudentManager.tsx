@@ -1,9 +1,9 @@
 import { academicPermission } from '../../lib/permissions';
 import { isTeachingRole, studentsVisibleToAccount } from '../../lib/accountScope';
 import { showAlert } from '../../lib/dialogs';
-import { nextClassStudentCode, nextStudentCode } from '../../lib/identifiers';
+import { nextStudentCode } from '../../lib/identifiers';
 import { ConfirmedForm } from '../../components/ConfirmedForm';
-import { isStudentInClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
+import { isStudentInClass, nextStudentCodeForClass, studentClassIds, studentClassNames, validateStudentClasses } from '../../lib/studentClasses';
 import {
   AlertCircle,
   BookOpen,
@@ -577,13 +577,13 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       !editingStudent.code.trim().startsWith(classPrefix)
     );
     const code = shouldRegenerateCode && selectedClass
-      ? nextClassStudentCode(selectedClass.code, students.filter((student) => student.id !== editingStudent.id))
+      ? nextStudentCodeForClass(selectedClass, students, editingStudent.id)
       : editingStudent.code.trim();
     if (!code) {
       showAlert('Vui lòng nhập mã học sinh hoặc chọn lớp để hệ thống tự tạo mã.');
       return;
     }
-    if (students.some((student) => student.id !== editingStudent.id && student.code.trim().toLocaleUpperCase('vi-VN') === code.toLocaleUpperCase('vi-VN'))) {
+    if (students.some((student) => student.id !== editingStudent.id && [student.code, ...Object.values(student.classStudentCodes || {})].some((existingCode) => existingCode.trim().toLocaleUpperCase('vi-VN') === code.toLocaleUpperCase('vi-VN')))) {
       showAlert(`Mã học sinh “${code}” đã tồn tại. Mỗi học sinh cần một mã duy nhất để đồng bộ chính xác với học phí, lớp học và Excel.`);
       return;
     }
@@ -865,7 +865,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                         {canViewTuition && (
                           <td className="py-3 px-4">
-                            <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
+                            <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} hasTuitionRecord={receipts.some(receipt => receipt.studentId === st.id)} />
                           </td>
                         )}
 
@@ -994,7 +994,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                       {/* Fee Badge */}
                       {canViewTuition && (
                         <div className="shrink-0 text-right">
-                          <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} />
+                          <FeeStatusBadge feeStatus={st.feeStatus} monthlyDebt={debt.monthly} courseDebt={debt.course} sessionDebt={debt.session} hasTuitionRecord={receipts.some(receipt => receipt.studentId === st.id)} />
                         </div>
                       )}
                     </div>

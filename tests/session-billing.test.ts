@@ -185,13 +185,13 @@ describe('per-lesson tuition', () => {
       ),
     ).toThrow(/trùng ngày/);
   });
-  it('detects active unpaid students as owing tuition even before any receipts are created', () => {
+  it('only marks students as owing tuition when a receipt records a remaining debt', () => {
     const activeUnpaidStudent = { id: 'st1', status: 'active' as const, feeStatus: 'unpaid' as const };
     const activePaidStudent = { id: 'st2', status: 'active' as const, feeStatus: 'paid' as const };
     const reservedUnpaidStudent = { id: 'st3', status: 'reserved' as const, feeStatus: 'unpaid' as const };
     const droppedUnpaidStudent = { id: 'st4', status: 'dropped' as const, feeStatus: 'unpaid' as const };
 
-    expect(isStudentOwingTuition(activeUnpaidStudent, [])).toBe(true);
+    expect(isStudentOwingTuition(activeUnpaidStudent, [])).toBe(false);
     expect(isStudentOwingTuition(activePaidStudent, [])).toBe(false);
     expect(isStudentOwingTuition(reservedUnpaidStudent, [])).toBe(false);
     expect(isStudentOwingTuition(droppedUnpaidStudent, [])).toBe(false);
@@ -205,7 +205,7 @@ describe('per-lesson tuition', () => {
     };
     expect(isStudentOwingTuition(reservedUnpaidStudent, [debtReceipt])).toBe(true);
   });
-  it('calculates unbilled tuition amount for active unpaid students without receipts', () => {
+  it('does not infer tuition from a program before an administrator creates a receipt', () => {
     const studentA = { id: 'sA', status: 'active' as const, feeStatus: 'unpaid' as const, programId: 'p1', classId: 'cA' };
     const studentB = { id: 'sB', status: 'active' as const, feeStatus: 'paid' as const, programId: 'p1', classId: 'cA' };
     const studentC = { id: 'sC', status: 'active' as const, feeStatus: 'unpaid' as const, programId: 'p2', classId: 'cC' }; // session class
@@ -218,10 +218,8 @@ describe('per-lesson tuition', () => {
       { id: 'cC', billingMode: 'session' as const },
     ];
 
-    // studentA owes 2,400,000; studentB is paid; studentC is session billing (handled separately)
-    expect(unbilledTuitionForStudents([studentA, studentB, studentC], [], programs, classes)).toBe(2400000);
+    expect(unbilledTuitionForStudents([studentA, studentB, studentC], [], programs, classes)).toBe(0);
 
-    // If studentA gets a receipt, unbilled tuition becomes 0
     const receiptA: TuitionReceipt = {
       ...invoice(),
       studentId: 'sA',

@@ -40,6 +40,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+function acceptLoginPrivacy() {
+  fireEvent.click(screen.getByRole('checkbox'));
+}
+
 it('uses only the trusted profile flag for identity privacy and never grants a role from user metadata', () => {
   const profile = {
     id: privateOwner.id,
@@ -165,6 +169,7 @@ it('ignores an old member response after closing and reopening the account dialo
 it('reports a disabled Google provider in the app and permits retry after it is enabled', async () => {
   auth.enabled.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
   render(<AuthScreen />);
+  acceptLoginPrivacy();
   fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
   expect((await screen.findByRole('alert')).textContent).toContain('Google chưa được bật');
   expect(auth.signIn).not.toHaveBeenCalled();
@@ -181,6 +186,7 @@ it('reports a disabled Google provider in the app and permits retry after it is 
 it('allows another attempt after the public provider check fails', async () => {
   auth.enabled.mockRejectedValueOnce(new Error('private connection details'));
   render(<AuthScreen />);
+  acceptLoginPrivacy();
   fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
   expect((await screen.findByRole('alert')).textContent).toBe(
     'Không thể kết nối Google. Kiểm tra kết nối và thử lại.',
@@ -196,6 +202,7 @@ it('ignores a local origin preference in a production build and starts OAuth on 
   vi.stubEnv('MODE', 'development');
   vi.stubEnv('VITE_LOCAL_AUTH_ORIGIN', 'http://127.0.0.1:3000');
   render(<AuthScreen />);
+  acceptLoginPrivacy();
   const button = screen.getByRole('button', { name: 'Đăng nhập với Google' });
   expect((button as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(button);
@@ -209,6 +216,7 @@ it('announces a pending Google request and prevents duplicate sign-in attempts',
   let finishCheck!: (enabled: boolean) => void;
   auth.enabled.mockReturnValueOnce(new Promise<boolean>((resolve) => { finishCheck = resolve; }));
   render(<AuthScreen />);
+  acceptLoginPrivacy();
   const button = screen.getByRole('button', { name: 'Đăng nhập với Google' });
   fireEvent.click(button);
   expect(button.textContent).toContain('Đang mở Google');
@@ -228,6 +236,7 @@ it('announces a pending Google request and prevents duplicate sign-in attempts',
 it('restores the login button after OAuth fails without exposing private error details', async () => {
   auth.signIn.mockResolvedValueOnce({ error: new Error('private provider details') });
   render(<AuthScreen />);
+  acceptLoginPrivacy();
   fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập với Google' }));
   expect((await screen.findByRole('alert')).textContent).toBe(
     'Không thể kết nối Google. Kiểm tra kết nối và thử lại.',

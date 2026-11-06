@@ -75,7 +75,7 @@ it('preserves the welcome position and shortcuts when the banner is collapsed', 
   ).toBeNull();
 });
 
-it('counts active unpaid students in debt metrics even when no receipts exist', () => {
+it('does not count a student as owing tuition before a receipt is assigned', () => {
   const activeUnpaidStudent = {
     ...initial.initialStudents[0],
     id: 'hs-new',
@@ -93,6 +93,6 @@ it('counts active unpaid students in debt metrics even when no receipts exist', 
 
   fireEvent.click(screen.getByRole('button', { name: /Học sinh chưa hoàn thành/i }));
   expect(screen.getByText('Học sinh chưa hoàn thành học phí')).toBeTruthy();
-  expect(screen.getAllByText('Học sinh chưa đóng').length).toBeGreaterThanOrEqual(1);
-  expect(screen.getAllByText('Chưa hoàn thành').length).toBeGreaterThanOrEqual(1);
+  const debtDialog = screen.getByRole('dialog', { name: 'Học sinh chưa hoàn thành học phí' });
+  expect(within(debtDialog).queryByText('Học sinh chưa đóng')).toBeNull();
 });

@@ -405,7 +405,11 @@ export const BackupManager: React.FC<BackupManagerProps> = ({
             <Mail className="w-4 h-4 text-blue-600" /> Email Báo Cáo
           </div>
           <div className="text-slate-500">
-            Bản sao JSON toàn hệ thống đã được lập lịch khoảng 02:00 mỗi ngày tới <strong>{settings.adminReportEmail || settings.email || 'email mặc định chưa cấu hình'}</strong>. Lịch bắt đầu gửi sau khi Vercel có đủ cấu hình Cron/Resend; tệp luôn được kiểm tra toàn vẹn trước khi khôi phục.
+            {settings.autoBackup ? <>
+              Đang bật gửi bản sao JSON toàn hệ thống khoảng 02:00 mỗi ngày tới <strong>{settings.adminReportEmail || settings.email || 'email mặc định chưa cấu hình'}</strong> qua Resend/email. Tệp có dữ liệu cá nhân và tài chính; chỉ người được phân công mới được truy cập.
+            </> : <>
+              Đang tắt gửi bản sao toàn hệ thống qua email. Chủ trung tâm có thể chủ động bật trong Cài đặt hệ thống sau khi phê duyệt địa chỉ nhận và cách lưu giữ dữ liệu.
+            </>}
           </div>
         </div>
 

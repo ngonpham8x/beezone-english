@@ -8,7 +8,7 @@ import { isTeachingRole } from '../../lib/accountScope';
 import { hasStaffPermission } from '../../lib/permissions';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
-import { isStudentInClass, validateStudentClasses } from '../../lib/studentClasses';
+import { isStudentInClass, reconcileStudentClassCodes, validateStudentClasses } from '../../lib/studentClasses';
 import { toast } from '../../lib/toast';
 import { feeStatusFromReceipts } from '../center/model';
 
@@ -59,15 +59,14 @@ export function createStudentActions({
       setEnrollments((prev) =>
         updateEnrollmentHistory(prev, undefined, newStudent, newStudent.enrollDate || centerDate()),
       );
-    setStudents((prev) => [
-      {
+    const candidate = {
         ...newStudent,
         feeStatus: feeStatusFromReceipts(newStudent.id, receipts, attendanceSessions),
-      },
-      ...prev,
-    ]);
-    addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${newStudent.name} (${newStudent.code})`);
-    toast.success(`Thêm mới học sinh ${newStudent.name} (${newStudent.code}) thành công!`);
+      };
+    const normalizedStudent = reconcileStudentClassCodes([candidate, ...students], classes)[0];
+    setStudents((prev) => reconcileStudentClassCodes([candidate, ...prev], classes));
+    addLog('THÊM', 'Học sinh', `Thêm mới học sinh ${normalizedStudent.name} (${normalizedStudent.code})`);
+    toast.success(`Thêm mới học sinh ${normalizedStudent.name} (${normalizedStudent.code}) thành công!`);
   };
 
   const handleUpdateStudent = (updatedStudent: Student) => {
@@ -86,11 +85,18 @@ export function createStudentActions({
         centerDate(),
       ),
     );
-    const normalizedStudent = {
+    const candidate = {
       ...updatedStudent,
       feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts, attendanceSessions),
     };
-    setStudents((prev) => prev.map((s) => (s.id === updatedStudent.id ? normalizedStudent : s)));
+    const normalizedStudent = reconcileStudentClassCodes(
+      students.map((student) => student.id === candidate.id ? candidate : student),
+      classes,
+    ).find((student) => student.id === candidate.id)!;
+    setStudents((prev) => reconcileStudentClassCodes(
+      prev.map((student) => student.id === candidate.id ? candidate : student),
+      classes,
+    ));
     addLog('SỬA', 'Học sinh', `Cập nhật thông tin học sinh ${updatedStudent.name} (${updatedStudent.code})`);
     toast.success(`Cập nhật thông tin học sinh ${updatedStudent.name} thành công!`);
   };
@@ -134,7 +140,10 @@ export function createStudentActions({
         notes: `${st.notes || ''}\n[LƯU HỒ SƠ LỊCH SỬ]: Đã gỡ liên kết lớp ngày ${centerDate()}; giữ nguyên học phí, điểm, điểm danh và đăng ký cũ.`.trim(),
       };
       setEnrollments((prev) => updateEnrollmentHistory(prev, st, archivedStudent, centerDate()));
-      setStudents((prev) => prev.map((student) => student.id === id ? archivedStudent : student));
+      setStudents((prev) => reconcileStudentClassCodes(
+        prev.map((student) => student.id === id ? archivedStudent : student),
+        classes,
+      ));
       setClasses((prev) => prev.map((classroom) => classroom.studentIds.includes(id)
         ? { ...classroom, studentIds: classroom.studentIds.filter((studentId) => studentId !== id) }
         : classroom));
@@ -202,7 +211,7 @@ export function createStudentActions({
 
     // 1. Update student
     setStudents((prev) =>
-      prev.map((s) => {
+      reconcileStudentClassCodes(prev.map((s) => {
         if (s.id === studentId) {
           return {
             ...s,
@@ -214,7 +223,7 @@ export function createStudentActions({
           };
         }
         return s;
-      }),
+      }), classes),
     );
 
     // 2. Add student to target class studentIds
@@ -307,7 +316,7 @@ export function createStudentActions({
     );
     const reserveNote = `\n[BẢO LƯU]: Từ ${reserveDate} đến ${expectedReturnDate || 'chưa định ngày'}. Lý do: ${reason}`;
     setStudents((prev) =>
-      prev.map((s) => {
+      reconcileStudentClassCodes(prev.map((s) => {
         if (s.id === studentId) {
           return {
             ...s,
@@ -316,7 +325,7 @@ export function createStudentActions({
           };
         }
         return s;
-      }),
+      }), classes),
     );
     addLog('SỬA', 'Học sinh', `Bảo lưu học tập học sinh ${student.name} (${student.code}) từ ${reserveDate}`);
     toast.success(`Đã cập nhật bảo lưu cho học sinh ${student.name}!`);
@@ -331,7 +340,7 @@ export function createStudentActions({
     );
     const dropNote = `\n[NGHỈ HỌC NGANG]: Ngày ${dropDate}. Lý do: ${reason}`;
     setStudents((prev) =>
-      prev.map((s) => {
+      reconcileStudentClassCodes(prev.map((s) => {
         if (s.id === studentId) {
           return {
             ...s,
@@ -340,7 +349,7 @@ export function createStudentActions({
           };
         }
         return s;
-      }),
+      }), classes),
     );
     addLog('SỬA', 'Học sinh', `Học sinh ${student.name} (${student.code}) nghỉ học từ ngày ${dropDate}`);
     toast.success(`Đã cập nhật trạng thái nghỉ học cho học sinh ${student.name}!`);
@@ -388,7 +397,7 @@ export function createStudentActions({
       ),
     );
     setStudents((prev) =>
-      prev.map((s) => {
+      reconcileStudentClassCodes(prev.map((s) => {
         if (s.id === studentId) {
           return {
             ...s,
@@ -400,7 +409,7 @@ export function createStudentActions({
           };
         }
         return s;
-      }),
+      }), classes),
     );
     setClasses((prev) =>
       prev.map((c) => {

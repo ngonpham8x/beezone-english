@@ -40,7 +40,12 @@ export async function createDailyBackupEmail() {
   const raw = center.data.payload as CenterBackupData;
   const settings = raw.settings as CenterSettings | undefined;
   if (!settings) throw new Error('Center settings are unavailable.');
+  if (!settings.autoBackup) return { skipped: true as const, reason: 'disabled' as const };
   const recipient = (settings.adminReportEmail || settings.email || '').trim().toLowerCase();
+  const approvedRecipient = settings.emailBackupApprovedRecipient?.trim().toLowerCase();
+  const approvedAt = settings.emailBackupApprovedAt ? Date.parse(settings.emailBackupApprovedAt) : Number.NaN;
+  if (!Number.isFinite(approvedAt) || approvedRecipient !== recipient)
+    return { skipped: true as const, reason: 'approval-required' as const };
   if (!EMAIL_PATTERN.test(recipient) || recipient.length > 254) throw new Error('Backup recipient is invalid.');
 
   const workEntries = await Promise.all(
@@ -80,5 +85,5 @@ export async function createDailyBackupEmail() {
     signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) throw new Error(`Backup email provider returned ${response.status}.`);
-  return { filename, recipient, bytes: size, groups: Object.keys(counts).length, records: total };
+  return { skipped: false as const, filename, recipient, bytes: size, groups: Object.keys(counts).length, records: total };
 }

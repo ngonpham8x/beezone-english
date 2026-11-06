@@ -1,4 +1,4 @@
-import { isStudentInClass } from '../../../lib/studentClasses';
+import { isStudentInClass, studentCodeForClass } from '../../../lib/studentClasses';
 import {
   directSumByClassFormula,
   directSumByStudentIdFormula,
@@ -179,7 +179,7 @@ export function writeClassDetails(context: ExportContext) {
       const receiptRow = firstReceiptRowByStudentId.get(student.id);
       sheet.getRow(rowNumber).values = [
         index + 1,
-        student.code,
+        studentCodeForClass(student, classroom.id),
         student.name,
         student.phone,
         student.parentPhone,

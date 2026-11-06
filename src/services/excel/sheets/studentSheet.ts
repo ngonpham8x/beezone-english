@@ -20,9 +20,9 @@ import type { ExportContext } from '../exportContext';
 export function writeStudentSheet(context: ExportContext) {
   const { data, workbook, classSheetNames, classById, programById, studentSheetRowById } = context;
   const studentsSheet = workbook.addWorksheet('HỌC SINH');
-  styleTitle(studentsSheet, 'A1:AF2', `${data.centerName.toUpperCase()}\nDANH SÁCH HỌC SINH`);
-  applyBackLink(studentsSheet, 'AF');
-  studentsSheet.mergeCells('A4:AF4');
+  styleTitle(studentsSheet, 'A1:AG2', `${data.centerName.toUpperCase()}\nDANH SÁCH HỌC SINH`);
+  applyBackLink(studentsSheet, 'AG');
+  studentsSheet.mergeCells('A4:AG4');
   studentsSheet.getCell('A4').value =
     'Nhập học sinh tại các dòng trống ngay trên TỔNG CỘNG; khoản thu trực tiếp ở cột nền vàng M–R. Tổng/Còn lại và sheet lớp tự liên kết theo ID hệ thống.';
   studentsSheet.getCell('A4').font = {
@@ -75,6 +75,7 @@ export function writeStudentSheet(context: ExportContext) {
     'Khối lớp',
     'Bí danh',
     'Cấp tài khoản',
+    'Mã học viên theo lớp',
   ];
   studentsSheet.getRow(5).values = studentHeaders;
   styleHeader(studentsSheet.getRow(5));
@@ -117,6 +118,9 @@ export function writeStudentSheet(context: ExportContext) {
       student.gradeLevel,
       student.nickname || '',
       student.accountStatus || '',
+      Object.keys(student.classStudentCodes || {}).length
+        ? JSON.stringify(Object.fromEntries(Object.entries(student.classStudentCodes || {}).map(([classId, code]) => [classById.get(classId)?.code || classId, code])))
+        : '',
     ];
     styleData(row, index);
     [13, 14, 19, 20, 21, 22].forEach((column) => {
@@ -148,7 +152,7 @@ export function writeStudentSheet(context: ExportContext) {
   [19, 20, 21, 22].forEach((column) => {
     studentsSheet.getCell(studentFooterRow, column).numFmt = moneyFormat;
   });
-  studentsSheet.autoFilter = { from: 'A5', to: `AF${studentFooterRow - 1}` };
+  studentsSheet.autoFilter = { from: 'A5', to: `AG${studentFooterRow - 1}` };
   studentsSheet.views = [{ state: 'frozen', ySplit: 5 }];
   studentsSheet.columns = [
     { width: 8 },
@@ -183,6 +187,7 @@ export function writeStudentSheet(context: ExportContext) {
     { width: 18 },
     { width: 18 },
     { width: 18 },
+    { width: 28 },
   ];
   studentsSheet.getColumn(23).hidden = true;
   studentsSheet.getColumn(24).hidden = true;
@@ -190,6 +195,7 @@ export function writeStudentSheet(context: ExportContext) {
   studentsSheet.getColumn(26).width = 24;
   studentsSheet.getColumn(27).width = 36;
   studentsSheet.getColumn(26).numFmt = moneyFormat;
+  studentsSheet.getColumn(33).hidden = true;
   studentsSheet.getCell(studentFooterRow, 26).value = {
     formula: `SUM(Z${STUDENT_DATA_START_ROW}:Z${studentFooterRow - 1})`,
   };

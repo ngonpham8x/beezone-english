@@ -225,7 +225,7 @@ it('opens payment reminders from the compact section without losing receipt edit
   );
 });
 
-it('displays active unpaid students in TuitionManager with quick collect button', () => {
+it('does not invent a pending tuition row but still allows manual collection', () => {
   const unpaidStudent = {
     ...initial.initialStudents[0],
     id: 'hs-unpaid',
@@ -252,18 +252,16 @@ it('displays active unpaid students in TuitionManager with quick collect button'
     />,
   );
 
-  expect(screen.getByRole('region', { name: 'Học viên cần thu học phí' })).toBeTruthy();
-  expect(screen.getByText('Trương Gia Bảo')).toBeTruthy();
-  expect(screen.getByText('HS001')).toBeTruthy();
+  expect(screen.queryByRole('region', { name: 'Học viên cần thu học phí' })).toBeNull();
 
-  const collectButton = screen.getByRole('button', { name: 'Thu học phí' });
+  const collectButton = screen.getByRole('button', { name: 'Thu Học Phí Mới' });
   fireEvent.click(collectButton);
 
   expect(screen.getByText('Lập Phiếu Thu Học Phí')).toBeTruthy();
   expect(screen.getByDisplayValue(/Trương Gia Bảo/)).toBeTruthy();
 });
 
-it('defaults a new receipt to course tuition and stores SHĐ/Quyển', () => {
+it('requires the administrator to enter tuition and stores SHĐ/Quyển', () => {
   const program = { ...initial.initialPrograms[0], id: 'program-monthly', tuitionFee: 5_400_000 };
   const monthlyClass = {
     ...initial.initialClasses[0],
@@ -295,9 +293,11 @@ it('defaults a new receipt to course tuition and stores SHĐ/Quyển', () => {
     />,
   );
 
-  fireEvent.click(screen.getByRole('button', { name: 'Thu học phí' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Thu Học Phí Mới' }));
   expect((screen.getByLabelText('Khoản Thu') as HTMLSelectElement).value).toBe('course');
-  expect((screen.getByLabelText('Học Phí Khóa (VNĐ)') as HTMLInputElement).value).toBe('5400000');
+  expect((screen.getByLabelText('Học Phí Khóa (VNĐ)') as HTMLInputElement).value).toBe('0');
+  fireEvent.change(screen.getByLabelText('Học Phí Khóa (VNĐ)'), { target: { value: '5400000' } });
+  fireEvent.change(screen.getByLabelText('Số Tiền Đóng Lần Này (VNĐ)'), { target: { value: '5400000' } });
   fireEvent.change(screen.getByLabelText('Số Hóa Đơn (SHĐ)'), { target: { value: '00125' } });
   fireEvent.change(screen.getByLabelText('Quyển Số'), { target: { value: '03' } });
   fireEvent.click(screen.getByRole('button', { name: /Hoàn Thành Lập Phiếu/ }));
@@ -493,7 +493,7 @@ it('keeps the paid total read-only when editing a receipt with multiple installm
   expect(screen.getByText(/dùng “Thu tiếp” để thêm khoản thanh toán/i)).toBeTruthy();
 });
 
-it('lists both classes in tuition debt and opens collection for the unpaid second class', () => {
+it('lists only recorded class debt and does not invent debt for another class', () => {
   const programs = initial.initialPrograms.slice(0, 2).map((program, index) => ({ ...program, tuitionFee: index ? 2400000 : 3400000 }));
   const classes = initial.initialClasses.slice(0, 2).map((item, index) => ({ ...item, programId: programs[index].id, billingMode: 'course' as const }));
   const learner = { ...initial.initialStudents[0], classId: classes[0].id, additionalClassIds: [classes[1].id], programId: programs[0].id, feeStatus: 'partial' as const };
@@ -502,9 +502,7 @@ it('lists both classes in tuition debt and opens collection for the unpaid secon
     settings={initial.initialSettings} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner
     onAddReceipt={vi.fn()} onUpdateReceipt={vi.fn()} onDeleteReceipt={vi.fn()} />);
   const pending = screen.getByRole('region', { name: 'Học viên cần thu học phí' });
-  expect(within(pending).getByText('5.800.000 đ')).toBeTruthy();
-  expect(within(pending).getByText('3.400.000 đ')).toBeTruthy();
-  expect(within(pending).getByText('2.400.000 đ')).toBeTruthy();
-  fireEvent.click(within(pending).getAllByRole('button', { name: 'Thu học phí' })[1]);
-  expect((screen.getByLabelText('Lớp thu học phí *') as HTMLSelectElement).value).toBe(classes[1].id);
+  expect(within(pending).getAllByText('3.400.000 đ')).toHaveLength(2);
+  expect(within(pending).queryByText('2.400.000 đ')).toBeNull();
+  expect(within(pending).getAllByRole('button', { name: 'Thu học phí' })).toHaveLength(1);
 });

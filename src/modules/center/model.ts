@@ -2,7 +2,7 @@ import type { CenterDataPayload } from '../../lib/centerData';
 import { calculateSemesterAverage } from '../../lib/gradebook';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import { feeStatusForReceipts } from '../../lib/tuition';
-import { studentClassIds } from '../../lib/studentClasses';
+import { reconcileStudentClassCodes, studentClassIds } from '../../lib/studentClasses';
 import type {
   ActivityLog,
   AttendanceSession,
@@ -208,7 +208,11 @@ export function reconcileStudentFees(
 export function normalizeCenterData(data: CenterBackupData): CenterDataPayload {
   const attendanceSessions = data.attendanceSessions || [];
   const receipts = normaliseReceipts(data.receipts);
-  const students = reconcileStudentFees(data.students, receipts, attendanceSessions);
+  const students = reconcileStudentFees(
+    reconcileStudentClassCodes(data.students, data.classes),
+    receipts,
+    attendanceSessions,
+  );
   const rosterClasses = reconcileClassStudentIds(data.classes, students);
   const classes = rosterClasses.map((classroom) =>
     withClassScheduleSummary(classroom, data.timetableSlots),

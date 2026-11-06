@@ -92,6 +92,7 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'students' && !['active', 'reserved', 'dropped', 'lead', 'trial', 'registered'].includes(record.status as string)) throw new Error('Trạng thái học viên không hợp lệ.');
       if (key === 'students' && ['nickname', 'accountStatus'].some(field => record[field] !== undefined && typeof record[field] !== 'string')) throw new Error('Bí danh hoặc trạng thái tài khoản học viên không hợp lệ.');
       if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');
+      if (key === 'students' && record.classStudentCodes !== undefined && (!isRecord(record.classStudentCodes) || Object.entries(record.classStudentCodes).some(([classId, code]) => !classId.trim() || typeof code !== 'string' || !code.trim() || code.length > 120))) throw new Error('Mã học viên theo lớp không hợp lệ.');
       if (key === 'grades') {
         if (record.semester !== undefined && !isGradeSemester(record.semester)) throw new Error('Học kỳ của bảng điểm không hợp lệ.');
         if (!isValidScore(record.average) || optionalGradeScores.some((field) => record[field] !== undefined && !isValidScore(record[field]))) throw new Error('Điểm phải trong khoảng 0–10.');
@@ -144,6 +145,19 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
     gradeKeys.add(key);
   }
   if ((result.students as { additionalClassIds?: string[] }[]).some(student => student.additionalClassIds?.some(id => !classIds.has(id)))) throw new Error('Lớp học thêm không tồn tại.');
+  const classCodeById = new Map((result.classes as { id: string; code: string }[]).map((classroom) => [classroom.id, classroom.code]));
+  const classStudentCodeKeys = new Set<string>();
+  for (const student of result.students as import('../types.js').Student[]) {
+    for (const [classId, code] of Object.entries(student.classStudentCodes || {})) {
+      const classCode = classCodeById.get(classId)?.trim();
+      const prefix = `${classCode}-`;
+      const uniqueKey = `${classId}:${code.trim().toLocaleUpperCase('vi-VN')}`;
+      if (!classCode || !code.startsWith(prefix) || !/^\d+$/.test(code.slice(prefix.length)) || classStudentCodeKeys.has(uniqueKey)) {
+        throw new Error('Mã học viên theo lớp không hợp lệ hoặc bị trùng.');
+      }
+      classStudentCodeKeys.add(uniqueKey);
+    }
+  }
   for (const session of result.attendanceSessions as AttendanceSession[]) {
     if (!session.billing) continue;
     if (session.date > centerDate() || !(result.classes as {id:string}[]).some(c => c.id === session.classId) || session.entries.some(entry => !(result.students as {id:string}[]).some(s => s.id === entry.studentId))) throw new Error('Buổi tính phí ở tương lai hoặc thiếu hồ sơ lớp/học viên.');
@@ -155,6 +169,7 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
   }
   const settings = value.settings ?? fallbackSettings;
   if (!isRecord(settings) || ['name', 'slogan', 'address', 'phone', 'email', 'adminReportEmail'].some((key) => typeof settings[key] !== 'string') || ['autoEmailReport', 'autoBackup'].some((key) => typeof settings[key] !== 'boolean')) throw new Error('Cài đặt trung tâm không hợp lệ.');
+  if (['emailBackupApprovedAt', 'emailBackupApprovedRecipient'].some((key) => settings[key] !== undefined && typeof settings[key] !== 'string')) throw new Error('Xác nhận sao lưu email không hợp lệ.');
   if (settings.sheetsConfig !== undefined && !isRecord(settings.sheetsConfig)) throw new Error('Cấu hình bảng tính không hợp lệ.');
   if (settings.gradeColumns !== undefined) {
     if (!Array.isArray(settings.gradeColumns) || settings.gradeColumns.some((column) => !isValidCustomGradeColumn(column))) throw new Error('Cấu hình cột điểm không hợp lệ.');

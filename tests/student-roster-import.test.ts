@@ -74,11 +74,17 @@ describe('multi-sheet student roster import', () => {
     expect(first.summary).toEqual({ addedPrograms: 2, addedClasses: 2, addedStudents: 2, updatedStudents: 0 });
     expect(first.students.map((student) => student.code)).toEqual(['BEE 9B-01', 'BEE 9B-02']);
     expect(first.classes.every((classroom) => classroom.studentIds.length > 0)).toBe(true);
+    const multiClassLearner = first.students.find((student) => student.name === 'Nguyễn Văn An')!;
+    const learnerClassCodes = [multiClassLearner.classId, ...(multiClassLearner.additionalClassIds || [])]
+      .map((classId) => multiClassLearner.classStudentCodes?.[classId]);
+    expect(learnerClassCodes).toEqual(expect.arrayContaining(['BEE 9B-01', 'STARTERS 1,2-01']));
 
     const second = mergeStudentRoster(first, parsed);
     expect(second.summary).toEqual({ addedPrograms: 0, addedClasses: 0, addedStudents: 0, updatedStudents: 2 });
     expect(second.students).toHaveLength(2);
     expect(second.students.map((student) => student.code)).toEqual(['BEE 9B-01', 'BEE 9B-02']);
+    expect(second.students.find((student) => student.name === 'Nguyễn Văn An')?.classStudentCodes)
+      .toEqual(multiClassLearner.classStudentCodes);
     expect(second.classes).toHaveLength(2);
     expect(second.programs).toHaveLength(2);
   });

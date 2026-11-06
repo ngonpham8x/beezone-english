@@ -14,6 +14,7 @@ import {
 } from '../styles';
 
 import { paymentKindLabel, paymentMethodLabel } from '../../../lib/tuition';
+import { studentCodeForClass } from '../../../lib/studentClasses';
 import type { ExportContext } from '../exportContext';
 export function writeTuitionSheet(context: ExportContext) {
   const {
@@ -82,7 +83,7 @@ export function writeTuitionSheet(context: ExportContext) {
       index + 1,
       receipt.code,
       { formula: systemIdFormula, result: receipt.studentId },
-      student?.code || '',
+      student && classroom ? studentCodeForClass(student, classroom.id) : student?.code || '',
       { formula: studentNameFormula, result: student?.name || '' },
       classroom?.code || '',
       receipt.courseFee,

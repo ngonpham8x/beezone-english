@@ -20,7 +20,14 @@ import {
 } from '../../lib/centerSync';
 import { isLocalPreview, isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { createSyncQueue, SyncConflictError } from '../../lib/syncQueue';
+import { reconcileStudentClassCodes } from '../../lib/studentClasses';
 import { initialSettings } from '../../mock/initialData';
+import {
+  clearPendingPrivacyConsent,
+  hasPendingPrivacyConsent,
+  PRIVACY_CONSENT_PURPOSES,
+  PRIVACY_POLICY_VERSION,
+} from '../privacy/privacyPolicy';
 import type { ActivityLog, UserAccount } from '../../types';
 import { mergeActivityLogs, normalizeCenterData, reconcileStudentFees } from './model';
 import type { CenterStore } from './useCenterStore';
@@ -35,6 +42,16 @@ interface SyncConflictContext {
 interface RemoteSnapshot {
   payload: unknown;
   revision: string;
+}
+
+interface CenterSnapshotRpcResponse {
+  payload: unknown;
+  updated_at: string | null;
+}
+
+interface CenterSaveRpcResponse {
+  applied: boolean;
+  updated_at: string | null;
 }
 
 const NETWORK_SYNC_ERROR =
@@ -80,7 +97,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     teachers,
     rooms,
     classes,
-    students: reconcileStudentFees(students, receipts, attendanceSessions),
+    students: reconcileStudentFees(reconcileStudentClassCodes(students, classes), receipts, attendanceSessions),
     timetableSlots,
     grades,
     receipts,
@@ -140,7 +157,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     return null;
   });
   const [authStatus, setAuthStatus] = useState<
-    'loading' | 'ready' | 'signed-out' | 'blocked' | 'error'
+    'loading' | 'ready' | 'signed-out' | 'blocked' | 'privacy-required' | 'error'
   >(isSupabaseConfigured ? 'loading' : isLocalPreview ? 'ready' : 'signed-out');
   const [isCenterDataHydrated, setIsCenterDataHydrated] = useState(!isSupabaseConfigured);
   const [canSyncCenterData, setCanSyncCenterData] = useState(false);
@@ -167,6 +184,25 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
   const normalizeCloudPayload = useCallback((value: unknown) => normalizeCenterData(
     parseCenterData(value || {}, initialSettings),
   ), []);
+
+  const readScopedCenterSnapshot = useCallback(async (): Promise<CenterSnapshotRpcResponse> => {
+    if (!supabase) throw new Error('Chưa cấu hình kết nối dữ liệu.');
+    const { data, error } = await supabase.rpc('bz_get_center_snapshot', {
+      p_policy_version: PRIVACY_POLICY_VERSION,
+    });
+    if (error) {
+      const missingMigration = ['42883', 'PGRST202'].includes(error.code || '');
+      throw Object.assign(
+        new Error(missingMigration
+          ? 'Chưa áp dụng migration 034 về giới hạn dữ liệu theo quyền.'
+          : error.message || 'Không thể tải dữ liệu trung tâm.'),
+        { cause: error },
+      );
+    }
+    if (!data || typeof data !== 'object' || !('payload' in data) || !('updated_at' in data))
+      throw new Error('Máy chủ trả về dữ liệu trung tâm không hợp lệ.');
+    return data as unknown as CenterSnapshotRpcResponse;
+  }, []);
 
   const processRemoteSnapshot = useCallback((snapshot: RemoteSnapshot) => {
     if (!snapshot.revision || snapshot.revision === cloudRevisionRef.current) return;
@@ -309,6 +345,40 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
 
         const account = profileToAccount(data as ProfileRow, nextSession.user);
         setCurrentUser(account);
+        const consentResult = await supabase
+          .from('privacy_consents')
+          .select('purposes, consented_at, withdrawn_at')
+          .eq('user_id', nextSession.user.id)
+          .eq('policy_version', PRIVACY_POLICY_VERSION)
+          .maybeSingle();
+        if (!isCurrent()) return;
+        if (consentResult.error) {
+          const missingMigration = ['42P01', 'PGRST205'].includes(consentResult.error.code || '');
+          throw new Error(missingMigration
+            ? 'Chưa áp dụng migration 033 về xác nhận quyền riêng tư. Chủ trung tâm cần cập nhật cơ sở dữ liệu trước khi tiếp tục.'
+            : 'Không thể kiểm tra xác nhận bảo vệ dữ liệu cá nhân.');
+        }
+        const acceptedPurposes = new Set(Array.isArray(consentResult.data?.purposes) ? consentResult.data.purposes : []);
+        const hasCurrentConsent = Boolean(
+          consentResult.data?.consented_at
+          && !consentResult.data?.withdrawn_at
+          && PRIVACY_CONSENT_PURPOSES.every((purpose) => acceptedPurposes.has(purpose)),
+        );
+        if (!hasCurrentConsent && hasPendingPrivacyConsent()) {
+          const accepted = await supabase.rpc('bz_accept_privacy_policy', {
+            p_policy_version: PRIVACY_POLICY_VERSION,
+            p_purposes: [...PRIVACY_CONSENT_PURPOSES],
+          });
+          if (!isCurrent()) return;
+          if (accepted.error) throw new Error('Không thể lưu xác nhận bảo vệ dữ liệu cá nhân.');
+          clearPendingPrivacyConsent();
+        } else if (!hasCurrentConsent) {
+          syncQueueRef.current?.stop();
+          setCanSyncCenterData(false);
+          setIsCenterDataHydrated(false);
+          setAuthStatus('privacy-required');
+          return;
+        }
         // Refresh the profile on auth events without replacing unsaved business data.
         if (alreadyHydrated) {
           setIsCenterDataHydrated(true);
@@ -319,14 +389,9 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
         syncQueueRef.current?.stop();
         setIsCenterDataHydrated(false);
         setCanSyncCenterData(false);
-        const { data: centerData, error: centerDataError } = await supabase
-          .from('center_data')
-          .select('payload, updated_at')
-          .eq('id', 'primary')
-          .maybeSingle();
-
-        if (!isCurrent()) return;
-        if (!centerDataError) {
+        try {
+          const centerData = await readScopedCenterSnapshot();
+          if (!isCurrent()) return;
           const payload = normalizeCenterData(
             parseCenterData(centerData?.payload || {}, initialSettings),
           );
@@ -339,10 +404,10 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
           setSyncStatus('saved');
           setSyncError(null);
           setCanSyncCenterData(true);
-        } else {
-          throw new Error(
-            'Không thể tải dữ liệu trung tâm. Kiểm tra kết nối và cấu trúc Supabase rồi thử lại.',
-          );
+        } catch (centerDataError) {
+          if (!isCurrent()) return;
+          if (centerDataError instanceof Error && /migration 034/.test(centerDataError.message)) throw centerDataError;
+          throw new Error('Không thể tải dữ liệu trung tâm. Kiểm tra kết nối và cấu trúc Supabase rồi thử lại.');
         }
         try {
           const loginLogKey = `PHUC_PHUC_THINH_LOGIN_LOGGED_${nextSession.user.id}`;
@@ -422,7 +487,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       deferredEvents.forEach((timer) => window.clearTimeout(timer));
       listener.subscription.unsubscribe();
     };
-  }, [authRetry]);
+  }, [authRetry, readScopedCenterSnapshot]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
@@ -435,43 +500,31 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
           for (let attempt = 0; attempt < 4; attempt += 1) {
             const revision = cloudRevisionRef.current;
             inFlightPayloadRef.current = JSON.stringify(payload);
-            const result = revision
-              ? await supabase
-                  .from('center_data')
-                  .update({ payload })
-                  .eq('id', 'primary')
-                  .eq('updated_at', revision)
-                  .select('updated_at')
-                  .maybeSingle()
-              : await supabase
-                  .from('center_data')
-                  .insert({ id: 'primary', payload })
-                  .select('updated_at')
-                  .single();
-
-            const casConflict = result.error?.code === '23505' || (!result.error && !result.data);
+            const result = await supabase.rpc('bz_save_center_snapshot', {
+              p_payload: payload,
+              p_expected_updated_at: revision,
+              p_policy_version: PRIVACY_POLICY_VERSION,
+            });
+            const saveResult = result.data as CenterSaveRpcResponse | null;
+            const casConflict = !result.error && (!saveResult || saveResult.applied !== true);
             if (casConflict) {
-              const remoteResult = await supabase
-                .from('center_data')
-                .select('payload, updated_at')
-                .eq('id', 'primary')
-                .maybeSingle();
-              if (remoteResult.error || !remoteResult.data?.updated_at) {
+              const remoteResult = await readScopedCenterSnapshot();
+              if (!remoteResult.updated_at) {
                 throw new Error('Không thể tải phiên bản mới nhất để hợp nhất dữ liệu. Thay đổi trên máy này vẫn được giữ.');
               }
-              const remote = normalizeCloudPayload(remoteResult.data.payload);
+              const remote = normalizeCloudPayload(remoteResult.payload);
               const base = basePayloadRef.current || payload;
               // The user may have continued editing while this older queued snapshot
               // was being written. Merge the newest live state so a CAS recovery can
               // never replace keystrokes made during the request.
               const latestLocal = latestPayloadRef.current;
               const merged = mergeCenterSnapshots(base, latestLocal, remote);
-              cloudRevisionRef.current = remoteResult.data.updated_at;
+              cloudRevisionRef.current = remoteResult.updated_at;
               if (merged.conflicts.length > 0) {
                 conflictContextRef.current = {
                   base,
                   remote,
-                  revision: remoteResult.data.updated_at,
+                  revision: remoteResult.updated_at,
                   validationFailed: false,
                 };
                 throw new SyncConflictError(
@@ -485,7 +538,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
                 conflictContextRef.current = {
                   base,
                   remote,
-                  revision: remoteResult.data.updated_at,
+                  revision: remoteResult.updated_at,
                   validationFailed: true,
                 };
                 throw new SyncConflictError('Các thay đổi từ nhiều máy tạo liên kết dữ liệu không hợp lệ. Hãy chọn một bản ưu tiên để tiếp tục.');
@@ -512,7 +565,9 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
               );
             }
             if (!active) return;
-            cloudRevisionRef.current = result.data.updated_at;
+            if (!saveResult?.updated_at)
+              throw new Error('Máy chủ không trả về phiên bản dữ liệu vừa lưu.');
+            cloudRevisionRef.current = saveResult.updated_at;
             basePayloadRef.current = payload;
             savedPayloadRef.current = JSON.stringify(payload);
             conflictContextRef.current = null;
@@ -541,31 +596,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       queue.stop();
       if (syncQueueRef.current === queue) syncQueueRef.current = null;
     };
-  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData, applyData, normalizeCloudPayload]);
-
-  useEffect(() => {
-    if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData || typeof supabase.channel !== 'function') return;
-    let active = true;
-    const channel = supabase
-      .channel(`beezone-center-${currentUser.id}-${crypto.randomUUID()}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'center_data', filter: 'id=eq.primary' },
-        (change) => {
-          if (!active) return;
-          const row = change.new as { payload?: unknown; updated_at?: unknown };
-          if (typeof row.updated_at !== 'string' || row.payload === undefined) return;
-          const snapshot = { payload: row.payload, revision: row.updated_at };
-          if (writeInFlightRef.current) deferredRemoteRef.current = snapshot;
-          else processRemoteSnapshotRef.current(snapshot);
-        },
-      )
-      .subscribe();
-    return () => {
-      active = false;
-      void supabase.removeChannel(channel);
-    };
-  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData]);
+  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData, applyData, normalizeCloudPayload, readScopedCenterSnapshot]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
@@ -577,32 +608,13 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
       if (!active || reconnectRefreshInFlightRef.current || navigator.onLine === false) return;
       reconnectRefreshInFlightRef.current = true;
       try {
-        const revisionResult = await supabase
-          .from('center_data')
-          .select('updated_at')
-          .eq('id', 'primary')
-          .maybeSingle();
+        const snapshotResult = await readScopedCenterSnapshot();
         if (!active) return;
-        if (revisionResult.error) {
-          if (!isTransientNetworkFailure(revisionResult.error)) reportError('center-reconnect-refresh', revisionResult.error);
-          return;
-        }
-        const remoteRevision = revisionResult.data?.updated_at;
+        const remoteRevision = snapshotResult.updated_at;
         if (remoteRevision && remoteRevision !== cloudRevisionRef.current) {
-          const snapshotResult = await supabase
-            .from('center_data')
-            .select('payload, updated_at')
-            .eq('id', 'primary')
-            .maybeSingle();
-          if (!active) return;
-          if (snapshotResult.error || !snapshotResult.data?.updated_at) {
-            if (snapshotResult.error && !isTransientNetworkFailure(snapshotResult.error))
-              reportError('center-reconnect-refresh', snapshotResult.error);
-            return;
-          }
           processRemoteSnapshotRef.current({
-            payload: snapshotResult.data.payload,
-            revision: snapshotResult.data.updated_at,
+            payload: snapshotResult.payload,
+            revision: remoteRevision,
           });
         }
         if (syncStatus === 'error' && syncError === NETWORK_SYNC_ERROR) {
@@ -624,6 +636,7 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     window.addEventListener('online', refreshRemoteAndRetry);
     window.addEventListener('focus', refreshRemoteAndRetry);
     document.addEventListener('visibilitychange', refreshWhenVisible);
+    const pollingTimer = window.setInterval(refreshWhenVisible, 15_000);
 
     if (syncStatus === 'error' && syncError === NETWORK_SYNC_ERROR) {
       const retryDelays = [2_000, 5_000, 15_000, 30_000] as const;
@@ -635,11 +648,12 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     return () => {
       active = false;
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      window.clearInterval(pollingTimer);
       window.removeEventListener('online', refreshRemoteAndRetry);
       window.removeEventListener('focus', refreshRemoteAndRetry);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData, syncStatus, syncError]);
+  }, [currentUser?.id, isCenterDataHydrated, canSyncCenterData, syncStatus, syncError, readScopedCenterSnapshot]);
 
   useEffect(() => {
     if (!supabase || !currentUser || !isCenterDataHydrated || !canSyncCenterData) return;
@@ -723,6 +737,36 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     onCloseLogin();
   };
 
+  const handleAcceptPrivacy = async () => {
+    if (!supabase || !session) return;
+    const { error } = await supabase.rpc('bz_accept_privacy_policy', {
+      p_policy_version: PRIVACY_POLICY_VERSION,
+      p_purposes: [...PRIVACY_CONSENT_PURPOSES],
+    });
+    if (error) throw error;
+    clearPendingPrivacyConsent();
+    setAuthRetry((value) => value + 1);
+  };
+
+  const handleWithdrawPrivacy = async () => {
+    if (!supabase || !session) return;
+    if (
+      (syncStatus !== 'saved' || storageError)
+      && !(await askConfirmation('Có dữ liệu chưa lưu. Hãy chọn Hủy để sao lưu trước, hoặc OK để rút lại sự đồng ý và đăng xuất.'))
+    ) return;
+    const { error } = await supabase.rpc('bz_withdraw_privacy_policy', {
+      p_policy_version: PRIVACY_POLICY_VERSION,
+    });
+    if (error) throw error;
+    await supabase.auth.signOut();
+    if (currentUser) removeActiveSession(currentUser.email);
+    clearData();
+    setCurrentUser(null);
+    setSession(null);
+    setAuthStatus('signed-out');
+    onCloseLogin();
+  };
+
   const handleDevLogin = (role: 'owner' | 'teacher') => {
     if (!isLocalPreview) return;
     const account = role === 'teacher' ? DEV_TEACHER_ACCOUNT : DEV_OWNER_ACCOUNT;
@@ -763,6 +807,8 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
     syncQueueRef,
     resolveSyncConflict,
     handleLogout,
+    handleAcceptPrivacy,
+    handleWithdrawPrivacy,
     handleDevLogin,
     handleAccountLogin,
   };

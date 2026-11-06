@@ -14,6 +14,7 @@ import { parseRequestBody } from '../server/request';
 import { readApiJson } from '../src/lib/http';
 import { autoFixConsistency } from '../src/services/dataConsistencyService';
 import { findScheduleConflict } from '../src/lib/schedule';
+import { reconcileStudentClassCodes, studentCodeForClass } from '../src/lib/studentClasses';
 import { matchesSearch } from '../src/lib/search';
 import { calculateGradeYearSummary, calculateSemesterAverage } from '../src/lib/gradebook';
 import * as initial from '../src/mock/initialData';
@@ -53,6 +54,48 @@ describe('calendar and identifiers', () => {
       { code: 'K27 - BEE 3A-01' },
       { code: 'K27 - BEE 2-03' },
     ])).toBe('K27 - BEE 2-04');
+  });
+
+  it('keeps a separate stable code for every class of a multi-class learner', () => {
+    const classA = { ...initial.initialClasses[0], id: 'class-a', code: 'BEE 2' };
+    const classB = { ...initial.initialClasses[1], id: 'class-b', code: 'SPEAKING 2A' };
+    const learner = {
+      ...initial.initialStudents[0],
+      id: 'learner',
+      code: 'BEE 2-01',
+      classId: classA.id,
+      additionalClassIds: [classB.id],
+    };
+    const [reconciled] = reconcileStudentClassCodes([learner], [classA, classB]);
+    expect(reconciled.classStudentCodes).toEqual({
+      [classA.id]: 'BEE 2-01',
+      [classB.id]: 'SPEAKING 2A-01',
+    });
+    expect(studentCodeForClass(reconciled, classA.id)).toBe('BEE 2-01');
+    expect(studentCodeForClass(reconciled, classB.id)).toBe('SPEAKING 2A-01');
+    expect(reconcileStudentClassCodes([reconciled], [classA, classB])[0]).toEqual(reconciled);
+  });
+
+  it('reserves a historical class code after the learner leaves that class', () => {
+    const classroom = { ...initial.initialClasses[0], id: 'class-history', code: 'BEE 4A' };
+    const formerLearner = {
+      ...initial.initialStudents[0],
+      id: 'former',
+      code: 'BEE 4A-01',
+      classId: '',
+      additionalClassIds: [],
+      classStudentCodes: { [classroom.id]: 'BEE 4A-01' },
+    };
+    const newLearner = {
+      ...initial.initialStudents[1],
+      id: 'current',
+      code: 'HS002',
+      classId: classroom.id,
+      additionalClassIds: [],
+    };
+    const reconciled = reconcileStudentClassCodes([formerLearner, newLearner], [classroom]);
+    expect(reconciled[0].classStudentCodes?.[classroom.id]).toBe('BEE 4A-01');
+    expect(reconciled[1].classStudentCodes?.[classroom.id]).toBe('BEE 4A-02');
   });
 });
 describe('yearly grade summary', () => {

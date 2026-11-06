@@ -74,7 +74,7 @@ export function WorkspaceDialogs({
     deferredPrompt,
     setDeferredPrompt,
   } = dialogs;
-  const { session, canSyncCenterData, handleLogout, handleDevLogin, handleAccountLogin } =
+  const { session, canSyncCenterData, handleLogout, handleWithdrawPrivacy, handleDevLogin, handleAccountLogin } =
     connection;
   const { loadAccountAuditLogs } = audit;
   return (
@@ -87,6 +87,7 @@ export function WorkspaceDialogs({
         currentUser={currentUser}
         authenticatedUser={session?.user}
         onLogout={handleLogout}
+        onWithdrawPrivacy={handleWithdrawPrivacy}
         onSwitchRole={handleDevLogin}
         onSwitchAccount={handleAccountLogin}
         onManageAccounts={() => setIsUserManagementOpen(true)}

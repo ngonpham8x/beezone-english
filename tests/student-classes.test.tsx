@@ -45,16 +45,16 @@ it('adds two classes to one student, removes one without closing other enrollmen
   for (const additionalClassIds of [[classes[0].id], ['missing'], [classes[1].id, classes[1].id]]) expect(() => parseCenterData({ ...data, students: [{ ...student, additionalClassIds }] }, initial.initialSettings)).toThrow();
 });
 
-it('checks capacity in an additional class and does not offset its fees with payment for the primary class', () => {
+it('checks capacity in an additional class without inventing tuition before a receipt exists', () => {
   const multi = { ...student, additionalClassIds: [classes[1].id, classes[2].id], feeStatus: 'paid' as const };
   expect(validateStudentClasses(multi, classes.map(c => c.id === classes[1].id ? { ...c, capacity: 1 } : c), [{ ...student, id: 'other', classId: classes[1].id }])).toContain('đủ sĩ số');
   const programs = classes.map((c, index) => ({ id: `p${index}`, tuitionFee: (index + 1) * 100000 }));
   const scopedClasses = classes.map((c, index) => ({ ...c, programId: programs[index].id }));
   const receipts = [{ ...initial.initialTuitionReceipts[0], studentId: student.id, classId: classes[0].id, paidAmount: 100000, debtAmount: 0 }];
-  expect(unbilledTuitionForStudents([multi], receipts, programs, scopedClasses)).toBe(500000);
+  expect(unbilledTuitionForStudents([multi], receipts, programs, scopedClasses)).toBe(0);
 });
 
-it('shows the combined debt of two course classes and keeps recorded tuition after a class change', () => {
+it('shows only recorded tuition debt and keeps it after a class change', () => {
   const programs = [
     { id: 'p1', tuitionFee: 3400000 },
     { id: 'p2', tuitionFee: 2400000 },
@@ -63,18 +63,18 @@ it('shows the combined debt of two course classes and keeps recorded tuition aft
   const learner = { ...student, programId: programs[0].id, classId: courseClasses[0].id, additionalClassIds: [courseClasses[1].id], feeStatus: 'partial' as const };
   const firstReceipt = { ...initial.initialTuitionReceipts[0], studentId: learner.id, classId: courseClasses[0].id, paymentKind: 'course' as const, debtAmount: 3400000, paidAmount: 0 };
   const receipts = [firstReceipt];
-  expect(studentTuitionDebtBreakdown(learner, receipts, programs, courseClasses)).toEqual({ total: 5800000, course: 5800000, monthly: 0, session: 0 });
-  expect(totalTuitionDebtBreakdown([learner], receipts, programs, courseClasses).total).toBe(5800000);
-  expect(classTuitionDebtBreakdown(courseClasses[1], [learner], receipts, programs).course).toBe(2400000);
+  expect(studentTuitionDebtBreakdown(learner, receipts, programs, courseClasses)).toEqual({ total: 3400000, course: 3400000, monthly: 0, session: 0 });
+  expect(totalTuitionDebtBreakdown([learner], receipts, programs, courseClasses).total).toBe(3400000);
+  expect(classTuitionDebtBreakdown(courseClasses[1], [learner], receipts, programs).course).toBe(0);
 
   render(<LanguageProvider><StudentManager students={[learner]} classes={courseClasses} programs={programs.map((item, index) => ({ ...initial.initialPrograms[index], ...item }))} receipts={receipts} timetableSlots={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner searchQuery="" onAddStudent={vi.fn()} onUpdateStudent={vi.fn()} onDeleteStudent={vi.fn()} onCreateProgram={vi.fn()} onOpenImportExportModal={vi.fn()} onOpenTuition={vi.fn()} /></LanguageProvider>);
-  expect(screen.getByText('Còn lại khóa: 5.800.000 đ')).toBeTruthy();
+  expect(screen.getByText('Còn lại khóa: 3.400.000 đ')).toBeTruthy();
 
   const secondReceipt = { ...firstReceipt, id: 'second', classId: courseClasses[1].id, debtAmount: 0, paidAmount: 2400000 };
   expect(studentTuitionDebtBreakdown(learner, [...receipts, secondReceipt], programs, courseClasses).total).toBe(3400000);
   expect(studentTuitionDebtBreakdown({ ...learner, additionalClassIds: [] }, receipts, programs, courseClasses).total).toBe(3400000);
   const transferred = { ...learner, classId: courseClasses[1].id, additionalClassIds: [], feeStatus: 'paid' as const };
-  expect(studentTuitionDebtBreakdown(transferred, receipts, programs, courseClasses).total).toBe(5800000);
+  expect(studentTuitionDebtBreakdown(transferred, receipts, programs, courseClasses).total).toBe(3400000);
   expect(isStudentOwingTuition(transferred, receipts, courseClasses)).toBe(true);
 });
 
@@ -90,9 +90,17 @@ it('saves extra class checkboxes without creating duplicate student profiles', (
 
 it('records a grade for the selected additional class without overwriting the primary class', async () => {
   const update = vi.fn();
-  render(<GradeManager students={[{ ...student, additionalClassIds: [classes[1].id] }]} classes={classes} grades={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner onUpdateGrade={update} />);
+  const additionalClassCode = `${classes[1].code}-01`;
+  render(<GradeManager students={[{
+    ...student,
+    additionalClassIds: [classes[1].id],
+    classStudentCodes: {
+      [classes[0].id]: `${classes[0].code}-01`,
+      [classes[1].id]: additionalClassCode,
+    },
+  }]} classes={classes} grades={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner onUpdateGrade={update} />);
   await chooseOption(screen.getByRole('combobox', { name: 'Lớp xem điểm' }), classes[1].name);
-  const scoreInput = screen.getByLabelText(new RegExp(`Nghe - ${student.code}`, 'i'));
+  const scoreInput = screen.getByLabelText(new RegExp(`Nghe - ${additionalClassCode}`, 'i'));
   fireEvent.change(scoreInput, { target: { value: '8' } });
   fireEvent.blur(scoreInput);
   expect(update).toHaveBeenCalledWith(expect.objectContaining({ studentId: student.id, classId: classes[1].id, listening: 8 }));

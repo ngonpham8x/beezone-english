@@ -23,7 +23,9 @@ export const initialSettings: CenterSettings = {
   secondaryEmail: 'chauoaingua679@gmail.com',
   adminReportEmail: 'beezone.englishcenter@gmail.com',
   autoEmailReport: false,
-  autoBackup: true,
+  // A full backup contains student, parent, attendance, grade and tuition data.
+  // The owner must explicitly enable delivery through the configured email provider.
+  autoBackup: false,
   sheetsConfig: { spreadsheetId: '', sheetName: '', autoSync: false, syncInterval: 'weekly', connected: false }
 };
 

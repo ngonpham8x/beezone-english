@@ -1,6 +1,6 @@
 import { showAlert } from '../../lib/dialogs';
 import { toast } from '../../lib/toast';
-import { isStudentInClass } from '../../lib/studentClasses';
+import { isStudentInClass, reconcileStudentClassCodes } from '../../lib/studentClasses';
 import type { ClassRoom, UserAccount } from '../../types';
 import type { CenterStore } from '../center/useCenterStore';
 import type { ActivityLogger } from '../system/activityLogger';
@@ -71,7 +71,10 @@ export function createClassActions({
         programId: student.classId ? student.programId : c.programId,
         additionalClassIds: student.classId ? [...new Set([...(student.additionalClassIds || []), c.id])] : [],
       }));
-      setStudents(previous => previous.map(student => updated.find(item => item.id === student.id) || student));
+      setStudents(previous => reconcileStudentClassCodes(
+        previous.map(student => updated.find(item => item.id === student.id) || student),
+        [...classes, c],
+      ));
       setEnrollments(previous => updated.reduce((history, student) => updateEnrollmentHistory(history, students.find(item => item.id === student.id), student, centerDate()), previous));
     }
     addLog('THÊM', 'Lớp học', `Tạo lớp học mới ${c.name} (${c.code})`);
@@ -125,13 +128,14 @@ export function createClassActions({
             ),
         );
     }
+    const nextClasses = classes.map((item) => (item.id === c.id ? c : item));
     setClasses((prev) => prev.map((item) => (item.id === c.id ? c : item)));
     setStudents((prev) =>
-      prev.map((student) =>
+      reconcileStudentClassCodes(prev.map((student) =>
         student.classId === c.id && student.programId !== c.programId
           ? { ...student, programId: c.programId }
           : student,
-      ),
+      ), nextClasses),
     );
     addLog('SỬA', 'Lớp học', `Cập nhật lớp học ${c.name} (${c.code})`);
     toast.success(`Cập nhật lớp học ${c.name} (${c.code}) thành công!`);

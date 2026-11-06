@@ -12,6 +12,7 @@ export default async function handler(req: ApiRequest, res: any) {
   if (!secret || header(req, 'authorization') !== `Bearer ${secret}`) return json(res, 401, { error: 'Không được phép.' });
   try {
     const result = await createDailyBackupEmail();
+    if (result.skipped) return json(res, 200, { ok: true, skipped: true });
     return json(res, 200, { ok: true, filename: result.filename, bytes: result.bytes, groups: result.groups, records: result.records });
   } catch {
     // Never expose the recipient, provider response, credentials or backup payload.

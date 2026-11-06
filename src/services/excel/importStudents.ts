@@ -50,6 +50,29 @@ export function importStudents(
           return;
         }
       }
+      const membershipClassIds = new Set([classroom.id, ...(additionalClassIds || [])]);
+      const classStudentCodes: Record<string, string> = {};
+      const classCodeValue = cellText(getByAliases(record, ['mahocvientheolop', 'classstudentcodes']));
+      if (classCodeValue) {
+        try {
+          const parsed: unknown = JSON.parse(classCodeValue);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
+          for (const [classReference, studentCode] of Object.entries(parsed)) {
+            const referencedClass = classes.find((item) => item.code === classReference || item.id === classReference);
+            if (!referencedClass || !membershipClassIds.has(referencedClass.id) || typeof studentCode !== 'string' || !studentCode.trim()) throw new Error();
+            const prefix = `${referencedClass.code.trim()}-`;
+            if (!studentCode.startsWith(prefix) || !/^\d+$/.test(studentCode.slice(prefix.length))) throw new Error();
+            classStudentCodes[referencedClass.id] = studentCode.trim();
+          }
+        } catch {
+          membershipErrors.push({ row: index + 6, field: 'Mã học viên theo lớp', message: 'Mã học viên theo lớp phải là JSON hợp lệ, đúng lớp và đúng tiền tố mã lớp.' });
+          return;
+        }
+      }
+      const primaryPrefix = `${classroom.code.trim()}-`;
+      if (code.startsWith(primaryPrefix) && /^\d+$/.test(code.slice(primaryPrefix.length))) {
+        classStudentCodes[classroom.id] = code;
+      }
       const programName = cellText(getByAliases(record, ['chuongtrinh', 'program', 'programname']));
       const program = programName ? ensureProgram(programName) : null;
       if (program) classroom.programId = program.id;
@@ -74,6 +97,7 @@ export function importStudents(
         programId: program?.id || classroom.programId,
         classId: classroom.id,
         ...(additionalClassIds ? { additionalClassIds } : {}),
+        ...(Object.keys(classStudentCodes).length ? { classStudentCodes } : {}),
         address: cellText(getByAliases(record, ['diachi', 'address'])),
         email: '',
         phone: cellText(getByAliases(record, ['sdthocsinh', 'phone'])),

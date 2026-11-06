@@ -1,4 +1,4 @@
-import { studentClassIds } from '../../../lib/studentClasses';
+import { studentClassIds, studentCodeForClass } from '../../../lib/studentClasses';
 import {
   applyBackLink,
   STUDENT_DATA_START_ROW,
@@ -53,7 +53,7 @@ export function writeGradeSheet(context: ExportContext) {
     const rankFormula = `IF(O${rowNumber}="","",IF(O${rowNumber}>=2.7,"Xuất sắc",IF(O${rowNumber}>=2.4,"Giỏi",IF(O${rowNumber}>=1.95,"Khá",IF(O${rowNumber}>=1.5,"Đạt","Cần hỗ trợ")))))`;
     row.values = [
       index + 1,
-      student.code,
+      classId ? studentCodeForClass(student, classId) : student.code,
       student.name,
       classById.get(classId)?.code || '',
       grade ? gradeSemester(grade) : '',

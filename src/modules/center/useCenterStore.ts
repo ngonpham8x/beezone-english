@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CenterDataPayload } from '../../lib/centerData';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
+import { reconcileStudentClassCodes } from '../../lib/studentClasses';
 import {
   initialAccountAuditLogs,
   initialActivityLogs,
@@ -124,6 +125,10 @@ export function useCenterStore() {
 
   useEffect(() => {
     setTeachers((previousTeachers) => reconcileTeacherAssignments(previousTeachers, classes));
+  }, [classes]);
+
+  useEffect(() => {
+    setStudents((previousStudents) => reconcileStudentClassCodes(previousStudents, classes));
   }, [classes]);
 
   useEffect(() => {

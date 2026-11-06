@@ -28,7 +28,7 @@ import {
 } from 'recharts';
 import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { StatCard } from '../../components/StatCard';
-import { classTuitionDebtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition, studentTuitionDebtBreakdown, totalTuitionDebtBreakdown, unbilledTuitionForStudents } from '../../lib/tuition';
+import { classTuitionDebtBreakdown, getReceiptPaymentEntries, isStudentOwingTuition, studentTuitionDebtBreakdown, totalTuitionDebtBreakdown } from '../../lib/tuition';
 import type { AttendanceSession, ScheduleChange, TimetableSlot } from '../../types';
 import {
   ClassRoom,
@@ -92,16 +92,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
   const activeStudents = students.filter((student) => student.status === 'active');
   const reservedStudents = students.filter((student) => student.status === 'reserved');
   const droppedStudents = students.filter((student) => student.status === 'dropped');
-  const paidStudents = students.filter((student) => student.feeStatus === 'paid' && !isStudentOwingTuition(student, receipts, classes));
+  const paidStudents = students.filter((student) => receipts.some(receipt => receipt.studentId === student.id) && !isStudentOwingTuition(student, receipts, classes));
   const debtStudents = students.filter((student) => isStudentOwingTuition(student, receipts, classes));
-  const unbilledActiveTuition = unbilledTuitionForStudents(students, receipts, programs, classes);
   const totalCollected = receipts.reduce((sum, receipt) => sum + receipt.paidAmount, 0);
   const totalDebtBreakdown = totalTuitionDebtBreakdown(students, receipts, programs, classes);
   const totalDebt = totalDebtBreakdown.total;
   const totalDue = totalCollected + totalDebt;
   const collectionRate = totalDue > 0
     ? Math.round((totalCollected / totalDue) * 100)
-    : (totalCollected > 0 || (activeStudents.length === 0 && debtStudents.length === 0) ? 100 : 0);
+    : 0;
 
   // Tính doanh thu theo từng đợt thanh toán thực tế (hỗ trợ đóng học phí theo khóa nhiều đợt)
   const paymentEntries = getReceiptPaymentEntries(receipts);
@@ -305,7 +304,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
       {showDebt && <section className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-800">Thu học phí toàn trung tâm</h2>
-          <div className="flex items-center gap-3 text-xs"><span className="text-slate-500">Đã thu {collectionRate}%</span><button type="button" onClick={() => onNavigateTab('tuition')} className="rounded-lg px-2 py-1.5 font-semibold text-amber-800 hover:bg-amber-50">Xem phiếu thu</button></div>
+          <div className="flex items-center gap-3 text-xs"><span className="text-slate-500">{totalDue > 0 ? `Đã thu ${collectionRate}%` : 'Chưa có phiếu thu'}</span><button type="button" onClick={() => onNavigateTab('tuition')} className="rounded-lg px-2 py-1.5 font-semibold text-amber-800 hover:bg-amber-50">Xem phiếu thu</button></div>
         </div>
         <div className="stats-grid stats-grid--three">
           <StatCard label="Tổng phải thu" value={currency(totalDue)} subtitle="Tháng, khóa và buổi" />
@@ -314,10 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ students, teachers
             label="Còn phải thu"
             value={currency(totalDebt)}
             tone="rose"
-            subtitle={unbilledActiveTuition > 0
-              ? `${currency(unbilledActiveTuition)} chưa lập phiếu · Còn lại trên phiếu: ${currency(totalDebt - unbilledActiveTuition)}`
-              : 'Tháng: ' + currency(totalDebtBreakdown.monthly) + ' · Khóa: ' + currency(totalDebtBreakdown.course) + ' · Buổi: ' + currency(totalDebtBreakdown.session)
-            }
+            subtitle={'Tháng: ' + currency(totalDebtBreakdown.monthly) + ' · Khóa: ' + currency(totalDebtBreakdown.course) + ' · Buổi: ' + currency(totalDebtBreakdown.session)}
           />
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div className="h-full rounded-full bg-emerald-500" style={{width:Math.min(collectionRate,100)+'%'}} /></div>

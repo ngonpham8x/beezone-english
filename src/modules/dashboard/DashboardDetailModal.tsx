@@ -88,7 +88,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     reserved: students.filter((student) => student.status === 'reserved'),
     dropped: students.filter((student) => student.status === 'dropped'),
     debt: students.filter((student) => isStudentOwingTuition(student, receipts, classes)),
-    paid: students.filter((student) => student.feeStatus === 'paid' && !isStudentOwingTuition(student, receipts, classes))
+    paid: students.filter((student) => receipts.some(receipt => receipt.studentId === student.id) && !isStudentOwingTuition(student, receipts, classes))
   };
 
   const detailStudentTitle: Partial<Record<DashboardDetailType, string>> = {
@@ -275,7 +275,8 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                   const program = programById.get(student.programId);
                   const statusLabel = student.status === 'active' ? 'Đang học' : student.status === 'dropped' ? 'Nghỉ học' : 'Bảo lưu';
                   const debt = studentTuitionDebtBreakdown(student, receipts, programs, classes);
-                  const feeLabel = debt.total > 0 || student.feeStatus !== 'paid' ? 'Chưa hoàn thành' : 'Đã hoàn thành';
+                  const hasTuitionRecord = receipts.some(receipt => receipt.studentId === student.id);
+                  const feeLabel = !hasTuitionRecord ? 'Chưa gán học phí' : debt.total > 0 ? 'Chưa hoàn thành' : 'Đã hoàn thành';
                   return (
                     <tr key={student.id} className="hover:bg-slate-50">
                       <td className="px-3 py-3 font-semibold text-slate-700">{student.code}</td>
@@ -289,7 +290,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                       <td className="px-3 py-3 text-slate-700">{program?.name ?? 'Chưa xác định'}</td>
                       <td className="px-3 py-3 text-slate-700">{statusLabel}</td>
                       {canViewStudentSensitiveInfo && <td className="px-3 py-3">
-                        {canViewDebt || student.feeStatus === 'paid' ? (
+                        {canViewDebt || hasTuitionRecord ? (
                           <div>
                             <div className="font-semibold text-slate-800">{feeLabel}</div>
                             {canViewDebt && debt.monthly > 0 && <div className="mt-0.5 text-[10px] font-bold text-rose-700">Còn lại tháng: {formatCurrency(debt.monthly)}</div>}

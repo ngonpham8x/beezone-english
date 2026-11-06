@@ -1,6 +1,7 @@
 import { moneyFormat, styleData, styleHeader } from '../styles';
 
 import { unbilledSessionCharges } from '../../../lib/sessionBilling';
+import { studentCodeForClass } from '../../../lib/studentClasses';
 import type { ExportContext } from '../exportContext';
 export function writeAttendanceSheets(context: ExportContext) {
   const { data, workbook, classById, studentById, teacherById } = context;
@@ -31,7 +32,10 @@ export function writeAttendanceSheets(context: ExportContext) {
         session.id,
         classById.get(session.classId)?.code || session.classId,
         session.date,
-        entry ? studentById.get(entry.studentId)?.code || entry.studentId : '',
+        entry ? (() => {
+          const student = studentById.get(entry.studentId);
+          return student ? studentCodeForClass(student, session.classId) : entry.studentId;
+        })() : '',
         entry?.status || '',
         entry?.homeworkCompleted === undefined ? '' : entry.homeworkCompleted ? 'Có' : 'Không',
         entry?.note || '',
@@ -67,7 +71,10 @@ export function writeAttendanceSheets(context: ExportContext) {
       index + 1,
       line.attendanceSessionId,
       classById.get(line.classId)?.code || '',
-      studentById.get(line.studentId)?.code || '',
+      (() => {
+        const student = studentById.get(line.studentId);
+        return student ? studentCodeForClass(student, line.classId) : '';
+      })(),
       studentById.get(line.studentId)?.name || '',
       line.date,
       line.unitPrice,

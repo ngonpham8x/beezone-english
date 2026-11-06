@@ -1,5 +1,4 @@
 import { ClassRoom, CourseProgram, FeeStatus, Student, TuitionInstallment, TuitionReceipt } from '../types';
-import { isStudentInClass, studentClassIds } from './studentClasses';
 
 export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 
@@ -50,89 +49,37 @@ const emptyDebt = (): TuitionDebtBreakdown => ({ total: 0, monthly: 0, course: 0
 type DebtStudent = Pick<Student, 'id' | 'status' | 'feeStatus' | 'programId' | 'classId' | 'additionalClassIds'>;
 type DebtClass = Pick<ClassRoom, 'id' | 'billingMode'> & Partial<Pick<ClassRoom, 'programId'>>;
 
-const unbilledClassFee = (
-  student: DebtStudent,
-  classId: string,
-  receipts: TuitionReceipt[],
-  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
-  classroom?: DebtClass,
-): number => {
-  if (student.status !== 'active' || classroom?.billingMode === 'session') return 0;
-  // A paid legacy profile without any receipt may predate per-class billing.
-  // A receipt for a different (former) class must not waive the current class.
-  if (studentClassIds(student).length <= 1 && student.feeStatus === 'paid' &&
-      !receipts.some(receipt => receipt.studentId === student.id)) return 0;
-  if (receipts.some(receipt => receipt.studentId === student.id && receipt.classId === classId)) return 0;
-  return Math.max(programs.find(item => item.id === (classroom?.programId || student.programId))?.tuitionFee || 0, 0);
-};
-
-/** Current class tuition without a receipt. Existing receipts retain their own agreed prices. */
+/**
+ * Tuition is assigned by an administrative employee through a receipt.
+ * Never infer a debt from the program price when no receipt exists.
+ */
 export const unbilledDebtForStudent = (
-  student: DebtStudent,
-  receipts: TuitionReceipt[],
-  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
-  classes: DebtClass[],
-): TuitionDebtBreakdown => {
-  const result = emptyDebt();
-  const ids = studentClassIds(student);
-  for (const classId of ids.length ? ids : ['']) {
-    const classroom = classes.find(item => item.id === classId);
-    const amount = unbilledClassFee(student, classId, receipts, programs, classroom);
-    result.total += amount;
-    if (classroom?.billingMode === 'course') result.course += amount;
-    else result.monthly += amount;
-  }
-  return result;
-};
+  _student: DebtStudent,
+  _receipts: TuitionReceipt[],
+  _programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  _classes: DebtClass[],
+): TuitionDebtBreakdown => emptyDebt();
 
 export const classTuitionDebtBreakdown = (
   classroom: DebtClass,
-  students: DebtStudent[],
+  _students: DebtStudent[],
   receipts: TuitionReceipt[],
-  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
-): TuitionDebtBreakdown => {
-  const result = debtBreakdown(receipts.filter(receipt => receipt.classId === classroom.id));
-  for (const student of students) {
-    if (!isStudentInClass(student, classroom.id)) continue;
-    const amount = unbilledClassFee(student, classroom.id, receipts, programs, classroom);
-    result.total += amount;
-    if (classroom.billingMode === 'course') result.course += amount;
-    else result.monthly += amount;
-  }
-  return result;
-};
+  _programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+): TuitionDebtBreakdown => debtBreakdown(receipts.filter(receipt => receipt.classId === classroom.id));
 
 export const studentTuitionDebtBreakdown = (
   student: DebtStudent,
   receipts: TuitionReceipt[],
-  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
-  classes: DebtClass[],
-): TuitionDebtBreakdown => {
-  const recorded = debtBreakdown(receipts.filter(receipt => receipt.studentId === student.id));
-  const unbilled = unbilledDebtForStudent(student, receipts, programs, classes);
-  return {
-    total: recorded.total + unbilled.total,
-    monthly: recorded.monthly + unbilled.monthly,
-    course: recorded.course + unbilled.course,
-    session: recorded.session + unbilled.session,
-  };
-};
+  _programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  _classes: DebtClass[],
+): TuitionDebtBreakdown => debtBreakdown(receipts.filter(receipt => receipt.studentId === student.id));
 
 export const totalTuitionDebtBreakdown = (
-  students: DebtStudent[],
+  _students: DebtStudent[],
   receipts: TuitionReceipt[],
-  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
-  classes: DebtClass[],
-): TuitionDebtBreakdown => {
-  const result = debtBreakdown(receipts);
-  for (const student of students) {
-    const unbilled = unbilledDebtForStudent(student, receipts, programs, classes);
-    result.total += unbilled.total;
-    result.monthly += unbilled.monthly;
-    result.course += unbilled.course;
-  }
-  return result;
-};
+  _programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[],
+  _classes: DebtClass[],
+): TuitionDebtBreakdown => debtBreakdown(receipts);
 
 export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
   const debt = debtBreakdown(receipts).total;
@@ -144,23 +91,15 @@ export const feeStatusForReceipts = (receipts: TuitionReceipt[]): FeeStatus => {
 export const isStudentOwingTuition = (
   student: Pick<Student, 'id' | 'status' | 'feeStatus'> & Partial<Pick<Student, 'classId' | 'additionalClassIds'>>,
   receipts: TuitionReceipt[] = [],
-  classes: Pick<ClassRoom, 'id' | 'billingMode'>[] = [],
-): boolean => {
-  const studentReceipts = receipts.filter((receipt) => receipt.studentId === student.id);
-  const debt = debtBreakdown(studentReceipts).total;
-  if (debt > 0) return true;
-  const ids = studentClassIds({ classId: student.classId || '', additionalClassIds: student.additionalClassIds });
-  if (student.status === 'active' && (ids.length > 1 || studentReceipts.length > 0) &&
-      ids.some(id => classes.find(c => c.id === id)?.billingMode !== 'session' && !studentReceipts.some(r => r.classId === id))) return true;
-  return student.status === 'active' && student.feeStatus !== 'paid';
-};
+  _classes: Pick<ClassRoom, 'id' | 'billingMode'>[] = [],
+): boolean => debtBreakdown(receipts.filter((receipt) => receipt.studentId === student.id)).total > 0;
 
 export const unbilledTuitionForStudents = (
-  students: DebtStudent[],
-  receipts: TuitionReceipt[] = [],
-  programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[] = [],
-  classes: DebtClass[] = [],
-): number => students.reduce((sum, student) => sum + unbilledDebtForStudent(student, receipts, programs, classes).total, 0);
+  _students: DebtStudent[],
+  _receipts: TuitionReceipt[] = [],
+  _programs: Pick<CourseProgram, 'id' | 'tuitionFee'>[] = [],
+  _classes: DebtClass[] = [],
+): number => 0;
 
 export interface ReceiptPaymentEntry {
   receiptId: string;

@@ -18,12 +18,21 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<CenterSettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
-  useEffect(() => { if (isOpen) { setFormData(settings); setSavedSuccess(false); } }, [isOpen, settings]);
+  useEffect(() => {
+    if (isOpen) {
+      const approvedRecipient = settings.emailBackupApprovedRecipient?.trim().toLowerCase();
+      const currentRecipient = (settings.adminReportEmail || settings.email).trim().toLowerCase();
+      const hasExplicitApproval = Boolean(settings.emailBackupApprovedAt && approvedRecipient === currentRecipient);
+      setFormData({ ...settings, autoBackup: settings.autoBackup && hasExplicitApproval });
+      setSavedSuccess(false);
+    }
+  }, [isOpen, settings]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const backupRecipient = (formData.adminReportEmail || formData.email).trim().toLowerCase();
     onUpdateSettings({
       ...formData,
       name: formData.name.trim(),
@@ -31,7 +40,9 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
       secondaryEmail: formData.secondaryEmail?.trim(),
       adminReportEmail: formData.adminReportEmail.trim(),
       autoEmailReport: false,
-      autoBackup: true,
+      autoBackup: formData.autoBackup,
+      emailBackupApprovedAt: formData.autoBackup ? new Date().toISOString() : undefined,
+      emailBackupApprovedRecipient: formData.autoBackup ? backupRecipient : undefined,
     });
     onClose();
   };
@@ -155,16 +166,18 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({
               />
             </label>
 
-            <label className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
+            <label className="flex items-center justify-between gap-4 p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
               <div>
                 <div className="font-bold text-slate-800">Tự động gửi bản sao JSON toàn hệ thống hằng ngày</div>
-                <div className="text-[10px] text-slate-500">Lịch chạy khoảng 02:00 giờ Việt Nam; bắt đầu gửi sau khi Vercel được cấu hình Cron/Resend.</div>
+                <div id="automatic-backup-description" className="text-[10px] leading-4 text-slate-500">
+                  Bản sao gồm dữ liệu học viên, phụ huynh, điểm danh, điểm số, học phí và Giao việc; tệp sẽ đi qua Resend/email tới địa chỉ ở trên. Chỉ bật khi trung tâm đã phê duyệt nơi nhận và cách lưu giữ. Lịch chạy khoảng 02:00 giờ Việt Nam.
+                </div>
               </div>
               <input
                 type="checkbox"
-                checked={true}
-                disabled
+                checked={formData.autoBackup}
                 onChange={(e) => setFormData({ ...formData, autoBackup: e.target.checked })}
+                aria-describedby="automatic-backup-description"
                 className="w-4 h-4 text-emerald-700 rounded"
               />
             </label>

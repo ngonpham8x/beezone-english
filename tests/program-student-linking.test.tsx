@@ -167,6 +167,46 @@ it('ClassManager allows multi-program selection with checkboxes', () => {
   expect(programCheckboxes.length).toBeGreaterThan(0);
 });
 
+it('ClassManager enlarges the class form and shows the code scoped to that class', () => {
+  const codedStudent = {
+    ...mockStudents[0],
+    code: 'MÃ-LỚP-KHÁC-01',
+    classStudentCodes: { [mockClasses[0].id]: 'LOP-01-01' },
+  };
+  render(
+    <LanguageProvider>
+      <ClassManager
+        classes={mockClasses}
+        teachers={[]}
+        rooms={[]}
+        programs={mockPrograms}
+        students={[codedStudent]}
+        receipts={[]}
+        timetableSlots={[]}
+        isOwner
+        permissions={createStaffPermissions(true)}
+        onAddClass={vi.fn()}
+        onUpdateClass={vi.fn()}
+        onDeleteClass={vi.fn()}
+        onReplaceClassSchedule={vi.fn()}
+        onCreateRoom={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: /Xem danh sách/ }));
+  const roster = screen.getByRole('dialog', { name: 'Học viên trong lớp' });
+  expect(within(roster).getByText(/LOP-01-01/)).toBeTruthy();
+  expect(within(roster).queryByText(/MÃ-LỚP-KHÁC-01/)).toBeNull();
+  fireEvent.click(within(roster).getAllByRole('button', { name: 'Đóng' }).at(-1)!);
+
+  fireEvent.click(screen.getByLabelText('Sửa lớp Lớp Mầm Non A'));
+  const formDialog = screen.getByRole('dialog', { name: 'Thông tin lớp học' });
+  expect(formDialog.querySelector('.dialog-panel')?.className).toContain('max-w-5xl');
+  expect(within(formDialog).getByText(/Mỗi lớp cấp một mã riêng/)).toBeTruthy();
+});
+
 it('StudentManager renders ConfirmModal when clicking delete', () => {
   const onDeleteStudent = vi.fn();
 

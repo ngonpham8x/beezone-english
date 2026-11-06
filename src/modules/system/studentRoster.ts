@@ -1,5 +1,6 @@
 import { nextClassStudentCode } from '../../lib/identifiers';
 import { reconcileClassStudentIds } from '../center/model';
+import { reconcileStudentClassCodes } from '../../lib/studentClasses';
 import type { ClassRoom, CourseProgram, Student } from '../../types';
 import type { StudentRosterImportData, StudentRosterImportSummary } from '../../services/excelService';
 
@@ -153,10 +154,11 @@ export function mergeStudentRoster(
     addedStudents += 1;
   }
 
+  const codedStudents = reconcileStudentClassCodes(students, classes);
   return {
     programs,
-    classes: reconcileClassStudentIds(classes, students),
-    students,
+    classes: reconcileClassStudentIds(classes, codedStudents),
+    students: codedStudents,
     summary: { addedPrograms, addedClasses, addedStudents, updatedStudents },
   };
 }

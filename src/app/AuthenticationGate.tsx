@@ -1,4 +1,6 @@
 import { AuthScreen } from '../modules/auth/AuthScreen';
+import { initialSettings } from '../mock/initialData';
+import { PrivacyConsentScreen } from '../modules/privacy/PrivacyConsentScreen';
 import type { CenterConnection } from '../modules/center/useCenterConnection';
 export function AuthenticationGate({ connection }: { connection: CenterConnection }) {
   const {
@@ -9,6 +11,7 @@ export function AuthenticationGate({ connection }: { connection: CenterConnectio
     setAuthError,
     setAuthRetry,
     handleLogout,
+    handleAcceptPrivacy,
     handleDevLogin,
     handleAccountLogin,
   } = connection;
@@ -73,6 +76,10 @@ export function AuthenticationGate({ connection }: { connection: CenterConnectio
         </section>
       </main>
     );
+  }
+
+  if (authStatus === 'privacy-required') {
+    return <PrivacyConsentScreen settings={initialSettings} onAccept={handleAcceptPrivacy} onLogout={handleLogout} />;
   }
 
   if (!currentUser || !session) {

@@ -1,9 +1,11 @@
-import { ArrowLeftRight, LogOut, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeftRight, FileText, LogOut, ShieldCheck, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { DialogFrame } from '../../components/DialogFrame';
 import { isLocalPreview } from '../../lib/supabase';
 import { accountRoleLabel } from '../../lib/accountRoles';
+import { initialSettings } from '../../mock/initialData';
+import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog';
 import type { UserAccount } from '../../types';
 
 interface LoginModalProps {
@@ -12,14 +14,16 @@ interface LoginModalProps {
   currentUser: UserAccount;
   authenticatedUser?: Pick<User, 'id' | 'email' | 'user_metadata'> | null;
   onLogout: () => Promise<void>;
+  onWithdrawPrivacy?: () => Promise<void>;
   onSwitchRole?: (role: 'owner' | 'teacher') => void;
   onSwitchAccount?: (account: UserAccount) => void;
   onManageAccounts?: () => void;
 }
 
-export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, currentUser, authenticatedUser, onLogout, onSwitchRole, onManageAccounts }) => {
+export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, currentUser, authenticatedUser, onLogout, onWithdrawPrivacy, onSwitchRole, onManageAccounts }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   if (!isOpen) return null;
   const ownIdentity = authenticatedUser?.id === currentUser.id ? authenticatedUser : null;
   const googleName = [ownIdentity?.user_metadata?.full_name, ownIdentity?.user_metadata?.name]
@@ -39,6 +43,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, current
         {isLocalPreview ? (
           <button onClick={() => { onSwitchRole?.(currentUser.role === 'owner' ? 'teacher' : 'owner'); onClose(); }} className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-50 p-3 text-sm font-bold"><ArrowLeftRight className="h-4 w-4" />Chuyển vai trò xem thử</button>
         ) : <p className="mt-4 text-sm leading-6 text-slate-600">Tài khoản đăng nhập bằng Google. Để đổi tài khoản, hãy đăng xuất rồi đăng nhập lại.</p>}
+        <button type="button" onClick={() => setShowPrivacyPolicy(true)} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 p-3 text-sm font-bold text-slate-800"><FileText className="h-4 w-4" />Chính sách bảo vệ dữ liệu cá nhân</button>
+        {!isLocalPreview && onWithdrawPrivacy && <button type="button" disabled={isSubmitting} onClick={async () => {
+          setIsSubmitting(true); setError(null);
+          try { await onWithdrawPrivacy(); } catch { setError('Không thể ghi nhận yêu cầu rút lại sự đồng ý. Vui lòng thử lại.'); }
+          finally { setIsSubmitting(false); }
+        }} className="mt-2 min-h-11 w-full rounded-xl border border-red-300 p-3 text-sm font-bold text-red-800 disabled:opacity-60">Rút lại sự đồng ý và đăng xuất</button>}
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         <button disabled={isSubmitting} onClick={async () => {
           setIsSubmitting(true); setError(null);
@@ -46,6 +56,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, current
           finally { setIsSubmitting(false); }
         }} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 p-3 text-sm font-bold text-white disabled:opacity-60"><LogOut className="h-4 w-4" />{isSubmitting ? 'Đang đăng xuất…' : 'Đăng xuất'}</button>
       </section>
+      <PrivacyPolicyDialog isOpen={showPrivacyPolicy} onClose={() => setShowPrivacyPolicy(false)} settings={initialSettings} />
     </DialogFrame>
   );
 };

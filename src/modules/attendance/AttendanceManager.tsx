@@ -1,5 +1,5 @@
 import { showAlert } from '../../lib/dialogs';
-import { isStudentInClass } from '../../lib/studentClasses';
+import { isStudentInClass, studentCodeForClass } from '../../lib/studentClasses';
 import {
   AlertCircle,
   BookOpen,
@@ -399,7 +399,11 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       if (s.status === 'active') return true;
       if (recordedIds.includes(s.id)) return true;
       return false;
-    });
+    }).map((student) => ({
+      ...student,
+      code: studentCodeForClass(student, selectedClassId),
+      classId: selectedClassId,
+    }));
   }, [students, selectedClassId, existingSession, enrollments, sessionDate]);
 
   const teacher = useMemo(

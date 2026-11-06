@@ -35,6 +35,120 @@ async function asStaff(permissions: object = {}, role: 'admin' | 'trainer' | 'te
   await db.exec('set role authenticated');
 }
 describe('database migrations and permission enforcement', () => {
+  it('records and withdraws a server-timestamped privacy decision without exposing another account', async () => {
+    await db.exec('set role authenticated');
+    await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
+      '2026-11-05.1',
+      ['authentication', 'center-operations', 'security-audit'],
+    ]);
+    const ownerConsent = (await db.query<{ user_id: string; withdrawn_at: string | null }>(
+      "select user_id::text, withdrawn_at::text from public.privacy_consents",
+    )).rows;
+    expect(ownerConsent).toEqual([{ user_id: owner, withdrawn_at: null }]);
+    await expect(db.query(
+      "insert into public.privacy_consents(user_id,policy_version,purposes) values ($1,'forged',array['authentication'])",
+      [owner],
+    )).rejects.toThrow();
+
+    await db.exec('reset role');
+    await asStaff({}, 'teacher');
+    expect((await db.query('select * from public.privacy_consents')).rows).toEqual([]);
+    await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
+      '2026-11-05.1',
+      ['authentication', 'center-operations', 'security-audit'],
+    ]);
+    expect((await db.query('select user_id::text from public.privacy_consents')).rows).toEqual([{ user_id: staff }]);
+    await db.query("select public.bz_withdraw_privacy_policy('2026-11-05.1')");
+    expect((await db.query<{ withdrawn: boolean }>(
+      'select withdrawn_at is not null as withdrawn from public.privacy_consents',
+    )).rows).toEqual([{ withdrawn: true }]);
+    await expect(db.query("select public.bz_accept_privacy_policy('invalid',array['authentication'])"))
+      .rejects.toThrow(/Invalid privacy consent/);
+  });
+  it('returns only assigned classes to teachers and saves their scoped grades without exposing personal or tuition data', async () => {
+    const payload = {
+      ...base,
+      settings: { name: 'BeeZone', adminReportEmail: 'owner@example.test', gradeColumns: [] },
+      programs: [
+        { id: 'p-a', code: 'PA', name: 'Program A', category: 'Khác', tuitionFee: 100 },
+        { id: 'p-b', code: 'PB', name: 'Program B', category: 'Khác', tuitionFee: 200 },
+      ],
+      teachers: [
+        { id: 't-a', name: 'Teacher A', phone: '0901', email: 'a@example.test', address: 'Secret A', specialty: '', assignedClassIds: ['a'] },
+        { id: 't-b', name: 'Teacher B', phone: '0902', email: 'b@example.test', address: 'Secret B', specialty: '', assignedClassIds: ['b'] },
+      ],
+      rooms: [{ id: 'room-a', name: 'A', capacity: 20, status: 'available' }, { id: 'room-b', name: 'B', capacity: 20, status: 'available' }],
+      classes: [
+        { id: 'a', code: 'A', name: 'Class A', programId: 'p-a', teacherId: 't-a', roomId: 'room-a', scheduleTime: '', days: [], capacity: 20, studentIds: ['s-a'] },
+        { id: 'b', code: 'B', name: 'Class B', programId: 'p-b', teacherId: 't-b', roomId: 'room-b', scheduleTime: '', days: [], capacity: 20, studentIds: ['s-b'] },
+      ],
+      students: [
+        { id: 's-a', code: 'A-01', classStudentCodes: { a: 'A-01' }, name: 'Student A', dob: '2020-01-01', gender: 'Nam', school: 'Secret School', gradeLevel: '', programId: 'p-a', classId: 'a', address: 'Secret Address', email: 'student@example.test', phone: '0911', parentName: 'Parent A', parentPhone: '0922', enrollDate: '2026-01-01', status: 'active', feeStatus: 'unpaid' },
+        { id: 's-b', code: 'B-01', classStudentCodes: { b: 'B-01' }, name: 'Student B', dob: '2020-02-02', gender: 'Nữ', school: 'Hidden School', gradeLevel: '', programId: 'p-b', classId: 'b', address: 'Hidden Address', email: '', phone: '0933', parentName: 'Parent B', parentPhone: '0944', enrollDate: '2026-01-01', status: 'active', feeStatus: 'paid' },
+      ],
+      receipts: [{ id: 'receipt-b', studentId: 's-b', classId: 'b', courseFee: 100, discount: 0, paidAmount: 100, debtAmount: 0 }],
+      grades: [{ id: 'grade-b', studentId: 's-b', classId: 'b', semester: 'GKI', listening: 8, average: 0.8 }],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({
+      assignedClassIds: ['a'], teacherId: 't-a',
+      student: { view: true, edit: true }, grade: { view: true, edit: true }, teacher: { edit: true },
+    }, 'teacher');
+    await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
+      '2026-11-05.1',
+      ['authentication', 'center-operations', 'security-audit'],
+    ]);
+
+    const response = (await db.query<{ snapshot: { payload: typeof payload; updated_at: string } }>(
+      "select public.bz_get_center_snapshot('2026-11-05.1') as snapshot",
+    )).rows[0].snapshot;
+    expect(response.payload.classes.map((item) => item.id)).toEqual(['a']);
+    expect(response.payload.students.map((item) => item.id)).toEqual(['s-a']);
+    expect(response.payload.students[0]).toMatchObject({ dob: '', school: '', phone: '', parentName: '', parentPhone: '', feeStatus: 'unpaid' });
+    expect(response.payload.teachers[0]).toMatchObject({ id: 't-a', phone: '', email: '', address: '' });
+    expect(response.payload.receipts).toEqual([]);
+    expect(response.payload.grades).toEqual([]);
+
+    const edited = structuredClone(response.payload);
+    edited.grades = [{ id: 'grade-a', studentId: 's-a', classId: 'a', semester: 'GKI', listening: 7, average: 0.7 }];
+    const saved = (await db.query<{ result: { applied: boolean } }>(
+      'select public.bz_save_center_snapshot($1::jsonb,$2::timestamptz,$3) as result',
+      [JSON.stringify(edited), response.updated_at, '2026-11-05.1'],
+    )).rows[0].result;
+    expect(saved.applied).toBe(true);
+
+    await db.exec('reset role');
+    const stored = (await db.query<{ payload: typeof payload }>('select payload from public.center_data')).rows[0].payload;
+    expect(stored.grades.map((item) => item.id).sort()).toEqual(['grade-a', 'grade-b']);
+    expect(stored.students[0]).toMatchObject({ dob: '2020-01-01', phone: '0911', parentName: 'Parent A' });
+    expect(stored.receipts).toHaveLength(1);
+  });
+  it('applies the selected Hành chính view permissions to raw snapshot data', async () => {
+    const payload = {
+      ...base,
+      classes: [{ id: 'a', code: 'A', name: 'A', programId: '', teacherId: '', roomId: '', scheduleTime: '', days: [], capacity: 20, studentIds: ['s'] }],
+      students: [{ id: 's', code: 'A-01', classStudentCodes: { a: 'A-01' }, name: 'Student', dob: '2020-01-01', gender: 'Nam', school: 'Private', gradeLevel: '', programId: '', classId: 'a', address: 'Private', email: '', phone: '0911', parentName: 'Parent', parentPhone: '0922', enrollDate: '2026-01-01', status: 'active', feeStatus: 'paid' }],
+      receipts: [{ id: 'r', studentId: 's', classId: 'a', courseFee: 100, discount: 0, paidAmount: 100, debtAmount: 0 }],
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
+    await asStaff({ student: { view: false }, tuition: { view: false }, report: { revenue: false } }, 'admin');
+    await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
+      '2026-11-05.1', ['authentication', 'center-operations', 'security-audit'],
+    ]);
+    let snapshot = (await db.query<{ snapshot: { payload: typeof payload } }>(
+      "select public.bz_get_center_snapshot('2026-11-05.1') as snapshot",
+    )).rows[0].snapshot.payload;
+    expect(snapshot.students[0]).toMatchObject({ phone: '', parentPhone: '', address: '', feeStatus: 'unpaid' });
+    expect(snapshot.receipts).toEqual([]);
+
+    await db.exec('reset role');
+    await asStaff({ student: { view: true }, tuition: { view: true }, report: { revenue: false } }, 'admin');
+    snapshot = (await db.query<{ snapshot: { payload: typeof payload } }>(
+      "select public.bz_get_center_snapshot('2026-11-05.1') as snapshot",
+    )).rows[0].snapshot.payload;
+    expect(snapshot.students[0]).toMatchObject({ phone: '0911', parentPhone: '0922', address: 'Private', feeStatus: 'paid' });
+    expect(snapshot.receipts).toHaveLength(1);
+  });
   it('restores center data and every work-history table atomically for an active owner', async () => {
     const taskId = '10000000-0000-4000-8000-000000000010';
     const work = {

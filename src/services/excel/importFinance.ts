@@ -1,6 +1,7 @@
 import type ExcelJS from 'exceljs';
 import { withUnbilledSessionReceipts } from '../../lib/sessionBilling';
 import { feeStatusForReceipts } from '../../lib/tuition';
+import { studentCodeForClass } from '../../lib/studentClasses';
 import type { AttendanceSession, ClassRoom, Student, Teacher, TuitionReceipt } from '../../types';
 import {
   cellText,
@@ -22,6 +23,12 @@ export function importFinance(
   teachers: Teacher[],
   masterDirectPayments: Map<string, MasterDirectPaymentInput>,
 ): ImportStageResult<{ receipts: TuitionReceipt[]; attendanceSessions: AttendanceSession[] }> {
+  const studentByAnyCode = (code: string, classId?: string) => code
+    ? students.find((student) => (
+        student.code === code
+        || (classId ? studentCodeForClass(student, classId) === code : Object.values(student.classStudentCodes || {}).includes(code))
+      ))
+    : undefined;
   const studentIds = new Set(students.map((student) => student.id));
   const tuitionRecords = readRecords(tuitionSheet, ['maphieu', 'idhethong']);
   const invalidTuitionReferences = tuitionRecords.filter((record) => {
@@ -29,8 +36,9 @@ export function importFinance(
     const suppliedStudentCode = cellText(
       getByAliases(record, ['mahocsinh', 'mahs', 'studentcode']),
     );
+    const classId = classes.find((classroom) => classroom.code === cellText(getByAliases(record, ['malop', 'classcode'])))?.id;
     const byId = students.find((student) => student.id === suppliedStudentId);
-    const byCode = students.find((student) => student.code === suppliedStudentCode);
+    const byCode = studentByAnyCode(suppliedStudentCode, classId);
     const paid = numberValue(getByAliases(record, ['dathuvnd', 'dathu', 'paidamount']));
     const debt = numberValue(getByAliases(record, ['conlaivnd', 'conlai', 'remainingamount', 'congnovnd', 'congno', 'debtamount']));
     return (
@@ -106,7 +114,7 @@ export function importFinance(
         };
       const code = cellText(getByAliases(record, ['mahocsinh']));
       if (code) {
-        const student = students.find((item) => item.code === code);
+        const student = studentByAnyCode(code, session.classId);
         if (!student || session.entries.some((entry) => entry.studentId === student.id))
           return {
             errors: [
@@ -141,11 +149,13 @@ export function importFinance(
       const suppliedStudentCode = cellText(
         getByAliases(record, ['mahocsinh', 'mahs', 'studentcode']),
       );
+      const referencedClassId = classes.find(
+        (classroom) => classroom.code === cellText(getByAliases(record, ['malop', 'classcode'])),
+      )?.id;
       // A workbook user only needs to enter the student code. The system ID is
       // an optional technical key, so a new HỌC PHÍ row remains linked on import.
-      const student = students.find(
-        (item) => item.id === suppliedStudentId || item.code === suppliedStudentCode,
-      );
+      const student = students.find((item) => item.id === suppliedStudentId)
+        || studentByAnyCode(suppliedStudentCode, referencedClassId);
       const studentId = student?.id || suppliedStudentId;
       const paidAmount = numberValue(getByAliases(record, ['dathuvnd', 'dathu', 'paidamount']));
       const debtAmount = numberValue(getByAliases(record, ['conlaivnd', 'conlai', 'remainingamount', 'congnovnd', 'congno', 'debtamount']));
@@ -200,10 +210,7 @@ export function importFinance(
         code: cellText(getByAliases(record, ['maphieu', 'receiptcode'])) || `IMP-${index + 1}`,
         studentId,
         classId:
-          classes.find(
-            (classroom) =>
-              classroom.code === cellText(getByAliases(record, ['malop', 'classcode'])),
-          )?.id ||
+          referencedClassId ||
           student?.classId ||
           '',
         courseFee,

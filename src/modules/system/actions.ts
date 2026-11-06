@@ -16,6 +16,7 @@ import type { ActivityLogger } from './activityLogger';
 import { parseCenterData } from '../../lib/centerData';
 import { mergeAcademicCatalog } from '../../lib/academicCatalog';
 import { validateRecurringChanges } from '../../lib/operations';
+import { reconcileStudentClassCodes } from '../../lib/studentClasses';
 import {
   isInitialDemoAccountAudit,
   stripInitialDemoData,
@@ -133,7 +134,7 @@ export function createSystemActions({
       existingCodes.add(code);
       return true;
     });
-    setStudents((prev) => [...uniqueStudents, ...prev]);
+    setStudents((prev) => reconcileStudentClassCodes([...uniqueStudents, ...prev], classes));
     addLog(
       'IMPORT',
       'Excel',
@@ -303,7 +304,7 @@ export function createSystemActions({
     fixedClasses: ClassRoom[],
     fixedReceipts: TuitionReceipt[],
   ) => {
-    setStudents(fixedStudents);
+    setStudents(reconcileStudentClassCodes(fixedStudents, fixedClasses));
     setClasses(fixedClasses);
     setReceipts(fixedReceipts);
     addLog('ĐỒNG BỘ', 'Kiểm tra dữ liệu', 'Đã tự động sửa các liên kết dữ liệu không nhất quán');

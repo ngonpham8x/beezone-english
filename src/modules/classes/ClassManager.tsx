@@ -1,8 +1,14 @@
 import { ConfirmedForm } from '../../components/ConfirmedForm';
-import { nextStudentCode, nextRoomId } from '../../lib/identifiers';
+import { nextRoomId } from '../../lib/identifiers';
 import { academicPermission } from '../../lib/permissions';
 import { showAlert } from '../../lib/dialogs';
-import { isStudentInClass, classProgramIds, classMatchesProgram } from '../../lib/studentClasses';
+import {
+  isStudentInClass,
+  classProgramIds,
+  classMatchesProgram,
+  nextStudentCodeForClass,
+  studentCodeForClass,
+} from '../../lib/studentClasses';
 import {
   BookOpen,
   CalendarDays,
@@ -219,6 +225,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     setScheduleEntries([]);
     setScheduleError(null);
     setProgramInput('');
+    setSelectedProgramIds([]);
+    setSelectedStudentIds([]);
+    setStudentSearchQuery('');
     setIsQuickRoomOpen(false);
     setNewRoomName('');
     setNewRoomCapacity(0);
@@ -235,7 +244,11 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       .map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
     const legacyRange = classroom.scheduleTime.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
     setEditingClass(classroom);
-    setProgramInput(programs.find((program) => program.id === classroom.programId)?.name || '');
+    const programIds = classProgramIds(classroom);
+    setSelectedProgramIds(programIds);
+    setProgramInput(programIds.map((id) => programs.find((program) => program.id === id)?.name || id).join(', '));
+    setSelectedStudentIds(students.filter((student) => isStudentInClass(student, classroom.id)).map((student) => student.id));
+    setStudentSearchQuery('');
     setScheduleEntries(existingSlots.length ? existingSlots : classroom.days.map((dayOfWeek) => ({
       dayOfWeek,
       startTime: legacyRange?.[1] || '18:00',
@@ -288,7 +301,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       return;
     }
     const studentId = `ST_${Date.now()}`;
-    const code = nextStudentCode(students);
+    const code = editingClass?.code.trim()
+      ? nextStudentCodeForClass(editingClass, students)
+      : `HS${String(students.length + 1).padStart(3, '0')}`;
     const newStudent: Student = {
       id: studentId,
       code,
@@ -354,7 +369,8 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       program.name.trim().toLocaleLowerCase('vi-VN') === programName.toLocaleLowerCase('vi-VN')
       || program.code.trim().toLocaleLowerCase('vi-VN') === programName.toLocaleLowerCase('vi-VN')
     ));
-    const createdProgram = programName && !matchingProgram ? {
+    const selectedExistingProgramIds = selectedProgramIds.filter((id) => programs.some((program) => program.id === id));
+    const createdProgram = !selectedExistingProgramIds.length && programName && !matchingProgram ? {
       id: `PROG_${Date.now()}`,
       code: `CT-${String(programs.length + 1).padStart(3, '0')}`,
       name: programName,
@@ -363,11 +379,15 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
       description: 'Tạo trực tiếp khi lập lớp học.',
     } : null;
     if (createdProgram && !canCreateProgram) { setScheduleError('Bạn chưa có quyền tạo chương trình học. Hãy chọn chương trình có sẵn.'); return; }
+    const savedProgramIds = selectedExistingProgramIds.length
+      ? selectedExistingProgramIds
+      : [matchingProgram?.id || createdProgram?.id || editingClass.programId].filter(Boolean);
     const savedClass: ClassRoom = {
       ...editingClass,
       notes: (editingClass.notes ?? editingClass.note)?.trim() || undefined,
       note: (editingClass.notes ?? editingClass.note)?.trim() || undefined,
-      programId: matchingProgram?.id || createdProgram?.id || editingClass.programId,
+      programId: savedProgramIds[0] || '',
+      additionalProgramIds: savedProgramIds.slice(1),
       studentIds: selectedStudentIds,
       days: sortSchedule(validEntries).map((entry) => entry.dayOfWeek),
       scheduleTime: scheduleDescription(validEntries),
@@ -674,7 +694,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                           <TeacherAvatar teacher={st} className="h-8 w-8 text-[9px]" />
                           <div>
                             <div className="font-bold text-slate-900">{st.name}</div>
-                            <div className="text-[10px] text-slate-500">{st.code} • Phụ huynh: {st.parentName} ({st.parentPhone})</div>
+                            <div className="text-[10px] text-slate-500">{studentCodeForClass(st, viewingClassStudents.id)} • Phụ huynh: {st.parentName} ({st.parentPhone})</div>
                           </div>
                         </div>
 
@@ -715,7 +735,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 setProgramInput('');
                 setIsQuickRoomOpen(false);
               }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="dialog-panel bg-white rounded-2xl max-h-[90vh] max-w-lg w-full overflow-y-auto p-6 shadow-xl border border-slate-200 relative custom-scrollbar">
+          <div className="dialog-panel w-[min(96vw,1080px)] max-w-5xl max-h-[94vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6 relative custom-scrollbar">
             <button aria-label="Đóng"
               onClick={() => {
                 setIsModalOpen(false);
@@ -1197,7 +1217,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 </div>
 
                 <p className="text-[11px] text-slate-500 mb-2">
-                  Tích chọn các học viên tham gia lớp này. Có thể tìm kiếm theo tên hoặc mã học sinh.
+                  Tích chọn các học viên tham gia lớp này. Mỗi lớp cấp một mã riêng theo mã lớp để học viên học nhiều lớp không bị nhầm khi đối soát.
                 </p>
 
                 {/* Quick Student Create Form */}
@@ -1268,7 +1288,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 </div>
 
                 {/* Student Checkbox List */}
-                <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                <div className="max-h-80 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                   {students.length === 0 ? (
                     <div className="p-3 text-center text-xs text-slate-400">Chưa có học sinh nào trong hệ thống</div>
                   ) : (
@@ -1279,12 +1299,14 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                         return (
                           s.name.toLowerCase().includes(q) ||
                           s.code.toLowerCase().includes(q) ||
+                          Object.values(s.classStudentCodes || {}).some((code) => code.toLowerCase().includes(q)) ||
                           (s.phone && s.phone.toLowerCase().includes(q)) ||
                           (s.parentPhone && s.parentPhone.toLowerCase().includes(q))
                         );
                       })
                       .map((st) => {
                         const isChecked = selectedStudentIds.includes(st.id);
+                        const classCode = st.classStudentCodes?.[editingClass.id]?.trim();
                         const otherClasses = classes.filter((c) => c.id !== editingClass.id && isStudentInClass(st, c.id));
                         return (
                           <label
@@ -1305,7 +1327,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                               <TeacherAvatar teacher={{ name: st.name, avatar: st.avatar }} className="w-6 h-6 rounded-full text-[10px] shrink-0" />
                               <div className="min-w-0 truncate">
                                 <span className="font-semibold">{st.name}</span>
-                                <span className="text-slate-400 font-mono text-[11px] ml-1.5">({st.code})</span>
+                                <span className="text-amber-800 font-mono text-[11px] ml-1.5">
+                                  ({classCode || (isChecked ? 'Sẽ cấp mã khi lưu' : 'Chưa có mã lớp này')})
+                                </span>
                                 {otherClasses.length > 0 && (
                                   <span className="text-[10px] text-slate-500 ml-1.5 truncate">
                                     • Lớp khác: {otherClasses.map((c) => c.name).join(', ')}

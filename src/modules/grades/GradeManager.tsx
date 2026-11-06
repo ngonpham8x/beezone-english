@@ -18,7 +18,7 @@ import { HorizontalScroll } from '../../components/HorizontalScroll';
 import { ResponsiveSelect } from '../../components/ResponsiveSelect';
 import { askConfirmation } from '../../lib/dialogs';
 import { useResponsiveView } from '../../hooks/useResponsive';
-import { isStudentInClass } from '../../lib/studentClasses';
+import { isStudentInClass, studentCodeForClass } from '../../lib/studentClasses';
 import { classesVisibleToAccount, hasCenterWideClassScope, isTeachingRole } from '../../lib/accountScope';
 import {
   calculateSemesterAverage,
@@ -146,7 +146,12 @@ export const GradeManager: React.FC<GradeManagerProps> = ({
     .flatMap((student) =>
       permittedClasses
         .filter((c) => isStudentInClass(student, c.id) && (selectedClassId === 'all' || c.id === selectedClassId))
-        .map((c) => ({ ...student, classId: c.id, programId: c.programId })),
+        .map((c) => ({
+          ...student,
+          code: studentCodeForClass(student, c.id),
+          classId: c.id,
+          programId: c.programId,
+        })),
     );
 
   const gradeUnitsForClass = useCallback((classId?: string) => {
