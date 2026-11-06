@@ -9,6 +9,7 @@ import { hasStaffPermission } from '../../lib/permissions';
 import { nextReceiptCode } from '../../lib/identifiers';
 import { updateEnrollmentHistory } from '../../lib/operations';
 import { isStudentInClass, reconcileStudentClassCodes, validateStudentClasses } from '../../lib/studentClasses';
+import { normalizedGuardianConsentRecord, validateGuardianConsentRecord } from '../../lib/studentPrivacy';
 import { toast } from '../../lib/toast';
 import { feeStatusFromReceipts } from '../center/model';
 
@@ -53,6 +54,8 @@ export function createStudentActions({
   // Student CRUD Handlers
   const handleAddStudent = (newStudent: Student) => {
     if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'add')) return;
+    const privacyError = validateGuardianConsentRecord(newStudent.guardianConsent);
+    if (privacyError) { showAlert(privacyError); return; }
     const error = validateStudentClasses(newStudent, classes, students);
     if (error) { showAlert(error); return; }
     if (newStudent.classId)
@@ -61,6 +64,7 @@ export function createStudentActions({
       );
     const candidate = {
         ...newStudent,
+        guardianConsent: normalizedGuardianConsentRecord(newStudent.guardianConsent),
         feeStatus: feeStatusFromReceipts(newStudent.id, receipts, attendanceSessions),
       };
     const normalizedStudent = reconcileStudentClassCodes([candidate, ...students], classes)[0];
@@ -73,6 +77,8 @@ export function createStudentActions({
     if (teacherAccount || !hasStaffPermission(currentUser, 'student', 'edit')) return;
     const previous = students.find(student => student.id === updatedStudent.id);
     if (!previous) return;
+    const privacyError = validateGuardianConsentRecord(updatedStudent.guardianConsent);
+    if (privacyError) { showAlert(privacyError); return; }
     if (previous.classId !== updatedStudent.classId || previous.status !== updatedStudent.status || JSON.stringify(previous.additionalClassIds) !== JSON.stringify(updatedStudent.additionalClassIds)) {
       const error = validateStudentClasses(updatedStudent, classes, students);
       if (error) { showAlert(error); return; }
@@ -87,6 +93,7 @@ export function createStudentActions({
     );
     const candidate = {
       ...updatedStudent,
+      guardianConsent: normalizedGuardianConsentRecord(updatedStudent.guardianConsent),
       feeStatus: feeStatusFromReceipts(updatedStudent.id, receipts, attendanceSessions),
     };
     const normalizedStudent = reconcileStudentClassCodes(

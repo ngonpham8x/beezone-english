@@ -1,5 +1,7 @@
 # Rà soát tuân thủ BeeZone — 05/11/2026
 
+> Đây là bản lưu lịch sử của lần rà soát ngày 05/11. Kết quả cập nhật sau khi đối chiếu lại repo và bổ sung hồ sơ đồng ý phụ huynh nằm tại `LEGAL_COMPLIANCE_AUDIT_2026-11-06.md`.
+
 > Báo cáo kỹ thuật sơ bộ, không phải ý kiến pháp lý và không chứng nhận hệ thống “tuân thủ 100%”. Chủ trung tâm cần đối chiếu hoạt động thực tế và nhờ chuyên gia pháp lý xác nhận các hồ sơ bắt buộc.
 
 ## Phạm vi và phương pháp

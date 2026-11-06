@@ -27,6 +27,7 @@ function compiledServer(run: (directory: string) => void) {
       'src/lib/gradebook.ts',
       'src/lib/schedule.ts',
       'src/lib/sessionBilling.ts',
+      'src/lib/studentPrivacy.ts',
     ]) {
       const output = path.join(directory, file.replace(/\.ts$/, '.js'));
       fs.mkdirSync(path.dirname(output), { recursive: true });

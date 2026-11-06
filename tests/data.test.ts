@@ -209,6 +209,28 @@ describe('backup and cloud validation', () => {
     expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/Ghi chú lớp học không hợp lệ/);
   });
 
+  it('preserves a valid guardian consent index and rejects contradictory evidence dates', () => {
+    const data = fixture();
+    data.students[0].guardianConsent = {
+      status: 'confirmed',
+      representativeName: 'Nguyễn Văn Phụ Huynh',
+      recordedAt: '2026-10-01',
+      method: 'paper',
+      evidenceReference: 'PH-2026-001',
+    };
+    expect(parseCenterData(data, data.settings).students[0].guardianConsent).toEqual(data.students[0].guardianConsent);
+
+    const invalid = fixture();
+    (invalid.students[0] as any).guardianConsent = {
+      status: 'withdrawn',
+      representativeName: 'Nguyễn Văn Phụ Huynh',
+      recordedAt: '2026-10-10',
+      withdrawnAt: '2026-10-01',
+      method: 'electronic',
+    };
+    expect(() => parseCenterData(invalid, invalid.settings)).toThrow(/Ngày rút lại đồng ý/);
+  });
+
   it('validates semester grades and shared custom columns without breaking legacy GKI rows', () => {
     const data = fixture();
     const legacy = data.grades[0];

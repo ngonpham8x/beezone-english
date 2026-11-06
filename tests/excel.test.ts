@@ -77,6 +77,31 @@ describe('Excel export/import', () => {
     expect(detail).toBeTruthy();
     expect(detail!.getCell('G12').formula).toContain("'HỌC PHÍ'!$F$");
   });
+  it('round trips the guardian consent evidence index without embedding the evidence file', async () => {
+    const classroom = initial.initialClasses[0];
+    const student = {
+      ...initial.initialStudents[0],
+      classId: classroom.id,
+      programId: classroom.programId,
+      guardianConsent: {
+        status: 'confirmed' as const,
+        representativeName: 'Nguyễn Văn Phụ Huynh',
+        recordedAt: '2026-10-01',
+        method: 'electronic' as const,
+        evidenceReference: 'EMAIL-PH-2026-001',
+        note: 'Đồng ý phạm vi hồ sơ học tập.',
+      },
+    };
+    const blob = await generateMasterExcelWorkbook({ centerName: 'Test', programs: initial.initialPrograms, students: [student], classes: [classroom], teachers: initial.initialTeachers, rooms: initial.initialRooms, grades: [], receipts: [] });
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(await blob.arrayBuffer());
+    expect(book.getWorksheet('HỌC SINH')!.getCell('AH6').value).toBe('Đã xác nhận');
+    expect(book.getWorksheet('HỌC SINH')!.getCell('AL6').value).toBe('EMAIL-PH-2026-001');
+
+    const result = await parseCenterWorkbookFile(new File([await blob.arrayBuffer()], 'privacy-consent.xlsx'));
+    expect(result.errors).toEqual([]);
+    expect(result.data!.students[0].guardianConsent).toEqual(student.guardianConsent);
+  }, 30_000);
   it('round trips lesson prices, absences, grouped payments and unbilled debt', async () => {
     const classroom = {...initial.initialClasses[0],billingMode:'session' as const,sessionRate:200000,sessionAbsencePolicy:'attended' as const,sessionBillingStartDate:'2020-01-01'};
     const student = {...initial.initialStudents[0],classId:classroom.id};

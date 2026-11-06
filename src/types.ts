@@ -37,6 +37,18 @@ export type FeeStatus = 'paid' | 'unpaid' | 'debt' | 'partial';
 export type TuitionPaymentKind = 'course' | 'monthly' | 'session';
 export type SessionAbsencePolicy = 'attended' | 'unexcused' | 'all';
 
+export type GuardianConsentMethod = 'paper' | 'electronic' | 'other';
+
+export interface GuardianConsentRecord {
+  status: 'confirmed' | 'withdrawn';
+  representativeName: string;
+  recordedAt: string;
+  method: GuardianConsentMethod;
+  evidenceReference?: string;
+  withdrawnAt?: string;
+  note?: string;
+}
+
 export interface Student {
   id: string;
   code: string; // e.g., HS001
@@ -61,6 +73,8 @@ export interface Student {
   phone: string;
   parentName: string;
   parentPhone: string;
+  /** Evidence index only; do not store scans or identity documents in this JSON record. */
+  guardianConsent?: GuardianConsentRecord;
   enrollDate: string;
   notes?: string;
   status: StudentStatus;

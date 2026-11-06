@@ -1,5 +1,5 @@
-export const PRIVACY_POLICY_VERSION = '2026-11-05.1';
-export const PRIVACY_POLICY_EFFECTIVE_DATE = '05/11/2026';
+export const PRIVACY_POLICY_VERSION = '2026-11-06.1';
+export const PRIVACY_POLICY_EFFECTIVE_DATE = '06/11/2026';
 export const PRIVACY_CONSENT_PURPOSES = [
   'authentication',
   'center-operations',

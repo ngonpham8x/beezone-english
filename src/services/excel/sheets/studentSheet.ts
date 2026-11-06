@@ -20,9 +20,9 @@ import type { ExportContext } from '../exportContext';
 export function writeStudentSheet(context: ExportContext) {
   const { data, workbook, classSheetNames, classById, programById, studentSheetRowById } = context;
   const studentsSheet = workbook.addWorksheet('HỌC SINH');
-  styleTitle(studentsSheet, 'A1:AG2', `${data.centerName.toUpperCase()}\nDANH SÁCH HỌC SINH`);
-  applyBackLink(studentsSheet, 'AG');
-  studentsSheet.mergeCells('A4:AG4');
+  styleTitle(studentsSheet, 'A1:AN2', `${data.centerName.toUpperCase()}\nDANH SÁCH HỌC SINH`);
+  applyBackLink(studentsSheet, 'AN');
+  studentsSheet.mergeCells('A4:AN4');
   studentsSheet.getCell('A4').value =
     'Nhập học sinh tại các dòng trống ngay trên TỔNG CỘNG; khoản thu trực tiếp ở cột nền vàng M–R. Tổng/Còn lại và sheet lớp tự liên kết theo ID hệ thống.';
   studentsSheet.getCell('A4').font = {
@@ -76,6 +76,13 @@ export function writeStudentSheet(context: ExportContext) {
     'Bí danh',
     'Cấp tài khoản',
     'Mã học viên theo lớp',
+    'Hồ sơ đồng ý phụ huynh',
+    'Ngày ghi nhận đồng ý',
+    'Hình thức đồng ý',
+    'Người đại diện xác nhận',
+    'Mã tham chiếu bằng chứng',
+    'Ngày rút lại đồng ý',
+    'Ghi chú đồng ý',
   ];
   studentsSheet.getRow(5).values = studentHeaders;
   styleHeader(studentsSheet.getRow(5));
@@ -121,6 +128,23 @@ export function writeStudentSheet(context: ExportContext) {
       Object.keys(student.classStudentCodes || {}).length
         ? JSON.stringify(Object.fromEntries(Object.entries(student.classStudentCodes || {}).map(([classId, code]) => [classById.get(classId)?.code || classId, code])))
         : '',
+      student.guardianConsent?.status === 'confirmed'
+        ? 'Đã xác nhận'
+        : student.guardianConsent?.status === 'withdrawn'
+          ? 'Đã rút lại'
+          : '',
+      student.guardianConsent?.recordedAt || '',
+      student.guardianConsent?.method === 'paper'
+        ? 'Văn bản giấy'
+        : student.guardianConsent?.method === 'electronic'
+          ? 'Xác nhận điện tử'
+          : student.guardianConsent?.method === 'other'
+            ? 'Hình thức khác'
+            : '',
+      student.guardianConsent?.representativeName || '',
+      student.guardianConsent?.evidenceReference || '',
+      student.guardianConsent?.withdrawnAt || '',
+      student.guardianConsent?.note || '',
     ];
     styleData(row, index);
     [13, 14, 19, 20, 21, 22].forEach((column) => {
@@ -152,7 +176,7 @@ export function writeStudentSheet(context: ExportContext) {
   [19, 20, 21, 22].forEach((column) => {
     studentsSheet.getCell(studentFooterRow, column).numFmt = moneyFormat;
   });
-  studentsSheet.autoFilter = { from: 'A5', to: `AG${studentFooterRow - 1}` };
+  studentsSheet.autoFilter = { from: 'A5', to: `AN${studentFooterRow - 1}` };
   studentsSheet.views = [{ state: 'frozen', ySplit: 5 }];
   studentsSheet.columns = [
     { width: 8 },
@@ -188,6 +212,13 @@ export function writeStudentSheet(context: ExportContext) {
     { width: 18 },
     { width: 18 },
     { width: 28 },
+    { width: 24 },
+    { width: 20 },
+    { width: 20 },
+    { width: 28 },
+    { width: 30 },
+    { width: 20 },
+    { width: 40 },
   ];
   studentsSheet.getColumn(23).hidden = true;
   studentsSheet.getColumn(24).hidden = true;
@@ -196,6 +227,8 @@ export function writeStudentSheet(context: ExportContext) {
   studentsSheet.getColumn(27).width = 36;
   studentsSheet.getColumn(26).numFmt = moneyFormat;
   studentsSheet.getColumn(33).hidden = true;
+  studentsSheet.getColumn(35).numFmt = 'dd/mm/yyyy';
+  studentsSheet.getColumn(39).numFmt = 'dd/mm/yyyy';
   studentsSheet.getCell(studentFooterRow, 26).value = {
     formula: `SUM(Z${STUDENT_DATA_START_ROW}:Z${studentFooterRow - 1})`,
   };

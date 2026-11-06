@@ -30,7 +30,8 @@ export function PrivacyPolicyDialog({ isOpen, onClose, settings }: Props) {
           </section>
           <section>
             <h3 className="font-extrabold text-slate-950">2. Dữ liệu được xử lý</h3>
-            <p>Hệ thống có thể lưu thông tin tài khoản nhân sự; hồ sơ học viên và phụ huynh; ngày sinh, giới tính, trường/lớp, địa chỉ và thông tin liên hệ; đăng ký học, điểm danh, nhận xét, điểm số; học phí, phiếu thu; nội dung nhập từ Excel; lịch sử thao tác, đăng nhập và sao lưu. Không nhập dữ liệu không cần thiết vào ô ghi chú.</p>
+            <p>Hệ thống có thể lưu thông tin tài khoản nhân sự; hồ sơ học viên và phụ huynh; ngày sinh, giới tính, trường/lớp, địa chỉ và thông tin liên hệ; đăng ký học, điểm danh, nhận xét, điểm số; học phí, phiếu thu; trạng thái và mã tham chiếu hồ sơ đồng ý của người đại diện; nội dung nhập từ Excel; lịch sử thao tác, đăng nhập và sao lưu. Không nhập dữ liệu không cần thiết vào ô ghi chú.</p>
+            <p className="mt-2">BeeZone không được thiết kế để lưu bản chụp giấy tờ tùy thân, chữ ký, sinh trắc học, hồ sơ sức khỏe, mật khẩu, số thẻ hoặc tài khoản ngân hàng. Nếu trung tâm thật sự cần một nhóm dữ liệu nhạy cảm, phải đánh giá riêng về sự cần thiết, căn cứ xử lý, giới hạn người xem, thời hạn lưu và thông báo/đồng ý trước khi nhập.</p>
           </section>
           <section>
             <h3 className="font-extrabold text-slate-950">3. Mục đích và phạm vi sử dụng</h3>
@@ -46,11 +47,13 @@ export function PrivacyPolicyDialog({ isOpen, onClose, settings }: Props) {
           </section>
           <section>
             <h3 className="font-extrabold text-slate-950">6. Dữ liệu trẻ em</h3>
-            <p>Phụ huynh/người giám hộ và nhân sự được ủy quyền chỉ cung cấp dữ liệu cần thiết cho việc học. Trung tâm phải kiểm tra thẩm quyền và sự đồng ý phù hợp trước khi nhập, chia sẻ hình ảnh, nhận xét hoặc thông tin riêng tư của trẻ; các yêu cầu liên quan quyền của trẻ được xử lý cùng người đại diện theo pháp luật theo quy định áp dụng.</p>
+            <p>Phụ huynh/người giám hộ và nhân sự được ủy quyền chỉ cung cấp dữ liệu cần thiết cho việc học. Trung tâm phải kiểm tra thẩm quyền và sự đồng ý/căn cứ phù hợp trước khi nhập, chia sẻ hình ảnh, nhận xét hoặc thông tin riêng tư của trẻ; các yêu cầu liên quan quyền của trẻ được xử lý cùng người đại diện theo pháp luật theo quy định áp dụng.</p>
+            <p className="mt-2">Hồ sơ học viên có mục ghi trạng thái, ngày, hình thức và mã tham chiếu bằng chứng. Mục này chỉ là chỉ mục đối soát, không thay thế văn bản/bằng chứng gốc và không tự chứng minh sự đồng ý hợp lệ. Khi phụ huynh rút lại, nhân sự phải cập nhật trạng thái và chuyển yêu cầu cho người phụ trách dữ liệu.</p>
           </section>
           <section>
             <h3 className="font-extrabold text-slate-950">7. Quyền và cách gửi yêu cầu</h3>
             <p>Chủ thể dữ liệu có thể yêu cầu được biết, truy cập, sửa, hạn chế, phản đối, rút lại sự đồng ý hoặc xóa dữ liệu trong phạm vi pháp luật cho phép. Gửi yêu cầu tới email ở mục 1, nêu rõ danh tính, quan hệ với học viên và nội dung cần xử lý. Việc rút lại sự đồng ý không làm mất tính hợp pháp của xử lý đã thực hiện trước đó; một số chức năng cần thiết có thể không tiếp tục sử dụng được.</p>
+            <p className="mt-2">Trung tâm ghi nhận và hướng dẫn xác minh trong tối đa 02 ngày làm việc. Mốc xử lý nội bộ thông thường là 10 ngày cho truy cập/cung cấp/chỉnh sửa, 15 ngày cho rút lại/hạn chế/phản đối và 20 ngày cho xóa; trường hợp có bên thứ ba, được gia hạn hợp pháp hoặc phải giữ hồ sơ theo nghĩa vụ khác sẽ được thông báo kèm lý do và thời hạn áp dụng.</p>
           </section>
           <section>
             <h3 className="font-extrabold text-slate-950">8. Lưu trữ trên thiết bị</h3>

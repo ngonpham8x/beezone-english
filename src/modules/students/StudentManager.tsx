@@ -17,6 +17,7 @@ import {
   Phone,
   RotateCcw,
   Save,
+  ShieldCheck,
   Table as TableIcon,
   Trash2,
   UserCheck,
@@ -38,6 +39,7 @@ import { useResponsiveView } from '../../hooks/useResponsive';
 import { centerDate, isCalendarDate } from '../../lib/dates';
 import { matchesSearch as matchesSearchText } from '../../lib/search';
 import { isStudentOwingTuition, studentTuitionDebtBreakdown } from '../../lib/tuition';
+import { normalizedGuardianConsentRecord, validateGuardianConsentRecord } from '../../lib/studentPrivacy';
 import {
   AttendanceSession,
   ClassEnrollment,
@@ -547,6 +549,27 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     setIsModalOpen(true);
   };
 
+  const setGuardianConsentStatus = (status: 'not_recorded' | 'confirmed' | 'withdrawn') => {
+    if (!editingStudent) return;
+    if (status === 'not_recorded') {
+      setEditingStudent({ ...editingStudent, guardianConsent: undefined });
+      return;
+    }
+    const previous = editingStudent.guardianConsent;
+    setEditingStudent({
+      ...editingStudent,
+      guardianConsent: {
+        status,
+        representativeName: previous?.representativeName || editingStudent.parentName,
+        recordedAt: previous?.recordedAt || centerDate(),
+        method: previous?.method || 'paper',
+        ...(previous?.evidenceReference ? { evidenceReference: previous.evidenceReference } : {}),
+        ...(status === 'withdrawn' ? { withdrawnAt: previous?.withdrawnAt || centerDate() } : {}),
+        ...(previous?.note ? { note: previous.note } : {}),
+      },
+    });
+  };
+
   const handleSaveStudent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStudent) return;
@@ -592,7 +615,13 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       showAlert('Ngày sinh không hợp lệ. Nhập ngày/tháng/năm có thật và không ở tương lai.');
       return;
     }
-    let studentToSave = { ...editingStudent, dob, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
+    const guardianConsent = normalizedGuardianConsentRecord(editingStudent.guardianConsent);
+    const guardianConsentError = validateGuardianConsentRecord(guardianConsent);
+    if (guardianConsentError) {
+      showAlert(guardianConsentError);
+      return;
+    }
+    let studentToSave = { ...editingStudent, guardianConsent, dob, code, classId: selectedClass?.id || '', additionalClassIds: editingStudent.additionalClassIds?.filter(id => id !== selectedClass?.id) };
     const membershipError = validateStudentClasses(studentToSave, classes, students);
     if (membershipError) { showAlert(membershipError); return; }
     if (programEntryMode === 'manual' && manualProgramName.trim()) {
@@ -1755,6 +1784,102 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   placeholder="TP. Tây Ninh"
                 />
               </div>
+
+              <fieldset className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                <legend className="flex items-center gap-1.5 px-1 font-bold text-emerald-900">
+                  <ShieldCheck className="h-4 w-4" /> Hồ sơ đồng ý xử lý dữ liệu của phụ huynh
+                </legend>
+                <p className="text-[11px] leading-5 text-emerald-950">
+                  Chỉ ghi mã tham chiếu nơi lưu bằng chứng giấy/điện tử; không tải ảnh CCCD, chữ ký hoặc giấy tờ gốc vào ô này.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block font-semibold text-slate-700">Trạng thái hồ sơ</label>
+                    <select
+                      aria-label="Trạng thái đồng ý của phụ huynh"
+                      value={editingStudent.guardianConsent?.status || 'not_recorded'}
+                      onChange={(event) => setGuardianConsentStatus(event.target.value as 'not_recorded' | 'confirmed' | 'withdrawn')}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="not_recorded">Chưa ghi nhận</option>
+                      <option value="confirmed">Đã xác nhận</option>
+                      <option value="withdrawn">Đã rút lại</option>
+                    </select>
+                  </div>
+                  {editingStudent.guardianConsent && <>
+                    <div>
+                      <label className="mb-1 block font-semibold text-slate-700">Phụ huynh/người đại diện *</label>
+                      <input
+                        type="text"
+                        value={editingStudent.guardianConsent.representativeName}
+                        onChange={(event) => setEditingStudent({ ...editingStudent, guardianConsent: { ...editingStudent.guardianConsent!, representativeName: event.target.value } })}
+                        maxLength={120}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block font-semibold text-slate-700">Ngày ghi nhận *</label>
+                      <input
+                        type="date"
+                        value={editingStudent.guardianConsent.recordedAt}
+                        max={centerDate()}
+                        onChange={(event) => setEditingStudent({ ...editingStudent, guardianConsent: { ...editingStudent.guardianConsent!, recordedAt: event.target.value } })}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block font-semibold text-slate-700">Hình thức *</label>
+                      <select
+                        value={editingStudent.guardianConsent.method}
+                        onChange={(event) => setEditingStudent({ ...editingStudent, guardianConsent: { ...editingStudent.guardianConsent!, method: event.target.value as 'paper' | 'electronic' | 'other' } })}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="paper">Văn bản giấy</option>
+                        <option value="electronic">Xác nhận điện tử</option>
+                        <option value="other">Hình thức khác</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block font-semibold text-slate-700">Mã tham chiếu bằng chứng</label>
+                      <input
+                        type="text"
+                        value={editingStudent.guardianConsent.evidenceReference || ''}
+                        onChange={(event) => setEditingStudent({ ...editingStudent, guardianConsent: { ...editingStudent.guardianConsent!, evidenceReference: event.target.value } })}
+                        maxLength={200}
+                        placeholder="Ví dụ: PH-2026-001 / thư mục hồ sơ"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    {editingStudent.guardianConsent.status === 'withdrawn' && (
+                      <div>
+                        <label className="mb-1 block font-semibold text-slate-700">Ngày rút lại *</label>
+                        <input
+                          type="date"
+                          value={editingStudent.guardianConsent.withdrawnAt || ''}
+                          min={editingStudent.guardianConsent.recordedAt}
+                          max={centerDate()}
+                          onChange={(event) => setEditingStudent({ ...editingStudent, guardianConsent: { ...editingStudent.guardianConsent!, withdrawnAt: event.target.value } })}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                          required
+                        />
+                      </div>
+                    )}
+                    <div className={editingStudent.guardianConsent.status === 'withdrawn' ? '' : 'sm:col-span-2'}>
+                      <label className="mb-1 block font-semibold text-slate-700">Ghi chú phạm vi/căn cứ</label>
+                      <input
+                        type="text"
+                        value={editingStudent.guardianConsent.note || ''}
+                        onChange={(event) => setEditingStudent({ ...editingStudent, guardianConsent: { ...editingStudent.guardianConsent!, note: event.target.value } })}
+                        maxLength={1000}
+                        placeholder="Chỉ ghi nội dung cần thiết, không chép giấy tờ tùy thân"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </>}
+                </div>
+              </fieldset>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Ghi Chú</label>

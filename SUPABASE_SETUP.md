@@ -86,9 +86,15 @@ Các biến này đã được cấu hình trong đợt deploy 14/10/2026. Integ
 
 Trạng thái deployment và các phần chưa hoàn tất: [DEPLOYMENT_STATUS.md](DEPLOYMENT_STATUS.md).
 
-## Đồng bộ nhiều máy (migration 032)
+## Đồng bộ nhiều máy (migration 032, được thay thế bởi 034)
 
-Sau migration 031, áp dụng `032_center_data_realtime.sql` trên staging rồi production để phát thay đổi `center_data` tới các máy đang mở. Migration chỉ thêm bảng hiện có vào publication `supabase_realtime`, không sửa payload, tài khoản hoặc lịch sử. Nếu sự kiện Realtime bị gián đoạn, CAS và bước tải/hợp nhất sau xung đột vẫn bảo vệ dữ liệu.
+Migration 032 từng phát thay đổi `center_data` qua Realtime. Sau khi áp dụng 034, bảng này bị gỡ khỏi publication để không phát toàn bộ tài liệu JSON cho mọi tài khoản; client chuyển sang tải snapshot đã lọc và vẫn giữ CAS/hợp nhất xung đột. Không tự thêm `center_data` lại vào Realtime sau 034.
+
+## Đồng ý, phạm vi dữ liệu và hồ sơ phụ huynh (migration 033–035)
+
+Áp dụng theo đúng thứ tự `033_privacy_consents.sql`, `034_scoped_center_data_access.sql`, rồi `035_guardian_privacy_consent.sql`. Migration 033 lưu xác nhận chính sách của từng tài khoản. Migration 034 thu hồi đọc/ghi trực tiếp `center_data`, chỉ mở RPC snapshot theo consent/vai trò và giữ CAS. Migration 035 kiểm tra trường hồ sơ đồng ý của phụ huynh và loại trường này khỏi bản dữ liệu đã che cho Giáo viên/Đào tạo.
+
+Trên project đang sử dụng, chạy riêng từng migration còn thiếu sau khi sao lưu và thử trên staging; không chạy file khởi tạo mới. Sau 035, thử lưu một hồ sơ **Đã xác nhận**, đổi thành **Đã rút lại**, xuất/nhập Excel, rồi đăng nhập bằng tài khoản Giáo viên để xác nhận trường riêng tư không xuất hiện. Giao diện chính sách `2026-11-06.1` chỉ nên phát hành sau khi cả ba migration đã có trên production.
 
 Kiểm tra chỉ đọc sau khi áp dụng:
 

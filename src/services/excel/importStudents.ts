@@ -1,11 +1,14 @@
 import type ExcelJS from 'exceljs';
 import type { ClassRoom, CourseProgram, Student, TuitionReceipt } from '../../types';
+import { validateGuardianConsentRecord } from '../../lib/studentPrivacy';
 import {
   cellText,
   duplicatedValues,
   getByAliases,
   isoDate,
   numberValue,
+  normaliseHeader,
+  optionalDate,
   paymentMethodFromCell,
   readRecords,
   statusFromLabel,
@@ -79,6 +82,51 @@ export function importStudents(
       const id =
         cellText(getByAliases(record, ['idhethong', 'systemid'])) ||
         `STU-IMP-MASTER-${String(index + 1).padStart(3, '0')}`;
+      const consentFields = {
+        status: getByAliases(record, ['hosodongyphuhuynh', 'guardianconsentstatus']),
+        recordedAt: getByAliases(record, ['ngayghinhandongy', 'guardianconsentdate']),
+        method: getByAliases(record, ['hinhthucdongy', 'guardianconsentmethod']),
+        representativeName: getByAliases(record, ['nguoidaidienxacnhan', 'guardianrepresentative']),
+        evidenceReference: getByAliases(record, ['mathamchieubangchung', 'consentevidencereference']),
+        withdrawnAt: getByAliases(record, ['ngayrutlaidongy', 'guardianconsentwithdrawndate']),
+        note: getByAliases(record, ['ghichudongy', 'guardianconsentnote']),
+      };
+      const consentStatus = normaliseHeader(cellText(consentFields.status));
+      const hasConsentDetails = Object.values(consentFields).some((value) => cellText(value));
+      let guardianConsent: Student['guardianConsent'];
+      if (hasConsentDetails) {
+        const status = ['daxacnhan', 'confirmed'].includes(consentStatus)
+          ? 'confirmed'
+          : ['darutlai', 'withdrawn'].includes(consentStatus)
+            ? 'withdrawn'
+            : null;
+        if (!status) {
+          membershipErrors.push({ row: index + 6, field: 'Hồ sơ đồng ý phụ huynh', message: 'Chọn “Đã xác nhận” hoặc “Đã rút lại”; không để trạng thái trống khi đã nhập chi tiết.' });
+          return;
+        }
+        const methodValue = normaliseHeader(cellText(consentFields.method));
+        const method = ['vanbangiay', 'paper'].includes(methodValue)
+          ? 'paper'
+          : ['xacnhandientu', 'electronic'].includes(methodValue)
+            ? 'electronic'
+            : ['hinhthuckhac', 'other'].includes(methodValue)
+              ? 'other'
+              : null;
+        guardianConsent = {
+          status,
+          representativeName: cellText(consentFields.representativeName),
+          recordedAt: optionalDate(consentFields.recordedAt) || '',
+          method: method || 'other',
+          ...(cellText(consentFields.evidenceReference) ? { evidenceReference: cellText(consentFields.evidenceReference) } : {}),
+          ...(status === 'withdrawn' ? { withdrawnAt: optionalDate(consentFields.withdrawnAt) || '' } : {}),
+          ...(cellText(consentFields.note) ? { note: cellText(consentFields.note) } : {}),
+        };
+        const consentError = validateGuardianConsentRecord(guardianConsent);
+        if (consentError || !method) {
+          membershipErrors.push({ row: index + 6, field: 'Hồ sơ đồng ý phụ huynh', message: consentError || 'Hình thức đồng ý không hợp lệ.' });
+          return;
+        }
+      }
       students.push({
         id,
         code,
@@ -103,6 +151,7 @@ export function importStudents(
         phone: cellText(getByAliases(record, ['sdthocsinh', 'phone'])),
         parentName: cellText(getByAliases(record, ['phuhuynh', 'tenphuhuynh', 'parentname'])),
         parentPhone: cellText(getByAliases(record, ['sdtphuhuynh', 'parentphone'])),
+        ...(guardianConsent ? { guardianConsent } : {}),
         enrollDate: '',
         notes: cellText(getByAliases(record, ['ghichu', 'notes'])),
         status: statusFromLabel(getByAliases(record, ['trangthai', 'status'])),

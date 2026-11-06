@@ -4,6 +4,7 @@ import { timeMinutes } from './schedule.js';
 import { validSessionRate, validateSessionReceipt } from './sessionBilling.js';
 import type { AttendanceSession, TuitionReceipt } from '../types.js';
 import { gradeSemester, isActiveCustomGradeColumn, isGradeSemester, isValidCustomGradeColumn, isValidScore } from './gradebook.js';
+import { validateGuardianConsentRecord } from './studentPrivacy.js';
 
 export interface CenterDataPayload extends CenterBackupData {
   sessionBillingVersion: 1;
@@ -93,6 +94,10 @@ export function parseCenterData(value: unknown, fallbackSettings: CenterSettings
       if (key === 'students' && ['nickname', 'accountStatus'].some(field => record[field] !== undefined && typeof record[field] !== 'string')) throw new Error('Bí danh hoặc trạng thái tài khoản học viên không hợp lệ.');
       if (key === 'students' && record.additionalClassIds !== undefined && (!stringArray(record.additionalClassIds) || record.additionalClassIds.some(id => !id.trim() || id === record.classId) || new Set(record.additionalClassIds).size !== record.additionalClassIds.length || (!record.classId && record.additionalClassIds.length))) throw new Error('Danh sách lớp học thêm không hợp lệ.');
       if (key === 'students' && record.classStudentCodes !== undefined && (!isRecord(record.classStudentCodes) || Object.entries(record.classStudentCodes).some(([classId, code]) => !classId.trim() || typeof code !== 'string' || !code.trim() || code.length > 120))) throw new Error('Mã học viên theo lớp không hợp lệ.');
+      if (key === 'students') {
+        const guardianConsentError = validateGuardianConsentRecord(record.guardianConsent);
+        if (guardianConsentError) throw new Error(guardianConsentError);
+      }
       if (key === 'grades') {
         if (record.semester !== undefined && !isGradeSemester(record.semester)) throw new Error('Học kỳ của bảng điểm không hợp lệ.');
         if (!isValidScore(record.average) || optionalGradeScores.some((field) => record[field] !== undefined && !isValidScore(record[field]))) throw new Error('Điểm phải trong khoảng 0–10.');

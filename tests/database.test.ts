@@ -38,7 +38,7 @@ describe('database migrations and permission enforcement', () => {
   it('records and withdraws a server-timestamped privacy decision without exposing another account', async () => {
     await db.exec('set role authenticated');
     await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
-      '2026-11-05.1',
+      '2026-11-06.1',
       ['authentication', 'center-operations', 'security-audit'],
     ]);
     const ownerConsent = (await db.query<{ user_id: string; withdrawn_at: string | null }>(
@@ -54,16 +54,33 @@ describe('database migrations and permission enforcement', () => {
     await asStaff({}, 'teacher');
     expect((await db.query('select * from public.privacy_consents')).rows).toEqual([]);
     await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
-      '2026-11-05.1',
+      '2026-11-06.1',
       ['authentication', 'center-operations', 'security-audit'],
     ]);
     expect((await db.query('select user_id::text from public.privacy_consents')).rows).toEqual([{ user_id: staff }]);
-    await db.query("select public.bz_withdraw_privacy_policy('2026-11-05.1')");
+    await db.query("select public.bz_withdraw_privacy_policy('2026-11-06.1')");
     expect((await db.query<{ withdrawn: boolean }>(
       'select withdrawn_at is not null as withdrawn from public.privacy_consents',
     )).rows).toEqual([{ withdrawn: true }]);
     await expect(db.query("select public.bz_accept_privacy_policy('invalid',array['authentication'])"))
       .rejects.toThrow(/Invalid privacy consent/);
+  });
+  it('validates guardian consent evidence on the server before saving the centre document', async () => {
+    const student = {
+      id: 'student-consent', classId: '', status: 'registered', feeStatus: 'unpaid',
+      guardianConsent: {
+        status: 'confirmed', representativeName: 'Parent A', recordedAt: '2020-01-01',
+        method: 'paper', evidenceReference: 'PH-001',
+      },
+    };
+    await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify({ ...base, students: [student] })]);
+    const invalid = {
+      ...student,
+      guardianConsent: { ...student.guardianConsent, status: 'withdrawn', withdrawnAt: '2019-12-31' },
+    };
+    await expect(db.query('update public.center_data set payload=$1::jsonb', [
+      JSON.stringify({ ...base, students: [invalid] }),
+    ])).rejects.toThrow(/guardian privacy consent withdrawal date/);
   });
   it('returns only assigned classes to teachers and saves their scoped grades without exposing personal or tuition data', async () => {
     const payload = {
@@ -83,7 +100,7 @@ describe('database migrations and permission enforcement', () => {
         { id: 'b', code: 'B', name: 'Class B', programId: 'p-b', teacherId: 't-b', roomId: 'room-b', scheduleTime: '', days: [], capacity: 20, studentIds: ['s-b'] },
       ],
       students: [
-        { id: 's-a', code: 'A-01', classStudentCodes: { a: 'A-01' }, name: 'Student A', dob: '2020-01-01', gender: 'Nam', school: 'Secret School', gradeLevel: '', programId: 'p-a', classId: 'a', address: 'Secret Address', email: 'student@example.test', phone: '0911', parentName: 'Parent A', parentPhone: '0922', enrollDate: '2026-01-01', status: 'active', feeStatus: 'unpaid' },
+        { id: 's-a', code: 'A-01', classStudentCodes: { a: 'A-01' }, name: 'Student A', dob: '2020-01-01', gender: 'Nam', school: 'Secret School', gradeLevel: '', programId: 'p-a', classId: 'a', address: 'Secret Address', email: 'student@example.test', phone: '0911', parentName: 'Parent A', parentPhone: '0922', guardianConsent: { status: 'confirmed', representativeName: 'Parent A', recordedAt: '2026-01-01', method: 'paper', evidenceReference: 'PH-A-001' }, enrollDate: '2026-01-01', status: 'active', feeStatus: 'unpaid' },
         { id: 's-b', code: 'B-01', classStudentCodes: { b: 'B-01' }, name: 'Student B', dob: '2020-02-02', gender: 'Nữ', school: 'Hidden School', gradeLevel: '', programId: 'p-b', classId: 'b', address: 'Hidden Address', email: '', phone: '0933', parentName: 'Parent B', parentPhone: '0944', enrollDate: '2026-01-01', status: 'active', feeStatus: 'paid' },
       ],
       receipts: [{ id: 'receipt-b', studentId: 's-b', classId: 'b', courseFee: 100, discount: 0, paidAmount: 100, debtAmount: 0 }],
@@ -95,16 +112,17 @@ describe('database migrations and permission enforcement', () => {
       student: { view: true, edit: true }, grade: { view: true, edit: true }, teacher: { edit: true },
     }, 'teacher');
     await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
-      '2026-11-05.1',
+      '2026-11-06.1',
       ['authentication', 'center-operations', 'security-audit'],
     ]);
 
     const response = (await db.query<{ snapshot: { payload: typeof payload; updated_at: string } }>(
-      "select public.bz_get_center_snapshot('2026-11-05.1') as snapshot",
+      "select public.bz_get_center_snapshot('2026-11-06.1') as snapshot",
     )).rows[0].snapshot;
     expect(response.payload.classes.map((item) => item.id)).toEqual(['a']);
     expect(response.payload.students.map((item) => item.id)).toEqual(['s-a']);
     expect(response.payload.students[0]).toMatchObject({ dob: '', school: '', phone: '', parentName: '', parentPhone: '', feeStatus: 'unpaid' });
+    expect(response.payload.students[0]).not.toHaveProperty('guardianConsent');
     expect(response.payload.teachers[0]).toMatchObject({ id: 't-a', phone: '', email: '', address: '' });
     expect(response.payload.receipts).toEqual([]);
     expect(response.payload.grades).toEqual([]);
@@ -113,7 +131,7 @@ describe('database migrations and permission enforcement', () => {
     edited.grades = [{ id: 'grade-a', studentId: 's-a', classId: 'a', semester: 'GKI', listening: 7, average: 0.7 }];
     const saved = (await db.query<{ result: { applied: boolean } }>(
       'select public.bz_save_center_snapshot($1::jsonb,$2::timestamptz,$3) as result',
-      [JSON.stringify(edited), response.updated_at, '2026-11-05.1'],
+      [JSON.stringify(edited), response.updated_at, '2026-11-06.1'],
     )).rows[0].result;
     expect(saved.applied).toBe(true);
 
@@ -133,10 +151,10 @@ describe('database migrations and permission enforcement', () => {
     await db.query('update public.center_data set payload=$1::jsonb', [JSON.stringify(payload)]);
     await asStaff({ student: { view: false }, tuition: { view: false }, report: { revenue: false } }, 'admin');
     await db.query("select public.bz_accept_privacy_policy($1,$2::text[])", [
-      '2026-11-05.1', ['authentication', 'center-operations', 'security-audit'],
+      '2026-11-06.1', ['authentication', 'center-operations', 'security-audit'],
     ]);
     let snapshot = (await db.query<{ snapshot: { payload: typeof payload } }>(
-      "select public.bz_get_center_snapshot('2026-11-05.1') as snapshot",
+      "select public.bz_get_center_snapshot('2026-11-06.1') as snapshot",
     )).rows[0].snapshot.payload;
     expect(snapshot.students[0]).toMatchObject({ phone: '', parentPhone: '', address: '', feeStatus: 'unpaid' });
     expect(snapshot.receipts).toEqual([]);
@@ -144,7 +162,7 @@ describe('database migrations and permission enforcement', () => {
     await db.exec('reset role');
     await asStaff({ student: { view: true }, tuition: { view: true }, report: { revenue: false } }, 'admin');
     snapshot = (await db.query<{ snapshot: { payload: typeof payload } }>(
-      "select public.bz_get_center_snapshot('2026-11-05.1') as snapshot",
+      "select public.bz_get_center_snapshot('2026-11-06.1') as snapshot",
     )).rows[0].snapshot.payload;
     expect(snapshot.students[0]).toMatchObject({ phone: '0911', parentPhone: '0922', address: 'Private', feeStatus: 'paid' });
     expect(snapshot.receipts).toHaveLength(1);
