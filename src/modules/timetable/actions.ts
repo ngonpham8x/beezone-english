@@ -114,11 +114,11 @@ export function createScheduleActions({
   const handleReplaceClassSchedule = (classId: string, slots: TimetableSlot[]) => {
     const previous = timetableSlots.filter(slot => slot.classId === classId);
     if (slots.some(slot => !canManageAcademic(currentUser, 'classes', previous.some(item => item.id === slot.id) ? 'edit' : 'add')) ||
-        previous.some(slot => !slots.some(item => item.id === slot.id) && !canManageAcademic(currentUser, 'classes', 'delete'))) return;
+        previous.some(slot => !slots.some(item => item.id === slot.id) && !canManageAcademic(currentUser, 'classes', 'delete')))
+      return 'Bạn chưa được cấp quyền thay đổi lịch học tương ứng.';
     const teacherIds = new Set(slots.map((slot) => slot.teacherId));
     if (teacherIds.size > 1) {
-      showAlert('Các ca học định kỳ của cùng một lớp phải dùng cùng giáo viên phụ trách.');
-      return;
+      return 'Các ca học định kỳ của cùng một lớp phải dùng cùng giáo viên phụ trách.';
     }
     const next = [...timetableSlots.filter((slot) => slot.classId !== classId), ...slots];
     const nextClasses = classes.map((classroom) => {
@@ -128,16 +128,21 @@ export function createScheduleActions({
     });
     const activeNext = linkedTimetableSlots(nextClasses, next);
     if (activeNext.some((slot) => findScheduleConflict(activeNext, slot))) {
-      showAlert('Ca học trùng giờ lớp, giáo viên hoặc phòng; kiểm tra lại lịch trước khi lưu.');
-      return;
+      return 'Ca học trùng giờ lớp, giáo viên hoặc phòng; kiểm tra lại lịch trước khi lưu.';
     }
     const issue = validateRecurringChanges(nextClasses, next, scheduleChanges);
-    if (issue) {
-      showAlert(issue);
-      return;
-    }
+    if (issue) return issue;
     setTimetableSlots(next);
-    setClasses(nextClasses);
+    // The class form updates course/room fields and the recurring schedule in the
+    // same React event. Use the latest queued class state instead of this action's
+    // render-time snapshot, otherwise the schedule update restores the old class
+    // and silently loses the course fields that were just saved.
+    setClasses((currentClasses) => currentClasses.map((classroom) => {
+      if (classroom.id !== classId) return classroom;
+      const teacherId = slots[0]?.teacherId;
+      return withClassScheduleSummary(teacherId ? { ...classroom, teacherId } : classroom, next);
+    }));
+    return null;
   };
 
   const handleSaveScheduleChange = (change: ScheduleChange): string | null => {

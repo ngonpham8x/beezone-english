@@ -138,7 +138,7 @@ export function createClassActions({
       ), nextClasses),
     );
     addLog('SỬA', 'Lớp học', `Cập nhật lớp học ${c.name} (${c.code})`);
-    toast.success(`Cập nhật lớp học ${c.name} (${c.code}) thành công!`);
+    toast.success(`Đã cập nhật lớp học ${c.name} (${c.code}). Hãy đợi trạng thái “Đã lưu dữ liệu” để xác nhận máy chủ.`);
   };
 
   const handleDeleteClass = (id: string) => {

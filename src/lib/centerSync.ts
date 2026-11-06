@@ -7,6 +7,23 @@ export interface CenterSyncMergeResult {
   conflicts: string[];
 }
 
+/** Supabase revisions are server timestamps; never apply an older deferred read after a newer write. */
+export function isNewerCenterRevision(candidate: string | null, current: string | null): boolean {
+  if (!candidate) return false;
+  if (!current) return true;
+  const candidateTime = Date.parse(candidate);
+  const currentTime = Date.parse(current);
+  if (Number.isFinite(candidateTime) && Number.isFinite(currentTime)) {
+    if (candidateTime !== currentTime) return candidateTime > currentTime;
+    // Date.parse keeps milliseconds only. Supabase revisions can include
+    // microseconds, and its RPC responses use the same canonical text format.
+    return candidate !== current && candidate > current;
+  }
+  // Unknown revision formats cannot be ordered safely. Treat a different token
+  // as new so custom/test backends keep the previous refresh behaviour.
+  return candidate !== current;
+}
+
 const MISSING = Symbol('missing');
 type MergeValue = unknown | typeof MISSING;
 

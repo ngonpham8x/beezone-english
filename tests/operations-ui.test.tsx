@@ -336,11 +336,57 @@ it('rejects an invalid course period before changing class or recurring schedule
       />
     </LanguageProvider>,
   );
-  fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2026-09-01' } });
+  fireEvent.input(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2026-09-01' } });
   submitForm(screen.getByRole('dialog').querySelector('form')!);
   expect(onUpdate).not.toHaveBeenCalled();
   expect(onReplace).not.toHaveBeenCalled();
   expect(screen.getByRole('alert').textContent).toContain('Ngày kết thúc');
+});
+
+it('keeps course dates, session count, status and room when saving a class edit', () => {
+  const onUpdate = vi.fn();
+  const onReplace = vi.fn(() => null);
+  const nextRoom = initial.initialRooms.find((room) => room.id !== classroom.roomId)!;
+  render(
+    <LanguageProvider>
+      <ClassManager
+        classes={[classroom]}
+        teachers={initial.initialTeachers}
+        rooms={initial.initialRooms}
+        programs={initial.initialPrograms}
+        students={[]}
+        receipts={[]}
+        timetableSlots={[slot]}
+        permissions={DEV_OWNER_ACCOUNT.permissions}
+        isOwner
+        searchQuery=""
+        editRequest={classroom}
+        onAddClass={vi.fn()}
+        onUpdateClass={onUpdate}
+        onDeleteClass={vi.fn()}
+        onReplaceClassSchedule={onReplace}
+        onCreateRoom={vi.fn()}
+        onCreateProgram={vi.fn()}
+      />
+    </LanguageProvider>,
+  );
+
+  fireEvent.input(screen.getByLabelText('Ngày khai giảng'), { target: { value: '2026-11-10' } });
+  fireEvent.input(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2027-01-20' } });
+  fireEvent.change(screen.getByLabelText('Số buổi dự kiến'), { target: { value: '24' } });
+  fireEvent.change(screen.getByLabelText('Trạng thái đợt học'), { target: { value: 'planned' } });
+  const form = screen.getByRole('dialog', { name: 'Thông tin lớp học' }).querySelector('form')!;
+  fireEvent.change(form.querySelectorAll('select')[3], { target: { value: nextRoom.id } });
+  submitForm(form);
+
+  expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    startDate: '2026-11-10',
+    endDate: '2027-01-20',
+    totalSessions: 24,
+    courseStatus: 'planned',
+    roomId: nextRoom.id,
+  }));
+  expect(onReplace).toHaveBeenCalledWith(classroom.id, [expect.objectContaining({ roomId: nextRoom.id })]);
 });
 
 it('saves a teacher off adjustment with substitute teacher selection', () => {

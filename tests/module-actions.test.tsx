@@ -525,6 +525,42 @@ describe('domain command integration', () => {
     expect(result.current.store.receipts).toBe(beforeReceipts);
   });
 
+  it('keeps edited course and room fields when the class schedule is saved in the same action', () => {
+    const { result } = renderHook(() => useTestCenter());
+    const data = dataset();
+    const classroom = data.classes[0];
+    const room = { id: 'ROOM_NEW', name: 'Phòng mới', capacity: 20, status: 'available' as const };
+    data.rooms.push(room);
+    act(() => result.current.store.applyData(normalizeCenterData(data)));
+    const slots = result.current.store.timetableSlots
+      .filter((slot) => slot.classId === classroom.id)
+      .map((slot) => ({ ...slot, roomId: room.id }));
+    const edited = {
+      ...classroom,
+      roomId: room.id,
+      startDate: '2026-11-10',
+      endDate: '2027-01-20',
+      totalSessions: 24,
+      courseStatus: 'planned' as const,
+    };
+
+    act(() => {
+      result.current.actions.handleUpdateClass(edited);
+      expect(result.current.actions.handleReplaceClassSchedule(classroom.id, slots)).toBeNull();
+    });
+
+    expect(result.current.store.classes.find((item) => item.id === classroom.id)).toMatchObject({
+      roomId: room.id,
+      startDate: '2026-11-10',
+      endDate: '2027-01-20',
+      totalSessions: 24,
+      courseStatus: 'planned',
+    });
+    expect(result.current.store.timetableSlots
+      .filter((slot) => slot.classId === classroom.id)
+      .every((slot) => slot.roomId === room.id)).toBe(true);
+  });
+
   it('recognizes unbilled attended lessons as debt, bills once and protects the source snapshot', () => {
     const { result } = renderHook(() => useTestCenter());
     const data = dataset();

@@ -15,6 +15,7 @@ import {
 import { parseCenterData, type CenterDataPayload } from '../../lib/centerData';
 import {
   centerSnapshotsEqual,
+  isNewerCenterRevision,
   mergeCenterSnapshots,
   type CenterSyncPreference,
 } from '../../lib/centerSync';
@@ -205,7 +206,10 @@ export function useCenterConnection(store: CenterStore, onCloseLogin: () => void
   }, []);
 
   const processRemoteSnapshot = useCallback((snapshot: RemoteSnapshot) => {
-    if (!snapshot.revision || snapshot.revision === cloudRevisionRef.current) return;
+    // A poll may start before a save and finish while that save is in flight.
+    // Discard that deferred response once the save has advanced the revision;
+    // merging it later would create a false conflict or restore stale values.
+    if (!isNewerCenterRevision(snapshot.revision, cloudRevisionRef.current)) return;
     if (writeInFlightRef.current) {
       deferredRemoteRef.current = snapshot;
       return;

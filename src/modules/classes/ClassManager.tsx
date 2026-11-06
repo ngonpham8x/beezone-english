@@ -69,7 +69,7 @@ interface ClassManagerProps {
   onAddClass: (c: ClassRoom) => void;
   onUpdateClass: (c: ClassRoom) => void;
   onDeleteClass: (id: string) => void;
-  onReplaceClassSchedule: (classId: string, slots: TimetableSlot[]) => void;
+  onReplaceClassSchedule: (classId: string, slots: TimetableSlot[]) => string | null;
   onCreateRoom: (room: Room) => void;
   onCreateProgram: (program: CourseProgram) => void;
   onCreateTeacher?: (teacher: Teacher) => void;
@@ -200,6 +200,10 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
   const canCreateProgram = isOwner || academicPermission(permissions, 'programs', 'add');
   const canCreateRoom = isOwner || academicPermission(permissions, 'rooms', 'add');
   const canCreateTeacher = isOwner || (permissions.teacher.add ?? permissions.teacher.edit) === true;
+
+  const updateEditingClass = (patch: Partial<ClassRoom>) => {
+    setEditingClass((current) => current ? { ...current, ...patch } : current);
+  };
 
   useEffect(() => {
     if (!editRequest) return;
@@ -431,13 +435,17 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
     }
 
     const existingSlots = timetableSlots.filter((slot) => slot.classId === savedClass.id);
-    onReplaceClassSchedule(savedClass.id, sortSchedule(validEntries).map((entry, index) => ({
+    const scheduleIssue = onReplaceClassSchedule(savedClass.id, sortSchedule(validEntries).map((entry, index) => ({
       id: existingSlots.find((slot) => slot.dayOfWeek === entry.dayOfWeek)?.id || `TT_${savedClass.id}_${Date.now()}_${index}`,
       classId: savedClass.id,
       teacherId: savedClass.teacherId,
       roomId: savedClass.roomId,
       ...entry,
     })));
+    if (scheduleIssue) {
+      setScheduleError(scheduleIssue);
+      return;
+    }
 
     setIsModalOpen(false);
     setEditingClass(null);
@@ -760,10 +768,10 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 <legend className="px-1 font-bold text-sky-950">Đợt học</legend>
                 <p className="mb-3 text-slate-600">Tạo lớp với mã mới cho mỗi đợt để giữ điểm, học phí và điểm danh của đợt trước.</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label>Ngày khai giảng<input aria-label="Ngày khai giảng" type="date" value={editingClass.startDate || ''} onChange={e => setEditingClass({ ...editingClass, startDate: e.target.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
-                  <label>Ngày kết thúc<input aria-label="Ngày kết thúc" type="date" value={editingClass.endDate || ''} onChange={e => setEditingClass({ ...editingClass, endDate: e.target.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
-                  <label>Số buổi dự kiến<input aria-label="Số buổi dự kiến" type="number" min="1" step="1" value={editingClass.totalSessions ?? ''} onChange={e => setEditingClass({ ...editingClass, totalSessions: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
-                  <label>Trạng thái đợt học<select aria-label="Trạng thái đợt học" value={editingClass.courseStatus || 'active'} onChange={e => setEditingClass({ ...editingClass, courseStatus: e.target.value as ClassRoom['courseStatus'] })} className="mt-1 w-full rounded-lg border border-slate-300 p-2">{Object.entries(courseStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <label>Ngày khai giảng<input aria-label="Ngày khai giảng" type="date" value={editingClass.startDate || ''} onInput={e => updateEditingClass({ startDate: e.currentTarget.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Ngày kết thúc<input aria-label="Ngày kết thúc" type="date" value={editingClass.endDate || ''} onInput={e => updateEditingClass({ endDate: e.currentTarget.value || undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Số buổi dự kiến<input aria-label="Số buổi dự kiến" type="number" min="1" step="1" value={editingClass.totalSessions ?? ''} onChange={e => updateEditingClass({ totalSessions: e.target.value ? Number(e.target.value) : undefined })} className="mt-1 w-full rounded-lg border border-slate-300 p-2" /></label>
+                  <label>Trạng thái đợt học<select aria-label="Trạng thái đợt học" value={editingClass.courseStatus || 'active'} onChange={e => updateEditingClass({ courseStatus: e.target.value as ClassRoom['courseStatus'] })} className="mt-1 w-full rounded-lg border border-slate-300 p-2">{Object.entries(courseStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 </div>
               </fieldset>
               <fieldset className="rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -1071,7 +1079,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                   <label className="block font-semibold text-slate-700 mb-1">Phòng Học</label>
                   <select
                     value={editingClass.roomId}
-                    onChange={(e) => setEditingClass({ ...editingClass, roomId: e.target.value })}
+                    onChange={(e) => updateEditingClass({ roomId: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                   >
                     <option value="">-- Chọn phòng học --</option>

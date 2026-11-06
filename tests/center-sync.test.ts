@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseCenterData } from '../src/lib/centerData';
-import { mergeCenterSnapshots } from '../src/lib/centerSync';
+import { isNewerCenterRevision, mergeCenterSnapshots } from '../src/lib/centerSync';
 import { initialSettings } from '../src/mock/initialData';
 
 const payload = () => parseCenterData({
@@ -17,6 +17,13 @@ const payload = () => parseCenterData({
 }, initialSettings);
 
 describe('center snapshot merge', () => {
+  it('ignores an older server snapshot that finishes after a newer save', () => {
+    expect(isNewerCenterRevision('2026-11-06T07:30:22.900Z', '2026-11-06T07:30:23.100Z')).toBe(false);
+    expect(isNewerCenterRevision('2026-11-06T07:30:23.100Z', '2026-11-06T07:30:23.100Z')).toBe(false);
+    expect(isNewerCenterRevision('2026-11-06T07:30:23.200Z', '2026-11-06T07:30:23.100Z')).toBe(true);
+    expect(isNewerCenterRevision('2026-11-06T07:30:23.100200Z', '2026-11-06T07:30:23.100100Z')).toBe(true);
+  });
+
   it('keeps non-overlapping edits made on two devices', () => {
     const base = payload();
     const local = structuredClone(base);
