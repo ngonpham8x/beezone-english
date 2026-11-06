@@ -78,6 +78,17 @@ it('shows only recorded tuition debt and keeps it after a class change', () => {
   expect(isStudentOwingTuition(transferred, receipts, courseClasses)).toBe(true);
 });
 
+it('uses clear Vietnamese table headings and keeps class-based student codes on one line', () => {
+  const classroom = { ...classes[0], code: 'KIDDY 3A', name: 'K27 - KIDDY 3A' };
+  const learner = { ...student, code: 'KIDDY 3A-14', classId: classroom.id, programId: classroom.programId };
+  render(<LanguageProvider><StudentManager students={[learner]} classes={[classroom]} programs={initial.initialPrograms} receipts={[]} timetableSlots={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner searchQuery="" onAddStudent={vi.fn()} onUpdateStudent={vi.fn()} onDeleteStudent={vi.fn()} onCreateProgram={vi.fn()} onOpenImportExportModal={vi.fn()} onOpenTuition={vi.fn()} /></LanguageProvider>);
+
+  expect(screen.getByText('MÃ HỌC SINH')).toBeTruthy();
+  expect(screen.getByText('LỚP HỌC / CHƯƠNG TRÌNH')).toBeTruthy();
+  expect(screen.getByText('SĐT HỌC SINH / PHỤ HUYNH')).toBeTruthy();
+  expect(screen.getByText('KIDDY 3A-14').className).toContain('whitespace-nowrap');
+});
+
 it('saves extra class checkboxes without creating duplicate student profiles', () => {
   const update = vi.fn();
   render(<LanguageProvider><StudentManager students={[student]} classes={classes} programs={initial.initialPrograms} receipts={[]} timetableSlots={[]} permissions={DEV_OWNER_ACCOUNT.permissions} isOwner searchQuery="" onAddStudent={vi.fn()} onUpdateStudent={update} onDeleteStudent={vi.fn()} onCreateProgram={vi.fn()} onOpenImportExportModal={vi.fn()} onOpenTuition={vi.fn()} /></LanguageProvider>);

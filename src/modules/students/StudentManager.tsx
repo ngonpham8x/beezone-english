@@ -787,17 +787,17 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         /* Student Table View */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <HorizontalScroll label="Học viên" className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[1080px] text-left text-xs text-slate-600 border-collapse">
+            <table className="w-full min-w-[1210px] text-left text-xs text-slate-600 border-collapse">
               <thead className="bg-slate-800 text-slate-200 uppercase text-[11px] font-bold tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4 sticky left-0 bg-slate-800 z-20 min-w-[110px]">{t('student.table_code')}</th>
-                  <th className="py-3.5 px-4 sticky left-[110px] bg-slate-800 z-20 shadow-r border-r border-slate-700 min-w-[200px]">{t('student.table_name')}</th>
+                  <th className="w-[160px] min-w-[160px] py-3.5 px-4 sticky left-0 bg-slate-800 z-20 whitespace-nowrap">{t('student.table_code')}</th>
+                  <th className="py-3.5 px-4 sticky left-[160px] bg-slate-800 z-20 shadow-r border-r border-slate-700 min-w-[200px]">{t('student.table_name')}</th>
                   {canViewContactInfo && (
                     <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_grade_school')}</th>
                   )}
-                  <th className="py-3.5 px-4 min-w-[160px]">{t('student.table_program_class')}</th>
+                  <th className="py-3.5 px-4 min-w-[210px] leading-tight">{t('student.table_program_class')}</th>
                   {canViewContactInfo && (
-                    <th className="py-3.5 px-4 min-w-[150px]">{t('student.table_phone')}</th>
+                    <th className="py-3.5 px-4 min-w-[205px] leading-tight">{t('student.table_phone')}</th>
                   )}
                   {canViewTuition && (
                     <th className="py-3.5 px-4 min-w-[140px]">{t('student.table_fee')}</th>
@@ -820,13 +820,13 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 transition-colors group">
-                        <td className="py-3 px-4 font-bold sticky left-0 bg-white group-hover:bg-slate-50 z-10">
-                          <span className="font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 text-xs font-bold">
+                        <td className="w-[160px] min-w-[160px] py-3 px-4 font-bold sticky left-0 bg-white group-hover:bg-slate-50 z-10">
+                          <span className="inline-flex whitespace-nowrap font-mono text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 text-xs font-bold">
                             {st.code}
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 sticky left-[110px] bg-white group-hover:bg-slate-50 z-10 shadow-r border-r border-slate-100">
+                        <td className="py-3 px-4 sticky left-[160px] bg-white group-hover:bg-slate-50 z-10 shadow-r border-r border-slate-100">
                           <div className="flex items-center gap-3">
                             <img
                               src={st.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
@@ -984,7 +984,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="px-2 py-0.5 rounded font-black text-[10px] bg-red-100 text-red-900 border border-red-200">
+                            <span className="whitespace-nowrap px-2 py-0.5 rounded font-black text-[10px] bg-red-100 text-red-900 border border-red-200">
                               {st.code}
                             </span>
                             <StudentStatusBadge status={st.status} />
